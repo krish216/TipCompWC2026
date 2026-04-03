@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --green-900: #04342C;
+    --green-800: #085041;
+    --green-600: #0F6E56;
+    --green-500: #1D9E75;
+    --green-200: #9FE1CB;
+    --green-50:  #E1F5EE;
+
+    --amber-900: #412402;
+    --amber-700: #633806;
+    --amber-500: #EF9F27;
+    --amber-100: #FAC775;
+    --amber-50:  #FAEEDA;
+
+    --red-900:   #501313;
+    --red-700:   #791F1F;
+    --red-500:   #E24B4A;
+    --red-100:   #F7C1C1;
+    --red-50:    #FCEBEB;
+
+    --blue-900:  #042C53;
+    --blue-700:  #0C447C;
+    --blue-500:  #378ADD;
+    --blue-50:   #E6F1FB;
+
+    --purple-700: #3C3489;
+    --purple-50:  #EEEDFE;
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+@layer components {
+  /* Score inputs */
+  .score-input {
+    @apply w-9 h-8 text-center text-sm font-medium border border-gray-300 rounded-md
+           bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500
+           focus:border-transparent transition-colors;
+  }
+  .score-input.unpredicted {
+    @apply border-amber-400 bg-white;
+  }
+  .score-input:disabled {
+    @apply bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200;
+  }
+
+  /* Points badges */
+  .badge-exact   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800; }
+  .badge-correct { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800; }
+  .badge-wrong   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500; }
+  .badge-pending { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700; }
+
+  /* Match row states */
+  .match-exact   { @apply border-green-400 bg-green-50/30; }
+  .match-correct { @apply border-blue-400 bg-blue-50/30; }
+  .match-wrong   { @apply border-red-300 bg-red-50/20; }
+  .match-open    { @apply border-dashed border-amber-400; }
+
+  /* Buttons */
+  .btn-primary {
+    @apply px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium
+           rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium
+           rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300;
+  }
+  .btn-danger {
+    @apply px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 text-sm font-medium
+           rounded-lg transition-colors;
+  }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+
+  /* Round tabs */
+  .round-tab {
+    @apply relative px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-full
+           text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer whitespace-nowrap;
+  }
+  .round-tab.active {
+    @apply bg-green-600 border-green-700 text-white hover:bg-green-700;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }

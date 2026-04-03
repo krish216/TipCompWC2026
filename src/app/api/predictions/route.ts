@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { z } from 'zod'
+
+const PredictionSchema = z.object({
+  fixture_id: z.number().int().positive(),
+  home: z.number().int().min(0).max(30),
+  away: z.number().int().min(0).max(30),
+})
+const BulkSchema = z.object({ predictions: z.array(PredictionSchema).min(1).max(20) })
+
+export async function GET(request: NextRequest) {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const round      = searchParams.get('round')
+  const fixture_id = searchParams.get('fixture_id')
+
+  let query = supabase
+    .from('predictions')
+    .select('id, fixture_id, home, away, points_earned, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score)')
+    .eq('user_id', user.id)
+    .order('fixture_id')
+
+  if (round)      query = query.eq('fixtures.round', round)
+  if (fixture_id) query = query.eq('fixture_id', parseInt(fixture_id))
+
+  const { data, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data })
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body   = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+
+  const isBulk = Array.isArray(body?.predictions)
+  const parsed = isBulk ? BulkSchema.safeParse(body) : BulkSchema.safeParse({ predictions: [body] })
+  if (!parsed.success) return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
+
+  const { predictions } = parsed.data
+  const fixtureIds = predictions.map(p => p.fixture_id)
+
+  // Check lockout
+  const { data: fixtures } = await supabase.from('fixtures').select('id, kickoff_utc, home_score').in('id', fixtureIds)
+  const now = new Date(); const locked: number[] = []
+  fixtures?.forEach(fx => {
+    if ((new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5 || fx.home_score !== null) locked.push(fx.id)
+  })
+  if (locked.length > 0) return NextResponse.json({ error: `Predictions locked for fixtures: ${locked.join(', ')}` }, { status: 409 })
+
+  const rows = predictions.map(p => ({ user_id: user.id, fixture_id: p.fixture_id, home: p.home, away: p.away, points_earned: null }))
+  const { data, error } = await supabase
+    .from('predictions')
+    .upsert(rows, { onConflict: 'user_id,fixture_id', ignoreDuplicates: false })
+    .select()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data, count: data?.length }, { status: 201 })
+}
+
+export async function DELETE(request: NextRequest) {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const fixture_id = parseInt(new URL(request.url).searchParams.get('fixture_id') ?? '')
+  if (isNaN(fixture_id)) return NextResponse.json({ error: 'fixture_id required' }, { status: 400 })
+
+  const { data: fx } = await supabase.from('fixtures').select('kickoff_utc, home_score').eq('id', fixture_id).single()
+  if (!fx) return NextResponse.json({ error: 'Fixture not found' }, { status: 404 })
+  if ((new Date(fx.kickoff_utc).getTime() - Date.now()) / 60000 <= 5 || fx.home_score !== null)
+    return NextResponse.json({ error: 'Cannot withdraw after lockout' }, { status: 409 })
+
+  const { error } = await supabase.from('predictions').delete().match({ user_id: user.id, fixture_id })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}

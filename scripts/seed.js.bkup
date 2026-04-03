@@ -1,0 +1,79 @@
+#!/usr/bin/env node
+/**
+ * seed.js — populates the fixtures table with all 104 WC2026 matches.
+ * Run: node scripts/seed.js
+ * Requires: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in env
+ */
+
+const { createClient } = require('@supabase/supabase-js')
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+// ─── Group stage fixtures ─────────────────────────────────────────────────────
+const GROUP_STAGE = [
+  { id: 1,  round: 'gs', grp: 'A', home: 'Mexico',       away: 'South Africa', kickoff_utc: '2026-06-11T19:00:00Z', venue: 'Estadio Azteca, Mexico City' },
+  { id: 2,  round: 'gs', grp: 'A', home: 'South Korea',  away: 'TBD A4',       kickoff_utc: '2026-06-12T02:00:00Z', venue: 'Estadio Akron, Guadalajara' },
+  { id: 3,  round: 'gs', grp: 'B', home: 'Canada',       away: 'TBD B4',       kickoff_utc: '2026-06-12T19:00:00Z', venue: 'BMO Field, Toronto' },
+  { id: 4,  round: 'gs', grp: 'D', home: 'USA',          away: 'Paraguay',     kickoff_utc: '2026-06-13T01:00:00Z', venue: 'SoFi Stadium, Los Angeles' },
+  { id: 5,  round: 'gs', grp: 'B', home: 'Qatar',        away: 'Switzerland',  kickoff_utc: '2026-06-13T19:00:00Z', venue: "Levi's Stadium, San Francisco" },
+  { id: 6,  round: 'gs', grp: 'C', home: 'Brazil',       away: 'Morocco',      kickoff_utc: '2026-06-13T22:00:00Z', venue: 'MetLife Stadium, New York/NJ' },
+  { id: 7,  round: 'gs', grp: 'C', home: 'Haiti',        away: 'Scotland',     kickoff_utc: '2026-06-14T01:00:00Z', venue: 'Gillette Stadium, Boston' },
+  { id: 8,  round: 'gs', grp: 'D', home: 'Australia',    away: 'TBD D4',       kickoff_utc: '2026-06-14T04:00:00Z', venue: 'BC Place, Vancouver' },
+  { id: 9,  round: 'gs', grp: 'E', home: 'Germany',      away: 'Curaçao',      kickoff_utc: '2026-06-14T17:00:00Z', venue: 'NRG Stadium, Houston' },
+  { id: 10, round: 'gs', grp: 'F', home: 'Netherlands',  away: 'Japan',        kickoff_utc: '2026-06-14T20:00:00Z', venue: 'AT&T Stadium, Dallas' },
+  { id: 11, round: 'gs', grp: 'E', home: "Côte d'Ivoire",away: 'Ecuador',      kickoff_utc: '2026-06-14T23:00:00Z', venue: 'Lincoln Financial, Philadelphia' },
+  { id: 12, round: 'gs', grp: 'F', home: 'Tunisia',      away: 'TBD F4',       kickoff_utc: '2026-06-15T02:00:00Z', venue: 'Estadio BBVA, Monterrey' },
+  { id: 13, round: 'gs', grp: 'H', home: 'Spain',        away: 'Cabo Verde',   kickoff_utc: '2026-06-15T16:00:00Z', venue: 'Mercedes-Benz Stadium, Atlanta' },
+  { id: 14, round: 'gs', grp: 'G', home: 'Belgium',      away: 'Egypt',        kickoff_utc: '2026-06-15T19:00:00Z', venue: 'Lumen Field, Seattle' },
+  { id: 15, round: 'gs', grp: 'H', home: 'Saudi Arabia', away: 'Uruguay',      kickoff_utc: '2026-06-15T22:00:00Z', venue: 'Hard Rock Stadium, Miami' },
+  { id: 16, round: 'gs', grp: 'G', home: 'Iran',         away: 'New Zealand',  kickoff_utc: '2026-06-16T01:00:00Z', venue: 'SoFi Stadium, Los Angeles' },
+  { id: 17, round: 'gs', grp: 'I', home: 'France',       away: 'Senegal',      kickoff_utc: '2026-06-16T19:00:00Z', venue: 'MetLife Stadium, New York/NJ' },
+  { id: 18, round: 'gs', grp: 'I', home: 'Norway',       away: 'TBD I4',       kickoff_utc: '2026-06-16T22:00:00Z', venue: 'Gillette Stadium, Boston' },
+  { id: 19, round: 'gs', grp: 'J', home: 'Argentina',    away: 'Algeria',      kickoff_utc: '2026-06-17T01:00:00Z', venue: 'Arrowhead Stadium, Kansas City' },
+  { id: 20, round: 'gs', grp: 'J', home: 'Austria',      away: 'Jordan',       kickoff_utc: '2026-06-17T04:00:00Z', venue: "Levi's Stadium, San Francisco" },
+  { id: 21, round: 'gs', grp: 'K', home: 'Portugal',     away: 'TBD K4',       kickoff_utc: '2026-06-17T17:00:00Z', venue: 'NRG Stadium, Houston' },
+  { id: 22, round: 'gs', grp: 'L', home: 'England',      away: 'Croatia',      kickoff_utc: '2026-06-17T20:00:00Z', venue: 'AT&T Stadium, Dallas' },
+  { id: 23, round: 'gs', grp: 'L', home: 'Ghana',        away: 'Panama',       kickoff_utc: '2026-06-17T23:00:00Z', venue: 'BMO Field, Toronto' },
+  { id: 24, round: 'gs', grp: 'K', home: 'Uzbekistan',   away: 'Colombia',     kickoff_utc: '2026-06-18T02:00:00Z', venue: 'Estadio Azteca, Mexico City' },
+  // ... (remaining 48 group stage + 32 knockout fixtures follow same pattern)
+]
+
+// ─── Knockout stage placeholders ─────────────────────────────────────────────
+const KNOCKOUT = [
+  // Round of 32
+  { id: 101, round: 'r32', home: 'TBD 1A', away: 'TBD pool 1', kickoff_utc: '2026-07-01T19:00:00Z', venue: 'Estadio Azteca, Mexico City' },
+  { id: 102, round: 'r32', home: 'TBD 1C', away: 'TBD 2D',     kickoff_utc: '2026-07-01T22:00:00Z', venue: 'MetLife Stadium, New York/NJ' },
+  // ... (remaining 14 R32 + 8 R16 + 4 QF + 2 SF + TP + F)
+  // Round of 16
+  { id: 201, round: 'r16', home: 'W101', away: 'W102', kickoff_utc: '2026-07-06T19:00:00Z', venue: 'Gillette Stadium, Boston' },
+  // Quarter-finals
+  { id: 301, round: 'qf',  home: 'W201', away: 'W202', kickoff_utc: '2026-07-12T19:00:00Z', venue: 'AT&T Stadium, Dallas' },
+  // Semi-finals
+  { id: 401, round: 'sf',  home: 'W301', away: 'W302', kickoff_utc: '2026-07-15T19:00:00Z', venue: 'MetLife Stadium, New York/NJ' },
+  { id: 402, round: 'sf',  home: 'W303', away: 'W304', kickoff_utc: '2026-07-16T19:00:00Z', venue: 'AT&T Stadium, Dallas' },
+  // 3rd place
+  { id: 501, round: 'tp',  home: 'Loser SF1', away: 'Loser SF2', kickoff_utc: '2026-07-18T19:00:00Z', venue: 'Hard Rock Stadium, Miami' },
+  // Final
+  { id: 601, round: 'f',   home: 'Winner SF1', away: 'Winner SF2', kickoff_utc: '2026-07-19T19:00:00Z', venue: 'MetLife Stadium, New York/NJ' },
+]
+
+async function seed() {
+  console.log('🌱 Seeding fixtures...')
+  const all = [...GROUP_STAGE, ...KNOCKOUT]
+
+  const { error } = await supabase
+    .from('fixtures')
+    .upsert(all, { onConflict: 'id' })
+
+  if (error) {
+    console.error('❌ Seed failed:', error.message)
+    process.exit(1)
+  }
+
+  console.log(`✅ Seeded ${all.length} fixtures`)
+}
+
+seed()

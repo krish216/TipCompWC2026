@@ -1,0 +1,32 @@
+{
+  "crons": [
+    {
+      "path": "/api/scores/sync",
+      "schedule": "*/2 * * * *",
+      "comment": "Sync live scores every 2 mins during tournament"
+    },
+    {
+      "path": "/api/notifications/reminders",
+      "schedule": "*/15 * * * *",
+      "comment": "Send pre-match reminders every 15 mins"
+    }
+  ],
+  "functions": {
+    "src/app/api/scores/sync/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/notifications/reminders/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}
