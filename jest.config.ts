@@ -24,7 +24,7 @@ const config: Config = {
     '**/*.test.{ts,tsx}',
     '**/*.spec.{ts,tsx}',
   ],
-  setupFilesAfterFramework: ['<rootDir>/tests/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
 }
 
 export default config
