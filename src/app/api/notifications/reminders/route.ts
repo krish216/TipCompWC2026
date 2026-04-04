@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-// Called by Vercel Cron every 15 minutes
-// vercel.json: { "crons": [{ "path": "/api/notifications/reminders", "schedule": "*/15 * * * *" }] }
+// Called by Vercel Cron every 15 minutes (Pro plan) or manually
 export async function GET(request: NextRequest) {
+  // Initialise Resend lazily — avoids crash if RESEND_API_KEY is not set
+  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
   // Verify cron secret to prevent abuse
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -68,7 +67,7 @@ export async function GET(request: NextRequest) {
         .join(', ')
 
       // Send email reminder
-      if (prefs?.email_enabled && user.email) {
+      if (resend && prefs?.email_enabled && user.email) {
         await resend.emails.send({
           from: 'WC2026 Predictor <reminders@wc2026predictor.com>',
           to: user.email,
