@@ -30,6 +30,7 @@ export default function PredictPage() {
   const [activeRound,  setActiveRound]  = useState<RoundId>('gs')
   const [activeGroup,  setActiveGroup]  = useState('all')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
+  const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const { timezone } = useTimezone()
   const saveTimers = useMemo(() => new Map<number, ReturnType<typeof setTimeout>>(), [])
 
@@ -38,13 +39,17 @@ export default function PredictPage() {
     if (!session) return
     const load = async () => {
       setLoading(true)
-      const [fxRes, predRes, resRes, userRes] = await Promise.all([
+      const [fxRes, predRes, resRes, locksRes, userRes] = await Promise.all([
         fetch('/api/fixtures'),
         fetch('/api/predictions'),
         fetch('/api/results'),
+        fetch('/api/round-locks'),
         supabase.from('users').select('favourite_team').eq('id', session.user.id).single(),
       ])
-      const [fxData, predData, resData] = await Promise.all([fxRes.json(), predRes.json(), resRes.json()])
+      const [fxData, predData, resData, locksData] = await Promise.all([
+        fxRes.json(), predRes.json(), resRes.json(), locksRes.json(),
+      ])
+      setRoundLocks(locksData.data ?? {})
 
       const byRound: FixtureMap = {}
       ;(fxData.data ?? []).forEach((f: Fixture) => {
@@ -183,7 +188,13 @@ export default function PredictPage() {
     return map
   }, [activeRound, visibleFixtures])
 
-  const isLocked = (f: Fixture) => (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000 <= 5
+  const isLocked = (f: Fixture) => {
+    // Locked if round not open for predictions
+    if (!roundLocks[f.round]) return true
+    // Locked if within 5 mins of kickoff
+    if ((new Date(f.kickoff_utc).getTime() - Date.now()) / 60000 <= 5) return true
+    return false
+  }
 
   if (loading) return <div className="flex items-center justify-center py-24"><Spinner className="w-8 h-8" /></div>
 

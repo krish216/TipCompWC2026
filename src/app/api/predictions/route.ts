@@ -47,13 +47,21 @@ export async function POST(request: NextRequest) {
   const { predictions } = parsed.data
   const fixtureIds = predictions.map(p => p.fixture_id)
 
-  // Check lockout
-  const { data: fixtures } = await supabase.from('fixtures').select('id, kickoff_utc, home_score').in('id', fixtureIds)
+  // Check lockout — match kickoff AND round lock
+  const { data: fixtures } = await supabase
+    .from('fixtures').select('id, round, kickoff_utc, home_score').in('id', fixtureIds)
+  const { data: roundLockRows } = await supabase
+    .from('round_locks').select('round, is_open')
+  const openRounds = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round))
+
   const now = new Date(); const locked: number[] = []
-  fixtures?.forEach(fx => {
-    if ((new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5 || fx.home_score !== null) locked.push(fx.id)
+  fixtures?.forEach((fx: any) => {
+    const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
+    const roundLocked   = !openRounds.has(fx.round)
+    const hasResult     = fx.home_score !== null
+    if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
   })
-  if (locked.length > 0) return NextResponse.json({ error: `Predictions locked for fixtures: ${locked.join(', ')}` }, { status: 409 })
+  if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
 
   const rows = predictions.map(p => ({ user_id: user.id, fixture_id: p.fixture_id, home: p.home, away: p.away, points_earned: null }))
   const { data, error } = await supabase

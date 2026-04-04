@@ -115,6 +115,8 @@ export default function AdminPage() {
   const [isAdmin,     setIsAdmin]     = useState<boolean | null>(null)  // null = loading
   const [fixtures,    setFixtures]    = useState<FixtureMap>({})
   const [results,     setResults]     = useState<ResultMap>({})
+  const [roundLocks,  setRoundLocks]  = useState<Record<string, boolean>>({})
+  const [togglingRound, setTogglingRound] = useState<string | null>(null)
   const [activeRound, setActiveRound] = useState<RoundId>('gs')
   const [activeGroup, setActiveGroup] = useState('all')
   const [loading,     setLoading]     = useState(true)
@@ -133,8 +135,13 @@ export default function AdminPage() {
     if (!session) return
     const load = async () => {
       setLoading(true)
-      const [fxRes, resRes] = await Promise.all([fetch('/api/fixtures'), fetch('/api/results')])
-      const [fxData, resData] = await Promise.all([fxRes.json(), resRes.json()])
+      const [fxRes, resRes, locksRes] = await Promise.all([
+        fetch('/api/fixtures'),
+        fetch('/api/results'),
+        fetch('/api/round-locks'),
+      ])
+      const [fxData, resData, locksData] = await Promise.all([fxRes.json(), resRes.json(), locksRes.json()])
+      setRoundLocks(locksData.data ?? {})
       const byRound: FixtureMap = {}
       ;(fxData.data ?? []).forEach((f: Fixture) => {
         if (!byRound[f.round]) byRound[f.round] = []
@@ -207,6 +214,24 @@ export default function AdminPage() {
     </div>
   )
 
+  const toggleRound = async (round: RoundId) => {
+    const newState = !roundLocks[round]
+    setTogglingRound(round)
+    const res = await fetch('/api/round-locks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ round, is_open: newState }),
+    })
+    const { success, error } = await res.json()
+    setTogglingRound(null)
+    if (success) {
+      setRoundLocks(prev => ({ ...prev, [round]: newState }))
+      toast.success(newState ? `${SCORING[round].label} unlocked for predictions` : `${SCORING[round].label} locked`)
+    } else {
+      toast.error(error ?? 'Failed to update round lock')
+    }
+  }
+
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
   return (
@@ -218,6 +243,40 @@ export default function AdminPage() {
         </div>
         <button onClick={async () => { if (!confirm('Clear ALL results?')) return; await fetch('/api/results', { method: 'DELETE' }); setResults({}); toast.success('All results cleared') }} className="px-3 py-1.5 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">Clear all results</button>
       </div>
+
+      {/* ── Round unlock panel ── */}
+      <Card className="mb-4">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Round predictions</p>
+        <p className="text-[11px] text-gray-400 mb-3">Unlock a round to allow players to enter predictions. Lock it to stop new entries.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {(['gs','r32','r16','qf','sf','tp','f'] as RoundId[]).map(round => {
+            const isOpen    = !!roundLocks[round]
+            const toggling  = togglingRound === round
+            return (
+              <button
+                key={round}
+                onClick={() => toggleRound(round)}
+                disabled={!!togglingRound}
+                className={clsx(
+                  'flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-xs font-medium',
+                  isOpen
+                    ? 'border-green-500 bg-green-50 text-green-700 hover:bg-green-100'
+                    : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                )}
+              >
+                <span className="text-base">{isOpen ? '🔓' : '🔒'}</span>
+                <span>{SCORING[round].label}</span>
+                {toggling
+                  ? <Spinner className="w-3 h-3" />
+                  : <span className={clsx('text-[10px] font-normal', isOpen ? 'text-green-500' : 'text-gray-400')}>
+                      {isOpen ? 'Open' : 'Locked'}
+                    </span>
+                }
+              </button>
+            )
+          })}
+        </div>
+      </Card>
 
       <GrantAdminPanel />
 
