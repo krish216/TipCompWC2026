@@ -206,8 +206,8 @@ export default function LoginPage() {
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
           </div>
 
-          {/* Password */}
-          {mode !== 'magic' && mode !== 'reset' && (
+          {/* Password — hidden for magic link and reset password modes */}
+          {(mode === 'login' || mode === 'register') && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
               <input type="password" name="password" required minLength={8}
