@@ -42,6 +42,11 @@ export interface Database {
         Insert: { tribe_id: string; user_id: string; content: string }
         Update: never
       }
+      admin_users: {
+        Row:    { user_id: string; granted_by: string | null; granted_at: string }
+        Insert: { user_id: string; granted_by?: string | null }
+        Update: { granted_by?: string | null }
+      }
       notification_prefs: {
         Row:    { user_id: string; push_enabled: boolean; email_enabled: boolean; tribe_nudges: boolean; updated_at: string }
         Insert: { user_id: string }

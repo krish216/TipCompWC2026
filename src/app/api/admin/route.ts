@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     .from('users').select('id').eq('email', email).single()
   if (!target) return NextResponse.json({ error: 'User not found — they must register first' }, { status: 404 })
 
-  await adminClient.from('admin_users').upsert({
+  await (adminClient.from('admin_users') as any).upsert({
     user_id:    (target as any).id,
     granted_by: user.id,
   })
