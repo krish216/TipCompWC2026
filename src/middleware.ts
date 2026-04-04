@@ -2,13 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 const PROTECTED_ROUTES = ['/predict', '/leaderboard', '/tribe', '/admin', '/settings']
+const PUBLIC_ROUTES     = ['/auth']  // auth routes handle their own session
 const AUTH_ROUTES      = ['/login']
-const ADMIN_ROUTES     = ['/admin']
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } })
 
-  // Regular user-role client for session refresh
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -32,8 +31,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
 
-  // Unauthenticated → redirect to login
-  if (!user && PROTECTED_ROUTES.some(r => pathname.startsWith(r))) {
+  // Unauthenticated → redirect to login (skip /auth routes — they handle their own flow)
+  if (!user && PROTECTED_ROUTES.some(r => pathname.startsWith(r)) && !PUBLIC_ROUTES.some(r => pathname.startsWith(r))) {
     const url = new URL('/login', request.url)
     url.searchParams.set('redirect', pathname)
     return NextResponse.redirect(url)
@@ -44,30 +43,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/predict', request.url))
   }
 
-  // Admin routes — use service-role client to bypass RLS on admin_users
-  if (user && ADMIN_ROUTES.some(r => pathname.startsWith(r))) {
-    const serviceClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,  // service role bypasses RLS
-      {
-        cookies: {
-          get(name)              { return request.cookies.get(name)?.value },
-          set(name, value, opts) { response.cookies.set({ name, value, ...opts }) },
-          remove(name, opts)     { response.cookies.set({ name, value: '', ...opts }) },
-        },
-      }
-    )
-
-    const { data: adminRow } = await serviceClient
-      .from('admin_users')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (!adminRow) {
-      return NextResponse.redirect(new URL('/?error=not-admin', request.url))
-    }
-  }
+  // NOTE: Admin check is intentionally NOT done in middleware.
+  // Middleware runs on the Edge and cannot reliably access the service role key
+  // or make DB queries against admin_users with RLS.
+  // The admin page itself handles the check server-side and shows an error UI.
 
   return response
 }

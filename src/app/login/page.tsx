@@ -6,7 +6,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 import { TIMEZONES, COUNTRIES, detectTimezone } from '@/lib/timezone'
 
-type Mode = 'login' | 'register' | 'magic'
+type Mode = 'login' | 'register' | 'magic' | 'reset'
 
 const ALL_TEAMS = [
   'Algeria','Argentina','Australia','Austria','Belgium',
@@ -38,7 +38,8 @@ export default function LoginPage() {
   const [timezone,  setTimezone]  = useState('UTC')
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
-  const [magicSent, setMagicSent] = useState(false)
+  const [magicSent,  setMagicSent]  = useState(false)
+  const [resetSent,  setResetSent]  = useState(false)
 
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 
@@ -81,6 +82,14 @@ export default function LoginPage() {
         router.push(redirect); router.refresh(); return
       }
 
+      if (mode === 'reset') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        })
+        if (error) throw error
+        setResetSent(true); return
+      }
+
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       router.push(redirect); router.refresh()
@@ -101,6 +110,21 @@ export default function LoginPage() {
     </div>
   )
 
+  if (resetSent) return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="max-w-sm w-full text-center">
+        <div className="text-4xl mb-4">📬</div>
+        <h1 className="text-lg font-semibold text-gray-900 mb-2">Password reset email sent</h1>
+        <p className="text-sm text-gray-500 mb-2">
+          We sent a reset link to <strong>{email}</strong>.
+        </p>
+        <p className="text-xs text-gray-400">Click the link in the email to set a new password. Check your spam folder if it doesn't arrive within a minute.</p>
+        <button onClick={() => { setResetSent(false); setMode('login') }}
+          className="mt-6 text-xs text-gray-400 underline">Back to sign in</button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50">
       <div className="max-w-sm w-full">
@@ -111,10 +135,10 @@ export default function LoginPage() {
         </div>
 
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-6">
-          {(['login','register','magic'] as Mode[]).map(m => (
+          {(['login','register','magic','reset'] as Mode[]).map(m => (
             <button key={m} onClick={() => { setMode(m); setError(null) }}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${mode===m?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-              {m === 'magic' ? 'Magic link' : m}
+              {m === 'magic' ? 'Magic link' : m === 'reset' ? 'Reset password' : m}
             </button>
           ))}
         </div>
@@ -202,7 +226,7 @@ export default function LoginPage() {
           <button type="submit" disabled={loading}
             className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
             {loading && <Spinner className="w-4 h-4 text-white" />}
-            {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Send magic link'}
+            {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Send magic link'}
           </button>
         </form>
 
