@@ -1,16 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/scores/sync",
-      "schedule": "*/2 * * * *",
-      "comment": "Sync live scores every 2 mins during tournament"
-    },
-    {
-      "path": "/api/notifications/reminders",
-      "schedule": "*/15 * * * *",
-      "comment": "Send pre-match reminders every 15 mins"
-    }
-  ],
   "functions": {
     "src/app/api/scores/sync/route.ts": {
       "maxDuration": 30
