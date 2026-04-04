@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
@@ -50,12 +50,18 @@ export function MatchRow({
   const [localAway, setLocalAway] = useState<string>(
     prediction && prediction.away >= 0 ? String(prediction.away) : ''
   )
+  // Keep local state in sync when predictions load after mount
+  const prevPredRef = React.useRef(prediction)
+  if (prevPredRef.current !== prediction) {
+    prevPredRef.current = prediction
+    if (prediction && prediction.home >= 0 && localHome === '') setLocalHome(String(prediction.home))
+    if (prediction && prediction.away >= 0 && localAway === '') setLocalAway(String(prediction.away))
+  }
 
-  // Sync local state when parent prediction changes (e.g. on initial load)
+  // Sync from parent only on initial load (when local state is still empty)
+  // We don't want to overwrite what the user is actively typing
   const predHome = prediction && prediction.home >= 0 ? String(prediction.home) : ''
   const predAway = prediction && prediction.away >= 0 ? String(prediction.away) : ''
-  if (localHome !== predHome && predHome !== '' && localHome === '') setLocalHome(predHome)
-  if (localAway !== predAway && predAway !== '' && localAway === '') setLocalAway(predAway)
 
   const hasPred  = prediction != null && prediction.home >= 0 && prediction.away >= 0
   const pts      = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
@@ -94,24 +100,10 @@ export function MatchRow({
     }
   }, [fixture.id, onPredict])
 
-  // Handle spinner clicks (up/down arrows) — these fire as onChange but sometimes
-  // need a nudge from the current display value rather than the raw event value
+  // Handle all input changes — same logic for typing and spinner arrows
   const handleSpinner = useCallback((side: 'home' | 'away', raw: string) => {
-    // If the field was empty and spinner was used, default the other side to 0
-    const currentHome = side === 'home' ? raw : localHome
-    const currentAway = side === 'away' ? raw : localAway
-
-    if (side === 'home' && localAway === '' && raw !== '') {
-      setLocalAway('0')
-      onPredict(fixture.id, 'away', 0)
-    }
-    if (side === 'away' && localHome === '' && raw !== '') {
-      setLocalHome('0')
-      onPredict(fixture.id, 'home', 0)
-    }
-
     handleChange(side, raw)
-  }, [fixture.id, localHome, localAway, handleChange, onPredict])
+  }, [handleChange])
 
   const inputClass = (val: string) => clsx(
     'w-10 h-10 text-center text-base font-semibold border rounded-lg',
