@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useState } from 'react'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
@@ -42,14 +42,24 @@ export function MatchRow({
   timezone = 'UTC',
   onPredict,
 }: Props) {
-  const homeRef = useRef<HTMLInputElement>(null)
-  const awayRef = useRef<HTMLInputElement>(null)
+  // Local state for input display — allows spinners and direct typing to work
+  // independently without waiting for the parent state to propagate
+  const [localHome, setLocalHome] = useState<string>(
+    prediction && prediction.home >= 0 ? String(prediction.home) : ''
+  )
+  const [localAway, setLocalAway] = useState<string>(
+    prediction && prediction.away >= 0 ? String(prediction.away) : ''
+  )
+
+  // Sync local state when parent prediction changes (e.g. on initial load)
+  const predHome = prediction && prediction.home >= 0 ? String(prediction.home) : ''
+  const predAway = prediction && prediction.away >= 0 ? String(prediction.away) : ''
+  if (localHome !== predHome && predHome !== '' && localHome === '') setLocalHome(predHome)
+  if (localAway !== predAway && predAway !== '' && localAway === '') setLocalAway(predAway)
 
   const hasPred  = prediction != null && prediction.home >= 0 && prediction.away >= 0
   const pts      = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
   const sc       = SCORING[round]
-
-  // Format kickoff in player's timezone
   const kickoffLabel = formatKickoff(fixture.kickoff_utc, timezone)
 
   const rowClass = clsx(
@@ -63,15 +73,61 @@ export function MatchRow({
     isFavourite && !result                   && 'ring-1 ring-purple-300',
   )
 
-  const handleInput = useCallback((side: 'home' | 'away', raw: string) => {
-    const n = raw === '' ? -1 : parseInt(raw, 10)
-    if (!isNaN(n)) onPredict(fixture.id, side, n < 0 ? -1 : n)
-    if (side === 'home' && raw !== '') awayRef.current?.focus()
+  const handleChange = useCallback((side: 'home' | 'away', raw: string) => {
+    // Clamp value between 0 and 20, allow empty string while typing
+    let display = raw
+    if (raw !== '') {
+      const n = parseInt(raw, 10)
+      if (isNaN(n) || n < 0) display = '0'
+      else if (n > 20) display = '20'
+      else display = String(n)
+    }
+
+    if (side === 'home') {
+      setLocalHome(display)
+      const n = display === '' ? -1 : parseInt(display, 10)
+      onPredict(fixture.id, 'home', n)
+    } else {
+      setLocalAway(display)
+      const n = display === '' ? -1 : parseInt(display, 10)
+      onPredict(fixture.id, 'away', n)
+    }
   }, [fixture.id, onPredict])
+
+  // Handle spinner clicks (up/down arrows) — these fire as onChange but sometimes
+  // need a nudge from the current display value rather than the raw event value
+  const handleSpinner = useCallback((side: 'home' | 'away', raw: string) => {
+    // If the field was empty and spinner was used, default the other side to 0
+    const currentHome = side === 'home' ? raw : localHome
+    const currentAway = side === 'away' ? raw : localAway
+
+    if (side === 'home' && localAway === '' && raw !== '') {
+      setLocalAway('0')
+      onPredict(fixture.id, 'away', 0)
+    }
+    if (side === 'away' && localHome === '' && raw !== '') {
+      setLocalHome('0')
+      onPredict(fixture.id, 'home', 0)
+    }
+
+    handleChange(side, raw)
+  }, [fixture.id, localHome, localAway, handleChange, onPredict])
+
+  const inputClass = (val: string) => clsx(
+    'w-10 h-10 text-center text-base font-semibold border rounded-lg',
+    'focus:outline-none focus:ring-2 focus:ring-green-400',
+    'disabled:bg-gray-50 disabled:cursor-not-allowed',
+    'transition-colors',
+    val === '' && !locked && !result
+      ? 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
+      : 'border-gray-300 bg-white text-gray-900',
+    // Highlight when value is entered
+    val !== '' && !result && 'border-green-300 bg-green-50 text-gray-900',
+  )
 
   return (
     <div className={rowClass}>
-      {/* Meta row — kickoff in player's timezone */}
+      {/* Meta row */}
       <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
         <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
           <span>{kickoffLabel}</span>
@@ -80,7 +136,7 @@ export function MatchRow({
         </div>
         <div className="flex items-center gap-1.5">
           {isFavourite && (
-            <span className="text-[11px] text-purple-600 flex items-center gap-0.5">⭐ 2× pts</span>
+            <span className="text-[11px] text-purple-600">⭐ 2× pts</span>
           )}
           {locked && !result && (
             <span className="text-[11px] text-red-500 flex items-center gap-1">
@@ -91,59 +147,79 @@ export function MatchRow({
               Locked
             </span>
           )}
-          {!locked && hasPred && <span className="text-[11px] text-green-600">✓ confirmed</span>}
-          {!locked && !hasPred && !result && <span className="text-[11px] text-amber-600">not entered</span>}
+          {!locked && hasPred && !result && <span className="text-[11px] text-green-600">✓ saved</span>}
+          {!locked && !hasPred && !result && <span className="text-[11px] text-amber-500">tap to predict</span>}
           {saving && <span className="text-[11px] text-gray-400 animate-pulse">saving…</span>}
           <PointsBadge pts={pts} maxExact={sc.exact} />
         </div>
       </div>
 
-      {/* Teams + scores */}
+      {/* Teams + score inputs */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 min-w-[90px] justify-end text-[13px] font-medium text-right">
-          <span className="hidden sm:inline">{fixture.home}</span>
-          <span className="sm:hidden text-xs">{fixture.home.length > 10 ? fixture.home.split(' ')[0] : fixture.home}</span>
-          <span className="text-base">{flag(fixture.home)}</span>
+
+        {/* Home team */}
+        <div className="flex items-center gap-1.5 min-w-[90px] justify-end">
+          <span className="hidden sm:inline text-[13px] font-medium text-right">{fixture.home}</span>
+          <span className="sm:hidden text-xs font-medium">
+            {fixture.home.length > 12 ? fixture.home.split(' ')[0] : fixture.home}
+          </span>
+          <span className="text-lg">{flag(fixture.home)}</span>
         </div>
 
-        <div className="flex items-end gap-2">
+        {/* Score inputs */}
+        <div className="flex items-end gap-3">
+          {/* Player pick */}
           <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] text-gray-400">Your pick</span>
-            <div className="flex items-center gap-1">
-              <input ref={homeRef} type="number" min={0} max={20} placeholder=""
-                value={hasPred ? prediction!.home : ''}
+            <span className="text-[10px] text-gray-400 font-medium">Pick</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number" min={0} max={20}
+                value={localHome}
                 disabled={locked || !!result}
-                className={clsx('score-input', !hasPred && !locked && !result && 'unpredicted')}
-                onChange={e => handleInput('home', e.target.value)}
-                aria-label={`${fixture.home} score prediction`}
+                className={inputClass(localHome)}
+                onChange={e => handleSpinner('home', e.target.value)}
+                onFocus={e => e.target.select()}
+                aria-label={`${fixture.home} score`}
+                inputMode="numeric"
               />
-              <span className="text-gray-300 text-xs">–</span>
-              <input ref={awayRef} type="number" min={0} max={20} placeholder=""
-                value={hasPred ? prediction!.away : ''}
+              <span className="text-gray-300 text-sm font-light">–</span>
+              <input
+                type="number" min={0} max={20}
+                value={localAway}
                 disabled={locked || !!result}
-                className={clsx('score-input', !hasPred && !locked && !result && 'unpredicted')}
-                onChange={e => handleInput('away', e.target.value)}
-                aria-label={`${fixture.away} score prediction`}
+                className={inputClass(localAway)}
+                onChange={e => handleSpinner('away', e.target.value)}
+                onFocus={e => e.target.select()}
+                aria-label={`${fixture.away} score`}
+                inputMode="numeric"
               />
             </div>
           </div>
 
+          {/* Result (shown when available) */}
           {result && (
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[10px] text-gray-400">Result</span>
-              <div className="flex items-center gap-1">
-                <div className="w-9 h-8 flex items-center justify-center text-sm font-semibold bg-gray-100 rounded-md border border-gray-200">{result.home}</div>
-                <span className="text-gray-300 text-xs">–</span>
-                <div className="w-9 h-8 flex items-center justify-center text-sm font-semibold bg-gray-100 rounded-md border border-gray-200">{result.away}</div>
+              <span className="text-[10px] text-gray-400 font-medium">Result</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-10 h-10 flex items-center justify-center text-base font-semibold bg-gray-100 rounded-lg border border-gray-200">
+                  {result.home}
+                </div>
+                <span className="text-gray-300 text-sm">–</span>
+                <div className="w-10 h-10 flex items-center justify-center text-base font-semibold bg-gray-100 rounded-lg border border-gray-200">
+                  {result.away}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 min-w-[90px] text-[13px] font-medium">
-          <span className="text-base">{flag(fixture.away)}</span>
-          <span className="hidden sm:inline">{fixture.away}</span>
-          <span className="sm:hidden text-xs">{fixture.away.length > 10 ? fixture.away.split(' ')[0] : fixture.away}</span>
+        {/* Away team */}
+        <div className="flex items-center gap-1.5 min-w-[90px]">
+          <span className="text-lg">{flag(fixture.away)}</span>
+          <span className="hidden sm:inline text-[13px] font-medium">{fixture.away}</span>
+          <span className="sm:hidden text-xs font-medium">
+            {fixture.away.length > 12 ? fixture.away.split(' ')[0] : fixture.away}
+          </span>
         </div>
       </div>
     </div>
