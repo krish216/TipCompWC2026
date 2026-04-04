@@ -206,3 +206,4 @@ npm run build        # Production build
 - **Kickoff**: June 11, 2026 — Mexico vs South Africa, Estadio Azteca
 - **Final**: July 19, 2026 — MetLife Stadium, New York/NJ
 - **104 matches** across 16 venues in USA, Canada, Mexico
+# TipCompWC2026
