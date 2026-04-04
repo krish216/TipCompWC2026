@@ -207,7 +207,7 @@ export default function LoginPage() {
           </div>
 
           {/* Password */}
-          {mode !== 'magic' && (
+          {mode !== 'magic' && mode !== 'reset' && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
               <input type="password" name="password" required minLength={8}
