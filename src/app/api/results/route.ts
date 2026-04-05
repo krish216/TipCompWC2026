@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
   const { fixture_id, home, away } = parsed.data
   const admin = createAdminClient()
 
-  const { data, error } = await admin
-    .from('fixtures')
+  const { data, error } = await (admin
+    .from('fixtures') as any)
     .update({
       home_score:    home,
       away_score:    away,
@@ -101,13 +101,13 @@ export async function DELETE(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  await admin
-    .from('fixtures')
+  await (admin
+    .from('fixtures') as any)
     .update({ home_score: null, away_score: null, result_set_at: null, result_set_by: null })
     .eq('id', fixture_id)
 
-  await admin
-    .from('predictions')
+  await (admin
+    .from('predictions') as any)
     .update({ points_earned: null })
     .eq('fixture_id', fixture_id)
 
