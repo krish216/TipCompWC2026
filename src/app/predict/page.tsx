@@ -268,6 +268,7 @@ export default function PredictPage() {
   if (loading) return <div className="flex items-center justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
   return (
+    <>
     <div className="max-w-3xl mx-auto px-4 py-4">
       <CountdownBanner />
 
@@ -379,16 +380,15 @@ export default function PredictPage() {
         ))
       )}
     </div>
-
-    {/* Achievement toast */}
     {achievMsg && achievement && (
       <AchievementToast
         icon={achievMsg.icon}
         title={achievMsg.title}
         description={achievMsg.description}
-        onShare={() => { /* ShareButton handles this via the achievement payload */ }}
+        onShare={() => {}}
         onDismiss={() => { setAchievMsg(null); setAchievement(null) }}
       />
     )}
+    </>
   )
 }
