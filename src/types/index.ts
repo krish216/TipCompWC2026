@@ -1,6 +1,8 @@
 // ─── Domain types ────────────────────────────────────────────────────────────
 
 export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
+export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'  // UI-facing round tabs
+export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']  // both map to the 'finals' tab
 
 export interface ScoringRule {
   result: number
@@ -14,8 +16,8 @@ export const SCORING: Record<RoundId, ScoringRule> = {
   r16: { result: 7,  exact: 10, label: 'Round of 16'   },
   qf:  { result: 10, exact: 14, label: 'Quarter-finals' },
   sf:  { result: 15, exact: 20, label: 'Semi-finals'    },
-  tp:  { result: 20, exact: 25, label: '3rd place'      },
-  f:   { result: 25, exact: 30, label: 'Final'          },
+  tp:  { result: 20, exact: 25, label: 'Finals weekend'  },  // 3rd place
+  f:   { result: 25, exact: 30, label: 'Finals weekend'  },  // Final
 }
 
 export interface Fixture {

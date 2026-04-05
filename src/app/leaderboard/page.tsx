@@ -12,13 +12,13 @@ type Scope      = 'global' | 'tribe'
 type RoundView  = 'all' | RoundId
 
 const ROUND_SNAPSHOTS: { id: RoundView; label: string }[] = [
-  { id: 'all', label: 'Overall' },
-  { id: 'gs',  label: 'After Group stage' },
-  { id: 'r32', label: 'After Rd of 32' },
-  { id: 'r16', label: 'After Rd of 16' },
-  { id: 'qf',  label: 'After Quarters' },
-  { id: 'sf',  label: 'After Semis' },
-  { id: 'f',   label: 'After Final' },
+  { id: 'all',    label: 'Overall' },
+  { id: 'gs',     label: 'After Group stage' },
+  { id: 'r32',    label: 'After Rd of 32' },
+  { id: 'r16',    label: 'After Rd of 16' },
+  { id: 'qf',     label: 'After Quarters' },
+  { id: 'sf',     label: 'After Semis' },
+  { id: 'finals', label: 'After Finals' },
 ]
 
 export default function LeaderboardPage() {
@@ -56,10 +56,13 @@ export default function LeaderboardPage() {
 
   // Filter entries by round snapshot — sum only points up to that round
   const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+  const SNAPSHOT_TO_ROUNDS: Record<string, RoundId[]> = { gs:['gs'], r32:['gs','r32'], r16:['gs','r32','r16'], qf:['gs','r32','r16','qf'], sf:['gs','r32','r16','qf','sf'], finals:['gs','r32','r16','qf','sf','tp','f'] }
   const filteredEntries = useMemo(() => {
     if (roundView === 'all') return entries
-    const upToIdx = ROUND_ORDER.indexOf(roundView as RoundId)
-    const validRounds = new Set(ROUND_ORDER.slice(0, upToIdx + 1))
+    const validRounds = new Set(
+      SNAPSHOT_TO_ROUNDS[roundView as string] ?? 
+      ROUND_ORDER.slice(0, ROUND_ORDER.indexOf(roundView as RoundId) + 1)
+    )
     return entries
       .map(e => {
         const rb = e.round_breakdown ?? {}

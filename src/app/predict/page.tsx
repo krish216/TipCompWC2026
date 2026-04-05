@@ -18,7 +18,17 @@ type ResultMap  = Record<number, MatchScore>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 
 const GROUP_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const
-const ROUNDS: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+const ROUNDS = ['gs','r32','r16','qf','sf','finals'] as const
+type RoundTab = typeof ROUNDS[number]
+const ROUND_TAB_LABEL: Record<RoundTab, string> = {
+  gs: 'Group Stage', r32: 'Rd of 32', r16: 'Rd of 16',
+  qf: 'Quarters', sf: 'Semis', finals: 'Finals'
+}
+// Map UI tab → actual DB round IDs
+const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
+  gs: ['gs'], r32: ['r32'], r16: ['r16'],
+  qf: ['qf'], sf: ['sf'], finals: ['tp','f']
+}
 
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
@@ -28,7 +38,7 @@ export default function PredictPage() {
   const [results,      setResults]      = useState<ResultMap>({})
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState<Set<number>>(new Set())
-  const [activeRound,  setActiveRound]  = useState<RoundId>('gs')
+  const [activeRound,  setActiveRound]  = useState<RoundTab>('gs')
   const [activeGroup,  setActiveGroup]  = useState('all')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
@@ -159,23 +169,23 @@ export default function PredictPage() {
 
   // ── Per-round prediction counters ─────────────────────────
   const roundPredCounts = useMemo(() => {
-    const counts: Partial<Record<RoundId, { entered: number; total: number }>> = {}
-    ROUNDS.forEach(rid => {
-      const fs = fixtures[rid] ?? []
+    const counts: Record<string, { entered: number; total: number }> = {}
+    ROUNDS.forEach(tab => {
+      const roundIds = TAB_TO_ROUNDS[tab]
+      const fs = roundIds.flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
         return p && p.home >= 0 && p.away >= 0
       }).length
-      counts[rid] = { entered, total: fs.length }
+      counts[tab] = { entered, total: fs.length }
     })
     return counts
   }, [fixtures, predictions])
 
   // ── Current open round (first unlocked round with fixtures) ─
-  const currentRound = useMemo((): RoundId => {
-    const ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+  const currentRound = useMemo(() => {
+    const ORDER = ['gs','r32','r16','qf','sf','finals'] as const
     const hasLockData = Object.keys(roundLocks).length > 0
-    // If no lock data yet (table not set up), treat gs as open
     if (!hasLockData) return 'gs'
     const open = ORDER.find(r => roundLocks[r] === true)
     return open ?? 'gs'
@@ -201,18 +211,24 @@ export default function PredictPage() {
   }, [allFixtures, predictions, results, currentRound, roundLocks])
 
   const roundPoints = useMemo(() => {
-    const rp: Partial<Record<RoundId, number>> = {}
+    const rp: Record<string, number> = {}
     allFixtures.forEach(f => {
       const p = predictions[f.id]; const r = results[f.id]
       const hasPred = p && p.home >= 0 && p.away >= 0
       const pts = hasPred ? calcPoints(p, r ?? null, f.round) : null
-      if (pts !== null && r) rp[f.round] = (rp[f.round] ?? 0) + pts
+      if (pts !== null && r) {
+        // Map tp and f both to 'finals' tab
+        const tab = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round
+        rp[tab] = (rp[tab] ?? 0) + pts
+      }
     })
     return rp
   }, [allFixtures, predictions, results])
 
   const roundScoreBarProps = useMemo(() => {
-    const fs = fixtures[activeRound] ?? []; const sc = SCORING[activeRound]
+    const roundIds = TAB_TO_ROUNDS[activeRound] ?? [activeRound as RoundId]
+    const fs = roundIds.flatMap(rid => fixtures[rid] ?? [])
+    const sc = SCORING[(activeRound === 'finals' ? 'f' : activeRound) as RoundId]
     let pts = 0, exactCt = 0, correctCt = 0, played = 0
     fs.forEach(f => {
       const r = results[f.id]; if (!r) return; played++
@@ -227,9 +243,10 @@ export default function PredictPage() {
   }, [fixtures, activeRound, predictions, results])
 
   const visibleFixtures = useMemo(() => {
-    const fs = fixtures[activeRound] ?? []
+    const roundIds = TAB_TO_ROUNDS[activeRound] ?? [activeRound as RoundId]
+    const fs = roundIds.flatMap(rid => fixtures[rid] ?? [])
     if (activeRound !== 'gs' || activeGroup === 'all') return fs
-    return fs.filter(f => f.group === activeGroup)
+    return fs.filter((f: any) => f.group === activeGroup)
   }, [fixtures, activeRound, activeGroup])
 
   const fixturesByGroup = useMemo(() => {
@@ -240,9 +257,10 @@ export default function PredictPage() {
   }, [activeRound, visibleFixtures])
 
   const isLocked = (f: Fixture) => {
-    // Locked if round not open for predictions
-    if (!roundLocks[f.round]) return true
-    // Locked if within 5 mins of kickoff
+    // Map tp/f to 'finals' for lock lookup
+    const lockKey = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round
+    const hasLockData = Object.keys(roundLocks).length > 0
+    if (hasLockData && !roundLocks[lockKey] && !roundLocks[f.round]) return true
     if ((new Date(f.kickoff_utc).getTime() - Date.now()) / 60000 <= 5) return true
     return false
   }
@@ -283,17 +301,18 @@ export default function PredictPage() {
           const cnt = roundPredCounts[r]
           const pts = roundPoints[r]
           const isActive = activeRound === r
+          const label = ROUND_TAB_LABEL[r]
           const allDone = cnt && cnt.total > 0 && cnt.entered === cnt.total
           return (
             <button
               key={r}
-              onClick={() => { setActiveRound(r); setActiveGroup('all') }}
+              onClick={() => { setActiveRound(r as RoundTab); setActiveGroup('all') }}
               className={clsx(
                 'relative px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
                 isActive ? 'bg-green-600 border-green-700 text-white' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
               )}
             >
-              {SCORING[r].label.replace(' stage','').replace('Quarter-finals','Quarters').replace('Semi-finals','Semis').replace('3rd place','3rd')}
+              {label}
               {/* Points badge */}
               {pts != null && pts > 0 && (
                 <span className={clsx('absolute -top-1.5 -right-1.5 text-[9px] font-semibold rounded-full px-1 min-w-[16px] text-center', isActive ? 'bg-amber-400 text-amber-900' : 'bg-amber-100 text-amber-700')}>

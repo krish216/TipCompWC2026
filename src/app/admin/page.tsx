@@ -226,7 +226,8 @@ export default function AdminPage() {
     setTogglingRound(null)
     if (success) {
       setRoundLocks(prev => ({ ...prev, [round]: newState }))
-      toast.success(newState ? `${SCORING[round].label} unlocked for predictions` : `${SCORING[round].label} locked`)
+      const lbl = round === 'finals' ? 'Finals' : SCORING[round as RoundId]?.label ?? round
+      toast.success(newState ? `${lbl} unlocked for predictions` : `${lbl} locked`)
     } else {
       toast.error(error ?? 'Failed to update round lock')
     }
@@ -249,7 +250,7 @@ export default function AdminPage() {
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Round predictions</p>
         <p className="text-[11px] text-gray-400 mb-3">Unlock a round to allow players to enter predictions. Lock it to stop new entries.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {(['gs','r32','r16','qf','sf','tp','f'] as RoundId[]).map(round => {
+          {(['gs','r32','r16','qf','sf','finals'] as string[]).map(round => {
             const isOpen    = !!roundLocks[round]
             const toggling  = togglingRound === round
             return (
@@ -265,7 +266,7 @@ export default function AdminPage() {
                 )}
               >
                 <span className="text-base">{isOpen ? '🔓' : '🔒'}</span>
-                <span>{SCORING[round].label}</span>
+                <span>{round === 'finals' ? 'Finals' : SCORING[round as RoundId]?.label ?? round}</span>
                 {toggling
                   ? <Spinner className="w-3 h-3" />
                   : <span className={clsx('text-[10px] font-normal', isOpen ? 'text-green-500' : 'text-gray-400')}>
