@@ -214,7 +214,7 @@ export default function AdminPage() {
     </div>
   )
 
-  const toggleRound = async (round: RoundId) => {
+  const toggleRound = async (round: string) => {
     const newState = !roundLocks[round]
     setTogglingRound(round)
     const res = await fetch('/api/round-locks', {
@@ -226,7 +226,7 @@ export default function AdminPage() {
     setTogglingRound(null)
     if (success) {
       setRoundLocks(prev => ({ ...prev, [round]: newState }))
-      const lbl = round === 'finals' ? 'Finals' : SCORING[round as RoundId]?.label ?? round
+      const lbl = round === 'finals' ? 'Finals' : (SCORING as any)[round]?.label ?? round
       toast.success(newState ? `${lbl} unlocked for predictions` : `${lbl} locked`)
     } else {
       toast.error(error ?? 'Failed to update round lock')
@@ -266,7 +266,7 @@ export default function AdminPage() {
                 )}
               >
                 <span className="text-base">{isOpen ? '🔓' : '🔒'}</span>
-                <span>{round === 'finals' ? 'Finals' : SCORING[round as RoundId]?.label ?? round}</span>
+                <span>{round === 'finals' ? 'Finals' : (SCORING as any)[round]?.label ?? round}</span>
                 {toggling
                   ? <Spinner className="w-3 h-3" />
                   : <span className={clsx('text-[10px] font-normal', isOpen ? 'text-green-500' : 'text-gray-400')}>

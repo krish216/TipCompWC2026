@@ -77,8 +77,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
   }
 
-  const { data, error } = await supabase
-    .from('chat_messages')
+  const { data, error } = await (supabase
+    .from('chat_messages') as any)
     .insert({ tribe_id, user_id: user.id, content, fixture_id: fixture_id ?? null })
     .select('id, content, created_at, user_id, fixture_id, users(display_name, avatar_url)')
     .single()

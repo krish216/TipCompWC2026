@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Reshape to match the Fixture type
-  const fixtures = (data ?? []).map(f => ({
+  // Cast to any[] to avoid TypeScript narrowing to never[] on chained queries
+  const rows = (data ?? []) as any[]
+
+  const fixtures = rows.map(f => ({
     id:          f.id,
     round:       f.round,
     group:       f.grp,
