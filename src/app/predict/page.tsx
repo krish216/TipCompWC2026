@@ -171,10 +171,14 @@ export default function PredictPage() {
     return counts
   }, [fixtures, predictions])
 
-  // ── Current open round (first unlocked round) ────────────
-  const currentRound = useMemo(() => {
+  // ── Current open round (first unlocked round with fixtures) ─
+  const currentRound = useMemo((): RoundId => {
     const ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
-    return ORDER.find(r => roundLocks[r]) ?? 'gs'
+    const hasLockData = Object.keys(roundLocks).length > 0
+    // If no lock data yet (table not set up), treat gs as open
+    if (!hasLockData) return 'gs'
+    const open = ORDER.find(r => roundLocks[r] === true)
+    return open ?? 'gs'
   }, [roundLocks])
 
   // ── Global stats — notEntered only for current round ──────
@@ -189,8 +193,9 @@ export default function PredictPage() {
         if (pts === sc.exact) exactCt++
         else if (pts === sc.result && pts > 0) correctCt++
       }
-      // Only count not-entered for the current open round, excluding locked/played fixtures
-      if (f.round === currentRound && !hasPred && !r && roundLocks[f.round]) notEnteredCt++
+      // Only count not-entered for the current open round (unpredicted, not yet played)
+      const roundIsOpen = Object.keys(roundLocks).length === 0 ? f.round === 'gs' : !!roundLocks[f.round]
+      if (f.round === currentRound && roundIsOpen && !hasPred && !r) notEnteredCt++
     })
     return { totalPts, exactCt, correctCt, notEnteredCt }
   }, [allFixtures, predictions, results, currentRound, roundLocks])
@@ -253,14 +258,14 @@ export default function PredictPage() {
         <StatCard label="Total pts"   value={globalStats.totalPts}    accent="green" />
         <StatCard label="Exact"       value={globalStats.exactCt}     accent="blue" />
         <StatCard label="Correct"     value={globalStats.correctCt} />
-        <StatCard label="Not entered" value={globalStats.notEnteredCt} accent={globalStats.notEnteredCt > 0 ? 'amber' : undefined} />
+        <StatCard label={`Unpredicted (${SCORING[currentRound]?.label ?? 'current'})`} value={globalStats.notEnteredCt} accent={globalStats.notEnteredCt > 0 ? 'amber' : undefined} />
       </div>
 
       {/* Unpredicted banner */}
       {globalStats.notEnteredCt > 0 && (
         <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} in this round still need your prediction
+          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} in the <strong>{SCORING[currentRound].label}</strong> still need your prediction
         </div>
       )}
 
