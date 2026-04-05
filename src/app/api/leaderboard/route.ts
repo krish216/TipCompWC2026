@@ -80,12 +80,13 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .single()
     if (myRaw) {
+      const myRawAny = myRaw as any
       const { count: ahead } = await supabase
         .from('leaderboard')
         .select('user_id', { count: 'exact', head: true })
-        .gt('total_points', (myRaw as any).total_points)
+        .gt('total_points', myRawAny.total_points)
       myEntry = {
-        ...myRaw,
+        ...myRawAny,
         rank:            (ahead ?? 0) + 1,
         is_me:           true,
         round_breakdown: breakdownMap[user.id] ?? {},
