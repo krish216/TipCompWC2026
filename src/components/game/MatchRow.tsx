@@ -67,7 +67,7 @@ export function MatchRow({
 
   const hasPred  = prediction != null && prediction.home >= 0 && prediction.away >= 0
   const pts      = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
-  const sc       = SCORING[round]
+  const sc       = SCORING[round] ?? SCORING['f']  // fallback for safety
   const kickoffLabel = formatKickoff(fixture.kickoff_utc, timezone)
 
   const rowClass = clsx(

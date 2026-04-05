@@ -347,7 +347,7 @@ export default function PredictPage() {
       )}
 
       {/* Round score bar */}
-      <RoundScoreBar round={activeRound} {...roundScoreBarProps} />
+      <RoundScoreBar round={activeRound === 'finals' ? 'f' : activeRound as RoundId} {...roundScoreBarProps} />
 
       {/* Fixtures */}
       {visibleFixtures.length === 0 ? (
@@ -360,7 +360,7 @@ export default function PredictPage() {
               <span className="text-sm font-medium text-gray-700">Group {grp}</span>
             </div>
             {gFixtures.map(f => (
-              <MatchRow key={f.id} fixture={f} round={activeRound}
+              <MatchRow key={f.id} fixture={f} round={f.round}
                 prediction={predictions[f.id] ?? null} result={results[f.id] ?? null}
                 locked={isLocked(f)} saving={saving.has(f.id)}
                 isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
@@ -371,7 +371,7 @@ export default function PredictPage() {
         ))
       ) : (
         visibleFixtures.map(f => (
-          <MatchRow key={f.id} fixture={f} round={activeRound}
+          <MatchRow key={f.id} fixture={f} round={f.round}
             prediction={predictions[f.id] ?? null} result={results[f.id] ?? null}
             locked={isLocked(f)} saving={saving.has(f.id)}
             isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
