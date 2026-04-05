@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { MatchRow } from '@/components/game/MatchRow'
-import { RoundTabs } from '@/components/game/RoundTabs'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -28,6 +27,11 @@ const ROUND_TAB_LABEL: Record<RoundTab, string> = {
 const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
   gs: ['gs'], r32: ['r32'], r16: ['r16'],
   qf: ['qf'], sf: ['sf'], finals: ['tp','f']
+}
+// Safe label for any round key including 'finals'
+const ROUND_LABEL: Record<string, string> = {
+  gs: 'Group stage', r32: 'Rd of 32', r16: 'Rd of 16',
+  qf: 'Quarters', sf: 'Semis', finals: 'Finals', tp: 'Finals', f: 'Final',
 }
 
 export default function PredictPage() {
@@ -276,14 +280,14 @@ export default function PredictPage() {
         <StatCard label="Total pts"   value={globalStats.totalPts}    accent="green" />
         <StatCard label="Exact"       value={globalStats.exactCt}     accent="blue" />
         <StatCard label="Correct"     value={globalStats.correctCt} />
-        <StatCard label={`Unpredicted (${SCORING[currentRound]?.label ?? 'current'})`} value={globalStats.notEnteredCt} accent={globalStats.notEnteredCt > 0 ? 'amber' : undefined} />
+        <StatCard label={`Unpredicted (${ROUND_LABEL[currentRound] ?? 'current'})`} value={globalStats.notEnteredCt} accent={globalStats.notEnteredCt > 0 ? 'amber' : undefined} />
       </div>
 
       {/* Unpredicted banner */}
       {globalStats.notEnteredCt > 0 && (
         <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} in the <strong>{SCORING[currentRound].label}</strong> still need your prediction
+          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} in the <strong>{ROUND_LABEL[currentRound] ?? currentRound}</strong> still need your prediction
         </div>
       )}
 
