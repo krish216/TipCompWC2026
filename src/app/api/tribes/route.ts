@@ -23,19 +23,61 @@ export async function GET(request: NextRequest) {
 
   if (!me?.tribe_id) return NextResponse.json({ data: null })
 
+  // Step 1: get tribe + member user IDs
   const { data: tribe, error } = await supabase
     .from('tribes')
-    .select(`
-      id, name, invite_code, created_at,
-      tribe_members(
-        joined_at,
-        users!inner(id, display_name, avatar_url)
-      )
-    `)
+    .select('id, name, invite_code, created_at')
     .eq('id', me.tribe_id)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Step 2: get tribe members
+  const { data: memberRows } = await supabase
+    .from('tribe_members')
+    .select('user_id, joined_at')
+    .eq('tribe_id', me.tribe_id)
+
+  const memberIds = (memberRows ?? []).map((m: any) => m.user_id)
+
+  // Step 3: get user profiles
+  const { data: userRows } = await supabase
+    .from('users')
+    .select('id, display_name, avatar_url')
+    .in('id', memberIds)
+
+  // Step 4: get leaderboard points for each member
+  const { data: lbRows } = await supabase
+    .from('leaderboard')
+    .select('user_id, total_points, exact_count, correct_count')
+    .in('user_id', memberIds)
+
+  // Build lookup maps
+  const userMap: Record<string, any> = {}
+  ;(userRows ?? []).forEach((u: any) => { userMap[u.id] = u })
+
+  const lbMap: Record<string, any> = {}
+  ;(lbRows ?? []).forEach((r: any) => { lbMap[r.user_id] = r })
+
+  // Step 5: assemble tribe_members array in the shape the frontend expects
+  const enrichedMembers = (memberRows ?? []).map((tm: any) => {
+    const u  = userMap[tm.user_id] ?? {}
+    const lb = lbMap[tm.user_id]   ?? {}
+    return {
+      joined_at: tm.joined_at,
+      users: {
+        id:            tm.user_id,
+        display_name:  u.display_name  ?? 'Unknown',
+        avatar_url:    u.avatar_url    ?? null,
+        total_points:  lb.total_points  ?? 0,
+        exact_count:   lb.exact_count   ?? 0,
+        correct_count: lb.correct_count ?? 0,
+      }
+    }
+  });
+
+  (tribe as any).tribe_members = enrichedMembers
+
   return NextResponse.json({ data: tribe })
 }
 
