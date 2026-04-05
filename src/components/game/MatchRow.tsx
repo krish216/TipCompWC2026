@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useCallback, useState } from 'react'
+import { ShareButton } from '@/components/game/ShareCard'
+import type { SharePayload } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
@@ -139,7 +141,23 @@ export function MatchRow({
               Locked
             </span>
           )}
-          {!locked && hasPred && !result && <span className="text-[11px] text-green-600">✓ saved</span>}
+          {!locked && hasPred && !result && (
+              <span className="text-[11px] text-green-600">✓ saved</span>
+            )}
+            {!locked && hasPred && !result && (
+              <ShareButton
+                compact
+                payload={{
+                  type: 'prediction',
+                  home: fixture.home,
+                  away: fixture.away,
+                  homeScore: prediction!.home,
+                  awayScore: prediction!.away,
+                  roundLabel: round,
+                  isFavourite,
+                }}
+              />
+            )}
           {!locked && !hasPred && !result && <span className="text-[11px] text-amber-500">tap to predict</span>}
           {saving && <span className="text-[11px] text-gray-400 animate-pulse">saving…</span>}
           <PointsBadge pts={pts} maxExact={sc.exact} />

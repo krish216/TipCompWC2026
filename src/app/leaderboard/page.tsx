@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import type { LeaderboardEntry, RoundId } from '@/types'
+import { ShareButton } from '@/components/game/ShareCard'
 import { SCORING } from '@/types'
 
 type Scope      = 'global' | 'tribe'
@@ -169,9 +170,22 @@ export default function LeaderboardPage() {
                     <div className="flex items-center gap-2 min-w-0">
                       <Avatar name={entry.display_name} size="xs" />
                       <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
                         <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
                           {entry.display_name}{isMe && ' (you)'}
                         </p>
+                        {isMe && (
+                          <ShareButton compact payload={{
+                            type: 'rank',
+                            rank: entry.rank ?? i + 1,
+                            points: entry.total_points,
+                            exact: entry.exact_count,
+                            correct: entry.correct_count,
+                            displayName: entry.display_name,
+                            roundLabel: roundView !== 'all' ? ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label : undefined,
+                          }} />
+                        )}
+                      </div>
                         {entry.tribe_name && <p className="text-[10px] text-gray-400 truncate">{entry.tribe_name}</p>}
                       </div>
                     </div>

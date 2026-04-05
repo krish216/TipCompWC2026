@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { MatchRow } from '@/components/game/MatchRow'
@@ -9,6 +9,7 @@ import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, SCORING, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { ShareButton, AchievementToast, type SharePayload } from '@/components/game/ShareCard'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -31,6 +32,10 @@ export default function PredictPage() {
   const [activeGroup,  setActiveGroup]  = useState('all')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
+  const [achievement,   setAchievement]   = useState<SharePayload | null>(null)
+  const [achievMsg,     setAchievMsg]     = useState<{icon:string;title:string;description:string} | null>(null)
+  const lastResultCountRef = React.useRef<number>(0)
+  const consecutiveCorrectRef = React.useRef<number>(0)
   const { timezone } = useTimezone()
   const saveTimers = useMemo(() => new Map<number, ReturnType<typeof setTimeout>>(), [])
 
@@ -85,6 +90,40 @@ export default function PredictPage() {
     return () => { supabase.removeChannel(channel) }
   }, [supabase, session])
 
+  // ── Achievement detector ─────────────────────────────────
+  const checkAchievements = React.useCallback((fixtureId: number, predMap: typeof predictions, resultMap: typeof results) => {
+    const f = allFixtures.find(x => x.id === fixtureId)
+    if (!f) return
+    const r = resultMap[fixtureId]
+    if (!r) return  // no result yet — no achievement
+    const p = predMap[fixtureId]
+    if (!p || p.home < 0 || p.away < 0) return
+    const sc = SCORING[f.round]
+    const pts = calcPoints(p, r, f.round)
+
+    if (pts === sc.exact) {
+      // Check for streak
+      consecutiveCorrectRef.current += 1
+      const streak = consecutiveCorrectRef.current
+      if (streak >= 3) {
+        setAchievMsg({ icon: '🔥', title: `${streak} in a row!`, description: `${streak} correct predictions in a row — you're on fire!` })
+        setAchievement({ type: 'achievement', icon: '🔥', title: `${streak} Predictions in a Row!`, description: `You've correctly predicted ${streak} matches in a row in TipComp 2026!` })
+      } else {
+        setAchievMsg({ icon: '⭐', title: 'Exact score!', description: `${f.home} ${r.home}–${r.away} ${f.away} — perfect prediction!` })
+        setAchievement({ type: 'achievement', icon: '⭐', title: 'Exact Score!', description: `I called ${f.home} ${r.home}–${r.away} ${f.away} exactly right in TipComp 2026!` })
+      }
+    } else if (pts && pts > 0) {
+      consecutiveCorrectRef.current += 1
+      const streak = consecutiveCorrectRef.current
+      if (streak >= 3) {
+        setAchievMsg({ icon: '🔥', title: `${streak} in a row!`, description: `${streak} correct results in a row — incredible!` })
+        setAchievement({ type: 'achievement', icon: '🔥', title: `${streak} Predictions in a Row!`, description: `${streak} correct predictions in a row in TipComp 2026. I'm on fire!` })
+      }
+    } else {
+      consecutiveCorrectRef.current = 0
+    }
+  }, [allFixtures, predictions])
+
   // ── Handle prediction input ───────────────────────────────
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
@@ -132,7 +171,13 @@ export default function PredictPage() {
     return counts
   }, [fixtures, predictions])
 
-  // ── Global stats ──────────────────────────────────────────
+  // ── Current open round (first unlocked round) ────────────
+  const currentRound = useMemo(() => {
+    const ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+    return ORDER.find(r => roundLocks[r]) ?? 'gs'
+  }, [roundLocks])
+
+  // ── Global stats — notEntered only for current round ──────
   const globalStats = useMemo(() => {
     let totalPts = 0, exactCt = 0, correctCt = 0, notEnteredCt = 0
     allFixtures.forEach(f => {
@@ -144,10 +189,11 @@ export default function PredictPage() {
         if (pts === sc.exact) exactCt++
         else if (pts === sc.result && pts > 0) correctCt++
       }
-      if (!hasPred) notEnteredCt++
+      // Only count not-entered for the current open round, excluding locked/played fixtures
+      if (f.round === currentRound && !hasPred && !r && roundLocks[f.round]) notEnteredCt++
     })
     return { totalPts, exactCt, correctCt, notEnteredCt }
-  }, [allFixtures, predictions, results])
+  }, [allFixtures, predictions, results, currentRound, roundLocks])
 
   const roundPoints = useMemo(() => {
     const rp: Partial<Record<RoundId, number>> = {}
@@ -214,7 +260,7 @@ export default function PredictPage() {
       {globalStats.notEnteredCt > 0 && (
         <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} still need your prediction
+          {globalStats.notEnteredCt} match{globalStats.notEnteredCt > 1 ? 'es' : ''} in this round still need your prediction
         </div>
       )}
 
@@ -309,5 +355,16 @@ export default function PredictPage() {
         ))
       )}
     </div>
+
+    {/* Achievement toast */}
+    {achievMsg && achievement && (
+      <AchievementToast
+        icon={achievMsg.icon}
+        title={achievMsg.title}
+        description={achievMsg.description}
+        onShare={() => { /* ShareButton handles this via the achievement payload */ }}
+        onDismiss={() => { setAchievMsg(null); setAchievement(null) }}
+      />
+    )}
   )
 }
