@@ -70,108 +70,6 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
   )
 }
 
-// ── Org management panel ──────────────────────────────────────────────────────
-function OrgManagementPanel() {
-  const [orgs,       setOrgs]       = useState<any[]>([])
-  const [newOrgName, setNewOrgName] = useState('')
-  const [newOrgSlug, setNewOrgSlug] = useState('')
-  const [adminEmail, setAdminEmail] = useState('')
-  const [selectedOrg, setSelectedOrg] = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [loadingOrgs, setLoadingOrgs] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/organisations')
-      .then(r => r.json())
-      .then(d => { setOrgs(d.data ?? []); setLoadingOrgs(false) })
-  }, [])
-
-  const createOrg = async () => {
-    if (!newOrgName.trim() || !newOrgSlug.trim()) return
-    setLoading(true)
-    const res = await fetch('/api/organisations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newOrgName.trim(), slug: newOrgSlug.trim() }),
-    })
-    const { data, error } = await res.json()
-    setLoading(false)
-    if (error) toast.error(error)
-    else {
-      toast.success(`Organisation "${data.name}" created`)
-      setOrgs(prev => [...prev, data])
-      setNewOrgName(''); setNewOrgSlug('')
-    }
-  }
-
-  const grantOrgAdmin = async () => {
-    if (!adminEmail.trim() || !selectedOrg) return
-    setLoading(true)
-    const res = await fetch('/api/org-admins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail.trim(), org_id: selectedOrg }),
-    })
-    const { success, error } = await res.json()
-    setLoading(false)
-    if (success) { toast.success(`Org admin granted to ${adminEmail}`); setAdminEmail('') }
-    else toast.error(error ?? 'Failed')
-  }
-
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisations</p>
-
-      {/* Existing orgs */}
-      {loadingOrgs ? <Spinner className="w-4 h-4" /> : (
-        <div className="space-y-1.5 mb-4">
-          {orgs.map(o => (
-            <div key={o.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-              <div>
-                <span className="text-xs font-medium text-gray-800">{o.name}</span>
-                <span className="text-[11px] text-gray-400 ml-2">/{o.slug}</span>
-              </div>
-              <span className="text-[11px] font-mono text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded">{o.invite_code}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Create org */}
-      <p className="text-[11px] font-medium text-gray-500 mb-2">Create organisation</p>
-      <div className="flex gap-2 mb-2">
-        <input type="text" value={newOrgName} onChange={e => { setNewOrgName(e.target.value); setNewOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')) }}
-          placeholder="Org name e.g. Acme Corp"
-          className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        <input type="text" value={newOrgSlug} onChange={e => setNewOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))}
-          placeholder="slug e.g. acme-corp"
-          className="w-32 px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        <button onClick={createOrg} disabled={loading || !newOrgName.trim() || !newOrgSlug.trim()}
-          className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg">
-          {loading ? <Spinner className="w-3 h-3 text-white" /> : 'Create'}
-        </button>
-      </div>
-
-      {/* Grant org admin */}
-      <p className="text-[11px] font-medium text-gray-500 mb-2 mt-3">Grant org admin</p>
-      <div className="flex gap-2">
-        <select value={selectedOrg} onChange={e => setSelectedOrg(e.target.value)}
-          className="w-36 px-2 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-          <option value="">Org…</option>
-          {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
-        <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
-          placeholder="user@example.com"
-          className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        <button onClick={grantOrgAdmin} disabled={loading || !adminEmail.trim() || !selectedOrg}
-          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg">
-          {loading ? <Spinner className="w-3 h-3 text-white" /> : 'Grant'}
-        </button>
-      </div>
-    </Card>
-  )
-}
-
 // ── Grant admin panel ─────────────────────────────────────────────────────────
 function GrantAdminPanel() {
   const [email, setEmail] = useState('')
@@ -341,8 +239,8 @@ export default function AdminPage() {
     <div className="max-w-3xl mx-auto px-4 py-4">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><h1 className="text-lg font-semibold">Admin panel</h1></div>
-          <p className="text-xs text-gray-500 mt-0.5">Enter results · leaderboard updates instantly</p>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><h1 className="text-lg font-semibold">Tournament Admin</h1></div>
+          <p className="text-xs text-gray-500 mt-0.5">Enter results · lock/unlock rounds · leaderboard updates instantly</p>
         </div>
         <button onClick={async () => { if (!confirm('Clear ALL results?')) return; await fetch('/api/results', { method: 'DELETE' }); setResults({}); toast.success('All results cleared') }} className="px-3 py-1.5 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">Clear all results</button>
       </div>
@@ -381,7 +279,6 @@ export default function AdminPage() {
         </div>
       </Card>
 
-      <OrgManagementPanel />
       <GrantAdminPanel />
 
       <div className="grid grid-cols-3 gap-2 mb-4">

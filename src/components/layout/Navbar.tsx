@@ -13,7 +13,7 @@ const NAV = [
   { href: '/rules',       label: 'Rules' },
 ]
 
-export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
+export function Navbar({ isAdmin = false, isOrgAdmin = false }: { isAdmin?: boolean; isOrgAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()
@@ -47,8 +47,15 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
               {isAdmin && (
                 <Link href="/admin"
                   className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                    pathname.startsWith('/admin') ? 'bg-red-50 text-red-700' : 'text-red-400 hover:text-red-600 hover:bg-red-50')}>
-                  Admin
+                    pathname.startsWith('/admin') && !pathname.startsWith('/org-admin') ? 'bg-red-50 text-red-700' : 'text-red-400 hover:text-red-600 hover:bg-red-50')}>
+                  Tournament
+                </Link>
+              )}
+              {isOrgAdmin && (
+                <Link href="/org-admin"
+                  className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    pathname.startsWith('/org-admin') ? 'bg-blue-50 text-blue-700' : 'text-blue-400 hover:text-blue-600 hover:bg-blue-50')}>
+                  Org Admin
                 </Link>
               )}
             </div>

@@ -22,21 +22,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const supabase = createServerSupabaseClient()
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Use service-role client for admin check — bypasses RLS so the query
-  // always succeeds regardless of what policies are on admin_users
-  let isAdmin = false
+  // Check both admin roles using service-role client (bypasses RLS)
+  let isAdmin    = false
+  let isOrgAdmin = false
   if (session?.user?.id) {
     try {
       const adminClient = createAdminClient()
-      const { data } = await adminClient
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .single()
-      isAdmin = !!data
+      const [{ data: adminRow }, { data: orgAdminRow }] = await Promise.all([
+        adminClient.from('admin_users').select('user_id').eq('user_id', session.user.id).single(),
+        (adminClient.from('org_admins') as any).select('user_id').eq('user_id', session.user.id).single(),
+      ])
+      isAdmin    = !!adminRow
+      isOrgAdmin = !!orgAdminRow
     } catch {
-      // If admin_users table doesn't exist yet, default to false
-      isAdmin = false
+      isAdmin = false; isOrgAdmin = false
     }
   }
 
@@ -44,7 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body className={inter.className}>
         <SupabaseProvider initialSession={session}>
-          <Navbar isAdmin={isAdmin} />
+          <Navbar isAdmin={isAdmin} isOrgAdmin={isOrgAdmin} />
           <main className="min-h-screen bg-gray-50">
             {children}
           </main>

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PROTECTED_ROUTES = ['/predict', '/leaderboard', '/tribe', '/admin', '/settings']
+const PROTECTED_ROUTES = ['/predict', '/leaderboard', '/tribe', '/admin', '/org-admin', '/settings']
 const PUBLIC_ROUTES     = ['/auth']  // auth routes handle their own session
 const AUTH_ROUTES      = ['/login']
 
