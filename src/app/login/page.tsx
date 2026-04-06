@@ -46,10 +46,7 @@ export default function LoginPage() {
   // Auto-detect timezone + load orgs on mount
   useEffect(() => {
     setTimezone(detectTimezone())
-    fetch('/api/organisations')
-      .then(r => r.json())
-      .then(d => setOrgs(d.data ?? []))
-      .catch(() => {})
+    // Org is looked up by code — no pre-loading needed
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
@@ -73,6 +70,14 @@ export default function LoginPage() {
         if (error) throw error
         const newUser = signUpData.user
         if (newUser) {
+          // Get PUBLIC org id as default
+          let assignedOrgId: string | null = orgLookup?.id ?? null
+          if (!assignedOrgId) {
+            const { data: publicOrg } = await supabase
+              .from('organisations').select('id').eq('slug', 'public').single()
+            assignedOrgId = (publicOrg as any)?.id ?? null
+          }
+
           await supabase.from('users').upsert({
             id:             newUser.id,
             email:          newUser.email!,
@@ -80,8 +85,17 @@ export default function LoginPage() {
             favourite_team: favTeam || null,
             country:        country || null,
             timezone:       timezone || 'UTC',
-            org_id:         orgId || null,
+            org_id:         assignedOrgId,
           }, { onConflict: 'id', ignoreDuplicates: false })
+
+          // If org code was used, grant org admin role via API
+          if (orgLookup?.id) {
+            await fetch('/api/org-admins/self-register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ org_id: orgLookup.id, invite_code: orgCode }),
+            })
+          }
         }
         router.push(redirect); router.refresh(); return
       }
@@ -168,24 +182,54 @@ export default function LoginPage() {
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
               </div>
 
-              {/* Organisation */}
-              {orgs.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Organisation <span className="text-gray-400 font-normal">(optional — join your company or club)</span>
-                  </label>
-                  <select value={orgId} onChange={e => setOrgId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                    <option value="">No organisation</option>
-                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                  {orgId && (
-                    <p className="text-[11px] text-blue-600 mt-1">
-                      🏢 You'll only see tribes and leaderboards from this organisation
-                    </p>
-                  )}
+              {/* Organisation code */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Organisation code <span className="text-gray-400 font-normal">(optional — provided by your org admin)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={orgCode}
+                    onChange={e => {
+                      setOrgCode(e.target.value.toUpperCase())
+                      setOrgLookup(null)
+                      setOrgCodeError(null)
+                    }}
+                    placeholder="e.g. ACME1234"
+                    maxLength={8}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white font-mono uppercase"
+                  />
+                  <button
+                    type="button"
+                    disabled={lookingUpOrg || orgCode.length < 6}
+                    onClick={async () => {
+                      setLookingUpOrg(true); setOrgCodeError(null); setOrgLookup(null)
+                      const res = await fetch(`/api/organisations?code=${orgCode}`)
+                      const { data, error } = await res.json()
+                      setLookingUpOrg(false)
+                      if (error || !data) setOrgCodeError('Code not found — check with your admin')
+                      else setOrgLookup(data)
+                    }}
+                    className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    {lookingUpOrg ? '…' : 'Verify'}
+                  </button>
                 </div>
-              )}
+                {orgLookup && (
+                  <p className="text-[11px] text-green-700 mt-1.5 flex items-center gap-1">
+                    ✓ <strong>{orgLookup.name}</strong> — you'll be added as org admin
+                  </p>
+                )}
+                {orgCodeError && (
+                  <p className="text-[11px] text-red-600 mt-1.5">{orgCodeError}</p>
+                )}
+                {!orgCode && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    Leave blank to join the Public organisation
+                  </p>
+                )}
+              </div>
 
               {/* Country */}
               <div>

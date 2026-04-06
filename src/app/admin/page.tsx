@@ -70,7 +70,7 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
   )
 }
 
-// ── Grant admin panel ─────────────────────────────────────────────────────────
+// ── Grant tournament admin panel ──────────────────────────────────────────────
 function GrantAdminPanel() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -85,26 +85,114 @@ function GrantAdminPanel() {
     })
     const { success, error } = await res.json()
     setLoading(false)
-    if (success) { toast.success(`Admin granted to ${email}`); setEmail('') }
+    if (success) { toast.success(`Tournament admin granted to ${email}`); setEmail('') }
     else toast.error(error ?? 'Failed to grant admin')
   }
 
   return (
     <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Grant admin access</p>
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Grant tournament admin</p>
       <div className="flex gap-2">
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
           placeholder="user@example.com"
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-        />
-        <button onClick={grant} disabled={loading || !email.trim()} className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
+          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+        <button onClick={grant} disabled={loading || !email.trim()}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
           {loading ? <Spinner className="w-4 h-4 text-white" /> : 'Grant'}
         </button>
       </div>
-      <p className="text-[11px] text-gray-400 mt-2">The user must already have a registered account.</p>
+      <p className="text-[11px] text-gray-400 mt-2">Grants access to this admin panel — results, round locks, and org management.</p>
+    </Card>
+  )
+}
+
+// ── Organisations panel ────────────────────────────────────────────────────────
+function OrganisationsPanel() {
+  const [orgs,    setOrgs]    = useState<any[]>([])
+  const [name,    setName]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [fetching,setFetching]= useState(true)
+  const [copied,  setCopied]  = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/organisations')
+      .then(r => r.json())
+      .then(d => { setOrgs(d.data ?? []); setFetching(false) })
+      .catch(() => setFetching(false))
+  }, [])
+
+  const create = async () => {
+    if (!name.trim()) return
+    setLoading(true)
+    const res = await fetch('/api/organisations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    })
+    const { data, error } = await res.json()
+    setLoading(false)
+    if (error) toast.error(error)
+    else {
+      toast.success(`Organisation "${data.name}" created`)
+      setOrgs(prev => [...prev, data])
+      setName('')
+    }
+  }
+
+  const copyCode = async (code: string) => {
+    await navigator.clipboard.writeText(code)
+    setCopied(code); setTimeout(() => setCopied(null), 2000)
+    toast.success('Code copied!')
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisations</p>
+      <p className="text-[11px] text-gray-500 mb-3">
+        Create an organisation and share its unique code with the org admin.
+        They register using that code to gain org admin access.
+      </p>
+
+      {/* Create new org */}
+      <div className="flex gap-2 mb-4">
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && create()}
+          placeholder="Organisation name e.g. Acme Corp"
+          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+        <button onClick={create} disabled={loading || !name.trim()}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+          {loading && <Spinner className="w-3 h-3 text-white" />}
+          Create
+        </button>
+      </div>
+
+      {/* Org list with codes */}
+      {fetching ? <Spinner className="w-4 h-4" /> : orgs.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No organisations created yet</p>
+      ) : (
+        <div className="space-y-2">
+          {orgs.map(o => (
+            <div key={o.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{o.name}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Share this code with the org admin</p>
+              </div>
+              <button
+                onClick={() => copyCode(o.invite_code)}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors',
+                  copied === o.invite_code
+                    ? 'bg-green-100 text-green-700 border-green-300'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                )}
+              >
+                {o.invite_code}
+                <span className="text-gray-400">{copied === o.invite_code ? '✓' : '⎘'}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }
@@ -279,6 +367,7 @@ export default function AdminPage() {
         </div>
       </Card>
 
+      <OrganisationsPanel />
       <GrantAdminPanel />
 
       <div className="grid grid-cols-3 gap-2 mb-4">
