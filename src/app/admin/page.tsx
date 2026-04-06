@@ -106,6 +106,85 @@ function GrantAdminPanel() {
   )
 }
 
+// ── Org registry panel (view all registered orgs with contact details) ──────────
+function OrgRegistryPanel() {
+  const [orgs, setOrgs]   = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/organisations/registry')
+      .then(r => r.json())
+      .then(d => { setOrgs(d.data ?? []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+        Registered organisations <span className="text-gray-400 font-normal ml-1">({orgs.length})</span>
+      </p>
+      {loading ? <Spinner className="w-4 h-4" /> : orgs.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No self-created organisations yet</p>
+      ) : (
+        <div className="space-y-2">
+          {orgs.map(o => (
+            <div key={o.id} className="border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setExpanded(expanded === o.id ? null : o.id)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 bg-gray-50 hover:bg-gray-100 text-left transition-colors"
+              >
+                {o.logo_url ? (
+                  <img src={o.logo_url} alt={o.name} className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                    {o.name.charAt(0)}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{o.name}</p>
+                  <p className="text-[11px] text-gray-400">{o.owner_name || 'No owner name'}</p>
+                </div>
+                <span className="text-gray-400 text-xs">{expanded === o.id ? '▲' : '▼'}</span>
+              </button>
+              {expanded === o.id && (
+                <div className="px-3 py-3 bg-white space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 w-20 flex-shrink-0">Invite code</span>
+                    <span className="font-mono font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{o.invite_code}</span>
+                  </div>
+                  {o.owner_name && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 w-20 flex-shrink-0">Owner</span>
+                      <span className="text-gray-700">{o.owner_name}</span>
+                    </div>
+                  )}
+                  {o.owner_email && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 w-20 flex-shrink-0">Email</span>
+                      <a href={`mailto:${o.owner_email}`} className="text-blue-600 hover:underline">{o.owner_email}</a>
+                    </div>
+                  )}
+                  {o.owner_phone && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 w-20 flex-shrink-0">Phone</span>
+                      <a href={`tel:${o.owner_phone}`} className="text-blue-600 hover:underline">{o.owner_phone}</a>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 w-20 flex-shrink-0">Registered</span>
+                    <span className="text-gray-700">{new Date(o.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ── Organisations panel ────────────────────────────────────────────────────────
 function OrganisationsPanel() {
   const [orgs,    setOrgs]    = useState<any[]>([])
@@ -367,6 +446,7 @@ export default function AdminPage() {
         </div>
       </Card>
 
+      <OrgRegistryPanel />
       <OrganisationsPanel />
       <GrantAdminPanel />
 

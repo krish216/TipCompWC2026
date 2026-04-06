@@ -16,18 +16,21 @@ export default function HomePage() {
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
+  const [orgData,     setOrgData]     = useState<{name:string;logo_url:string|null}|null>(null)
   const started = Date.now() >= KICKOFF.getTime()
 
   useEffect(() => {
     if (!session) { setLoading(false); return }
     const load = async () => {
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, favourite_team, org_id, organisations(name, logo_url)').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
-      setDisplayName((userRes.data as any)?.display_name ?? null)
-      setFavTeam((userRes.data as any)?.favourite_team ?? null)
+      const ud = userRes.data as any
+      setDisplayName(ud?.display_name ?? null)
+      setFavTeam(ud?.favourite_team ?? null)
+      setOrgData(ud?.organisations ?? null)
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
@@ -61,9 +64,18 @@ export default function HomePage() {
 
       {session && !loading && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex items-center gap-4 flex-wrap">
-          <div className="flex-1 min-w-[140px]">
-            <p className="text-sm font-semibold text-gray-900">Welcome back, {displayName ?? session.user.email?.split('@')[0]}! 👋</p>
-            {favTeam && <p className="text-xs text-purple-600 mt-0.5">⭐ Favourite: {favTeam}</p>}
+          <div className="flex items-center gap-3 flex-1 min-w-[140px]">
+            {orgData?.logo_url && (
+              <img src={orgData.logo_url} alt={orgData.name}
+                className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+            )}
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Welcome back, {displayName ?? session.user.email?.split('@')[0]}! 👋</p>
+              {orgData?.name && orgData.name !== 'PUBLIC' && (
+                <p className="text-xs text-blue-600 mt-0.5">🏢 {orgData.name}</p>
+              )}
+              {favTeam && <p className="text-xs text-purple-600 mt-0.5">⭐ Favourite: {favTeam}</p>}
+            </div>
           </div>
           <div className="flex gap-4">
             {totalPts !== null && <div className="text-center"><p className="text-xl font-bold text-green-700">{totalPts}</p><p className="text-[11px] text-gray-400">points</p></div>}
