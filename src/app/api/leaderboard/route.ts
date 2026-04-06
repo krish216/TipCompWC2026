@@ -15,12 +15,15 @@ export async function GET(request: NextRequest) {
   const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '50'), 200)
   const offset = parseInt(searchParams.get('offset') ?? '0')
 
-  // For tribe scope, get the user's tribe first
-  let tribeId: string | null = null
-  if (scope === 'tribe') {
-    const { data: me } = await supabase.from('users').select('tribe_id').eq('id', user.id).single()
-    tribeId = (me as any)?.tribe_id ?? null
-    if (!tribeId) return NextResponse.json({ data: [], message: 'You are not in a tribe.' })
+  // Get user's org and tribe
+  const { data: meRow } = await supabase
+    .from('users').select('tribe_id, org_id').eq('id', user.id).single()
+  const tribeId = (meRow as any)?.tribe_id ?? null
+  const orgId   = (meRow as any)?.org_id   ?? null
+
+  // For tribe scope, require tribe membership
+  if (scope === 'tribe' && !tribeId) {
+    return NextResponse.json({ data: [], message: 'You are not in a tribe.' })
   }
 
   // Get base leaderboard rows
@@ -32,9 +35,26 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1)
 
   if (scope === 'tribe' && tribeId) {
-    const { data: members } = await supabase.from('tribe_members').select('user_id').eq('tribe_id', tribeId)
+    // Filter to tribe members
+    const { data: members } = await supabase
+      .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
     const memberIds = (members ?? []).map((m: any) => m.user_id)
     query = query.in('user_id', memberIds)
+  } else if (scope === 'org' && orgId) {
+    // Filter to org members
+    const { data: orgMembers } = await supabase
+      .from('users').select('id').eq('org_id', orgId)
+    const memberIds = (orgMembers ?? []).map((m: any) => m.id)
+    query = query.in('user_id', memberIds)
+  } else if (scope === 'global') {
+    // If user has an org, default global to org-scoped for privacy
+    // Pass ?scope=all to get truly global
+    if (orgId && searchParams.get('scope') !== 'all') {
+      const { data: orgMembers } = await supabase
+        .from('users').select('id').eq('org_id', orgId)
+      const memberIds = (orgMembers ?? []).map((m: any) => m.id)
+      if (memberIds.length > 0) query = query.in('user_id', memberIds)
+    }
   }
 
   const { data, error } = await query

@@ -402,11 +402,33 @@ function ChatPanel({
 
 // ── No tribe panel ────────────────────────────────────────────────────────────
 function NoTribePanel({ onJoined }: { onJoined: () => void }) {
-  const { supabase } = useSupabase()
-  const [mode,    setMode]    = useState<'join' | 'create'>('join')
-  const [value,   setValue]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const { session, supabase } = useSupabase()
+  const [mode,       setMode]       = useState<'join' | 'create'>('join')
+  const [value,      setValue]      = useState('')
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false)
+  const [orgName,    setOrgName]    = useState<string | null>(null)
+  const [orgTribes,  setOrgTribes]  = useState<{id:string;name:string;invite_code:string}[]>([])
+
+  useEffect(() => {
+    if (!session) return
+    // Check if org admin
+    fetch('/api/org-admins')
+      .then(r => r.json())
+      .then(d => {
+        setIsOrgAdmin(d.is_org_admin === true)
+        setOrgName(d.org?.name ?? null)
+      })
+    // Load org tribes
+    supabase.from('users').select('org_id').eq('id', session.user.id).single()
+      .then(({ data: me }) => {
+        if (!(me as any)?.org_id) return
+        supabase.from('tribes').select('id, name, invite_code')
+          .eq('org_id', (me as any).org_id).order('name')
+          .then(({ data }) => setOrgTribes((data ?? []) as any[]))
+      })
+  }, [session, supabase])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true)
@@ -424,21 +446,77 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     finally { setLoading(false) }
   }
 
+  const joinTribe = async (inviteCode: string) => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/tribes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_code: inviteCode }),
+      })
+      const { data, error: apiErr } = await res.json()
+      if (!res.ok) throw new Error(apiErr ?? 'Something went wrong')
+      toast.success(`Joined "${data.name}"!`)
+      onJoined()
+    } catch (err: any) { toast.error(err.message) }
+    finally { setLoading(false) }
+  }
+
   return (
-    <div className="max-w-sm mx-auto py-8 px-4">
+    <div className="max-w-md mx-auto py-8 px-4">
       <div className="text-center mb-6">
         <div className="text-4xl mb-3">🏆</div>
         <h2 className="text-base font-semibold text-gray-900">Join a tribe</h2>
-        <p className="text-xs text-gray-500 mt-1">Compete with friends and chat about every match</p>
+        <p className="text-xs text-gray-500 mt-1">
+          {orgName ? `Compete within ${orgName}` : 'Compete with friends and chat about every match'}
+        </p>
       </div>
+
+      {/* Org tribes list */}
+      {orgTribes.length > 0 && (
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            {orgName ? `${orgName} tribes` : 'Available tribes'}
+          </p>
+          <div className="space-y-2">
+            {orgTribes.map(t => (
+              <div key={t.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{t.name}</p>
+                  <p className="text-[11px] text-gray-400 font-mono">{t.invite_code}</p>
+                </div>
+                <button
+                  onClick={() => joinTribe(t.invite_code)}
+                  disabled={loading}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg"
+                >
+                  Join
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 my-4">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">or enter a code</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+        </div>
+      )}
+
+      {/* Tab bar — only show Create if org admin */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-5">
-        {(['join','create'] as const).map(m => (
-          <button key={m} onClick={() => { setMode(m); setValue(''); setError(null) }}
-            className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors capitalize', mode===m?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700')}>
-            {m === 'join' ? 'Join with code' : 'Create new tribe'}
+        <button onClick={() => { setMode('join'); setValue(''); setError(null) }}
+          className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors', mode==='join'?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700')}>
+          Join with code
+        </button>
+        {isOrgAdmin && (
+          <button onClick={() => { setMode('create'); setValue(''); setError(null) }}
+            className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors', mode==='create'?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700')}>
+            Create tribe
           </button>
-        ))}
+        )}
       </div>
+
       <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4">
         <label className="block text-xs font-medium text-gray-700 mb-1.5">
           {mode === 'join' ? 'Invite code (8 characters)' : 'Tribe name'}

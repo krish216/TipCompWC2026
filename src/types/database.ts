@@ -4,9 +4,19 @@ export interface Database {
   public: {
     Tables: {
       users: {
-        Row:    { id: string; email: string; display_name: string; avatar_url: string | null; tribe_id: string | null; favourite_team: string | null; country: string | null; timezone: string | null; created_at: string; updated_at: string }
-        Insert: { id: string; email: string; display_name: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
-        Update: { email?: string; display_name?: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
+        Row:    { id: string; email: string; display_name: string; avatar_url: string | null; tribe_id: string | null; favourite_team: string | null; country: string | null; timezone: string | null; org_id: string | null; created_at: string; updated_at: string }
+        Insert: { id: string; email: string; display_name: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null; org_id?: string | null }
+        Update: { email?: string; display_name?: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null; org_id?: string | null }
+      }
+      organisations: {
+        Row:    { id: string; name: string; slug: string; invite_code: string; created_by: string | null; created_at: string }
+        Insert: { name: string; slug: string; created_by?: string | null }
+        Update: { name?: string; slug?: string }
+      }
+      org_admins: {
+        Row:    { org_id: string; user_id: string; granted_at: string }
+        Insert: { org_id: string; user_id: string }
+        Update: never
       }
       tribes: {
         Row:    { id: string; name: string; invite_code: string; created_by: string; created_at: string }

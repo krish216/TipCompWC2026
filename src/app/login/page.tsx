@@ -43,10 +43,13 @@ export default function LoginPage() {
 
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 
-  // Auto-detect timezone on mount
+  // Auto-detect timezone + load orgs on mount
   useEffect(() => {
-    const detected = detectTimezone()
-    setTimezone(detected)
+    setTimezone(detectTimezone())
+    fetch('/api/organisations')
+      .then(r => r.json())
+      .then(d => setOrgs(d.data ?? []))
+      .catch(() => {})
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
@@ -77,6 +80,7 @@ export default function LoginPage() {
             favourite_team: favTeam || null,
             country:        country || null,
             timezone:       timezone || 'UTC',
+            org_id:         orgId || null,
           }, { onConflict: 'id', ignoreDuplicates: false })
         }
         router.push(redirect); router.refresh(); return
@@ -86,7 +90,16 @@ export default function LoginPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/reset-password`,
         })
-        if (error) throw error
+        if (error) {
+          // Show the real Supabase error — rate limit shows as "email rate limit exceeded"
+          throw new Error(
+            error.message.toLowerCase().includes('rate limit')
+              ? 'Too many reset attempts — please wait a few minutes and try again.'
+              : error.message.toLowerCase().includes('sending')
+              ? 'Unable to send email. If this persists, try the Magic Link option to sign in instead.'
+              : error.message
+          )
+        }
         setResetSent(true); return
       }
 
@@ -154,6 +167,25 @@ export default function LoginPage() {
                   placeholder="GoalMaster99" maxLength={40}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
               </div>
+
+              {/* Organisation */}
+              {orgs.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Organisation <span className="text-gray-400 font-normal">(optional — join your company or club)</span>
+                  </label>
+                  <select value={orgId} onChange={e => setOrgId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                    <option value="">No organisation</option>
+                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                  {orgId && (
+                    <p className="text-[11px] text-blue-600 mt-1">
+                      🏢 You'll only see tribes and leaderboards from this organisation
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Country */}
               <div>
