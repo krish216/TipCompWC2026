@@ -7,12 +7,19 @@ const CreateSchema = z.object({
   owner_name:  z.string().optional(),
   owner_phone: z.string().optional(),
   owner_email: z.string().optional(),
-  user_id:     z.string().uuid(),   // passed explicitly — session may not be set yet post-signup
+  user_id:     z.string().uuid(),
+  // Optional user profile fields — upserted if user row doesn't exist yet
+  display_name:   z.string().optional(),
+  email:          z.string().email().optional(),
+  country:        z.string().optional(),
+  timezone:       z.string().optional(),
+  favourite_team: z.string().optional(),
 })
 
 // POST /api/organisations/create — self-service org creation
-// user_id is passed in body because the session cookie may not be set
-// immediately after signUp (email confirmation flow)
+// Uses admin client throughout — no session required.
+// user_id is passed explicitly because the browser session is not yet
+// established when this is called immediately after signUp.
 export async function POST(request: NextRequest) {
   const body   = await request.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
@@ -20,18 +27,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Organisation name and user_id are required' }, { status: 422 })
   }
 
-  const { name, owner_name, owner_phone, owner_email, user_id } = parsed.data
+  const {
+    name, owner_name, owner_phone, owner_email, user_id,
+    display_name, email, country, timezone, favourite_team,
+  } = parsed.data
+
   const adminClient = createAdminClient()
 
-  // Verify user exists
-  const { data: userRow } = await adminClient
-    .from('users').select('id').eq('id', user_id).single()
-  if (!userRow) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  // Upsert user row using admin client — handles the case where the
+  // Supabase trigger hasn't fired yet or the browser session isn't active
+  if (email || display_name) {
+    const { data: publicOrg } = await (adminClient.from('organisations') as any)
+      .select('id').eq('slug', 'public').single()
+    const publicOrgId = (publicOrg as any)?.id ?? null
+
+    await (adminClient.from('users') as any).upsert({
+      id:             user_id,
+      email:          email          ?? '',
+      display_name:   display_name  ?? email?.split('@')[0] ?? 'Player',
+      favourite_team: favourite_team || null,
+      country:        country        || null,
+      timezone:       timezone       || 'UTC',
+      org_id:         publicOrgId,   // will be updated below after org is created
+    }, { onConflict: 'id', ignoreDuplicates: false })
+  }
 
   // Check org name is unique (case-insensitive)
   const { data: existing } = await (adminClient.from('organisations') as any)
     .select('id').ilike('name', name).single()
-  if (existing) return NextResponse.json({ error: 'An organisation with this name already exists' }, { status: 409 })
+  if (existing) {
+    return NextResponse.json({ error: 'An organisation with this name already exists' }, { status: 409 })
+  }
 
   // Auto-generate slug and 8-char invite code
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -41,11 +67,12 @@ export async function POST(request: NextRequest) {
 
   const { data: org, error } = await (adminClient.from('organisations') as any)
     .insert({
-      name, slug, invite_code: code,
-      created_by:     user_id,
-      owner_name:     owner_name  || null,
-      owner_phone:    owner_phone || null,
-      owner_email:    owner_email || null,
+      name, slug,
+      invite_code:     code,
+      created_by:      user_id,
+      owner_name:      owner_name  || null,
+      owner_phone:     owner_phone || null,
+      owner_email:     owner_email || null,
       is_self_created: true,
       approved:        true,
     })
@@ -58,10 +85,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Assign user to org and grant org admin
+  const orgId = (org as any).id
+
+  // Assign user to new org and grant org admin — all via admin client
   await Promise.all([
-    (adminClient.from('users') as any).update({ org_id: (org as any).id }).eq('id', user_id),
-    (adminClient.from('org_admins') as any).upsert({ org_id: (org as any).id, user_id }),
+    (adminClient.from('users') as any).update({ org_id: orgId }).eq('id', user_id),
+    (adminClient.from('org_admins') as any).upsert({ org_id: orgId, user_id }),
   ])
 
   return NextResponse.json({ data: org }, { status: 201 })
@@ -77,7 +106,7 @@ export async function PATCH(request: NextRequest) {
 
   const adminClient = createAdminClient()
 
-  // Verify caller owns this org
+  // Verify caller created this org
   const { data: org } = await (adminClient.from('organisations') as any)
     .select('created_by').eq('id', org_id).single()
   if (!org || (org as any).created_by !== user_id) {

@@ -175,11 +175,17 @@ export default function LoginPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name:        newOrgName.trim(),
-            owner_name:  ownerName.trim(),
-            owner_phone: ownerPhone.trim(),
-            owner_email: ownerEmail.trim(),
-            user_id:     newUserId,
+            name:           newOrgName.trim(),
+            owner_name:     ownerName.trim(),
+            owner_phone:    ownerPhone.trim(),
+            owner_email:    ownerEmail.trim(),
+            user_id:        newUserId,
+            // Pass profile so API can upsert the user row if it doesn't exist yet
+            email:          email,
+            display_name:   name || email.split('@')[0],
+            country:        country || null,
+            timezone:       timezone || 'UTC',
+            favourite_team: favTeam || null,
           }),
         })
         const { data: org, error: orgErr } = await createRes.json()
