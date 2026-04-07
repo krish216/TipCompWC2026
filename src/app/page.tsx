@@ -63,23 +63,40 @@ export default function HomePage() {
       </div>
 
       {session && !loading && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-1 min-w-[140px]">
-            {orgData?.logo_url && (
+        <div className="mb-6">
+          {/* Org logo banner — shown prominently when org has a logo */}
+          {orgData?.logo_url && orgData.name !== 'PUBLIC' && (
+            <div className="flex items-center gap-4 bg-gradient-to-r from-green-900 to-green-800 rounded-xl p-4 mb-3">
               <img src={orgData.logo_url} alt={orgData.name}
-                className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-            )}
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Welcome back, {displayName ?? session.user.email?.split('@')[0]}! 👋</p>
-              {orgData?.name && orgData.name !== 'PUBLIC' && (
-                <p className="text-xs text-blue-600 mt-0.5">🏢 {orgData.name}</p>
-              )}
-              {favTeam && <p className="text-xs text-purple-600 mt-0.5">⭐ Favourite: {favTeam}</p>}
+                className="w-14 h-14 rounded-xl object-cover border-2 border-white/20 flex-shrink-0 shadow-lg" />
+              <div>
+                <p className="text-white font-semibold text-sm">{orgData.name}</p>
+                <p className="text-green-300 text-xs mt-0.5">TipComp 2026 — your organisation</p>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-4">
-            {totalPts !== null && <div className="text-center"><p className="text-xl font-bold text-green-700">{totalPts}</p><p className="text-[11px] text-gray-400">points</p></div>}
-            {myRank   !== null && <div className="text-center"><p className="text-xl font-bold text-gray-800">#{myRank}</p><p className="text-[11px] text-gray-400">rank</p></div>}
+          )}
+          {/* Welcome card */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-[140px]">
+              {(!orgData?.logo_url || orgData.name === 'PUBLIC') && (
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
+                  {(displayName ?? session.user.email ?? 'P').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  Welcome back, {displayName ?? session.user.email?.split('@')[0]}! 👋
+                </p>
+                {orgData?.name && orgData.name !== 'PUBLIC' && (
+                  <p className="text-xs text-blue-600 mt-0.5">🏢 {orgData.name}</p>
+                )}
+                {favTeam && <p className="text-xs text-purple-600 mt-0.5">⭐ {favTeam}</p>}
+              </div>
+            </div>
+            <div className="flex gap-4">
+              {totalPts !== null && <div className="text-center"><p className="text-xl font-bold text-green-700">{totalPts}</p><p className="text-[11px] text-gray-400">points</p></div>}
+              {myRank   !== null && <div className="text-center"><p className="text-xl font-bold text-gray-800">#{myRank}</p><p className="text-[11px] text-gray-400">rank</p></div>}
+            </div>
           </div>
         </div>
       )}
