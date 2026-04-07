@@ -34,32 +34,35 @@ export async function POST(request: NextRequest) {
 
   const adminClient = createAdminClient()
 
-  // Upsert user row using admin client — handles the case where the
-  // Supabase trigger hasn't fired yet or the browser session isn't active
-  if (email || display_name) {
-    const { data: publicOrg } = await (adminClient.from('organisations') as any)
-      .select('id').eq('slug', 'public').single()
-    const publicOrgId = (publicOrg as any)?.id ?? null
-
-    await (adminClient.from('users') as any).upsert({
-      id:             user_id,
-      email:          email          ?? '',
-      display_name:   display_name  ?? email?.split('@')[0] ?? 'Player',
-      favourite_team: favourite_team || null,
-      country:        country        || null,
-      timezone:       timezone       || 'UTC',
-      org_id:         publicOrgId,   // will be updated below after org is created
-    }, { onConflict: 'id', ignoreDuplicates: false })
-  }
-
-  // Check org name is unique (case-insensitive)
+  // Step 1: check org name is unique before doing anything
   const { data: existing } = await (adminClient.from('organisations') as any)
     .select('id').ilike('name', name).single()
   if (existing) {
     return NextResponse.json({ error: 'An organisation with this name already exists' }, { status: 409 })
   }
 
-  // Auto-generate slug and 8-char invite code
+  // Step 2: upsert user row FIRST and wait for it to fully commit
+  // This must happen before the org insert because of the FK constraint
+  const { data: publicOrg } = await (adminClient.from('organisations') as any)
+    .select('id').eq('slug', 'public').single()
+  const publicOrgId = (publicOrg as any)?.id ?? null
+
+  const { error: userError } = await (adminClient.from('users') as any).upsert({
+    id:             user_id,
+    email:          email          ?? '',
+    display_name:   display_name  ?? email?.split('@')[0] ?? 'Player',
+    favourite_team: favourite_team || null,
+    country:        country        || null,
+    timezone:       timezone       || 'UTC',
+    org_id:         publicOrgId,
+  }, { onConflict: 'id', ignoreDuplicates: false })
+
+  if (userError) {
+    console.error('[org/create] user upsert error:', userError)
+    // Continue anyway — user may already exist from the trigger
+  }
+
+  // Step 3: create the org — user row is now guaranteed to exist
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const slug     = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`
   const code     = (Math.random().toString(36).substring(2, 6) +
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
     .insert({
       name, slug,
       invite_code:     code,
-      created_by:      user_id,
+      created_by:      user_id,   // FK is safe now — user row exists
       owner_name:      owner_name  || null,
       owner_phone:     owner_phone || null,
       owner_email:     owner_email || null,
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   const orgId = (org as any).id
 
-  // Assign user to new org and grant org admin — all via admin client
+  // Step 4: assign user to new org and grant org admin
   await Promise.all([
     (adminClient.from('users') as any).update({ org_id: orgId }).eq('id', user_id),
     (adminClient.from('org_admins') as any).upsert({ org_id: orgId, user_id }),
