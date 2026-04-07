@@ -147,7 +147,18 @@ export default function LoginPage() {
         options: { data: { display_name: displayName } },
       })
       setLoading(false)
-      if (error) { setError(error.message); return }
+      if (error) {
+        if (error.message.toLowerCase().includes('rate limit')) {
+          setError('Too many signups attempted — please wait a few minutes and try again.')
+        } else if (error.message.toLowerCase().includes('already registered')) {
+          setError('This email is already registered — use Sign in or Reset password.')
+        } else if (error.message.toLowerCase().includes('sending confirmation') || error.message.toLowerCase().includes('sending email')) {
+          setError('Unable to send confirmation email right now. Please try again in a few minutes, or contact the tournament admin.')
+        } else {
+          setError(error.message)
+        }
+        return
+      }
 
       const newUser = signUpData.user
       if (newUser) {
