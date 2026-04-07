@@ -170,6 +170,7 @@ export default function LoginPage() {
         if (!newOrgName.trim()) { setError('Organisation name is required'); setLoading(false); return }
 
         // Create org
+        if (!newUserId) { setError('Session error — please try again'); setLoading(false); return }
         const createRes = await fetch('/api/organisations/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -178,6 +179,7 @@ export default function LoginPage() {
             owner_name:  ownerName.trim(),
             owner_phone: ownerPhone.trim(),
             owner_email: ownerEmail.trim(),
+            user_id:     newUserId,
           }),
         })
         const { data: org, error: orgErr } = await createRes.json()
@@ -195,7 +197,7 @@ export default function LoginPage() {
             await fetch('/api/organisations/create', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ org_id: org.id, logo_url: urlData.publicUrl }),
+              body: JSON.stringify({ org_id: org.id, logo_url: urlData.publicUrl, user_id: newUserId }),
             })
           }
         }

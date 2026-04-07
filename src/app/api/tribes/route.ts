@@ -97,6 +97,13 @@ export async function POST(request: NextRequest) {
 
   const adminClient = createAdminClient()
 
+  // Check tribe name is unique within this org (case-insensitive)
+  const { data: existingTribe } = await (adminClient.from('tribes') as any)
+    .select('id').ilike('name', parsed.data.name).eq('org_id', org_id).single()
+  if (existingTribe) {
+    return NextResponse.json({ error: 'A tribe with this name already exists in your organisation' }, { status: 409 })
+  }
+
   // Generate unique invite code
   const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase()
 

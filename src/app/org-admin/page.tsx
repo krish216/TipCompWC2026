@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Spinner, Card, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -152,6 +152,83 @@ function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
   )
 }
 
+// ── Logo upload component ─────────────────────────────────────────────────────
+function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
+  orgId: string
+  currentLogo: string | null
+  onUploaded: (url: string) => void
+}) {
+  const { supabase, session } = useSupabase()
+  const fileRef  = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(currentLogo)
+  const [uploading, setUploading] = useState(false)
+
+  // sync when prop changes
+  if (currentLogo !== preview && currentLogo && !uploading) setPreview(currentLogo)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !orgId || !session) return
+    if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2MB'); return }
+
+    // Show preview immediately
+    const reader = new FileReader()
+    reader.onload = ev => setPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+
+    setUploading(true)
+    const ext  = file.name.split('.').pop()
+    const path = `${session.user.id}/logo.${ext}`
+    const { data: uploaded, error } = await supabase.storage
+      .from('org-logos').upload(path, file, { upsert: true })
+
+    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
+
+    const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
+    const logoUrl = urlData.publicUrl
+
+    // Save to org record
+    await fetch('/api/organisations/create', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, logo_url: logoUrl, user_id: session.user.id }),
+    })
+
+    onUploaded(logoUrl)
+    setUploading(false)
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative flex-shrink-0">
+        {preview ? (
+          <img src={preview} alt="Org logo" className="w-16 h-16 rounded-xl object-cover border border-gray-200" />
+        ) : (
+          <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300">
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+        {uploading && (
+          <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+            <Spinner className="w-5 h-5 text-white" />
+          </div>
+        )}
+      </div>
+      <div>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50">
+          {preview ? 'Change logo' : 'Upload logo'}
+        </button>
+        <p className="text-[11px] text-gray-400 mt-1.5">Shown on the home page for your org members. Max 2MB.</p>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  )
+}
+
 // ── Main org admin page ───────────────────────────────────────────────────────
 export default function OrgAdminPage() {
   const { session } = useSupabase()
@@ -161,6 +238,7 @@ export default function OrgAdminPage() {
   const [org,        setOrg]        = useState<Org | null>(null)
   const [tribes,     setTribes]     = useState<Tribe[]>([])
   const [members,    setMembers]    = useState<Member[]>([])
+  const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -175,6 +253,7 @@ export default function OrgAdminPage() {
 
       setIsOrgAdmin(true)
       setOrg(adminData.org)
+      setOrgLogo(adminData.org?.logo_url ?? null)
       const orgId = adminData.org_id
 
       // Load tribes and members in parallel
@@ -227,6 +306,12 @@ export default function OrgAdminPage() {
           <span>{members.length} member{members.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
+
+      {/* Org logo */}
+      <Card className="mb-4">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation logo</p>
+        <OrgLogoUpload orgId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
+      </Card>
 
       {/* Role explanation */}
       <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4">

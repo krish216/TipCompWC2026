@@ -10,7 +10,7 @@ export async function GET() {
 
   const adminClient = createAdminClient()
   const { data } = await (adminClient.from('org_admins') as any)
-    .select('org_id, organisations(id, name, slug, invite_code)')
+    .select('org_id, organisations(id, name, slug, invite_code, logo_url)')
     .eq('user_id', user.id)
     .single()
 
