@@ -403,137 +403,369 @@ function ChatPanel({
 // ── No tribe panel ────────────────────────────────────────────────────────────
 function NoTribePanel({ onJoined }: { onJoined: () => void }) {
   const { session, supabase } = useSupabase()
-  const [mode,       setMode]       = useState<'join' | 'create'>('join')
-  const [value,      setValue]      = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
-  const [isOrgAdmin, setIsOrgAdmin] = useState(false)
-  const [orgName,    setOrgName]    = useState<string | null>(null)
-  const [orgTribes,  setOrgTribes]  = useState<{id:string;name:string;invite_code:string}[]>([])
+
+  // Org state
+  const [userOrg,     setUserOrg]     = useState<{id:string;name:string;slug:string} | null>(null)
+  const [orgView,     setOrgView]     = useState<'tribe' | 'change-org'>('tribe')
+  const [orgChoice,   setOrgChoice]   = useState<'join' | 'create'>('join')
+
+  // Tribe state
+  const [isOrgAdmin,  setIsOrgAdmin]  = useState(false)
+  const [orgTribes,   setOrgTribes]   = useState<{id:string;name:string;invite_code:string}[]>([])
+  const [tribeMode,   setTribeMode]   = useState<'list' | 'code'>('list')
+  const [tribeCode,   setTribeCode]   = useState('')
+  const [newTribeName,setNewTribeName]= useState('')
+
+  // Org create/join fields
+  const [orgCode,     setOrgCode]     = useState('')
+  const [orgLookup,   setOrgLookup]   = useState<{id:string;name:string} | null>(null)
+  const [orgCodeErr,  setOrgCodeErr]  = useState<string | null>(null)
+  const [lookingUp,   setLookingUp]   = useState(false)
+  const [newOrgName,  setNewOrgName]  = useState('')
+  const [ownerPhone,  setOwnerPhone]  = useState('')
+  const [ownerEmail,  setOwnerEmail]  = useState('')
+  const [logoFile,    setLogoFile]    = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
-    // Check if org admin
-    fetch('/api/org-admins')
-      .then(r => r.json())
-      .then(d => {
-        setIsOrgAdmin(d.is_org_admin === true)
-        setOrgName(d.org?.name ?? null)
-      })
-    // Load org tribes
-    supabase.from('users').select('org_id').eq('id', session.user.id).single()
-      .then(({ data: me }) => {
-        if (!(me as any)?.org_id) return
-        supabase.from('tribes').select('id, name, invite_code')
-          .eq('org_id', (me as any).org_id).order('name')
-          .then(({ data }) => setOrgTribes((data ?? []) as any[]))
-      })
+    const load = async () => {
+      // Get user org and org admin status in parallel
+      const [userRes, adminRes] = await Promise.all([
+        supabase.from('users').select('org_id, organisations(id, name, slug)').eq('id', session.user.id).single(),
+        fetch('/api/org-admins').then(r => r.json()),
+      ])
+      const org = (userRes.data as any)?.organisations ?? null
+      setUserOrg(org)
+      setIsOrgAdmin(adminRes.is_org_admin === true)
+
+      // Load org tribes if user has a non-public org
+      if (org && org.slug !== 'public') {
+        const { data } = await supabase.from('tribes').select('id, name, invite_code')
+          .eq('org_id', org.id).order('name')
+        setOrgTribes((data ?? []) as any[])
+      }
+    }
+    load()
   }, [session, supabase])
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault(); setError(null); setLoading(true)
-    try {
-      const res = await fetch('/api/tribes', {
-        method: mode === 'create' ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'create' ? { name: value } : { invite_code: value.toUpperCase() }),
-      })
-      const { data, error: apiErr } = await res.json()
-      if (!res.ok) throw new Error(apiErr ?? 'Something went wrong')
-      toast.success(mode === 'create' ? `Tribe "${data.name}" created!` : `Joined "${data.name}"!`)
-      onJoined()
-    } catch (err: any) { setError(err.message) }
-    finally { setLoading(false) }
+  const isPublicOrg = !userOrg || userOrg.slug === 'public'
+
+  // ── Join tribe by invite code ──
+  const joinByCode = async (code: string) => {
+    setLoading(true); setError(null)
+    const res = await fetch('/api/tribes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invite_code: code.toUpperCase() }),
+    })
+    const { data, error: apiErr } = await res.json()
+    setLoading(false)
+    if (!res.ok) { setError(apiErr ?? 'Something went wrong'); return }
+    toast.success(`Joined "${data.name}"!`)
+    onJoined()
   }
 
-  const joinTribe = async (inviteCode: string) => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/tribes', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invite_code: inviteCode }),
-      })
-      const { data, error: apiErr } = await res.json()
-      if (!res.ok) throw new Error(apiErr ?? 'Something went wrong')
-      toast.success(`Joined "${data.name}"!`)
-      onJoined()
-    } catch (err: any) { toast.error(err.message) }
-    finally { setLoading(false) }
+  // ── Create tribe ──
+  const createTribe = async () => {
+    if (!newTribeName.trim()) return
+    setLoading(true); setError(null)
+    const res = await fetch('/api/tribes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newTribeName.trim() }),
+    })
+    const { data, error: apiErr } = await res.json()
+    setLoading(false)
+    if (!res.ok) { setError(apiErr ?? 'Something went wrong'); return }
+    toast.success(`Tribe "${data.name}" created!`)
+    onJoined()
   }
 
+  // ── Look up org by code ──
+  const lookupOrgCode = async () => {
+    setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
+    const res = await fetch(`/api/organisations?code=${orgCode}`)
+    const { data, error } = await res.json()
+    setLookingUp(false)
+    if (error || !data) setOrgCodeErr('Code not found — check with your tournament admin')
+    else setOrgLookup(data)
+  }
+
+  // ── Join existing org by code ──
+  const joinOrg = async () => {
+    if (!orgLookup) return
+    setLoading(true); setError(null)
+    const res = await fetch('/api/org-admins/self-register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgLookup.id, invite_code: orgCode }),
+    })
+    const { success, error: apiErr } = await res.json()
+    setLoading(false)
+    if (!success) { setError(apiErr ?? 'Failed to join organisation'); return }
+    toast.success(`Joined ${orgLookup.name} as org admin!`)
+    setUserOrg(orgLookup as any)
+    setIsOrgAdmin(true)
+    setOrgView('tribe')
+    // Reload tribes for new org
+    const { data } = await supabase.from('tribes').select('id, name, invite_code')
+      .eq('org_id', orgLookup.id).order('name')
+    setOrgTribes((data ?? []) as any[])
+  }
+
+  // ── Create new org ──
+  const createOrg = async () => {
+    if (!newOrgName.trim() || !session) return
+    setLoading(true); setError(null)
+    const { data: userData } = await supabase
+      .from('users').select('display_name, email').eq('id', session.user.id).single()
+
+    const createRes = await fetch('/api/organisations/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:           newOrgName.trim(),
+        owner_phone:    ownerPhone.trim(),
+        owner_email:    ownerEmail.trim(),
+        owner_name:     (userData as any)?.display_name ?? '',
+        user_id:        session.user.id,
+        email:          (userData as any)?.email ?? '',
+        display_name:   (userData as any)?.display_name ?? '',
+      }),
+    })
+    const { data: org, error: orgErr } = await createRes.json()
+    setLoading(false)
+    if (orgErr || !org) { setError(orgErr ?? 'Failed to create organisation'); return }
+
+    // Upload logo if provided
+    if (logoFile) {
+      const ext  = logoFile.name.split('.').pop()
+      const path = `${session.user.id}/logo.${ext}`
+      const { data: uploaded } = await supabase.storage
+        .from('org-logos').upload(path, logoFile, { upsert: true })
+      if (uploaded) {
+        const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
+        await fetch('/api/organisations/create', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ org_id: org.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
+        })
+      }
+    }
+
+    toast.success(`Organisation "${org.name}" created!`)
+    setUserOrg({ id: org.id, name: org.name, slug: org.slug })
+    setIsOrgAdmin(true)
+    setOrgView('tribe')
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setError('Logo must be under 2MB'); return }
+    setLogoFile(file)
+    const reader = new FileReader()
+    reader.onload = ev => setLogoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  // ── Render: Change org panel ──
+  if (orgView === 'change-org') return (
+    <div className="max-w-md mx-auto py-8 px-4">
+      <button onClick={() => { setOrgView('tribe'); setError(null) }}
+        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 mb-5">
+        ← Back
+      </button>
+      <div className="text-center mb-6">
+        <div className="text-3xl mb-2">🏢</div>
+        <h2 className="text-base font-semibold text-gray-900">Join or create an organisation</h2>
+        <p className="text-xs text-gray-500 mt-1">You're currently in <strong>{userOrg?.name ?? 'Public'}</strong></p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-5">
+        {(['join','create'] as const).map(c => (
+          <button key={c} onClick={() => { setOrgChoice(c); setError(null) }}
+            className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
+              orgChoice === c ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+            {c === 'join' ? '🔑 Join with code' : '✨ Create org'}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        {orgChoice === 'join' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Organisation code</label>
+              <div className="flex gap-2">
+                <input type="text" value={orgCode}
+                  onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
+                  placeholder="e.g. ACME1234" maxLength={8}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                <button type="button" onClick={lookupOrgCode} disabled={lookingUp || orgCode.length < 6}
+                  className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50">
+                  {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
+                </button>
+              </div>
+              {orgLookup && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{orgLookup.name}</strong> — you'll be added as org admin</p>}
+              {orgCodeErr && <p className="text-[11px] text-red-600 mt-1.5">{orgCodeErr}</p>}
+            </div>
+            {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            <button onClick={joinOrg} disabled={loading || !orgLookup}
+              className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
+              {loading && <Spinner className="w-4 h-4 text-white" />}
+              Join organisation →
+            </button>
+          </>
+        )}
+
+        {orgChoice === 'create' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Organisation name <span className="text-red-500">*</span></label>
+              <input type="text" value={newOrgName} onChange={e => setNewOrgName(e.target.value)}
+                placeholder="e.g. Acme Corp"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone number</label>
+              <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)}
+                placeholder="+61 4XX XXX XXX"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Contact email</label>
+              <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
+                placeholder="admin@acmecorp.com"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Logo <span className="text-gray-400 font-normal">(optional, max 2MB)</span></label>
+              <div className="flex items-center gap-3">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 flex-shrink-0 text-xl">🏢</div>
+                )}
+                <button type="button" onClick={() => fileRef.current?.click()}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
+                  {logoFile ? 'Change' : 'Upload logo'}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            <button onClick={createOrg} disabled={loading || !newOrgName.trim()}
+              className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
+              {loading && <Spinner className="w-4 h-4 text-white" />}
+              Create organisation →
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── Render: Tribe panel ──
   return (
     <div className="max-w-md mx-auto py-8 px-4">
-      <div className="text-center mb-6">
+      <div className="text-center mb-5">
         <div className="text-4xl mb-3">🏆</div>
         <h2 className="text-base font-semibold text-gray-900">Join a tribe</h2>
         <p className="text-xs text-gray-500 mt-1">
-          {orgName ? `Compete within ${orgName}` : 'Compete with friends and chat about every match'}
+          {userOrg && !isPublicOrg ? `Competing within ${userOrg.name}` : 'Compete with friends and chat about every match'}
         </p>
       </div>
 
-      {/* Org tribes list */}
+      {/* Org switcher banner for PUBLIC users */}
+      {isPublicOrg && (
+        <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-blue-800">You're in the Public organisation</p>
+            <p className="text-[11px] text-blue-600 mt-0.5">Join or create your own org to compete privately</p>
+          </div>
+          <button onClick={() => setOrgView('change-org')}
+            className="flex-shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg">
+            Change
+          </button>
+        </div>
+      )}
+
+      {/* Non-public org: show change option */}
+      {!isPublicOrg && (
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-xs text-gray-500">🏢 <strong>{userOrg?.name}</strong></span>
+          <button onClick={() => setOrgView('change-org')}
+            className="text-[11px] text-blue-500 hover:text-blue-700 underline">
+            Change org
+          </button>
+        </div>
+      )}
+
+      {/* Tribe list for org */}
       {orgTribes.length > 0 && (
-        <div className="mb-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            {orgName ? `${orgName} tribes` : 'Available tribes'}
-          </p>
+        <div className="mb-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Available tribes</p>
           <div className="space-y-2">
             {orgTribes.map(t => (
               <div key={t.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                  <p className="text-[11px] text-gray-400 font-mono">{t.invite_code}</p>
-                </div>
-                <button
-                  onClick={() => joinTribe(t.invite_code)}
-                  disabled={loading}
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg"
-                >
+                <p className="text-sm font-medium text-gray-900">{t.name}</p>
+                <button onClick={() => joinByCode(t.invite_code)} disabled={loading}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg">
                   Join
                 </button>
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2 my-4">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400">or enter a code</span>
-            <div className="flex-1 h-px bg-gray-200" />
+        </div>
+      )}
+
+      {/* Org admin: create tribe */}
+      {isOrgAdmin && !isPublicOrg && (
+        <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-gray-700 mb-2">Create a new tribe</p>
+          <div className="flex gap-2">
+            <input type="text" value={newTribeName} onChange={e => setNewTribeName(e.target.value)}
+              placeholder="Tribe name" maxLength={50}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            <button onClick={createTribe} disabled={loading || !newTribeName.trim()}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg">
+              {loading ? <Spinner className="w-4 h-4 text-white" /> : 'Create'}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Tab bar — only show Create if org admin */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-5">
-        <button onClick={() => { setMode('join'); setValue(''); setError(null) }}
-          className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors', mode==='join'?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700')}>
-          Join with code
-        </button>
-        {isOrgAdmin && (
-          <button onClick={() => { setMode('create'); setValue(''); setError(null) }}
-            className={clsx('flex-1 py-1.5 text-xs font-medium rounded-md transition-colors', mode==='create'?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700')}>
-            Create tribe
+      {/* Join by code */}
+      {orgTribes.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or use a code</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+      )}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">Invite code</label>
+        <div className="flex gap-2">
+          <input type="text" value={tribeCode} onChange={e => setTribeCode(e.target.value.toUpperCase())}
+            placeholder="e.g. XJAB4K89" maxLength={8}
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white font-mono uppercase" />
+          <button onClick={() => joinByCode(tribeCode)} disabled={loading || tribeCode.length < 6}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg">
+            {loading ? <Spinner className="w-4 h-4 text-white" /> : 'Join'}
           </button>
-        )}
+        </div>
+        {error && <p className="text-xs text-red-600 mt-2 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
       </div>
-
-      <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4">
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">
-          {mode === 'join' ? 'Invite code (8 characters)' : 'Tribe name'}
-        </label>
-        <input type="text" value={value} onChange={e => setValue(e.target.value)}
-          placeholder={mode === 'join' ? 'e.g. XJAB4K89' : 'e.g. The Offside Trap'}
-          required className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        {error && <p className="text-xs text-red-600 mb-3 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-        <button type="submit" disabled={loading || !value.trim()}
-          className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
-          {loading && <Spinner className="w-4 h-4 text-white" />}
-          {mode === 'join' ? 'Join tribe' : 'Create tribe'}
-        </button>
-      </form>
     </div>
   )
 }
+
 
 // ── Main tribe page ───────────────────────────────────────────────────────────
 export default function TribePage() {

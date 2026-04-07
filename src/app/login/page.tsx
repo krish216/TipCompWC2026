@@ -28,9 +28,10 @@ export default function LoginPage() {
   const { supabase } = useSupabase()
   const router  = useRouter()
   const params  = useSearchParams()
-  const redirect = params.get('redirect') ?? '/predict'
+  const redirect  = params.get('redirect') ?? '/predict'
+  const tabParam  = params.get('tab') as Mode | null
 
-  const [mode,        setMode]        = useState<Mode>('login')
+  const [mode,        setMode]        = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
   const [regStep,     setRegStep]     = useState<RegStep>('account')
 
   // Account fields

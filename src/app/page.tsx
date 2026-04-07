@@ -98,7 +98,7 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            <NavCard href="/login" icon="🚀" title="Join free"     description="Register and start predicting in 30 seconds" accent />
+            <NavCard href="/login?tab=register" icon="🚀" title="Join free"     description="Register and start predicting in 30 seconds" accent />
             <NavCard href="/login" icon="🔑" title="Sign in"       description="Already have an account" />
             <NavCard href="/leaderboard" icon="🏆" title="Leaderboard" description="See the current standings" />
             <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide and tournament format" />
