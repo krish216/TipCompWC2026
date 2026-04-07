@@ -30,7 +30,9 @@ export default function HomePage() {
       const ud = userRes.data as any
       setDisplayName(ud?.display_name ?? null)
       setFavTeam(ud?.favourite_team ?? null)
-      setOrgData(ud?.organisations ?? null)
+      // Supabase may return nested relation as array or object — normalise
+      const orgRaw = ud?.organisations
+      setOrgData(Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : (orgRaw ?? null))
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
@@ -58,7 +60,9 @@ export default function HomePage() {
       <CountdownBanner />
 
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">TipComp 2026 ⚽</h1>
+        <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
+          className="w-20 h-auto mx-auto mb-3 drop-shadow-md" />
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">TipComp 2026</h1>
         <p className="text-sm text-gray-500">Predict every match of the FIFA World Cup. Compete with your tribe.</p>
       </div>
 

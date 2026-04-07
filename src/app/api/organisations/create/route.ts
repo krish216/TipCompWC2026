@@ -109,10 +109,12 @@ export async function PATCH(request: NextRequest) {
 
   const adminClient = createAdminClient()
 
-  // Verify caller created this org
+  // Verify caller is org admin or created the org
   const { data: org } = await (adminClient.from('organisations') as any)
     .select('created_by').eq('id', org_id).single()
-  if (!org || (org as any).created_by !== user_id) {
+  const { data: orgAdminRow } = await (adminClient.from('org_admins') as any)
+    .select('user_id').eq('user_id', user_id).eq('org_id', org_id).single()
+  if (!org || ((org as any).created_by !== user_id && !orgAdminRow)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

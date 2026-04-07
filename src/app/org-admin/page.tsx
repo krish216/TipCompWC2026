@@ -163,8 +163,10 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
   const [preview, setPreview] = useState<string | null>(currentLogo)
   const [uploading, setUploading] = useState(false)
 
-  // sync when prop changes
-  if (currentLogo !== preview && currentLogo && !uploading) setPreview(currentLogo)
+  // Sync preview from prop when it changes (e.g. on page reload)
+  useEffect(() => {
+    if (currentLogo && !uploading) setPreview(currentLogo)
+  }, [currentLogo])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -194,7 +196,11 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
       body: JSON.stringify({ org_id: orgId, logo_url: logoUrl, user_id: session.user.id }),
     })
 
-    onUploaded(logoUrl)
+    // Verify it saved by re-fetching org data
+    const verifyRes = await fetch('/api/org-admins')
+    const verifyData = await verifyRes.json()
+    const savedLogo = verifyData.org?.logo_url ?? logoUrl
+    onUploaded(savedLogo)
     setUploading(false)
   }
 

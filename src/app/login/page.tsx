@@ -142,6 +142,15 @@ export default function LoginPage() {
         return
       }
 
+      // Check email uniqueness (Supabase auth will also catch this, but gives a nicer message)
+      const { data: emailCheck } = await supabase
+        .from('users').select('id').ilike('email', email.trim()).single()
+      if (emailCheck) {
+        setError('This email is already registered — use Sign in or Reset password.')
+        setLoading(false)
+        return
+      }
+
       const { data: signUpData, error } = await supabase.auth.signUp({
         email, password,
         options: { data: { display_name: displayName } },

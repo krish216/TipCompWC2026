@@ -15,10 +15,13 @@ export async function GET() {
     .single()
 
   if (!data) return NextResponse.json({ is_org_admin: false })
+  // Supabase may return nested relation as array or object — normalise
+  const orgRaw = (data as any).organisations
+  const org    = Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : orgRaw
   return NextResponse.json({
     is_org_admin: true,
     org_id: (data as any).org_id,
-    org:    (data as any).organisations,
+    org,
   })
 }
 
