@@ -509,13 +509,16 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     setLoading(false)
     if (!success) { setError(apiErr ?? 'Failed to join organisation'); return }
     toast.success(`Joined ${orgLookup.name} as org admin!`)
-    setUserOrg(orgLookup as any)
-    setIsOrgAdmin(true)
-    setOrgView('tribe')
     // Reload tribes for new org
     const { data } = await supabase.from('tribes').select('id, name, invite_code')
       .eq('org_id', orgLookup.id).order('name')
     setOrgTribes((data ?? []) as any[])
+    setUserOrg(orgLookup as any)
+    setIsOrgAdmin(true)
+    setOrgView('tribe')
+    // Small delay so the user sees the tribe list before any auto-redirect
+    await new Promise(r => setTimeout(r, 800))
+    onJoined()  // triggers parent loadTribe() to fully refresh the page
   }
 
   // ── Create new org ──
@@ -558,10 +561,14 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
       }
     }
 
-    toast.success(`Organisation "${org.name}" created!`)
+    toast.success(`Organisation "${org.name}" created! Now join or create a tribe.`)
     setUserOrg({ id: org.id, name: org.name, slug: org.slug })
     setIsOrgAdmin(true)
     setOrgView('tribe')
+    // Reload tribes list for new org
+    const { data: newTribes } = await supabase.from('tribes').select('id, name, invite_code')
+      .eq('org_id', org.id).order('name')
+    setOrgTribes((newTribes ?? []) as any[])
   }
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
