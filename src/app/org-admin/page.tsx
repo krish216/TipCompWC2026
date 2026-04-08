@@ -341,11 +341,11 @@ export default function OrgAdminPage() {
         </div>
       </div>
 
+      {/* Grant org admin — shown first so admin can grant access before setting up tribes */}
+      {org && <GrantOrgAdminForm orgId={org.id} />}
+
       {/* Create tribe */}
       {org && <CreateTribeForm orgId={org.id} onCreated={t => setTribes(prev => [...prev, t])} />}
-
-      {/* Grant org admin */}
-      {org && <GrantOrgAdminForm orgId={org.id} />}
 
       {/* Tribes list */}
       <div className="mb-2 flex items-center justify-between">

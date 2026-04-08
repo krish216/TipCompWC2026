@@ -477,11 +477,20 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
   useEffect(() => {
     if (!session) return
     ;(async () => {
+      // Fetch user's org_id first
       const { data: me } = await supabase
-        .from('users').select('org_id, organisations(id, name, slug)').eq('id', session.user.id).single()
-      const orgRaw = (me as any)?.organisations
-      const org    = Array.isArray(orgRaw) ? orgRaw[0] ?? null : orgRaw ?? null
+        .from('users').select('org_id').eq('id', session.user.id).single()
+      const orgId = (me as any)?.org_id ?? null
+
+      let org = null
+      if (orgId) {
+        // Fetch org directly — avoids RLS issues with nested joins
+        const { data: orgRow } = await supabase
+          .from('organisations').select('id, name, slug').eq('id', orgId).single()
+        org = orgRow ?? null
+      }
       setUserOrg(org)
+
       if (org && org.slug !== 'public') {
         const [adminRes, tribesData] = await Promise.all([
           fetch('/api/org-admins').then(r => r.json()),
