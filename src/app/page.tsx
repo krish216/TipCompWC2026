@@ -83,17 +83,6 @@ export default function HomePage() {
 
       {session && !loading && (
         <div className="mb-6">
-          {/* Org logo banner — shown prominently when org has a logo */}
-          {orgData?.logo_url && orgData.name !== 'PUBLIC' && (
-            <div className="flex items-center gap-4 bg-gradient-to-r from-green-900 to-green-800 rounded-xl p-4 mb-3">
-              <img src={orgData.logo_url} alt={orgData.name}
-                className="w-14 h-14 rounded-xl object-cover border-2 border-white/20 flex-shrink-0 shadow-lg" />
-              <div>
-                <p className="text-white font-semibold text-sm">{orgData.name}</p>
-                <p className="text-green-300 text-xs mt-0.5">TipComp 2026 — your organisation</p>
-              </div>
-            </div>
-          )}
           {/* Welcome card */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-1 min-w-[140px]">

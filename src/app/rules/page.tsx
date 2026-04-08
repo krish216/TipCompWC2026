@@ -1,6 +1,6 @@
 import { SCORING, type RoundId } from '@/types'
 
-const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp']  // tp represents Finals Weekend (3rd place + Final)
 
 const FORMAT_STEPS = [
   { label: 'Group stage',     detail: '72 matches · 12 groups of 4 · Top 2 + 8 best 3rd-place teams advance' },
@@ -8,8 +8,7 @@ const FORMAT_STEPS = [
   { label: 'Round of 16',    detail: '8 matches · One result separates 16 teams from the quarter-finals' },
   { label: 'Quarter-finals', detail: '4 matches · The last 8 fight for a semi-final place' },
   { label: 'Semi-finals',    detail: '2 matches · Four teams, two spots in the final' },
-  { label: '3rd place',      detail: '1 match · Bronze medal play-off in Miami, Jul 18' },
-  { label: 'Final',          detail: '1 match · MetLife Stadium, New York/NJ · Jul 19, 2026' },
+  { label: 'Finals Weekend', detail: '2 matches · 3rd place play-off (Jul 18, Miami) + Final (Jul 19, MetLife Stadium, New York/NJ)' },
 ]
 
 const FAQS = [
@@ -42,11 +41,12 @@ export default function RulesPage() {
           </div>
           {ROUND_ORDER.map((rid, i) => {
             const sc = SCORING[rid]
+            const isFinals = rid === 'tp'
             return (
-              <div key={rid} className={`grid grid-cols-[1fr_90px_90px] px-4 py-3 ${i < ROUND_ORDER.length-1 ? 'border-b border-gray-100' : ''} ${rid==='f'?'bg-amber-50':''}`}>
+              <div key={rid} className={`grid grid-cols-[1fr_90px_90px] px-4 py-3 ${i < ROUND_ORDER.length-1 ? 'border-b border-gray-100' : ''} ${isFinals ? 'bg-amber-50' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-800">{sc.label}</span>
-                  {rid==='f' && <span className="text-[10px] font-medium px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded">🏆 Final</span>}
+                  <span className="text-sm font-medium text-gray-800">{isFinals ? 'Finals Weekend' : sc.label}</span>
+                  {isFinals && <span className="text-[10px] font-medium px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded">🏆 3rd + Final</span>}
                 </div>
                 <div className="text-right"><span className="text-sm font-semibold text-purple-700">★ {sc.exact}</span></div>
                 <div className="text-right"><span className="text-sm font-semibold text-blue-700">✓ {sc.result}</span></div>
