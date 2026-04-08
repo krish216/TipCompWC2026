@@ -60,10 +60,17 @@ export default function HomePage() {
       <CountdownBanner />
 
       <div className="mb-8 text-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
-          width={80} height={120}
-          className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
+        {/* Show org logo if user belongs to a non-PUBLIC org, otherwise WC26 logo */}
+        {session && orgData?.logo_url && orgData.name !== 'PUBLIC' ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={orgData.logo_url} alt={orgData.name}
+            className="w-20 h-20 mx-auto mb-3 rounded-xl object-cover border border-gray-200 drop-shadow-md" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
+            width={80} height={120}
+            className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
+        )}
         <h1 className="text-2xl font-bold text-gray-900 mb-2">TipComp 2026</h1>
         <p className="text-sm text-gray-500">Predict every match of the FIFA World Cup. Compete with your tribe.</p>
       </div>

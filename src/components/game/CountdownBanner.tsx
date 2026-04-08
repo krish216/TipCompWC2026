@@ -46,9 +46,9 @@ export function CountdownBanner() {
   return (
     <div className="bg-green-900 rounded-xl px-4 py-3 mb-4 flex items-center justify-between flex-wrap gap-3">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-base flex-shrink-0">
-          ⚽
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
+          className="w-8 h-auto flex-shrink-0 drop-shadow object-contain" />
         <div>
           <p className="text-sm font-semibold text-white">FIFA World Cup 2026</p>
           <p className="text-[11px] text-green-300">
