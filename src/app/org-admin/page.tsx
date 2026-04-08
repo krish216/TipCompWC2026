@@ -323,6 +323,31 @@ export default function OrgAdminPage() {
         </div>
       </div>
 
+      {/* Org invite code — displayed prominently for sharing */}
+      <Card className="mb-4">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation invite code</p>
+        <p className="text-[11px] text-gray-500 mb-3">
+          Share this code with members so they can join <strong>{org?.name}</strong> from the Tribe page.
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-center">
+            <span className="text-2xl font-mono font-bold tracking-widest text-gray-800 select-all">
+              {org?.invite_code ?? '—'}
+            </span>
+          </div>
+          <button
+            onClick={async () => {
+              if (!org?.invite_code) return
+              await navigator.clipboard.writeText(org.invite_code)
+              toast.success('Invite code copied!')
+            }}
+            className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-xl transition-colors"
+          >
+            Copy
+          </button>
+        </div>
+      </Card>
+
       {/* Org logo */}
       <Card className="mb-4">
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation logo</p>

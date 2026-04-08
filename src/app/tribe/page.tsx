@@ -532,12 +532,13 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ org_id: orgLookup.id, invite_code: orgCode.toUpperCase() }),
     })
-    const { success, error: apiErr } = await res.json()
+    const { success, error: apiErr, org_name } = await res.json()
     setLoading(false)
     if (!success) { setError(apiErr ?? 'Failed to join organisation'); return }
-    toast.success(`Joined ${orgLookup.name}!`)
+    toast.success(`Joined ${org_name ?? orgLookup.name}!`)
     setUserOrg(orgLookup as any)
-    setIsOrgAdmin(true)
+    // Regular member — not an org admin
+    setIsOrgAdmin(false)
     setPanel('main')
     const { data } = await supabase.from('tribes').select('id, name, description, invite_code')
       .eq('org_id', orgLookup.id).order('name')
