@@ -616,7 +616,7 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
               {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
             </button>
           </div>
-          {orgLookup  && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{orgLookup.name}</strong> — you'll be added as org admin</p>}
+          {orgLookup  && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{orgLookup.name}</strong> — you'll join as a member</p>}
           {orgCodeErr && <p className="text-[11px] text-red-600 mt-1.5">{orgCodeErr}</p>}
         </div>
         {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
