@@ -267,6 +267,260 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
   )
 }
 
+// ── Subscription card ─────────────────────────────────────────────────────────
+function SubscriptionCard({ orgId }: { orgId: string }) {
+  const [sub,     setSub]     = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [monetOn, setMonetOn] = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/org-subscriptions?org_id=${orgId}`).then(r => r.json()),
+      fetch('/api/app-settings').then(r => r.json()),
+    ]).then(([subData, settingsData]) => {
+      setSub(subData.data)
+      setMonetOn(settingsData.data?.monetisation_enabled === 'true')
+      setLoading(false)
+    })
+  }, [orgId])
+
+  if (loading) return null
+  if (!monetOn) return (
+    <Card className="mb-4">
+      <div className="flex items-center gap-2">
+        <span className="text-base">⏸️</span>
+        <div>
+          <p className="text-xs font-medium text-gray-700">Monetisation is currently disabled</p>
+          <p className="text-[11px] text-gray-400">All organisations have full access — no payment required during this period.</p>
+        </div>
+      </div>
+    </Card>
+  )
+
+  if (!sub) return null
+  const tier         = sub.tier ?? 'trial'
+  const trialEnds    = sub.trial_ends_at ? new Date(sub.trial_ends_at) : null
+  const trialExpired = trialEnds ? trialEnds < new Date() : false
+  const daysLeft     = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - Date.now()) / 86400000)) : null
+
+  const TIER_LABELS: Record<string, string> = {
+    trial: 'Free Trial', starter: 'Starter ($29)', business: 'Business ($99)', enterprise: 'Enterprise',
+  }
+  const TIER_LIMITS: Record<string, string> = {
+    trial:      '1 tribe · up to 50 players · 14-day trial',
+    starter:    '3 tribes · up to 50 players',
+    business:   'Unlimited tribes · up to 200 players',
+    enterprise: 'Unlimited everything',
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Subscription</p>
+      <div className={clsx('rounded-xl p-3 mb-3', trialExpired ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200')}>
+        <div className="flex items-center justify-between">
+          <p className={clsx('text-sm font-semibold', trialExpired ? 'text-red-800' : 'text-blue-800')}>
+            {TIER_LABELS[tier] ?? tier}
+          </p>
+          {tier === 'trial' && daysLeft !== null && (
+            <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full',
+              trialExpired ? 'bg-red-100 text-red-700' : daysLeft <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700')}>
+              {trialExpired ? 'Trial expired' : `${daysLeft} days left`}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-600 mt-0.5">{TIER_LIMITS[tier]}</p>
+      </div>
+      {(tier === 'trial' || trialExpired) && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-gray-500 font-medium">Upgrade your plan:</p>
+          {[
+            { tier: 'starter',  label: 'Starter — $29', detail: '3 tribes · 50 players' },
+            { tier: 'business', label: 'Business — $99', detail: 'Unlimited tribes · 200 players' },
+          ].map(t => (
+            <div key={t.tier} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-xs font-medium text-gray-800">{t.label}</p>
+                <p className="text-[10px] text-gray-400">{t.detail}</p>
+              </div>
+              <a href="mailto:admin@wc2026tipcomp.com?subject=Upgrade%20subscription"
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg">
+                Upgrade
+              </a>
+            </div>
+          ))}
+          <p className="text-[10px] text-gray-400">Contact the tournament admin to process your upgrade.</p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Prizes panel ───────────────────────────────────────────────────────────────
+function PrizesPanel({ orgId }: { orgId: string }) {
+  const [prizes,  setPrizes]  = useState<any[]>([])
+  const [place,   setPlace]   = useState('1')
+  const [desc,    setDesc]    = useState('')
+  const [sponsor, setSponsor] = useState('')
+  const [saving,  setSaving]  = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/org-prizes?org_id=${orgId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
+  }, [orgId])
+
+  const addPrize = async () => {
+    if (!desc.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/org-prizes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, place: parseInt(place), description: desc.trim(), sponsor: sponsor.trim() }),
+    })
+    const { data } = await res.json()
+    setSaving(false)
+    if (data) {
+      setPrizes(prev => [...prev.filter(p => p.place !== data.place), data].sort((a,b) => a.place - b.place))
+      setDesc(''); setSponsor('')
+      toast.success('Prize saved!')
+    }
+  }
+
+  const removePrize = async (p: number) => {
+    await fetch(`/api/org-prizes?org_id=${orgId}&place=${p}`, { method: 'DELETE' })
+    setPrizes(prev => prev.filter(x => x.place !== p))
+    toast.success('Prize removed')
+  }
+
+  const MEDALS = ['🥇','🥈','🥉','4️⃣','5️⃣']
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Prizes</p>
+      {prizes.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {prizes.map(p => (
+            <div key={p.place} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+              <span className="text-base">{MEDALS[p.place - 1] ?? `${p.place}th`}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-800">{p.description}</p>
+                {p.sponsor && <p className="text-[10px] text-gray-400">Sponsored by {p.sponsor}</p>}
+              </div>
+              <button onClick={() => removePrize(p.place)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <select value={place} onChange={e => setPlace(e.target.value)}
+            className="w-20 px-2 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+            {[1,2,3,4,5].map(n => <option key={n} value={n}>{n === 1 ? '🥇 1st' : n === 2 ? '🥈 2nd' : n === 3 ? '🥉 3rd' : `${n}th`}</option>)}
+          </select>
+          <input type="text" value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="Prize description e.g. $100 gift voucher"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+        </div>
+        <div className="flex gap-2">
+          <input type="text" value={sponsor} onChange={e => setSponsor(e.target.value)}
+            placeholder="Sponsor name (optional)"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <button onClick={addPrize} disabled={saving || !desc.trim()}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg">
+            {saving ? <Spinner className="w-4 h-4 text-white" /> : 'Save'}
+          </button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Announcements panel ────────────────────────────────────────────────────────
+function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName: string; userId: string }) {
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [title,   setTitle]   = useState('')
+  const [body,    setBody]    = useState('')
+  const [saving,  setSaving]  = useState(false)
+
+  useEffect(() => {
+    fetch('/api/announcements').then(r => r.json()).then(d =>
+      setAnnouncements((d.data ?? []).filter((a: any) => a.org_id === orgId || !a.org_id))
+    )
+    // Re-fetch all and filter by this org
+    fetch('/api/announcements').then(r => r.json()).then(d => {
+      const mine = (d.data ?? []).filter((a: any) => {
+        const orgRaw = a.organisations
+        const aOrg   = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
+        return aOrg?.name === orgName
+      })
+      setAnnouncements(mine)
+    })
+  }, [orgId, orgName])
+
+  const post = async () => {
+    if (!title.trim() || !body.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/announcements', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, title: title.trim(), body: body.trim() }),
+    })
+    const { data, error } = await res.json()
+    setSaving(false)
+    if (error) { toast.error(error); return }
+    setAnnouncements(prev => [data, ...prev])
+    setTitle(''); setBody('')
+    toast.success('Announcement posted to PUBLIC members!')
+  }
+
+  const deleteAnnouncement = async (id: string) => {
+    await fetch(`/api/announcements?id=${id}`, { method: 'DELETE' })
+    setAnnouncements(prev => prev.filter(a => a.id !== id))
+    toast.success('Deleted')
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Announcements</p>
+      <p className="text-[11px] text-gray-500 mb-3">Post a message visible to all PUBLIC organisation members — invite them to join <strong>{orgName}</strong>.</p>
+
+      {/* Compose */}
+      <div className="space-y-2 mb-4">
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="Announcement title e.g. Join PetzBFF TipComp!"
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+        <textarea value={body} onChange={e => setBody(e.target.value)}
+          placeholder="Message body — include your org invite code so PUBLIC members can join"
+          rows={3} maxLength={500}
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white resize-none" />
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-gray-400">{body.length}/500</p>
+          <button onClick={post} disabled={saving || !title.trim() || !body.trim()}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+            {saving && <Spinner className="w-3 h-3 text-white" />}
+            Post announcement
+          </button>
+        </div>
+      </div>
+
+      {/* Posted announcements */}
+      {announcements.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium text-gray-500">Posted</p>
+          {announcements.map(a => (
+            <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-800">{a.title}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{a.body}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
+                </div>
+                <button onClick={() => deleteAnnouncement(a.id)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ── Main org admin page ───────────────────────────────────────────────────────
 export default function OrgAdminPage() {
   const { session } = useSupabase()
@@ -377,6 +631,15 @@ export default function OrgAdminPage() {
           <p>❌ Cannot lock/unlock rounds — that's the Tournament Admin's role</p>
         </div>
       </div>
+
+      {/* Subscription status */}
+      {org && <SubscriptionCard orgId={org.id} />}
+
+      {/* Prizes */}
+      {org && <PrizesPanel orgId={org.id} />}
+
+      {/* Announcements */}
+      {org && <AnnouncementsPanel orgId={org.id} orgName={org.name} userId={session?.user.id ?? ''} />}
 
       {/* Grant org admin — shown first so admin can grant access before setting up tribes */}
       {org && <GrantOrgAdminForm orgId={org.id} />}

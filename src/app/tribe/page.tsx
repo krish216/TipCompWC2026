@@ -401,6 +401,39 @@ function ChatPanel({
 }
 
 // ── No tribe panel ────────────────────────────────────────────────────────────
+// ── Announcements feed (shown to PUBLIC org members) ─────────────────────────
+function AnnouncementsFeed() {
+  const [announcements, setAnnouncements] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/announcements').then(r => r.json()).then(d => setAnnouncements(d.data ?? []))
+  }, [])
+
+  if (announcements.length === 0) return null
+  return (
+    <div className="mb-5">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">📢 Organisation announcements</p>
+      <div className="space-y-2">
+        {announcements.map((a: any) => {
+          const orgRaw = a.organisations
+          const org    = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
+          return (
+            <div key={a.id} className="bg-white border border-blue-200 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                {org?.logo_url && <img src={org.logo_url} alt={org.name} className="w-5 h-5 rounded object-cover" />}
+                <p className="text-[11px] font-medium text-blue-700">{org?.name ?? 'Organisation'}</p>
+              </div>
+              <p className="text-xs font-semibold text-gray-900">{a.title}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{a.body}</p>
+              <p className="text-[10px] text-gray-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Tribe dropdown with description ──────────────────────────────────────────
 function TribeDropdown({ tribes, onJoin, loading }: {
   tribes: {id:string;name:string;description?:string|null;invite_code:string;member_count?:number}[]
@@ -720,6 +753,9 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
         </div>
       </div>
 
+      {/* Organisation announcements for PUBLIC users */}
+      {isPublicOrg && <AnnouncementsFeed />}
+
       {/* Tribe join section */}
       <div className="text-center mb-5">
         <div className="text-4xl mb-2">🏆</div>
@@ -768,6 +804,30 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
 }
 
 
+
+// ── Prizes display on tribe page ──────────────────────────────────────────────
+function PrizesDisplay({ orgId }: { orgId: string }) {
+  const [prizes, setPrizes] = useState<any[]>([])
+  useEffect(() => {
+    fetch(`/api/org-prizes?org_id=${orgId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
+  }, [orgId])
+  if (prizes.length === 0) return null
+  const MEDALS = ['🥇','🥈','🥉','4️⃣','5️⃣']
+  return (
+    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+      <p className="text-xs font-semibold text-amber-800 mb-2">🏆 Prizes</p>
+      <div className="space-y-1">
+        {prizes.map((p: any) => (
+          <div key={p.place} className="flex items-center gap-2">
+            <span className="text-sm">{MEDALS[p.place - 1] ?? `${p.place}th`}</span>
+            <span className="text-xs text-gray-700">{p.description}</span>
+            {p.sponsor && <span className="text-[10px] text-gray-400">· {p.sponsor}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 // ── Main tribe page ───────────────────────────────────────────────────────────
 export default function TribePage() {
@@ -882,6 +942,9 @@ export default function TribePage() {
           Leave tribe
         </button>
       </div>
+
+      {/* Prizes */}
+      {(tribe as any).org_id && <PrizesDisplay orgId={(tribe as any).org_id} />}
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-4 w-fit">

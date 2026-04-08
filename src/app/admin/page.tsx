@@ -185,6 +185,123 @@ function OrgRegistryPanel() {
   )
 }
 
+// ── Monetisation panel ────────────────────────────────────────────────────────
+function MonetisationPanel() {
+  const [enabled,  setEnabled]  = useState<boolean | null>(null)
+  const [saving,   setSaving]   = useState(false)
+  const [subs,     setSubs]     = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/app-settings').then(r => r.json()).then(d => {
+      setEnabled(d.data?.monetisation_enabled === 'true')
+    })
+    fetch('/api/organisations/registry').then(r => r.json()).then(async d => {
+      const orgs = d.data ?? []
+      // fetch subscriptions for each org
+      const subResults = await Promise.all(
+        orgs.map((o: any) => fetch(`/api/org-subscriptions?org_id=${o.id}`).then(r => r.json()))
+      )
+      setSubs(orgs.map((o: any, i: number) => ({ ...o, sub: subResults[i]?.data })))
+    })
+  }, [])
+
+  const toggle = async () => {
+    const newVal = !enabled
+    setSaving(true)
+    await fetch('/api/app-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'monetisation_enabled', value: String(newVal) }),
+    })
+    setSaving(false)
+    setEnabled(newVal)
+    toast.success(newVal ? 'Monetisation enabled — payment required for new orgs' : 'Monetisation disabled — orgs bypass payment')
+  }
+
+  const upgradeSub = async (orgId: string, tier: string) => {
+    const ref = prompt('Payment reference / note (optional):') ?? ''
+    await fetch('/api/org-subscriptions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, tier, payment_ref: ref }),
+    })
+    toast.success(`Subscription updated to ${tier}`)
+    // refresh
+    const updated = await fetch(`/api/org-subscriptions?org_id=${orgId}`).then(r => r.json())
+    setSubs(prev => prev.map(s => s.id === orgId ? { ...s, sub: updated.data } : s))
+  }
+
+  const TIER_COLOURS: Record<string, string> = {
+    trial:      'bg-amber-100 text-amber-800',
+    starter:    'bg-blue-100 text-blue-800',
+    business:   'bg-purple-100 text-purple-800',
+    enterprise: 'bg-green-100 text-green-800',
+    public:     'bg-gray-100 text-gray-600',
+  }
+
+  return (
+    <Card className="mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Monetisation</p>
+        {enabled !== null && (
+          <button onClick={toggle} disabled={saving}
+            className={clsx('relative inline-flex h-6 w-11 rounded-full transition-colors focus:outline-none',
+              enabled ? 'bg-green-500' : 'bg-gray-300')}>
+            <span className={clsx('inline-block w-4 h-4 mt-1 rounded-full bg-white shadow transition-transform',
+              enabled ? 'translate-x-6' : 'translate-x-1')} />
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-gray-500 mb-4">
+        {enabled
+          ? '✅ Payment required — new organisations must pay before creating tribes (trial still free for 14 days).'
+          : '⏸️ Payment bypass — organisations can create tribes without paying.'}
+      </p>
+
+      {/* Subscription overview */}
+      {subs.length > 0 && (
+        <div>
+          <p className="text-[11px] font-medium text-gray-500 mb-2">Organisation subscriptions</p>
+          <div className="space-y-2">
+            {subs.map((org: any) => {
+              const sub = org.sub
+              const tier = sub?.tier ?? 'none'
+              const trialEnds = sub?.trial_ends_at ? new Date(sub.trial_ends_at) : null
+              const trialDaysLeft = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - Date.now()) / 86400000)) : null
+              return (
+                <div key={org.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium text-gray-800 truncate">{org.name}</p>
+                      <span className={clsx('text-[10px] font-medium px-1.5 py-0.5 rounded-full', TIER_COLOURS[tier] ?? 'bg-gray-100 text-gray-600')}>
+                        {tier}
+                      </span>
+                      {tier === 'trial' && trialDaysLeft !== null && (
+                        <span className={clsx('text-[10px]', trialDaysLeft <= 3 ? 'text-red-600 font-semibold' : 'text-gray-400')}>
+                          {trialDaysLeft}d left
+                        </span>
+                      )}
+                    </div>
+                    {sub?.payment_ref && <p className="text-[10px] text-gray-400 mt-0.5">ref: {sub.payment_ref}</p>}
+                  </div>
+                  <select
+                    defaultValue={tier}
+                    onChange={e => upgradeSub(org.id, e.target.value)}
+                    className="text-[11px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                  >
+                    <option value="trial">Trial</option>
+                    <option value="starter">Starter ($29)</option>
+                    <option value="business">Business ($99)</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ── Organisations panel ────────────────────────────────────────────────────────
 function OrganisationsPanel() {
   const [orgs,    setOrgs]    = useState<any[]>([])
@@ -446,6 +563,7 @@ export default function AdminPage() {
         </div>
       </Card>
 
+      <MonetisationPanel />
       <OrgRegistryPanel />
       <OrganisationsPanel />
       <GrantAdminPanel />
