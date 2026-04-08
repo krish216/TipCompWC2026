@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!orgAdmin && !tournamentAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data, error } = await supabase
-    .from('tribes').select('id, name, invite_code').eq('org_id', orgId).order('name')
+    .from('tribes').select('id, name, description, invite_code').eq('org_id', orgId).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })
 }

@@ -401,6 +401,50 @@ function ChatPanel({
 }
 
 // ── No tribe panel ────────────────────────────────────────────────────────────
+// ── Tribe dropdown with description ──────────────────────────────────────────
+function TribeDropdown({ tribes, onJoin, loading }: {
+  tribes: {id:string;name:string;description?:string|null;invite_code:string}[]
+  onJoin: (code: string) => void
+  loading: boolean
+}) {
+  const [selected, setSelected] = useState('')
+  const selectedTribe = tribes.find(t => t.invite_code === selected)
+
+  return (
+    <div className="space-y-3">
+      <select
+        value={selected}
+        onChange={e => setSelected(e.target.value)}
+        className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+      >
+        <option value="">Select a tribe…</option>
+        {tribes.map(t => (
+          <option key={t.id} value={t.invite_code}>{t.name}</option>
+        ))}
+      </select>
+
+      {selectedTribe && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-gray-900 mb-1">{selectedTribe.name}</p>
+          {selectedTribe.description ? (
+            <p className="text-xs text-gray-500 mb-3">{selectedTribe.description}</p>
+          ) : (
+            <p className="text-xs text-gray-400 italic mb-3">No description</p>
+          )}
+          <button
+            onClick={() => onJoin(selectedTribe.invite_code)}
+            disabled={loading}
+            className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2"
+          >
+            {loading ? <Spinner className="w-4 h-4 text-white" /> : null}
+            Join {selectedTribe.name}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NoTribePanel({ onJoined }: { onJoined: () => void }) {
   const { session, supabase } = useSupabase()
 
@@ -445,7 +489,7 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
 
       // Load org tribes if user has a non-public org
       if (org && org.slug !== 'public') {
-        const { data } = await supabase.from('tribes').select('id, name, invite_code')
+        const { data } = await supabase.from('tribes').select('id, name, description, invite_code')
           .eq('org_id', org.id).order('name')
         setOrgTribes((data ?? []) as any[])
       }
@@ -510,7 +554,7 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     if (!success) { setError(apiErr ?? 'Failed to join organisation'); return }
     toast.success(`Joined ${orgLookup.name} as org admin!`)
     // Reload tribes for new org
-    const { data } = await supabase.from('tribes').select('id, name, invite_code')
+    const { data } = await supabase.from('tribes').select('id, name, description, invite_code')
       .eq('org_id', orgLookup.id).order('name')
     setOrgTribes((data ?? []) as any[])
     setUserOrg(orgLookup as any)
@@ -566,7 +610,7 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     setIsOrgAdmin(true)
     setOrgView('tribe')
     // Reload tribes list for new org
-    const { data: newTribes } = await supabase.from('tribes').select('id, name, invite_code')
+    const { data: newTribes } = await supabase.from('tribes').select('id, name, description, invite_code')
       .eq('org_id', org.id).order('name')
     setOrgTribes((newTribes ?? []) as any[])
   }
@@ -714,21 +758,13 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
         </div>
       )}
 
-      {/* Tribe list for org */}
+      {/* Tribe dropdown for org */}
       {orgTribes.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Available tribes</p>
-          <div className="space-y-2">
-            {orgTribes.map(t => (
-              <div key={t.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
-                <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                <button onClick={() => joinByCode(t.invite_code)} disabled={loading}
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg">
-                  Join
-                </button>
-              </div>
-            ))}
-          </div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Choose a tribe
+          </label>
+          <TribeDropdown tribes={orgTribes} onJoin={joinByCode} loading={loading} />
         </div>
       )}
 
@@ -796,6 +832,12 @@ export default function TribePage() {
 
     if (tribeData.data) {
       const raw = tribeData.data
+      // Fetch org name for display
+      if (raw.org_id) {
+        const { data: orgRow } = await supabase
+          .from('organisations').select('name, logo_url').eq('id', raw.org_id).single()
+        if (orgRow) raw._org = orgRow
+      }
       const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
         const u = tm.users ?? tm.user ?? {}
         return {
@@ -856,6 +898,16 @@ export default function TribePage() {
       {/* Tribe header */}
       <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
+          {/* Org badge */}
+          {(tribe as any)._org && (tribe as any)._org.name !== 'PUBLIC' && (
+            <div className="flex items-center gap-1.5 mb-1.5">
+              {(tribe as any)._org.logo_url && (
+                <img src={(tribe as any)._org.logo_url} alt={(tribe as any)._org.name}
+                  className="w-5 h-5 rounded object-cover" />
+              )}
+              <span className="text-xs font-medium text-blue-600">🏢 {(tribe as any)._org.name}</span>
+            </div>
+          )}
           <h1 className="text-lg font-semibold text-gray-900">{tribe.name}</h1>
           <div className="flex items-center gap-2 mt-1">
             <button onClick={copyCode}

@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
-const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim() })
+const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().optional() })
 const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCase() })
 
 // Helper — check if user is org admin
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
   const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase()
 
   const { data: tribe, error } = await (adminClient.from('tribes') as any)
-    .insert({ name: parsed.data.name, created_by: user.id, invite_code: inviteCode, org_id })
+    .insert({ name: parsed.data.name, description: parsed.data.description || null, created_by: user.id, invite_code: inviteCode, org_id })
     .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
