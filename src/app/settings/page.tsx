@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner, Card } from '@/components/ui'
-import { TIMEZONES, COUNTRIES } from '@/lib/timezone'
+import { TIMEZONES, COUNTRIES, getTimezonesForCountry } from '@/lib/timezone'
 import toast from 'react-hot-toast'
 
 interface NotifPrefs {
@@ -68,6 +68,8 @@ export default function SettingsPage() {
   const [prefs,         setPrefs]         = useState<NotifPrefs>({ push_enabled: true, email_enabled: true, tribe_nudges: false })
   const [loading,       setLoading]       = useState(true)
   const [savingName,    setSavingName]    = useState(false)
+  const [avatar,        setAvatar]        = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [savingFav,     setSavingFav]     = useState(false)
   const [savingPrefs,   setSavingPrefs]   = useState(false)
 
@@ -77,11 +79,12 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team, country, timezone').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, favourite_team, country, timezone, avatar_url').eq('id', session.user.id).single(),
         supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).single(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
+        setAvatar((userRes.data as any).avatar_url ?? null)
         const ft = (userRes.data as any).favourite_team ?? ''
         setFavTeam(ft); setSavedFavTeam(ft)
         const ct = (userRes.data as any).country ?? ''
@@ -168,6 +171,46 @@ export default function SettingsPage() {
       <section className="mb-6">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Profile</h2>
         <Card>
+          {/* Avatar */}
+          <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100">
+            <div className="relative flex-shrink-0">
+              {avatar ? (
+                <img src={avatar} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-xl border-2 border-gray-200">
+                  {displayName.charAt(0).toUpperCase() || '?'}
+                </div>
+              )}
+              {uploadingAvatar && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <Spinner className="w-5 h-5 text-white" />
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-700 mb-1.5">Profile photo</p>
+              <label className="cursor-pointer px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors">
+                {uploadingAvatar ? 'Uploading…' : avatar ? 'Change photo' : 'Upload photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                  const file = e.target.files?.[0]; if (!file || !session) return
+                  if (file.size > 2 * 1024 * 1024) { toast.error('Photo must be under 2MB'); return }
+                  setUploadingAvatar(true)
+                  const ext  = file.name.split('.').pop()
+                  const path = `${session.user.id}/avatar.${ext}`
+                  const { data: uploaded, error } = await supabase.storage
+                    .from('org-logos').upload(path, file, { upsert: true })
+                  if (error) { toast.error('Upload failed'); setUploadingAvatar(false); return }
+                  const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
+                  const url = urlData.publicUrl
+                  await supabase.from('users').update({ avatar_url: url }).eq('id', session.user.id)
+                  setAvatar(url)
+                  setUploadingAvatar(false)
+                  toast.success('Profile photo updated!')
+                }} />
+              </label>
+              <p className="text-[11px] text-gray-400 mt-1">Max 2MB · JPG, PNG, GIF</p>
+            </div>
+          </div>
           <form onSubmit={saveDisplayName} className="flex gap-2 items-end mb-4">
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Display name</label>
@@ -201,7 +244,11 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-500 mb-3">All fixture kickoff times are displayed in your local timezone.</p>
           <div className="mb-3">
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Country</label>
-            <select value={country} onChange={e => setCountry(e.target.value)}
+            <select value={country} onChange={e => {
+                setCountry(e.target.value)
+                const tzs = getTimezonesForCountry(e.target.value)
+                if (tzs.length > 0 && tzs.length < TIMEZONES.length) setTimezone(tzs[0].value)
+              }}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
               <option value="">Select your country</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -211,7 +258,7 @@ export default function SettingsPage() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Timezone</label>
             <select value={timezone} onChange={e => setTimezone(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-              {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+              {getTimezonesForCountry(country).map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
             </select>
           </div>
           <button onClick={saveProfile}

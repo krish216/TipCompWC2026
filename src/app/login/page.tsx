@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
-import { TIMEZONES, COUNTRIES, detectTimezone } from '@/lib/timezone'
+import { TIMEZONES, COUNTRIES, detectTimezone, getTimezonesForCountry } from '@/lib/timezone'
 
 type Mode    = 'login' | 'register' | 'magic' | 'reset'
 type OrgStep = 'choose' | 'join' | 'create'
@@ -465,7 +465,11 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Country</label>
-                <select value={country} onChange={e => setCountry(e.target.value)}
+                <select value={country} onChange={e => {
+                    setCountry(e.target.value)
+                    const tzs = getTimezonesForCountry(e.target.value)
+                    if (tzs.length > 0 && tzs.length < TIMEZONES.length) setTimezone(tzs[0].value)
+                  }}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
                   <option value="">Select your country</option>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -475,7 +479,7 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Timezone</label>
                 <select value={timezone} onChange={e => setTimezone(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                  {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+                  {getTimezonesForCountry(country).map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
                 </select>
               </div>
               {!tournamentStarted && (

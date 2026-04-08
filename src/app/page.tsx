@@ -23,16 +23,22 @@ export default function HomePage() {
     if (!session) { setLoading(false); return }
     const load = async () => {
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team, org_id, organisations(name, logo_url)').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, favourite_team, org_id').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
       setDisplayName(ud?.display_name ?? null)
       setFavTeam(ud?.favourite_team ?? null)
-      // Supabase may return nested relation as array or object — normalise
-      const orgRaw = ud?.organisations
-      setOrgData(Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : (orgRaw ?? null))
+      // Fetch org explicitly to avoid RLS issues with nested joins
+      const orgId = ud?.org_id ?? null
+      if (orgId) {
+        const { data: orgRow } = await supabase
+          .from('organisations').select('name, logo_url').eq('id', orgId).single()
+        setOrgData(orgRow ?? null)
+      } else {
+        setOrgData(null)
+      }
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
@@ -98,7 +104,7 @@ export default function HomePage() {
               )}
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  Welcome back, {displayName ?? session.user.email?.split('@')[0]}! 👋
+                  Welcome back, {displayName}! 👋
                 </p>
                 {orgData?.name && orgData.name !== 'PUBLIC' && (
                   <p className="text-xs text-blue-600 mt-0.5">🏢 {orgData.name}</p>
