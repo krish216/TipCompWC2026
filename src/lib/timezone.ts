@@ -2,40 +2,81 @@
  * Timezone utilities — format fixture dates/times in the player's local timezone
  */
 
-export const TIMEZONES = [
-  { label: 'UTC',                          value: 'UTC' },
-  { label: 'London (GMT/BST)',              value: 'Europe/London' },
-  { label: 'Paris / Berlin (CET)',          value: 'Europe/Paris' },
-  { label: 'Athens / Helsinki (EET)',       value: 'Europe/Athens' },
-  { label: 'Moscow (MSK)',                  value: 'Europe/Moscow' },
-  { label: 'Dubai (GST)',                   value: 'Asia/Dubai' },
-  { label: 'Karachi (PKT)',                 value: 'Asia/Karachi' },
-  { label: 'Mumbai / Delhi (IST)',          value: 'Asia/Kolkata' },
-  { label: 'Dhaka (BST)',                   value: 'Asia/Dhaka' },
-  { label: 'Bangkok (ICT)',                 value: 'Asia/Bangkok' },
-  { label: 'Singapore / KL (SGT)',          value: 'Asia/Singapore' },
-  { label: 'Tokyo / Seoul (JST/KST)',       value: 'Asia/Tokyo' },
-  { label: 'Sydney (AEST)',                 value: 'Australia/Sydney' },
-  { label: 'Melbourne (AEST)',              value: 'Australia/Melbourne' },
-  { label: 'Brisbane (AEST)',               value: 'Australia/Brisbane' },
-  { label: 'Adelaide (ACST)',               value: 'Australia/Adelaide' },
-  { label: 'Perth (AWST)',                  value: 'Australia/Perth' },
-  { label: 'Darwin (ACST)',                 value: 'Australia/Darwin' },
-  { label: 'Auckland (NZST)',               value: 'Pacific/Auckland' },
-  { label: 'Honolulu (HST)',                value: 'Pacific/Honolulu' },
-  { label: 'Anchorage (AKST)',              value: 'America/Anchorage' },
-  { label: 'Los Angeles / Vancouver (PT)',  value: 'America/Los_Angeles' },
-  { label: 'Denver (MT)',                   value: 'America/Denver' },
-  { label: 'Chicago / Mexico City (CT)',    value: 'America/Chicago' },
-  { label: 'New York / Toronto (ET)',       value: 'America/New_York' },
-  { label: 'São Paulo (BRT)',               value: 'America/Sao_Paulo' },
-  { label: 'Buenos Aires (ART)',            value: 'America/Argentina/Buenos_Aires' },
-  { label: 'Lagos (WAT)',                   value: 'Africa/Lagos' },
-  { label: 'Johannesburg (SAST)',           value: 'Africa/Johannesburg' },
-  { label: 'Nairobi (EAT)',                 value: 'Africa/Nairobi' },
-  { label: 'Cairo (EET)',                   value: 'Africa/Cairo' },
-  { label: 'Mauritius (MUT)',               value: 'Indian/Mauritius' },
+// Timezone zones with friendly city names
+const TIMEZONE_ZONES = [
+  { value: 'UTC',                              city: 'UTC' },
+  { value: 'Europe/London',                    city: 'London' },
+  { value: 'Europe/Paris',                     city: 'Paris / Berlin' },
+  { value: 'Europe/Athens',                    city: 'Athens / Helsinki' },
+  { value: 'Europe/Moscow',                    city: 'Moscow' },
+  { value: 'Asia/Dubai',                       city: 'Dubai' },
+  { value: 'Asia/Karachi',                     city: 'Karachi' },
+  { value: 'Asia/Kolkata',                     city: 'Mumbai / Delhi' },
+  { value: 'Asia/Dhaka',                       city: 'Dhaka' },
+  { value: 'Asia/Bangkok',                     city: 'Bangkok' },
+  { value: 'Asia/Singapore',                   city: 'Singapore / KL' },
+  { value: 'Asia/Tokyo',                       city: 'Tokyo / Seoul' },
+  { value: 'Australia/Sydney',                 city: 'Sydney' },
+  { value: 'Australia/Melbourne',              city: 'Melbourne' },
+  { value: 'Australia/Brisbane',               city: 'Brisbane' },
+  { value: 'Australia/Adelaide',               city: 'Adelaide' },
+  { value: 'Australia/Perth',                  city: 'Perth' },
+  { value: 'Australia/Darwin',                 city: 'Darwin' },
+  { value: 'Pacific/Auckland',                 city: 'Auckland' },
+  { value: 'Pacific/Honolulu',                 city: 'Honolulu' },
+  { value: 'America/Anchorage',                city: 'Anchorage' },
+  { value: 'America/Los_Angeles',              city: 'Los Angeles / Vancouver' },
+  { value: 'America/Denver',                   city: 'Denver' },
+  { value: 'America/Chicago',                  city: 'Chicago / Mexico City' },
+  { value: 'America/New_York',                 city: 'New York / Toronto' },
+  { value: 'America/Sao_Paulo',                city: 'São Paulo' },
+  { value: 'America/Argentina/Buenos_Aires',   city: 'Buenos Aires' },
+  { value: 'Africa/Lagos',                     city: 'Lagos' },
+  { value: 'Africa/Johannesburg',              city: 'Johannesburg' },
+  { value: 'Africa/Nairobi',                   city: 'Nairobi' },
+  { value: 'Africa/Cairo',                     city: 'Cairo' },
+  { value: 'Indian/Mauritius',                 city: 'Mauritius' },
 ]
+
+/**
+ * Compute the current GMT offset for a timezone as a string like "GMT+10:00"
+ * Uses Intl.DateTimeFormat to get the actual current offset (DST-aware)
+ */
+function getGMTOffset(tzValue: string): string {
+  if (tzValue === 'UTC') return 'GMT+0:00'
+  try {
+    const now   = new Date()
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone:       tzValue,
+      timeZoneName:   'shortOffset',
+    }).formatToParts(now)
+    const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT'
+    // offsetPart is like "GMT+10", "GMT-5", "GMT+5:30", "GMT"
+    if (offsetPart === 'GMT') return 'GMT+0:00'
+    // Normalise to always show sign and two-digit hours: GMT+10:00
+    const match = offsetPart.match(/GMT([+-])(\d+)(?::(\d+))?/)
+    if (!match) return offsetPart
+    const sign    = match[1]
+    const hours   = match[2].padStart(2, '0')
+    const minutes = (match[3] ?? '00').padStart(2, '0')
+    return `GMT${sign}${hours}:${minutes}`
+  } catch {
+    return 'GMT'
+  }
+}
+
+/**
+ * Build TIMEZONES array with dynamic GMT offset labels.
+ * Safe to call on both server and client.
+ */
+function buildTimezones() {
+  return TIMEZONE_ZONES.map(({ value, city }) => ({
+    value,
+    label: `${getGMTOffset(value)} — ${city}`,
+  }))
+}
+
+export const TIMEZONES = buildTimezones()
 
 export const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia',
