@@ -121,15 +121,20 @@ export function getOutcome(h: number, a: number): 'H' | 'A' | 'D' {
   return 'D'
 }
 
+/** Rounds where favourite team earns double points */
+export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
+
 export function calcPoints(
   pred: Pick<Prediction, 'home' | 'away'> | null | undefined,
   result: MatchScore | null | undefined,
-  round: RoundId
+  round: RoundId,
+  isFavourite = false
 ): number | null {
   if (!result) return null
   if (!pred) return 0
   const sc = SCORING[round]
-  if (pred.home === result.home && pred.away === result.away) return sc.exact
-  if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) return sc.result
+  const multiplier = isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) ? 2 : 1
+  if (pred.home === result.home && pred.away === result.away) return sc.exact * multiplier
+  if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) return sc.result * multiplier
   return 0
 }

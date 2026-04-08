@@ -326,7 +326,7 @@ export default function PredictPage() {
       {favouriteTeam && (
         <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
           <span className="text-base">⭐</span>
-          <span>Double points on <strong>{favouriteTeam}</strong> matches</span>
+          <span>Double points on <strong>{favouriteTeam}</strong> matches — Group Stage &amp; Rd of 32 only</span>
         </div>
       )}
 

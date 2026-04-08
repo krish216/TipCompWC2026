@@ -6,7 +6,7 @@ import type { SharePayload } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, SCORING } from '@/types'
+import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -129,7 +129,7 @@ export function MatchRow({
           <span className="truncate max-w-[180px]">{fixture.venue}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {isFavourite && (
+          {isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) && (
             <span className="text-[11px] text-purple-600">⭐ 2× pts</span>
           )}
           {locked && !result && (

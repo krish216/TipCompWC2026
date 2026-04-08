@@ -25,7 +25,7 @@ const FAQS = [
   { q: 'When do predictions lock?', a: '5 minutes before each match kicks off. You can edit predictions right up until that point.' },
   { q: "What if I haven't entered a prediction?", a: 'Unpredicted matches earn 0 points regardless of the result. There is no default — blank means 0.' },
   { q: 'Do knockout matches count more?', a: 'Yes — points increase with every round. A correct result in the final is worth 25 pts vs 3 pts in the group stage. Note: the 3rd place play-off has lower points than the semi-finals.' },
-  { q: 'How does the favourite team bonus work?', a: 'Pick a favourite team at registration or in Settings. You earn double points (both exact score and correct result) on any match involving that team. For example, a correct result in the group stage earns 6 pts instead of 3.' },
+  { q: 'How does the favourite team bonus work?', a: 'Pick a favourite team at registration or in Settings. You earn double points on any match involving that team in the Group Stage and Round of 32 only. For example, a correct result in the group stage earns 6 pts instead of 3, and an exact score earns 10 pts instead of 5.' },
   { q: 'Can I change my favourite team?', a: 'Yes — go to Settings and update your favourite team at any time. The new team applies to all unscored matches going forward.' },
   { q: 'How are leaderboard ties broken?', a: 'Tied players are ranked by exact score count, then correct result count, then alphabetically.' },
   { q: 'Can I see the leaderboard after each round?', a: 'Yes — the Leaderboard page has snapshot views showing standings after the Group Stage, Rd of 32, Rd of 16, Quarters, Semis, and Finals.' },
@@ -75,13 +75,14 @@ export default function RulesPage() {
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Favourite team bonus ⭐</h2>
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700 mb-3">Pick one team as your favourite at registration or in Settings. On any match involving your team, you earn <strong className="text-purple-700">double points</strong> — both for correct results and exact scores.</p>
+          <p className="text-sm text-gray-700 mb-1">Pick one team as your favourite at registration or in Settings. You earn <strong className="text-purple-700">double points</strong> on any match involving your team — but only in the <strong>Group Stage</strong> and <strong>Round of 32</strong>.</p>
+          <p className="text-xs text-gray-500 mb-3">The bonus does not apply from the Round of 16 onwards.</p>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Group stage correct result', normal: 3,  bonus: 6  },
-              { label: 'Group stage exact score',    normal: 5,  bonus: 10 },
-              { label: 'Final correct result',       normal: 25, bonus: 50 },
-              { label: 'Final exact score',          normal: 30, bonus: 60 },
+              { label: 'Group stage correct result', normal: 3, bonus: 6  },
+              { label: 'Group stage exact score',    normal: 5, bonus: 10 },
+              { label: 'Round of 32 correct result', normal: 5, bonus: 10 },
+              { label: 'Round of 32 exact score',    normal: 8, bonus: 16 },
             ].map(ex => (
               <div key={ex.label} className="bg-white rounded-lg border border-purple-100 p-3">
                 <p className="text-[11px] text-gray-500 mb-1.5">{ex.label}</p>
