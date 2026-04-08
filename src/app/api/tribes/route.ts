@@ -140,6 +140,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'This tribe belongs to a different organisation' }, { status: 403 })
   }
 
+  // Enforce max tribe size of 25
+  const { count: memberCount } = await supabase
+    .from('tribe_members').select('*', { count: 'exact', head: true }).eq('tribe_id', (tribe as any).id)
+  if ((memberCount ?? 0) >= 25) {
+    return NextResponse.json({ error: 'This tribe is full — maximum 25 members allowed' }, { status: 409 })
+  }
+
   await Promise.all([
     supabase.from('tribe_members').insert({ user_id: user.id, tribe_id: (tribe as any).id }),
     supabase.from('users').update({ tribe_id: (tribe as any).id }).eq('id', user.id),

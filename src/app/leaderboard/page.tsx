@@ -132,16 +132,7 @@ export default function LeaderboardPage() {
         ))}
       </div>
 
-      {/* My position banner (when out of visible range) */}
-      {myEntry && !amInList && (
-        <div className="mb-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-green-700 font-semibold">Your rank: #{myEntry.rank}</span>
-          <div className="h-4 w-px bg-green-200" />
-          <span className="text-xs text-green-600">{myEntry.total_points} pts</span>
-          {myEntry.tribe_name && <><div className="h-4 w-px bg-green-200" /><span className="text-xs text-gray-500">{myEntry.tribe_name}</span></>}
-          {myEntry.org_name && scope === 'global' && <><div className="h-4 w-px bg-green-200" /><span className="text-xs text-gray-500">{myEntry.org_name}</span></>}
-        </div>
-      )}
+{/* my position shown below table when not in top 50 */}
 
       {loading ? (
         <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
@@ -294,6 +285,25 @@ export default function LeaderboardPage() {
             <span><span className="text-purple-600 font-medium">Exact</span> = correct scoreline</span>
             <span><span className="text-blue-600 font-medium">✓</span> = right result, wrong score</span>
           </div>
+
+          {/* Player position note — shown below table when outside top 50 */}
+          {myEntry && !amInList && (
+            <div className="mt-3 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex-wrap">
+              <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {(myEntry.display_name ?? 'Y').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-green-800">
+                  You are ranked <span className="text-green-700">#{myEntry.rank}</span> — outside the top {scope === 'tribe' ? 25 : 50}
+                </p>
+                <p className="text-[11px] text-green-600 mt-0.5">
+                  {myEntry.total_points} pts · {myEntry.exact_count} exact · {myEntry.correct_count} correct
+                  {myEntry.tribe_name && ` · ${myEntry.tribe_name}`}
+                </p>
+              </div>
+              <span className="text-xl font-bold text-green-700">#{myEntry.rank}</span>
+            </div>
+          )}
         </>
       )}
     </div>

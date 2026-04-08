@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const scope  = searchParams.get('scope') ?? 'org'
-  const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '100'), 200)
+  // Tribe scope: no cap (tribes max 25 anyway)
+  // Org/global scope: cap at 50
+  const defaultLimit = scope === 'tribe' ? 25 : 50
+  const limit  = Math.min(parseInt(searchParams.get('limit') ?? String(defaultLimit)), scope === 'tribe' ? 25 : 50)
   const offset = parseInt(searchParams.get('offset') ?? '0')
 
   // Get user context
