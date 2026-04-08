@@ -403,7 +403,7 @@ function ChatPanel({
 // ── No tribe panel ────────────────────────────────────────────────────────────
 // ── Tribe dropdown with description ──────────────────────────────────────────
 function TribeDropdown({ tribes, onJoin, loading }: {
-  tribes: {id:string;name:string;description?:string|null;invite_code:string}[]
+  tribes: {id:string;name:string;description?:string|null;invite_code:string;member_count?:number}[]
   onJoin: (code: string) => void
   loading: boolean
 }) {
@@ -419,13 +419,20 @@ function TribeDropdown({ tribes, onJoin, loading }: {
       >
         <option value="">Select a tribe…</option>
         {tribes.map(t => (
-          <option key={t.id} value={t.invite_code}>{t.name}</option>
+          <option key={t.id} value={t.invite_code}>
+            {t.name}{t.member_count !== undefined ? ` (${t.member_count} member${t.member_count !== 1 ? 's' : ''})` : ''}
+          </option>
         ))}
       </select>
 
       {selectedTribe && (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-gray-900 mb-1">{selectedTribe.name}</p>
+          <div className="flex items-start justify-between mb-2">
+            <p className="text-sm font-semibold text-gray-900">{selectedTribe.name}</p>
+            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5 flex-shrink-0 ml-2">
+              👥 {selectedTribe.member_count ?? 0} member{(selectedTribe.member_count ?? 0) !== 1 ? 's' : ''}
+            </span>
+          </div>
           {selectedTribe.description ? (
             <p className="text-xs text-gray-500 mb-3">{selectedTribe.description}</p>
           ) : (
@@ -452,7 +459,7 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
   const [panel,       setPanel]       = useState<Panel>('main')
   const [userOrg,     setUserOrg]     = useState<{id:string;name:string;slug:string}|null>(null)
   const [isOrgAdmin,  setIsOrgAdmin]  = useState(false)
-  const [orgTribes,   setOrgTribes]   = useState<{id:string;name:string;description?:string|null;invite_code:string}[]>([])
+  const [orgTribes,   setOrgTribes]   = useState<{id:string;name:string;description?:string|null;invite_code:string;member_count?:number}[]>([])
   const [loading,     setLoading]     = useState(false)
   const [initLoading, setInitLoading] = useState(true)
   const [error,       setError]       = useState<string|null>(null)

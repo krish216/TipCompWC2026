@@ -22,5 +22,19 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('tribes').select('id, name, description, invite_code').eq('org_id', orgId).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: data ?? [] })
+
+  // Add member count for each tribe
+  const tribes = (data ?? []) as any[]
+  const tribeIds = tribes.map((t: any) => t.id)
+  let memberCounts: Record<string, number> = {}
+  if (tribeIds.length > 0) {
+    const { data: members } = await supabase
+      .from('tribe_members').select('tribe_id').in('tribe_id', tribeIds)
+    ;(members ?? []).forEach((m: any) => {
+      memberCounts[m.tribe_id] = (memberCounts[m.tribe_id] ?? 0) + 1
+    })
+  }
+
+  const result = tribes.map((t: any) => ({ ...t, member_count: memberCounts[t.id] ?? 0 }))
+  return NextResponse.json({ data: result })
 }

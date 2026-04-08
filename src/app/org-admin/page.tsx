@@ -15,6 +15,7 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
   const [name,        setName]        = useState('')
   const [description, setDescription] = useState('')
   const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
 
   const submit = async () => {
     if (!name.trim()) return
@@ -26,10 +27,15 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
     })
     const { data, error } = await res.json()
     setLoading(false)
-    if (error) toast.error(error)
-    else {
+    if (error) {
+      if (res.status === 409) {
+        setError(`A tribe named "${name.trim()}" already exists in this organisation. Please choose a different name.`)
+      } else {
+        setError(error)
+      }
+    } else {
       toast.success(`Tribe "${data.name}" created`)
-      setName(''); setDescription('')
+      setName(''); setDescription(''); setError(null)
       onCreated(data)
     }
   }
@@ -41,7 +47,7 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Tribe name</label>
           <input
-            type="text" value={name} onChange={e => setName(e.target.value)}
+            type="text" value={name} onChange={e => { setName(e.target.value); setError(null) }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="e.g. The Offside Trap"
             maxLength={50}
@@ -60,6 +66,11 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
           />
           <p className="text-[11px] text-gray-400 mt-1 text-right">{description.length}/200</p>
         </div>
+        {error && (
+          <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            {error}
+          </div>
+        )}
         <button
           onClick={submit} disabled={loading || !name.trim()}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5"
@@ -124,6 +135,7 @@ function GrantOrgAdminForm({ orgId }: { orgId: string }) {
 function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
   const [copied, setCopied] = useState(false)
   const tribeMembers = members.filter(m => m.tribe_id === tribe.id)
+  const displayCount = tribe.member_count ?? tribeMembers.length
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(tribe.invite_code)
@@ -141,7 +153,7 @@ function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-          <span className="text-xs text-gray-400">{tribeMembers.length} member{tribeMembers.length !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-gray-400">{displayCount} member{displayCount !== 1 ? 's' : ''}</span>
           <button
             onClick={copyCode}
             className={clsx(
@@ -283,7 +295,7 @@ export default function OrgAdminPage() {
         fetch(`/api/tribes/list?org_id=${orgId}`),
         fetch(`/api/org-admins/members?org_id=${orgId}`),
       ])
-      if (tribesRes.ok)  { const d = await tribesRes.json();  setTribes(d.data  ?? []) }
+      if (tribesRes.ok)  { const d = await tribesRes.json();  setTribes((d.data ?? []) as any[]) }
       if (membersRes.ok) { const d = await membersRes.json(); setMembers(d.data ?? []) }
       setLoading(false)
     }
