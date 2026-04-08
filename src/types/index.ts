@@ -16,7 +16,7 @@ export const SCORING: Record<RoundId, ScoringRule> = {
   r16: { result: 7,  exact: 10, label: 'Round of 16'   },
   qf:  { result: 10, exact: 14, label: 'Quarter-finals' },
   sf:  { result: 15, exact: 20, label: 'Semi-finals'    },
-  tp:  { result: 20, exact: 25, label: 'Finals weekend'  },  // 3rd place
+  tp:  { result:  5, exact: 10, label: 'Finals weekend'  },  // 3rd place
   f:   { result: 25, exact: 30, label: 'Finals weekend'  },  // Final
 }
 
