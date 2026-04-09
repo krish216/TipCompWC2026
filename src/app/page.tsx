@@ -16,7 +16,7 @@ export default function HomePage() {
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
-  const [orgData,     setOrgData]     = useState<{name:string;logo_url:string|null}|null>(null)
+  const [orgData,     setOrgData]     = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
   const started = Date.now() >= KICKOFF.getTime()
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function HomePage() {
       const orgId = ud?.org_id ?? null
       if (orgId) {
         const { data: orgRow } = await supabase
-          .from('organisations').select('name, logo_url').eq('id', orgId).single()
+          .from('organisations').select('name, logo_url, app_name').eq('id', orgId).single()
         setOrgData(orgRow ?? null)
       } else {
         setOrgData(null)
@@ -77,7 +77,13 @@ export default function HomePage() {
             width={80} height={120}
             className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
         )}
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">TipComp 2026</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          {session && orgData?.app_name
+            ? orgData.app_name
+            : session && orgData?.name && orgData.name !== 'PUBLIC'
+              ? `${orgData.name} Tipping Comp`
+              : 'World Cup 2026 Tipping Comp'}
+        </h1>
         <p className="text-sm text-gray-500">Predict every match of the FIFA World Cup. Compete with your tribe.</p>
       </div>
 

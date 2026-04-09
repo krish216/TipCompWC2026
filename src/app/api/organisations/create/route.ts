@@ -102,9 +102,9 @@ export async function POST(request: NextRequest) {
 // PATCH /api/organisations/create — update logo URL after upload
 export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
-  const { org_id, logo_url, user_id } = body ?? {}
-  if (!org_id || !logo_url || !user_id) {
-    return NextResponse.json({ error: 'org_id, logo_url and user_id required' }, { status: 400 })
+  const { org_id, logo_url, user_id, app_name } = body ?? {}
+  if (!org_id || !user_id) {
+    return NextResponse.json({ error: 'org_id and user_id required' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()
@@ -119,7 +119,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   await (adminClient.from('organisations') as any)
-    .update({ logo_url }).eq('id', org_id)
+    .update({
+        ...(logo_url !== undefined ? { logo_url } : {}),
+        ...(app_name !== undefined ? { app_name: app_name || null } : {}),
+      }).eq('id', org_id)
 
   return NextResponse.json({ success: true })
 }

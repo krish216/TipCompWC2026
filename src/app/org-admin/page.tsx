@@ -267,6 +267,63 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
   )
 }
 
+// ── App name panel ────────────────────────────────────────────────────────────
+const DEFAULT_APP_NAME = 'World Cup 2026 Tipping Comp'
+
+function AppNamePanel({ orgId, currentName, onSaved, userId }: {
+  orgId: string; currentName: string; onSaved: (name: string) => void; userId: string
+}) {
+  const [name,    setName]    = useState(currentName)
+  const [saving,  setSaving]  = useState(false)
+
+  useEffect(() => { setName(currentName) }, [currentName])
+
+  const save = async () => {
+    setSaving(true)
+    const res = await fetch('/api/organisations/create', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, app_name: name.trim() || null, user_id: userId }),
+    })
+    const { success, error } = await res.json()
+    setSaving(false)
+    if (success !== false && !error) {
+      onSaved(name.trim())
+      toast.success('App name saved!')
+    } else {
+      toast.error(error ?? 'Failed to save')
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Competition name</p>
+      <p className="text-[11px] text-gray-500 mb-3">
+        Shown as the title on the home page for your organisation members.
+        Leave blank to use the default.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder={DEFAULT_APP_NAME}
+          maxLength={60}
+          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+        />
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+          {saving && <Spinner className="w-3 h-3 text-white" />}
+          Save
+        </button>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-1.5">
+        Preview: <span className="font-medium text-gray-600">{name.trim() || DEFAULT_APP_NAME}</span>
+      </p>
+    </Card>
+  )
+}
+
 // ── Domain restriction panel (Enterprise only) ────────────────────────────────
 function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }) {
   const [domain,  setDomain]  = useState('')
@@ -778,6 +835,7 @@ export default function OrgAdminPage() {
   const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
   const [orgTier,    setOrgTier]    = useState<string>('trial')
   const [orgDomain,  setOrgDomain]  = useState<string | null>(null)
+  const [orgAppName, setOrgAppName] = useState<string>('')
 
   useEffect(() => {
     if (!session) return
@@ -790,6 +848,7 @@ export default function OrgAdminPage() {
       setIsOrgAdmin(true)
       setOrg(adminData.org)
       setOrgLogo(adminData.org?.logo_url ?? null)
+      setOrgAppName(adminData.org?.app_name ?? '')
       // Fetch subscription tier
       if (adminData.org_id) {
         const [subRes, domainRes] = await Promise.all([
@@ -901,6 +960,9 @@ export default function OrgAdminPage() {
 
       {/* Subscription status */}
       {org && <SubscriptionCard orgId={org.id} />}
+
+      {/* Custom app name */}
+      {org && <AppNamePanel orgId={org.id} currentName={orgAppName} onSaved={setOrgAppName} userId={session?.user.id ?? ''} />}
 
       {/* Domain restriction — Enterprise only */}
       {org && <DomainRestrictionPanel orgId={org.id} tier={orgTier} />}
