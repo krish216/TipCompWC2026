@@ -51,6 +51,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             position="top-right"
             toastOptions={{ duration: 3000, style: { fontSize: '13px' } }}
           />
+          <footer className="border-t border-gray-200 bg-white mt-8 py-4 px-4">
+            <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2 text-[11px] text-gray-400">
+              <span>TipComp 2026 — unofficial fan competition, not affiliated with FIFA</span>
+              <div className="flex items-center gap-4">
+                <a href="/privacy" className="hover:text-gray-600 underline transition-colors">Privacy Policy</a>
+                <a href="/rules"   className="hover:text-gray-600 transition-colors">Rules</a>
+              </div>
+            </div>
+          </footer>
         </SupabaseProvider>
       </body>
     </html>

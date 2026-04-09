@@ -161,6 +161,24 @@ export default function SettingsPage() {
     window.location.href = '/'
   }
 
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting,      setDeleting]      = useState(false)
+  const [showDeleteBox, setShowDeleteBox] = useState(false)
+
+  const deleteAccount = async () => {
+    if (deleteConfirm !== 'DELETE') return
+    setDeleting(true)
+    const res = await fetch('/api/account', { method: 'DELETE' })
+    if (res.ok) {
+      await supabase.auth.signOut()
+      window.location.href = '/?deleted=1'
+    } else {
+      const { error } = await res.json()
+      toast.error(error ?? 'Failed to delete account')
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-7 h-7" /></div>
 
   return (
@@ -386,12 +404,57 @@ export default function SettingsPage() {
       <section>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Account</h2>
         <Card>
-          <button
-            onClick={signOut}
-            className="w-full text-left text-sm text-red-600 hover:text-red-700 font-medium py-1 transition-colors"
-          >
+          <button onClick={signOut}
+            className="w-full text-left text-sm text-red-600 hover:text-red-700 font-medium py-2 border-b border-gray-100 transition-colors">
             Sign out
           </button>
+          <div className="pt-3">
+            {!showDeleteBox ? (
+              <button onClick={() => setShowDeleteBox(true)}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                Delete my account
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-red-800 mb-1">⚠️ This cannot be undone</p>
+                  <p className="text-[11px] text-red-700">
+                    Your account, predictions, points history and tribe membership will be permanently deleted.
+                    Your scores will be removed from all leaderboards.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Type <span className="font-mono font-bold">DELETE</span> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirm}
+                    onChange={e => setDeleteConfirm(e.target.value)}
+                    placeholder="DELETE"
+                    className="w-full px-3 py-2 text-sm border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 bg-white font-mono"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowDeleteBox(false); setDeleteConfirm('') }}
+                    className="flex-1 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
+                    Cancel
+                  </button>
+                  <button onClick={deleteAccount}
+                    disabled={deleting || deleteConfirm !== 'DELETE'}
+                    className="flex-1 py-2 text-xs font-medium bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg flex items-center justify-center gap-1.5">
+                    {deleting && <Spinner className="w-3 h-3 text-white" />}
+                    Delete my account
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Under the Australian Privacy Act 1988, you have the right to request deletion of your personal data.
+                  This action fulfils that right.{' '}
+                  <a href="/privacy" className="underline">Privacy Policy</a>
+                </p>
+              </div>
+            )}
+          </div>
         </Card>
       </section>
     </div>
