@@ -65,7 +65,11 @@ export async function GET(request: NextRequest) {
       .in('user_id', userIds)
       .not('points_earned', 'is', null)
     ;(predRows ?? []).forEach((p: any) => {
-      const uid = p.user_id; const round = p.fixtures?.round as RoundId
+      const uid = p.user_id
+      // fixtures may come back as object or array depending on PostgREST version
+      const fx    = Array.isArray(p.fixtures) ? p.fixtures[0] : p.fixtures
+      const round = fx?.round as RoundId
+      if (!round) return  // skip if round is missing
       if (!breakdownMap[uid]) breakdownMap[uid] = {} as Record<RoundId, number>
       breakdownMap[uid][round] = (breakdownMap[uid][round] ?? 0) + (parseInt(String(p.points_earned ?? 0)) || 0)
     })
