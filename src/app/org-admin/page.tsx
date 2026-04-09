@@ -636,14 +636,25 @@ function ChallengesPanel({ orgId }: { orgId: string }) {
               <div key={c.id} className={clsx('border rounded-xl p-3', c.settled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-gray-800">
-                        {fx ? `${fx.home} vs ${fx.away}` : c.fixture_id}
-                      </span>
-                      {fx && <span className="text-[10px] text-gray-400">
-                        {new Date(fx.kickoff_utc).toLocaleDateString('en-AU', { day:'numeric', month:'short' })}
-                      </span>}
-                      {c.settled && <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Settled ✓</span>}
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-800">
+                          {fx ? `${fx.home} vs ${fx.away}` : `Fixture #${c.fixture_id}`}
+                        </span>
+                        {c.settled && <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Settled ✓</span>}
+                      </div>
+                      {fx && (
+                        <p className="text-[11px] text-gray-500">
+                          📅 <span className="font-medium">Challenge date:</span>{' '}
+                          {new Date(c.challenge_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'long', year:'numeric' })}
+                        </p>
+                      )}
+                      {fx && (
+                        <p className="text-[11px] text-gray-500">
+                          ⏰ <span className="font-medium">Kick-off:</span>{' '}
+                          {new Date(fx.kickoff_utc).toLocaleString('en-AU', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' })}
+                        </p>
+                      )}
                     </div>
                     <p className="text-[11px] text-purple-700 mt-0.5">🎯 {c.prize}{c.sponsor ? ` · ${c.sponsor}` : ''}</p>
                     {winners.length > 0 && (
@@ -794,6 +805,9 @@ export default function OrgAdminPage() {
       {/* Subscription status */}
       {org && <SubscriptionCard orgId={org.id} />}
 
+      {/* Grant org admin */}
+      {org && <GrantOrgAdminForm orgId={org.id} />}
+
       {/* Prizes */}
       {org && <PrizesPanel orgId={org.id} />}
 
@@ -802,9 +816,6 @@ export default function OrgAdminPage() {
 
       {/* Challenges */}
       {org && <ChallengesPanel orgId={org.id} />}
-
-      {/* Grant org admin — shown first so admin can grant access before setting up tribes */}
-      {org && <GrantOrgAdminForm orgId={org.id} />}
 
       {/* Create tribe */}
       {org && <CreateTribeForm orgId={org.id} onCreated={t => setTribes(prev => [...prev, t])} />}
