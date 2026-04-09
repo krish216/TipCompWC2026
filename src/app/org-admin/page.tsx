@@ -777,6 +777,7 @@ export default function OrgAdminPage() {
   const [members,    setMembers]    = useState<Member[]>([])
   const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
   const [orgTier,    setOrgTier]    = useState<string>('trial')
+  const [orgDomain,  setOrgDomain]  = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -791,9 +792,13 @@ export default function OrgAdminPage() {
       setOrgLogo(adminData.org?.logo_url ?? null)
       // Fetch subscription tier
       if (adminData.org_id) {
-        const subRes = await fetch(`/api/org-subscriptions?org_id=${adminData.org_id}`)
-        const subData = await subRes.json()
+        const [subRes, domainRes] = await Promise.all([
+          fetch(`/api/org-subscriptions?org_id=${adminData.org_id}`),
+          fetch(`/api/organisations/domain?org_id=${adminData.org_id}`),
+        ])
+        const [subData, domainData] = await Promise.all([subRes.json(), domainRes.json()])
         setOrgTier(subData.data?.tier ?? 'trial')
+        setOrgDomain(domainData.email_domain ?? null)
       }
       const orgId = adminData.org_id
 
@@ -907,7 +912,25 @@ export default function OrgAdminPage() {
       {org && <PrizesPanel orgId={org.id} />}
 
       {/* Announcements */}
-      {org && <AnnouncementsPanel orgId={org.id} orgName={org.name} userId={session?.user.id ?? ''} />}
+      {/* Announcements — only for orgs without domain restriction */}
+      {org && !orgDomain && (
+        <AnnouncementsPanel orgId={org.id} orgName={org.name} userId={session?.user.id ?? ''} />
+      )}
+      {org && orgDomain && (
+        <Card className="mb-4">
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Announcements</p>
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <span className="text-xl">🔒</span>
+            <div>
+              <p className="text-xs font-medium text-amber-800">Announcements unavailable</p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                Your organisation has a domain restriction (<span className="font-mono font-medium">@{orgDomain}</span>).
+                Announcements target PUBLIC members who may not have a matching email — remove the domain restriction to enable this feature.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Challenges */}
       {org && <ChallengesPanel orgId={org.id} />}
