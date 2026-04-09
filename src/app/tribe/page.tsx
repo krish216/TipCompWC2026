@@ -534,10 +534,12 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
       if (org && org.slug !== 'public') {
         const [adminRes, tribesData] = await Promise.all([
           fetch('/api/org-admins').then(r => r.json()),
-          supabase.from('tribes').select('id, name, description, invite_code').eq('org_id', org.id).order('name'),
+          supabase.from('tribes').select('id, name, description, invite_code, tribe_members(count)').eq('org_id', org.id).order('name'),
         ])
         setIsOrgAdmin(adminRes.is_org_admin === true)
-        setOrgTribes((tribesData.data ?? []) as any[])
+        setOrgTribes(((tribesData.data ?? []) as any[]).map((t: any) => ({
+          ...t, member_count: Array.isArray(t.tribe_members) ? t.tribe_members[0]?.count ?? 0 : 0
+        })))
       }
       setInitLoading(false)
     })()
@@ -580,9 +582,11 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     // Regular member — not an org admin
     setIsOrgAdmin(false)
     setPanel('main')
-    const { data } = await supabase.from('tribes').select('id, name, description, invite_code')
+    const { data } = await supabase.from('tribes').select('id, name, description, invite_code, tribe_members(count)')
       .eq('org_id', orgLookup.id).order('name')
-    setOrgTribes((data ?? []) as any[])
+    setOrgTribes(((data ?? []) as any[]).map((t: any) => ({
+      ...t, member_count: Array.isArray(t.tribe_members) ? t.tribe_members[0]?.count ?? 0 : 0
+    })))
   }
 
   const createOrg = async () => {
