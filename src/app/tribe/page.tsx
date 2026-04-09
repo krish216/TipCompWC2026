@@ -534,12 +534,22 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
       if (org && org.slug !== 'public') {
         const [adminRes, tribesData] = await Promise.all([
           fetch('/api/org-admins').then(r => r.json()),
-          supabase.from('tribes').select('id, name, description, invite_code, tribe_members(count)').eq('org_id', org.id).order('name'),
+          supabase.from('tribes').select('id, name, description, invite_code').eq('org_id', org.id).order('name'),
         ])
         setIsOrgAdmin(adminRes.is_org_admin === true)
-        setOrgTribes(((tribesData.data ?? []) as any[]).map((t: any) => ({
-          ...t, member_count: Array.isArray(t.tribe_members) ? t.tribe_members[0]?.count ?? 0 : 0
-        })))
+        const tribeRows = (tribesData.data ?? []) as any[]
+        if (tribeRows.length > 0) {
+          const tribeIds = tribeRows.map((t: any) => t.id)
+          const { data: counts } = await supabase
+            .from('tribe_members')
+            .select('tribe_id')
+            .in('tribe_id', tribeIds)
+          const countMap: Record<string, number> = {}
+          ;(counts ?? []).forEach((r: any) => { countMap[r.tribe_id] = (countMap[r.tribe_id] ?? 0) + 1 })
+          setOrgTribes(tribeRows.map((t: any) => ({ ...t, member_count: countMap[t.id] ?? 0 })))
+        } else {
+          setOrgTribes([])
+        }
       }
       setInitLoading(false)
     })()
@@ -582,11 +592,15 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     // Regular member — not an org admin
     setIsOrgAdmin(false)
     setPanel('main')
-    const { data } = await supabase.from('tribes').select('id, name, description, invite_code, tribe_members(count)')
+    const { data: tRows } = await supabase.from('tribes').select('id, name, description, invite_code')
       .eq('org_id', orgLookup.id).order('name')
-    setOrgTribes(((data ?? []) as any[]).map((t: any) => ({
-      ...t, member_count: Array.isArray(t.tribe_members) ? t.tribe_members[0]?.count ?? 0 : 0
-    })))
+    const tribeRows2 = (tRows ?? []) as any[]
+    if (tribeRows2.length > 0) {
+      const { data: counts2 } = await supabase.from('tribe_members').select('tribe_id').in('tribe_id', tribeRows2.map((t:any) => t.id))
+      const cm2: Record<string,number> = {}
+      ;(counts2 ?? []).forEach((r:any) => { cm2[r.tribe_id] = (cm2[r.tribe_id] ?? 0) + 1 })
+      setOrgTribes(tribeRows2.map((t:any) => ({ ...t, member_count: cm2[t.id] ?? 0 })))
+    } else { setOrgTribes([]) }
   }
 
   const createOrg = async () => {
