@@ -534,22 +534,10 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
       if (org && org.slug !== 'public') {
         const [adminRes, tribesData] = await Promise.all([
           fetch('/api/org-admins').then(r => r.json()),
-          supabase.from('tribes').select('id, name, description, invite_code').eq('org_id', org.id).order('name'),
+          fetch(`/api/tribes/list?org_id=${org.id}`).then(r => r.json()),
         ])
         setIsOrgAdmin(adminRes.is_org_admin === true)
-        const tribeRows = (tribesData.data ?? []) as any[]
-        if (tribeRows.length > 0) {
-          const tribeIds = tribeRows.map((t: any) => t.id)
-          const { data: counts } = await supabase
-            .from('tribe_members')
-            .select('tribe_id')
-            .in('tribe_id', tribeIds)
-          const countMap: Record<string, number> = {}
-          ;(counts ?? []).forEach((r: any) => { countMap[r.tribe_id] = (countMap[r.tribe_id] ?? 0) + 1 })
-          setOrgTribes(tribeRows.map((t: any) => ({ ...t, member_count: countMap[t.id] ?? 0 })))
-        } else {
-          setOrgTribes([])
-        }
+        setOrgTribes((tribesData.data ?? []) as any[])
       }
       setInitLoading(false)
     })()
@@ -592,15 +580,9 @@ function NoTribePanel({ onJoined }: { onJoined: () => void }) {
     // Regular member — not an org admin
     setIsOrgAdmin(false)
     setPanel('main')
-    const { data: tRows } = await supabase.from('tribes').select('id, name, description, invite_code')
-      .eq('org_id', orgLookup.id).order('name')
-    const tribeRows2 = (tRows ?? []) as any[]
-    if (tribeRows2.length > 0) {
-      const { data: counts2 } = await supabase.from('tribe_members').select('tribe_id').in('tribe_id', tribeRows2.map((t:any) => t.id))
-      const cm2: Record<string,number> = {}
-      ;(counts2 ?? []).forEach((r:any) => { cm2[r.tribe_id] = (cm2[r.tribe_id] ?? 0) + 1 })
-      setOrgTribes(tribeRows2.map((t:any) => ({ ...t, member_count: cm2[t.id] ?? 0 })))
-    } else { setOrgTribes([]) }
+    const tribesRes2 = await fetch(`/api/tribes/list?org_id=${orgLookup.id}`)
+    const tribesData2 = await tribesRes2.json()
+    setOrgTribes((tribesData2.data ?? []) as any[])
   }
 
   const createOrg = async () => {
