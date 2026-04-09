@@ -82,6 +82,16 @@ export async function POST(request: NextRequest) {
     .eq('fixture_id', fixture_id)
     .not('points_earned', 'is', null)
 
+  // Auto-settle challenges for this fixture (non-blocking)
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    fetch(`${appUrl}/api/org-challenges/settle`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': request.headers.get('cookie') ?? '' },
+      body:    JSON.stringify({ fixture_id }),
+    }).catch(() => {})
+  } catch { /* ignore */ }
+
   return NextResponse.json({ data, predictions_scored: count ?? 0 })
 }
 

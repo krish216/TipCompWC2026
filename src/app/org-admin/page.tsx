@@ -521,6 +521,165 @@ function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName
   )
 }
 
+// ── Challenges panel ──────────────────────────────────────────────────────────
+function ChallengesPanel({ orgId }: { orgId: string }) {
+  const { supabase } = useSupabase()
+  const [challenges, setChallenges] = useState<any[]>([])
+  const [fixtures,   setFixtures]   = useState<any[]>([])
+  const [fixtureId,  setFixtureId]  = useState('')
+  const [prize,      setPrize]      = useState('')
+  const [sponsor,    setSponsor]    = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [groupDate,  setGroupDate]  = useState<string>('all')
+
+  useEffect(() => {
+    // Load challenges and upcoming fixtures
+    Promise.all([
+      fetch(`/api/org-challenges?org_id=${orgId}`).then(r => r.json()),
+      fetch('/api/fixtures').then(r => r.json()),
+    ]).then(([challengeData, fxData]) => {
+      setChallenges(challengeData.data ?? [])
+      const upcoming = ((fxData.data ?? []) as any[])
+        .filter((f: any) => !f.result && new Date(f.kickoff_utc) > new Date())
+        .sort((a: any, b: any) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
+      setFixtures(upcoming)
+    })
+  }, [orgId])
+
+  const createChallenge = async () => {
+    if (!fixtureId || !prize.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/org-challenges', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, fixture_id: parseInt(fixtureId), prize: prize.trim(), sponsor: sponsor.trim() }),
+    })
+    const { data, error } = await res.json()
+    setSaving(false)
+    if (error) { toast.error(error); return }
+    setChallenges(prev => [data, ...prev])
+    setFixtureId(''); setPrize(''); setSponsor('')
+    toast.success('Challenge created!')
+  }
+
+  const deleteChallenge = async (id: string) => {
+    if (!confirm('Delete this challenge?')) return
+    const res = await fetch(`/api/org-challenges?id=${id}`, { method: 'DELETE' })
+    const { success, error } = await res.json()
+    if (success) { setChallenges(prev => prev.filter(c => c.id !== id)); toast.success('Deleted') }
+    else toast.error(error)
+  }
+
+  // Group fixtures by date for the dropdown
+  const fixturesByDate = fixtures.reduce((acc: any, f: any) => {
+    const date = new Date(f.kickoff_utc).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })
+    if (!acc[date]) acc[date] = []
+    acc[date].push(f)
+    return acc
+  }, {})
+
+  // Used challenge dates (one per day limit)
+  const usedDates = new Set(challenges.filter(c => !c.settled).map((c: any) => c.challenge_date))
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Daily challenges</p>
+      <p className="text-[11px] text-gray-500 mb-3">
+        Set one challenge per day — players in your organisation who predict the exact score for that fixture win the prize.
+      </p>
+
+      {/* Create form */}
+      <div className="space-y-2 mb-4 bg-gray-50 rounded-xl p-3">
+        <div>
+          <label className="block text-[11px] font-medium text-gray-600 mb-1">Select fixture</label>
+          <select value={fixtureId} onChange={e => setFixtureId(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+            <option value="">Choose a match…</option>
+            {Object.entries(fixturesByDate).map(([date, fxs]: any) => (
+              <optgroup key={date} label={date}>
+                {(fxs as any[]).map((f: any) => {
+                  const dateStr = f.kickoff_utc.slice(0, 10)
+                  const taken   = usedDates.has(dateStr)
+                  return (
+                    <option key={f.id} value={f.id} disabled={taken}>
+                      {f.home} vs {f.away}{taken ? ' (challenge exists)' : ''}
+                    </option>
+                  )
+                })}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <input type="text" value={prize} onChange={e => setPrize(e.target.value)}
+            placeholder="Prize e.g. $50 voucher, bottle of wine"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <input type="text" value={sponsor} onChange={e => setSponsor(e.target.value)}
+            placeholder="Sponsor (optional)"
+            className="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+        </div>
+        <button onClick={createChallenge} disabled={saving || !fixtureId || !prize.trim()}
+          className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
+          {saving && <Spinner className="w-3 h-3 text-white" />}
+          🎯 Create challenge
+        </button>
+      </div>
+
+      {/* Challenge list */}
+      {challenges.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No challenges yet</p>
+      ) : (
+        <div className="space-y-2">
+          {challenges.map((c: any) => {
+            const fx      = Array.isArray(c.fixtures) ? c.fixtures[0] : c.fixtures
+            const winners = c.challenge_winners ?? []
+            return (
+              <div key={c.id} className={clsx('border rounded-xl p-3', c.settled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-gray-800">
+                        {fx ? `${fx.home} vs ${fx.away}` : c.fixture_id}
+                      </span>
+                      {fx && <span className="text-[10px] text-gray-400">
+                        {new Date(fx.kickoff_utc).toLocaleDateString('en-AU', { day:'numeric', month:'short' })}
+                      </span>}
+                      {c.settled && <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Settled ✓</span>}
+                    </div>
+                    <p className="text-[11px] text-purple-700 mt-0.5">🎯 {c.prize}{c.sponsor ? ` · ${c.sponsor}` : ''}</p>
+                    {winners.length > 0 && (
+                      <div className="mt-1.5">
+                        <p className="text-[10px] font-medium text-green-700">
+                          {winners.length} winner{winners.length !== 1 ? 's' : ''}:
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {winners.map((w: any) => {
+                            const u = Array.isArray(w.users) ? w.users[0] : w.users
+                            return (
+                              <span key={w.user_id} className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">
+                                {u?.display_name ?? 'Player'} ({w.prediction})
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {c.settled && winners.length === 0 && (
+                      <p className="text-[10px] text-gray-400 mt-1">No exact score predictions</p>
+                    )}
+                  </div>
+                  {!c.settled && (
+                    <button onClick={() => deleteChallenge(c.id)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ── Main org admin page ───────────────────────────────────────────────────────
 export default function OrgAdminPage() {
   const { session } = useSupabase()
@@ -640,6 +799,9 @@ export default function OrgAdminPage() {
 
       {/* Announcements */}
       {org && <AnnouncementsPanel orgId={org.id} orgName={org.name} userId={session?.user.id ?? ''} />}
+
+      {/* Challenges */}
+      {org && <ChallengesPanel orgId={org.id} />}
 
       {/* Grant org admin — shown first so admin can grant access before setting up tribes */}
       {org && <GrantOrgAdminForm orgId={org.id} />}

@@ -48,6 +48,7 @@ export default function PredictPage() {
   const [activeGroup,   setActiveGroup]   = useState('all')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
+  const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -285,6 +286,7 @@ export default function PredictPage() {
       saving={saving.has(f.id)}
       isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
       timezone={timezone}
+      challenge={challenges[f.id] ?? null}
       onPredict={onPredict}
     />
   )

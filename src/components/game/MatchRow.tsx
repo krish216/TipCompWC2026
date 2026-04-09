@@ -34,13 +34,14 @@ interface Props {
   locked?: boolean
   saving?: boolean
   isFavourite?: boolean
+  challenge?: { prize: string; sponsor?: string | null; org_name?: string } | null
   timezone?: string
   onPredict: (fixtureId: number, side: 'home' | 'away', value: number) => void
 }
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, saving = false, isFavourite = false,
+  locked = false, saving = false, isFavourite = false, challenge,
   timezone = 'UTC',
   onPredict,
 }: Props) {
@@ -79,6 +80,7 @@ export function MatchRow({
     locked && !result                        && 'bg-gray-50 border-gray-200',
     !result && hasPred && !locked            && 'border-gray-200 bg-white',
     isFavourite && !result                   && 'ring-1 ring-purple-300',
+    challenge && !result                     && 'ring-1 ring-purple-400 border-purple-200',
   )
 
   const handleChange = useCallback((side: 'home' | 'away', raw: string) => {
@@ -131,6 +133,11 @@ export function MatchRow({
         <div className="flex items-center gap-1.5">
           {isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) && (
             <span className="text-[11px] text-purple-600">⭐ 2× pts</span>
+          )}
+          {challenge && !result && (
+            <span className="text-[11px] text-purple-600 font-medium flex items-center gap-1">
+              🎯 {challenge.prize}{challenge.sponsor ? ` · ${challenge.sponsor}` : ''}
+            </span>
           )}
           {locked && !result && (
             <span className="text-[11px] text-red-500 flex items-center gap-1">
