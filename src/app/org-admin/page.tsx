@@ -324,6 +324,68 @@ function AppNamePanel({ orgId, currentName, onSaved, userId }: {
   )
 }
 
+// ── Age restriction panel ─────────────────────────────────────────────────────
+function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
+  orgId: string; currentMinAge: number | null; onSaved: (age: number | null) => void; userId: string
+}) {
+  const [minAge, setMinAge] = useState<string>(currentMinAge ? String(currentMinAge) : '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setMinAge(currentMinAge ? String(currentMinAge) : '') }, [currentMinAge])
+
+  const save = async () => {
+    const val = minAge.trim() ? parseInt(minAge) : null
+    if (val !== null && (val < 13 || val > 99)) { toast.error('Age must be between 13 and 99'); return }
+    setSaving(true)
+    const res = await fetch('/api/organisations/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, min_age: val, user_id: userId }),
+    })
+    const { success, error } = await res.json()
+    setSaving(false)
+    if (success !== false && !error) { onSaved(val); toast.success(val ? `Minimum age set to ${val}` : 'Age restriction removed') }
+    else toast.error(error ?? 'Failed to save')
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Age restriction</p>
+      <p className="text-[11px] text-gray-500 mb-3">
+        Set a minimum age requirement for joining your organisation. Players must provide their date of birth at registration.
+        Leave blank for no age restriction.
+      </p>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-sm text-gray-600 whitespace-nowrap">Minimum age</span>
+          <input
+            type="number" value={minAge} onChange={e => setMinAge(e.target.value)}
+            placeholder="e.g. 18" min={13} max={99}
+            className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+          />
+          <span className="text-sm text-gray-500">years</span>
+        </div>
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+          {saving && <Spinner className="w-3 h-3 text-white" />}
+          Save
+        </button>
+        {currentMinAge && (
+          <button onClick={() => { setMinAge(''); setTimeout(save, 0) }}
+            className="px-3 py-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">
+            Remove
+          </button>
+        )}
+      </div>
+      {currentMinAge && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+          ⚠️ Players under {currentMinAge} will be blocked from joining your organisation.
+          Existing members under {currentMinAge} are not affected.
+        </p>
+      )}
+    </Card>
+  )
+}
+
 // ── Domain restriction panel (Enterprise only) ────────────────────────────────
 function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }) {
   const [domain,  setDomain]  = useState('')
@@ -836,6 +898,7 @@ export default function OrgAdminPage() {
   const [orgTier,    setOrgTier]    = useState<string>('trial')
   const [orgDomain,  setOrgDomain]  = useState<string | null>(null)
   const [orgAppName, setOrgAppName] = useState<string>('')
+  const [orgMinAge,  setOrgMinAge]  = useState<number | null>(null)
 
   useEffect(() => {
     if (!session) return
@@ -849,6 +912,7 @@ export default function OrgAdminPage() {
       setOrg(adminData.org)
       setOrgLogo(adminData.org?.logo_url ?? null)
       setOrgAppName(adminData.org?.app_name ?? '')
+      setOrgMinAge(adminData.org?.min_age ?? null)
       // Fetch subscription tier
       if (adminData.org_id) {
         const [subRes, domainRes] = await Promise.all([
@@ -963,6 +1027,9 @@ export default function OrgAdminPage() {
 
       {/* Custom app name */}
       {org && <AppNamePanel orgId={org.id} currentName={orgAppName} onSaved={setOrgAppName} userId={session?.user.id ?? ''} />}
+
+      {/* Age restriction */}
+      {org && <AgeRestrictionPanel orgId={org.id} currentMinAge={orgMinAge} onSaved={setOrgMinAge} userId={session?.user.id ?? ''} />}
 
       {/* Domain restriction — Enterprise only */}
       {org && <DomainRestrictionPanel orgId={org.id} tier={orgTier} />}

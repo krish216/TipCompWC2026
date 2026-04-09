@@ -68,6 +68,8 @@ export default function SettingsPage() {
   const [prefs,         setPrefs]         = useState<NotifPrefs>({ push_enabled: true, email_enabled: true, tribe_nudges: false })
   const [loading,       setLoading]       = useState(true)
   const [savingName,    setSavingName]    = useState(false)
+  const [dob,           setDob]           = useState('')
+  const [savingDob,     setSavingDob]     = useState(false)
   const [avatar,        setAvatar]        = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [savingFav,     setSavingFav]     = useState(false)
@@ -79,12 +81,13 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team, country, timezone, avatar_url').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, favourite_team, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
         supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).single(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
+        setDob((userRes.data as any).date_of_birth ?? '')
         const ft = (userRes.data as any).favourite_team ?? ''
         setFavTeam(ft); setSavedFavTeam(ft)
         const ct = (userRes.data as any).country ?? ''
@@ -154,6 +157,14 @@ export default function SettingsPage() {
       .upsert({ user_id: session!.user.id, ...updated })
     setSavingPrefs(false)
     if (error) { toast.error('Failed to save preference'); setPrefs(prefs) }
+  }
+
+  const saveDob = async () => {
+    if (!session || !dob) return
+    setSavingDob(true)
+    await supabase.from('users').update({ date_of_birth: dob }).eq('id', session.user.id)
+    setSavingDob(false)
+    toast.success('Date of birth saved')
   }
 
   const signOut = async () => {
@@ -396,6 +407,28 @@ export default function SettingsPage() {
               enabled={prefs.tribe_nudges}
               onChange={v => updatePref('tribe_nudges', v)}
             />
+          </div>
+        </Card>
+      </section>
+
+      {/* Date of birth */}
+      <section className="mb-6">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date of birth</h2>
+        <Card>
+          <p className="text-xs text-gray-500 mb-3">
+            Required if you want to join an age-restricted organisation. Not shown publicly.
+          </p>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <button onClick={saveDob} disabled={savingDob || !dob}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+              {savingDob && <Spinner className="w-3 h-3 text-white" />}
+              Save
+            </button>
           </div>
         </Card>
       </section>

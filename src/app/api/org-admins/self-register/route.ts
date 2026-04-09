@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   // Verify the invite code matches the org
   const { data: org } = await supabase
     .from('organisations')
-    .select('id, invite_code, name, email_domain')
+    .select('id, invite_code, name, email_domain, min_age')
     .eq('id', org_id)
     .eq('invite_code', invite_code.toUpperCase())
     .neq('slug', 'public')
@@ -36,6 +36,25 @@ export async function POST(request: NextRequest) {
     if (userDomain !== orgEmailDomain.toLowerCase()) {
       return NextResponse.json({
         error: `This organisation is restricted to ${orgEmailDomain} email addresses. Your email (${userEmail}) does not match.`
+      }, { status: 403 })
+    }
+  }
+
+  // Check minimum age requirement if set
+  const minAge = (org as any).min_age ?? null
+  if (minAge) {
+    const { data: userData } = await supabase
+      .from('users').select('date_of_birth').eq('id', user.id).single()
+    const dob = (userData as any)?.date_of_birth ?? null
+    if (!dob) {
+      return NextResponse.json({
+        error: `This organisation requires members to be at least ${minAge} years old. Please add your date of birth in Settings before joining.`
+      }, { status: 403 })
+    }
+    const age = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 3600 * 1000))
+    if (age < minAge) {
+      return NextResponse.json({
+        error: `This organisation requires members to be at least ${minAge} years old.`
       }, { status: 403 })
     }
   }
