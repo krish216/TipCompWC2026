@@ -20,13 +20,25 @@ export async function POST(request: NextRequest) {
   // Verify the invite code matches the org
   const { data: org } = await supabase
     .from('organisations')
-    .select('id, invite_code, name')
+    .select('id, invite_code, name, email_domain')
     .eq('id', org_id)
     .eq('invite_code', invite_code.toUpperCase())
     .neq('slug', 'public')
     .single()
 
   if (!org) return NextResponse.json({ error: 'Invalid organisation code' }, { status: 403 })
+
+  // Check email domain restriction if set
+  const orgEmailDomain = (org as any).email_domain ?? null
+  if (orgEmailDomain) {
+    const userEmail  = user.email ?? ''
+    const userDomain = userEmail.split('@')[1]?.toLowerCase() ?? ''
+    if (userDomain !== orgEmailDomain.toLowerCase()) {
+      return NextResponse.json({
+        error: `This organisation is restricted to ${orgEmailDomain} email addresses. Your email (${userEmail}) does not match.`
+      }, { status: 403 })
+    }
+  }
 
   // Assign user to org as an ordinary member — no org admin role granted
   await (adminClient.from('users') as any)

@@ -267,6 +267,81 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
   )
 }
 
+// ── Domain restriction panel (Enterprise only) ────────────────────────────────
+function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }) {
+  const [domain,  setDomain]  = useState('')
+  const [current, setCurrent] = useState<string | null>(null)
+  const [saving,  setSaving]  = useState(false)
+
+  useEffect(() => {
+    // Fetch current domain restriction from organisations table
+    fetch(`/api/organisations/domain?org_id=${orgId}`)
+      .then(r => r.json())
+      .then(d => { setCurrent(d.email_domain ?? null); setDomain(d.email_domain ?? '') })
+      .catch(() => {})
+  }, [orgId])
+
+  const save = async () => {
+    setSaving(true)
+    const res = await fetch('/api/organisations/domain', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId, email_domain: domain.trim().toLowerCase() || null }),
+    })
+    const { success, error } = await res.json()
+    setSaving(false)
+    if (success) { setCurrent(domain.trim() || null); toast.success('Domain restriction saved') }
+    else toast.error(error ?? 'Failed to save')
+  }
+
+  if (tier !== 'enterprise') return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Email domain restriction</p>
+      <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+        <span className="text-2xl">🔒</span>
+        <div>
+          <p className="text-xs font-medium text-gray-700">Enterprise subscription required</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Restrict organisation membership to players with a specific email domain (e.g. @acmecorp.com).</p>
+        </div>
+      </div>
+    </Card>
+  )
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Email domain restriction</p>
+      <p className="text-[11px] text-gray-500 mb-3">
+        When set, only players whose email address matches this domain can join your organisation.
+        Leave blank to allow any email address.
+      </p>
+      {current && (
+        <div className="mb-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <span className="text-green-600 text-xs">✓ Currently restricted to</span>
+          <span className="text-xs font-mono font-semibold text-green-800">@{current}</span>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <div className="flex items-center flex-1 border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-green-400 bg-white">
+          <span className="px-3 text-sm text-gray-400 border-r border-gray-200 bg-gray-50 py-2">@</span>
+          <input type="text" value={domain} onChange={e => setDomain(e.target.value.toLowerCase().replace(/^@/, ''))}
+            placeholder="acmecorp.com"
+            className="flex-1 px-3 py-2 text-sm focus:outline-none bg-white" />
+        </div>
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+          {saving && <Spinner className="w-3 h-3 text-white" />}
+          Save
+        </button>
+        {current && (
+          <button onClick={() => { setDomain(''); save() }}
+            className="px-3 py-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">
+            Clear
+          </button>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 // ── Subscription card ─────────────────────────────────────────────────────────
 function SubscriptionCard({ orgId }: { orgId: string }) {
   const [sub,     setSub]     = useState<any>(null)
@@ -701,6 +776,7 @@ export default function OrgAdminPage() {
   const [tribes,     setTribes]     = useState<Tribe[]>([])
   const [members,    setMembers]    = useState<Member[]>([])
   const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
+  const [orgTier,    setOrgTier]    = useState<string>('trial')
 
   useEffect(() => {
     if (!session) return
@@ -713,6 +789,12 @@ export default function OrgAdminPage() {
       setIsOrgAdmin(true)
       setOrg(adminData.org)
       setOrgLogo(adminData.org?.logo_url ?? null)
+      // Fetch subscription tier
+      if (adminData.org_id) {
+        const subRes = await fetch(`/api/org-subscriptions?org_id=${adminData.org_id}`)
+        const subData = await subRes.json()
+        setOrgTier(subData.data?.tier ?? 'trial')
+      }
       const orgId = adminData.org_id
 
       const [tribesRes, membersRes] = await Promise.all([
@@ -784,10 +866,20 @@ export default function OrgAdminPage() {
         </div>
       </Card>
 
-      {/* Org logo */}
+      {/* Org logo — Business and Enterprise only */}
       <Card className="mb-4">
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation logo</p>
-        <OrgLogoUpload orgId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
+        {['business','enterprise'].includes(orgTier) ? (
+          <OrgLogoUpload orgId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
+        ) : (
+          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <span className="text-2xl">🔒</span>
+            <div>
+              <p className="text-xs font-medium text-gray-700">Business or Enterprise subscription required</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Upgrade your plan to upload an organisation logo.</p>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Role explanation */}
@@ -804,6 +896,9 @@ export default function OrgAdminPage() {
 
       {/* Subscription status */}
       {org && <SubscriptionCard orgId={org.id} />}
+
+      {/* Domain restriction — Enterprise only */}
+      {org && <DomainRestrictionPanel orgId={org.id} tier={orgTier} />}
 
       {/* Grant org admin */}
       {org && <GrantOrgAdminForm orgId={org.id} />}
