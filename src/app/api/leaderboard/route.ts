@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
   const userIds = rows.map((r: any) => r.user_id)
   const breakdownMap: Record<string, Record<RoundId, number>> = {}
   if (userIds.length > 0) {
-    const { data: predRows } = await supabase
-      .from('predictions')
+    const adminClient = createAdminClient()
+    const { data: predRows } = await (adminClient.from('predictions') as any)
       .select('user_id, points_earned, fixtures!inner(round)')
       .in('user_id', userIds)
       .not('points_earned', 'is', null)
