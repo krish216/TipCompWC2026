@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     ;(predRows ?? []).forEach((p: any) => {
       const uid = p.user_id; const round = p.fixtures?.round as RoundId
       if (!breakdownMap[uid]) breakdownMap[uid] = {} as Record<RoundId, number>
-      breakdownMap[uid][round] = (breakdownMap[uid][round] ?? 0) + (p.points_earned ?? 0)
+      breakdownMap[uid][round] = (breakdownMap[uid][round] ?? 0) + (parseInt(String(p.points_earned ?? 0)) || 0)
     })
   }
 

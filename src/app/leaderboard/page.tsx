@@ -210,12 +210,18 @@ export default function LeaderboardPage() {
     return entries
       .map(e => {
         const rb  = e.round_breakdown ?? {}
+        // Ensure values are numbers (JSON may return strings)
         const pts = Object.entries(rb)
           .filter(([r]) => validRounds.has(r as RoundId))
-          .reduce((sum, [, v]) => sum + (v as number), 0)
+          .reduce((sum, [, v]) => sum + Number(v), 0)
         return { ...e, total_points: pts }
       })
-      .sort((a, b) => b.total_points - a.total_points)
+      .filter(e => e.total_points > 0 || roundView === 'all')
+      .sort((a, b) =>
+        b.total_points !== a.total_points
+          ? b.total_points - a.total_points
+          : (b.exact_count ?? 0) - (a.exact_count ?? 0)
+      )
       .map((e, i) => ({ ...e, rank: i + 1 }))
   }, [entries, roundView])
 
