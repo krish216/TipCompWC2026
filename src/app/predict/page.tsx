@@ -16,8 +16,6 @@ type ResultMap  = Record<number, MatchScore>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type RoundTab   = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
 
-const GROUP_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const
-
 const ROUND_TABS: RoundTab[] = ['gs','r32','r16','qf','sf','finals']
 
 const ROUND_TAB_LABEL: Record<RoundTab, string> = {
@@ -45,7 +43,6 @@ export default function PredictPage() {
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs')
-  const [activeGroup,   setActiveGroup]   = useState('all')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
@@ -271,24 +268,34 @@ export default function PredictPage() {
     return { played, total: fs.length, pts, exactCt, correctCt }
   }, [fixtures, activeRound, predictions, results])
 
-  // Visible fixtures for active tab + group filter
+  // Fixtures sorted chronologically — grouped by date for display
   const visibleFixtures = useMemo(() => {
     const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
-    if (activeRound !== 'gs' || activeGroup === 'all') return fs
-    return fs.filter(f => (f as any).group === activeGroup)
-  }, [fixtures, activeRound, activeGroup])
+    return [...fs].sort((a, b) =>
+      new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
+    )
+  }, [fixtures, activeRound])
 
-  // Group fixtures map (group stage only)
-  const fixturesByGroup = useMemo(() => {
-    if (activeRound !== 'gs') return null
+  // Group fixtures by date label for section headers
+  const fixturesByDate = useMemo(() => {
     const map: Record<string, Fixture[]> = {}
     for (const f of visibleFixtures) {
-      const g = (f as any).group ?? 'Other'
-      if (!map[g]) map[g] = []
-      map[g].push(f)
+      const date = new Date(f.kickoff_utc).toLocaleDateString('en-AU', {
+        timeZone: timezone || 'UTC',
+        weekday: 'long', day: 'numeric', month: 'long'
+      })
+      if (!map[date]) map[date] = []
+      map[date].push(f)
     }
     return map
-  }, [activeRound, visibleFixtures])
+  }, [visibleFixtures, timezone])
+
+  // First fixture that needs a prediction (not locked, no result, no prediction)
+  const nextUnpredictedId = useMemo(() => {
+    return visibleFixtures.find(f =>
+      !results[f.id] && !isLocked(f) && !predictions[f.id]
+    )?.id ?? null
+  }, [visibleFixtures, results, predictions, roundLocks])
 
   const renderMatchRow = (f: Fixture) => (
     <MatchRow
@@ -358,7 +365,7 @@ export default function PredictPage() {
           return (
             <button
               key={tab}
-              onClick={() => { setActiveRound(tab); setActiveGroup('all') }}
+              onClick={() => setActiveRound(tab)}
               className={clsx(
                 'relative px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
                 isActive ? 'bg-green-600 border-green-700 text-white' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
@@ -386,47 +393,45 @@ export default function PredictPage() {
         })}
       </div>
 
-      {/* Group filter */}
-      {activeRound === 'gs' && (
-        <div className="flex gap-1 flex-wrap mb-3">
-          {['all', ...GROUP_LETTERS].map(g => (
-            <button key={g} onClick={() => setActiveGroup(g)}
-              className={clsx(
-                'px-2.5 py-1 text-xs rounded-full border transition-colors',
-                activeGroup === g ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-              )}>
-              {g === 'all' ? 'All groups' : `Group ${g}`}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Round score bar */}
       <RoundScoreBar
         round={activeRound === 'finals' ? 'f' : activeRound as RoundId}
         {...roundScoreBarProps}
       />
 
-      {/* Fixtures */}
+      {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
         <EmptyState
           title="No fixtures for this round yet"
           description="Check back once the previous round is complete."
         />
-      ) : fixturesByGroup ? (
-        Object.entries(fixturesByGroup).map(([grp, gFixtures]) => (
-          <div key={grp}>
-            <div className="flex items-center gap-2 mt-4 mb-2">
-              <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold flex items-center justify-center">
-                {grp}
-              </div>
-              <span className="text-sm font-medium text-gray-700">Group {grp}</span>
+      ) : (
+        Object.entries(fixturesByDate).map(([date, dayFixtures]) => (
+          <div key={date}>
+            {/* Date header */}
+            <div className="flex items-center gap-3 mt-5 mb-2">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                {date}
+              </span>
+              <div className="h-px flex-1 bg-gray-200" />
             </div>
-            {gFixtures.map(renderMatchRow)}
+            {dayFixtures.map(f => (
+              <div key={f.id}>
+                {/* "Predict next" indicator — first unpredicted fixture */}
+                {f.id === nextUnpredictedId && (
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      Predict next
+                    </span>
+                  </div>
+                )}
+                {renderMatchRow(f)}
+              </div>
+            ))}
           </div>
         ))
-      ) : (
-        visibleFixtures.map(renderMatchRow)
       )}
     </div>
   )
