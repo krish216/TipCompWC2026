@@ -1,103 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
 import type { RoundId } from '@/types'
 
-const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
-
-// GET /api/leaderboard?scope=tribe|org|global&limit=50&offset=0
+// GET /api/leaderboard?scope=tribe|org|global
 export async function GET(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase     = createServerSupabaseClient()
+    const adminClient  = createAdminClient()
 
-  const { searchParams } = new URL(request.url)
-  const scope  = searchParams.get('scope') ?? 'org'
-  // Tribe scope: no cap (tribes max 25 anyway)
-  // Org/global scope: cap at 50
-  const defaultLimit = scope === 'tribe' ? 25 : 50
-  const limit  = Math.min(parseInt(searchParams.get('limit') ?? String(defaultLimit)), scope === 'tribe' ? 25 : 50)
-  const offset = parseInt(searchParams.get('offset') ?? '0')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get user context
-  const { data: meRow } = await supabase
-    .from('users').select('tribe_id, org_id').eq('id', user.id).single()
-  const tribeId = (meRow as any)?.tribe_id ?? null
-  const orgId   = (meRow as any)?.org_id   ?? null
+    const { searchParams } = new URL(request.url)
+    const scope = searchParams.get('scope') ?? 'org'
+    const limit = scope === 'tribe' ? 25 : 50
 
-  if (scope === 'tribe' && !tribeId) {
-    return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'You are not in a tribe yet.' })
-  }
+    // Get user context
+    const { data: meRow } = await supabase
+      .from('users').select('tribe_id, org_id').eq('id', user.id).single()
+    const tribeId = (meRow as any)?.tribe_id ?? null
+    const orgId   = (meRow as any)?.org_id   ?? null
 
-  // Build query — always include org_name and tribe_name
-  let query = supabase
-    .from('leaderboard')
-    .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
-    .order('total_points', { ascending: false })
-    .order('exact_count',  { ascending: false })
-    .range(offset, offset + limit - 1)
-
-  if (scope === 'tribe' && tribeId) {
-    const { data: members } = await supabase
-      .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
-    const ids = (members ?? []).map((m: any) => m.user_id)
-    if (ids.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
-    query = query.in('user_id', ids)
-  } else if (scope === 'org' && orgId) {
-    const { data: members } = await supabase
-      .from('users').select('id').eq('org_id', orgId)
-    const ids = (members ?? []).map((m: any) => m.id)
-    if (ids.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
-    query = query.in('user_id', ids)
-  }
-  // scope === 'global' — no filter, show everyone
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  const rows = (data ?? []) as any[]
-
-  // Build round breakdown
-  const userIds = rows.map((r: any) => r.user_id)
-  const breakdownMap: Record<string, Record<RoundId, number>> = {}
-  if (userIds.length > 0) {
-    const adminClient = createAdminClient()
-    const { data: predRows } = await (adminClient.from('predictions') as any)
-      .select('user_id, points_earned, fixtures!inner(round)')
-      .in('user_id', userIds)
-      .not('points_earned', 'is', null)
-    ;(predRows ?? []).forEach((p: any) => {
-      const uid = p.user_id
-      // fixtures may come back as object or array depending on PostgREST version
-      const fx    = Array.isArray(p.fixtures) ? p.fixtures[0] : p.fixtures
-      const round = fx?.round as RoundId
-      if (!round) return  // skip if round is missing
-      if (!breakdownMap[uid]) breakdownMap[uid] = {} as Record<RoundId, number>
-      breakdownMap[uid][round] = (breakdownMap[uid][round] ?? 0) + (parseInt(String(p.points_earned ?? 0)) || 0)
-    })
-  }
-
-  const ranked = rows.map((row: any, i: number) => ({
-    ...row,
-    rank:            offset + i + 1,
-    is_me:           row.user_id === user.id,
-    round_breakdown: breakdownMap[row.user_id] ?? {},
-  }))
-
-  // Ensure current user always appears even if outside the page window
-  let myEntry = ranked.find((r: any) => r.is_me) ?? null
-  if (!myEntry) {
-    const { data: myRaw } = await supabase
-      .from('leaderboard')
-      .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
-      .eq('user_id', user.id)
-      .single()
-    if (myRaw) {
-      const m = myRaw as any
-      const { count: ahead } = await supabase
-        .from('leaderboard').select('user_id', { count: 'exact', head: true })
-        .gt('total_points', m.total_points)
-      myEntry = { ...m, rank: (ahead ?? 0) + 1, is_me: true, round_breakdown: breakdownMap[user.id] ?? {} }
+    if (scope === 'tribe' && !tribeId) {
+      return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'You are not in a tribe yet.' })
     }
-  }
 
-  return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length })
+    // Resolve user IDs for scope filter
+    let scopeUserIds: string[] | null = null
+
+    if (scope === 'tribe' && tribeId) {
+      const { data: members } = await adminClient
+        .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
+      scopeUserIds = (members ?? []).map((m: any) => m.user_id)
+      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+    } else if (scope === 'org' && orgId) {
+      const { data: members } = await adminClient
+        .from('users').select('id').eq('org_id', orgId)
+      scopeUserIds = (members ?? []).map((m: any) => m.id)
+      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+    }
+
+    // Query leaderboard view
+    let lbQuery = (adminClient.from('leaderboard') as any)
+      .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
+      .order('total_points', { ascending: false })
+      .order('exact_count',  { ascending: false })
+      .limit(limit)
+
+    if (scopeUserIds) lbQuery = lbQuery.in('user_id', scopeUserIds)
+
+    const { data: lbData, error: lbError } = await lbQuery
+    if (lbError) return NextResponse.json({ error: lbError.message }, { status: 500 })
+    const rows = (lbData ?? []) as any[]
+
+    // Build fixture → round map (single query, no join)
+    const { data: fixRows } = await adminClient
+      .from('fixtures').select('id, round').not('home_score', 'is', null)
+    const fixtureRoundMap: Record<number, RoundId> = {}
+    ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
+
+    // Build round breakdown per user using admin client (bypasses RLS)
+    const userIds = rows.map((r: any) => r.user_id)
+    const breakdownMap: Record<string, Record<RoundId, number>> = {}
+
+    if (userIds.length > 0) {
+      const { data: predRows } = await (adminClient.from('predictions') as any)
+        .select('user_id, fixture_id, points_earned')
+        .in('user_id', userIds)
+        .not('points_earned', 'is', null)
+        .gt('points_earned', 0)
+
+      ;(predRows ?? []).forEach((p: any) => {
+        const round = fixtureRoundMap[p.fixture_id]
+        if (!round) return
+        if (!breakdownMap[p.user_id]) breakdownMap[p.user_id] = {} as Record<RoundId, number>
+        breakdownMap[p.user_id][round] = (breakdownMap[p.user_id][round] ?? 0) + (Number(p.points_earned) || 0)
+      })
+    }
+
+    const ranked = rows.map((row: any, i: number) => ({
+      ...row,
+      rank:            i + 1,
+      is_me:           row.user_id === user.id,
+      round_breakdown: breakdownMap[row.user_id] ?? {},
+    }))
+
+    // Always return current user's entry even if outside top 50
+    let myEntry = ranked.find((r: any) => r.is_me) ?? null
+    if (!myEntry) {
+      const { data: myRaw } = await (adminClient.from('leaderboard') as any)
+        .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
+        .eq('user_id', user.id).single()
+      if (myRaw) {
+        const m = myRaw as any
+        const { count: ahead } = await (adminClient.from('leaderboard') as any)
+          .select('user_id', { count: 'exact', head: true })
+          .gt('total_points', m.total_points)
+        myEntry = {
+          ...m, is_me: true,
+          rank: (ahead ?? 0) + 1,
+          round_breakdown: breakdownMap[user.id] ?? {},
+        }
+      }
+    }
+
+    return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length })
+
+  } catch (err: any) {
+    console.error('Leaderboard error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
