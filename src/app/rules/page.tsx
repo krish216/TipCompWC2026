@@ -46,29 +46,67 @@ export default function RulesPage() {
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Points by round</h2>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="grid grid-cols-[1fr_90px_90px] text-[11px] font-medium text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
-            <span>Round</span><span className="text-right">Exact score</span><span className="text-right">Correct result</span>
+          <div className="grid grid-cols-[1fr_80px_80px_80px] text-[11px] font-medium text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
+            <span>Round</span><span className="text-right">Exact score</span><span className="text-right">Correct result</span><span className="text-right">Draw + pens ✓</span>
           </div>
           {SCORING_ROWS.map(({ rid, label, badge, highlight }, i) => {
             const sc = SCORING[rid]
+            const isKnockout = ['r32','r16','qf','sf','f'].includes(rid)
             return (
-              <div key={rid} className={`grid grid-cols-[1fr_90px_90px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
+              <div key={rid} className={`grid grid-cols-[1fr_80px_80px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-800">{label}</span>
                   {badge && <span className="text-[11px] font-medium px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">{badge}</span>}
+                  {isKnockout && <span className="text-[10px] font-medium px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded">🥅 pens</span>}
                 </div>
                 <div className="text-right"><span className="text-sm font-semibold text-purple-700">★ {sc.exact}</span></div>
                 <div className="text-right"><span className="text-sm font-semibold text-blue-700">✓ {sc.result}</span></div>
+                <div className="text-right">
+                  {isKnockout
+                    ? <span className="text-sm font-semibold text-amber-600">🥅 {sc.exact}</span>
+                    : <span className="text-sm text-gray-300">—</span>
+                  }
+                </div>
               </div>
             )
           })}
         </div>
-        <div className="mt-3 flex gap-4 text-xs text-gray-500">
+        <div className="mt-3 flex gap-3 flex-wrap text-xs text-gray-500">
           <span><span className="font-medium text-purple-700">★ Exact</span> — correct scoreline</span>
           <span><span className="font-medium text-blue-700">✓ Result</span> — right outcome, wrong score</span>
+          <span><span className="font-medium text-amber-600">🥅 Draw + pens ✓</span> — predicted draw + correct penalty winner</span>
           <span><span className="font-medium text-gray-500">✗ Wrong</span> — 0 pts</span>
         </div>
         <p className="text-xs text-gray-400 mt-2">Note: the 3rd place play-off (🥉) has lower points than the semi-finals — it is a consolation match.</p>
+      </section>
+
+      {/* Penalty shootout scoring */}
+      <section className="mb-8">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Penalty shootout 🥅</h2>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-sm text-gray-700 mb-3">
+            In knockout rounds (Round of 32 through the Final), matches cannot end in a draw.
+            If you predict an equal scoreline, you must also pick which team wins on penalties.
+          </p>
+          <div className="space-y-2 mb-3">
+            {[
+              { scenario: 'Predict 1–1, pick correct penalty winner', result: 'Exact score points', pts: true },
+              { scenario: 'Predict 1–1, pick wrong penalty winner',   result: 'Correct result points only', pts: false },
+              { scenario: 'Predict 1–1, actual result is 2–1',        result: '0 points', pts: false },
+            ].map(ex => (
+              <div key={ex.scenario} className="flex items-start gap-3 bg-white rounded-lg border border-blue-100 px-3 py-2">
+                <span className="text-base flex-shrink-0">{ex.pts ? '✅' : '➖'}</span>
+                <div>
+                  <p className="text-xs font-medium text-gray-800">{ex.scenario}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{ex.result}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            The penalty pick appears automatically on the predict page when you enter an equal score for a knockout fixture.
+          </p>
+        </div>
       </section>
 
       {/* Favourite team bonus */}
