@@ -38,7 +38,7 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
   const awayRef = useRef<HTMLInputElement>(null)
   const [saving,     setSaving]     = useState(false)
   const [penWinner,  setPenWinner]  = useState<string | null>(null)
-  const KNOCKOUT_ROUNDS_ADMIN = ['r32','r16','qf','sf','f']
+  const KNOCKOUT_ROUNDS_ADMIN = ['r32','r16','qf','sf','tp','f']
   const isKnockout = KNOCKOUT_ROUNDS_ADMIN.includes(fixture.round)
   const homeVal = parseInt(homeRef.current?.value ?? '', 10)
   const awayVal = parseInt(awayRef.current?.value ?? '', 10)

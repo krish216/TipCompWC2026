@@ -3,7 +3,7 @@
 export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'  // UI-facing round tabs
 export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']
-export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','f']  // rounds where draws go to penalties  // both map to the 'finals' tab
+export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','tp','f']  // rounds where draws go to penalties  // both map to the 'finals' tab
 
 export interface ScoringRule {
   result: number

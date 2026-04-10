@@ -46,14 +46,26 @@ export default function RulesPage() {
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Points by round</h2>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="grid grid-cols-[1fr_80px_80px_80px] text-[11px] font-medium text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
-            <span>Round</span><span className="text-right">Exact score</span><span className="text-right">Correct result</span><span className="text-right">Draw + pens ✓</span>
+          <div className="grid grid-cols-[1fr_72px_72px_80px] text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
+            <span>Round</span>
+            <div className="text-right leading-tight">
+              <span className="text-purple-600">★</span><br/>
+              <span>Exact</span>
+            </div>
+            <div className="text-right leading-tight">
+              <span className="text-blue-600">✓</span><br/>
+              <span>Result</span>
+            </div>
+            <div className="text-right leading-tight">
+              <span className="text-amber-600">🥅</span><br/>
+              <span>Draw+pens</span>
+            </div>
           </div>
           {SCORING_ROWS.map(({ rid, label, badge, highlight }, i) => {
             const sc = SCORING[rid]
-            const isKnockout = ['r32','r16','qf','sf','f'].includes(rid)
+            const isKnockout = ['r32','r16','qf','sf','tp','f'].includes(rid)
             return (
-              <div key={rid} className={`grid grid-cols-[1fr_80px_80px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
+              <div key={rid} className={`grid grid-cols-[1fr_72px_72px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-800">{label}</span>
                   {badge && <span className="text-[11px] font-medium px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">{badge}</span>}
@@ -85,7 +97,7 @@ export default function RulesPage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Penalty shootout 🥅</h2>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-sm text-gray-700 mb-3">
-            In knockout rounds (Round of 32 through the Final), matches cannot end in a draw.
+            In all knockout rounds (Round of 32, Round of 16, Quarter-finals, Semi-finals, 3rd place play-off and Final), matches cannot end in a draw.
             If you predict an equal scoreline, you must also pick which team wins on penalties.
           </p>
           <div className="space-y-2 mb-3">
