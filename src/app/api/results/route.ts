@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     .update({
       home_score:    home,
       away_score:    away,
+      pen_winner:    pen_winner ?? null,
       result_set_at: new Date().toISOString(),
       result_set_by: user.id,
     })

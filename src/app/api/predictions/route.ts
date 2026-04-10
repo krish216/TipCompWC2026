@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('predictions')
-    .select('id, fixture_id, home, away, points_earned, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score)')
+    .select('id, fixture_id, home, away, pen_winner, points_earned, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score, pen_winner)')
     .eq('user_id', user.id)
     .order('fixture_id')
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   })
   if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
 
-  const rows = predictions.map(p => ({ user_id: user.id, fixture_id: p.fixture_id, home: p.home, away: p.away, points_earned: null }))
+  const rows = predictions.map(p => ({ user_id: user.id, fixture_id: p.fixture_id, home: p.home, away: p.away, pen_winner: p.pen_winner ?? null, points_earned: null }))
   const { data, error } = await (supabase
     .from('predictions') as any)
     .upsert(rows, { onConflict: 'user_id,fixture_id', ignoreDuplicates: false })

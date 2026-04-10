@@ -2,7 +2,8 @@
 
 export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'  // UI-facing round tabs
-export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']  // both map to the 'finals' tab
+export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']
+export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','f']  // rounds where draws go to penalties  // both map to the 'finals' tab
 
 export interface ScoringRule {
   result: number
@@ -42,6 +43,7 @@ export interface Prediction {
   user_id: string
   home: number
   away: number
+  pen_winner?: string | null   // team name — required when draw predicted in knockout round
   created_at: string
   updated_at: string
   points_earned?: number  // null until result confirmed
@@ -125,16 +127,29 @@ export function getOutcome(h: number, a: number): 'H' | 'A' | 'D' {
 export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
 
 export function calcPoints(
-  pred: Pick<Prediction, 'home' | 'away'> | null | undefined,
-  result: MatchScore | null | undefined,
+  pred: Pick<Prediction, 'home' | 'away' | 'pen_winner'> | null | undefined,
+  result: (MatchScore & { pen_winner?: string | null }) | null | undefined,
   round: RoundId,
   isFavourite = false
 ): number | null {
   if (!result) return null
   if (!pred) return 0
-  const sc = SCORING[round]
+  const sc         = SCORING[round]
   const multiplier = isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) ? 2 : 1
-  if (pred.home === result.home && pred.away === result.away) return sc.exact * multiplier
-  if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) return sc.result * multiplier
+  const isKnockout = KNOCKOUT_ROUNDS.includes(round)
+  const isDraw     = pred.home === pred.away
+
+  // Exact score: scores match AND penalty winner matches (if draw in knockout)
+  if (pred.home === result.home && pred.away === result.away) {
+    if (isKnockout && isDraw && result.pen_winner) {
+      // Correct penalty winner = exact; wrong = correct result only
+      return (pred.pen_winner === result.pen_winner ? sc.exact : sc.result) * multiplier
+    }
+    return sc.exact * multiplier
+  }
+  // Correct result (outcome matches)
+  if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) {
+    return sc.result * multiplier
+  }
   return 0
 }

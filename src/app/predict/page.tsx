@@ -141,6 +141,21 @@ export default function PredictPage() {
     }
   }, [])
 
+  const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
+    setPredictions(prev => ({
+      ...prev,
+      [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), pen_winner: team }
+    }))
+    // Save via API
+    const p = predictions[fixtureId]
+    if (!p) return
+    await fetch('/api/predictions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home: p.home, away: p.away, pen_winner: team }] }),
+    })
+  }, [predictions])
+
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
@@ -288,6 +303,7 @@ export default function PredictPage() {
       timezone={timezone}
       challenge={challenges[f.id] ?? null}
       onPredict={onPredict}
+      onPenWinner={onPenWinner}
     />
   )
 

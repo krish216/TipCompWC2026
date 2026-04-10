@@ -6,7 +6,7 @@ import type { SharePayload } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS } from '@/types'
+import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -36,14 +36,15 @@ interface Props {
   isFavourite?: boolean
   challenge?: { prize: string; sponsor?: string | null; org_name?: string } | null
   timezone?: string
-  onPredict: (fixtureId: number, side: 'home' | 'away', value: number) => void
+  onPredict:   (fixtureId: number, side: 'home' | 'away', value: number) => void
+  onPenWinner?: (fixtureId: number, team: string) => void
 }
 
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
   timezone = 'UTC',
-  onPredict,
+  onPredict, onPenWinner,
 }: Props) {
   // Local state for input display — allows spinners and direct typing to work
   // independently without waiting for the parent state to propagate
@@ -66,6 +67,9 @@ export function MatchRow({
   const predHome = prediction && prediction.home >= 0 ? String(prediction.home) : ''
   const predAway = prediction && prediction.away >= 0 ? String(prediction.away) : ''
 
+  const isKnockout   = KNOCKOUT_ROUNDS.includes(round)
+  const isPredDraw   = prediction != null && prediction.home === prediction.away && prediction.home >= 0
+  const showPenPick  = isKnockout && !result && !locked && isPredDraw
   const hasPred  = prediction != null && prediction.home >= 0 && prediction.away >= 0
   const pts      = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
   const sc       = SCORING[round] ?? SCORING['f']  // fallback for safety
@@ -133,6 +137,9 @@ export function MatchRow({
         <div className="flex items-center gap-1.5">
           {isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) && (
             <span className="text-[11px] text-purple-600">⭐ 2× pts</span>
+          )}
+          {showPenPick && (
+            <span className="text-[11px] text-amber-600 font-medium">Penalties — pick winner</span>
           )}
           {challenge && !result && (
             <span className="text-[11px] text-purple-600 font-medium flex items-center gap-1">
@@ -239,6 +246,45 @@ export function MatchRow({
           </span>
         </div>
       </div>
+
+      {/* Penalty winner picker — shown when draw predicted in knockout round */}
+      {showPenPick && onPenWinner && (
+        <div className="mt-2 pt-2 border-t border-amber-200">
+          <p className="text-[11px] text-amber-700 font-medium mb-1.5">
+            🥅 Draw predicted — who wins on penalties?
+          </p>
+          <div className="flex gap-2">
+            {[fixture.home, fixture.away].map(team => (
+              <button
+                key={team}
+                onClick={() => onPenWinner(fixture.id, team)}
+                className={clsx(
+                  'flex-1 py-1.5 px-2 text-xs font-medium rounded-lg border transition-colors',
+                  (prediction as any)?.pen_winner === team
+                    ? 'bg-amber-500 border-amber-600 text-white'
+                    : 'bg-white border-amber-300 text-amber-800 hover:bg-amber-50'
+                )}
+              >
+                {flag(team)} {team}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Show penalty result when available */}
+      {result && isKnockout && (result as any).pen_winner && (
+        <div className="mt-1.5 pt-1.5 border-t border-gray-100">
+          <p className="text-[11px] text-gray-500">
+            🥅 Won on penalties: <span className="font-semibold">{flag((result as any).pen_winner)} {(result as any).pen_winner}</span>
+            {(prediction as any)?.pen_winner && (
+              (prediction as any).pen_winner === (result as any).pen_winner
+                ? <span className="text-green-600 ml-1.5">✓ correct</span>
+                : <span className="text-red-500 ml-1.5">✗ wrong</span>
+            )}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
