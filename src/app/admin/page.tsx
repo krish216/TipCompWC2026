@@ -593,6 +593,7 @@ export default function AdminPage() {
         </div>
       </Card>
 
+      <TournamentPanel />
       <MonetisationPanel />
       <OrgRegistryPanel />
       <OrganisationsPanel />

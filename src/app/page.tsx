@@ -17,6 +17,7 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
   const [orgData,     setOrgData]     = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
+  const [activeTournament, setActiveTournament] = useState<{name:string;slug:string}|null>(null)
   const started = Date.now() >= KICKOFF.getTime()
 
   useEffect(() => {
@@ -38,6 +39,15 @@ export default function HomePage() {
         setOrgData(orgRow ?? null)
       } else {
         setOrgData(null)
+      }
+      // Fetch active tournament name for display
+      const settingsRes = await fetch('/api/app-settings')
+      const settingsData = await settingsRes.json()
+      const activeTournId = settingsData.data?.active_tournament_id
+      if (activeTournId) {
+        const { data: tournRow } = await supabase
+          .from('tournaments').select('name, slug').eq('id', activeTournId).single()
+        setActiveTournament(tournRow ?? null)
       }
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
@@ -84,7 +94,12 @@ export default function HomePage() {
               ? `${orgData.name} Tipping Comp`
               : 'World Cup 2026 Tipping Comp'}
         </h1>
-        <p className="text-sm text-gray-500">Predict every match of the FIFA World Cup. Compete with your tribe.</p>
+        <p className="text-sm text-gray-500">
+          {activeTournament
+            ? <>Predict every match of <strong>{activeTournament.name}</strong>. Compete with your tribe.</>
+            : 'Predict every match of the FIFA World Cup. Compete with your tribe.'
+          }
+        </p>
       </div>
 
       {session && !loading && (
