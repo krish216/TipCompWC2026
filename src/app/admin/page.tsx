@@ -652,3 +652,168 @@ export default function AdminPage() {
     </div>
   )
 }
+
+// ── Tournament management panel ──────────────────────────────────────────────
+function TournamentPanel() {
+  const [tournaments,   setTournaments]   = useState<any[]>([])
+  const [activeTournId, setActiveTournId] = useState<string | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [name,     setName]     = useState('')
+  const [slug,     setSlug]     = useState('')
+  const [desc,     setDesc]     = useState('')
+  const [startDate,setStartDate]= useState('')
+  const [endDate,  setEndDate]  = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/tournaments').then(r => r.json()),
+      fetch('/api/app-settings').then(r => r.json()),
+    ]).then(([tData, sData]) => {
+      setTournaments(tData.data ?? [])
+      setActiveTournId(sData.data?.active_tournament_id ?? null)
+      setLoading(false)
+    })
+  }, [])
+
+  const create = async () => {
+    if (!name.trim() || !slug.trim()) return
+    setCreating(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), description: desc.trim(), slug: slug.trim(), start_date: startDate || null, end_date: endDate || null }),
+    })
+    const { data, error } = await res.json()
+    setCreating(false)
+    if (error) { toast.error(error); return }
+    toast.success(`"${data.name}" created`)
+    setTournaments(prev => [data, ...prev])
+    setName(''); setSlug(''); setDesc(''); setStartDate(''); setEndDate(''); setShowForm(false)
+  }
+
+  const setActive = async (id: string, tName: string) => {
+    await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, set_active: true }),
+    })
+    setActiveTournId(id)
+    toast.success(`Active tournament: "${tName}"`)
+  }
+
+  const setStatus = async (id: string, status: string) => {
+    await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
+    setTournaments(prev => prev.map(t => t.id === id ? { ...t, status } : t))
+    toast.success(`Status → ${status}`)
+  }
+
+  const STATUS_COLOURS: Record<string, string> = {
+    upcoming: 'bg-blue-100 text-blue-700',
+    active:   'bg-green-100 text-green-700',
+    completed:'bg-gray-100 text-gray-500',
+  }
+
+  return (
+    <Card className="mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tournaments</p>
+        <button onClick={() => setShowForm(f => !f)}
+          className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-lg">
+          {showForm ? 'Cancel' : '+ New'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="mb-4 bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">Name *</label>
+              <input type="text" value={name}
+                onChange={e => { setName(e.target.value); setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-')) }}
+                placeholder="e.g. UEFA Euro 2028"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">Slug *</label>
+              <input type="text" value={slug} onChange={e => setSlug(e.target.value)}
+                placeholder="e.g. euro2028"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white font-mono" />
+            </div>
+          </div>
+          <input type="text" value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="Description (optional)"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">Start date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">End date</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+          </div>
+          <button onClick={create} disabled={creating || !name.trim() || !slug.trim()}
+            className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
+            {creating && <Spinner className="w-4 h-4 text-white" />}
+            Create tournament
+          </button>
+        </div>
+      )}
+
+      {loading ? <Spinner className="w-5 h-5" /> : (
+        <div className="space-y-2">
+          {tournaments.map(t => (
+            <div key={t.id} className={clsx(
+              'flex items-start justify-between gap-3 rounded-xl border px-3 py-3',
+              t.id === activeTournId ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'
+            )}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-900">{t.name}</p>
+                  {t.id === activeTournId && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-green-200 text-green-800 rounded-full">● ACTIVE</span>
+                  )}
+                  <span className={clsx('text-[10px] font-medium px-1.5 py-0.5 rounded-full', STATUS_COLOURS[t.status] ?? 'bg-gray-100 text-gray-500')}>
+                    {t.status}
+                  </span>
+                </div>
+                {t.description && <p className="text-[11px] text-gray-500 mt-0.5">{t.description}</p>}
+                <p className="text-[11px] text-gray-400 font-mono mt-0.5">{t.slug}</p>
+                {(t.start_date || t.end_date) && (
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {t.start_date && new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' })}
+                    {t.start_date && t.end_date && ' → '}
+                    {t.end_date && new Date(t.end_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' })}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 flex-shrink-0">
+                {t.id !== activeTournId && (
+                  <button onClick={() => setActive(t.id, t.name)}
+                    className="px-2.5 py-1 text-[11px] font-medium border border-green-400 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg whitespace-nowrap">
+                    Set active
+                  </button>
+                )}
+                <select value={t.status} onChange={e => setStatus(t.id, e.target.value)}
+                  className="text-[11px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none">
+                  <option value="upcoming">Upcoming</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+          ))}
+          {tournaments.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-3">No tournaments yet — create one above.</p>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
