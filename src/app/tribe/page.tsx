@@ -66,7 +66,7 @@ const FLAGS: Record<string, string> = {
 }
 const flag = (t: string) => FLAGS[t] ?? '🏳️'
 
-type MainTab   = 'leaderboard' | 'chat'
+type MainTab   = 'leaderboard' | 'picks' | 'chat'
 type ChatTopic = 'general' | number   // number = fixture_id
 
 // ── Chat bubble ───────────────────────────────────────────────────────────────
@@ -834,9 +834,24 @@ export default function TribePage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
   const [tribe,       setTribe]       = useState<TribeData | null>(null)
+  const [tribePicksData, setTribePicksData] = useState<any | null>(null)
+  const [picksLoading,   setPicksLoading]   = useState(false)
   const [fixtures,    setFixtures]    = useState<Fixture[]>([])
   const [loading,     setLoading]     = useState(true)
   const [tab,         setTab]         = useState<MainTab>('leaderboard')
+
+  const loadPicks = async () => {
+    if (!tribe) return
+    setPicksLoading(true)
+    const res  = await fetch(`/api/tribes/picks?tribe_id=${tribe.id}`)
+    const data = await res.json()
+    setTribePicksData(data)
+    setPicksLoading(false)
+  }
+
+  useEffect(() => {
+    if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
+  }, [tab, tribe])
   const [chatTopic,   setChatTopic]   = useState<ChatTopic>('general')
   const [copied,      setCopied]      = useState(false)
   const myId = session?.user.id ?? ''
@@ -948,7 +963,7 @@ export default function TribePage() {
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-4 w-fit">
-        {(['leaderboard','chat'] as MainTab[]).map(t => (
+        {(['leaderboard','picks','chat'] as MainTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx('px-4 py-1.5 text-xs font-medium rounded-md transition-colors',
               tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
@@ -996,6 +1011,17 @@ export default function TribePage() {
         </Card>
       )}
 
+      {/* ── Picks tab ── */}
+      {tab === 'picks' && (
+        <TribePicksView
+          tribePicksData={tribePicksData}
+          loading={picksLoading}
+          myId={myId}
+          onRefresh={loadPicks}
+          timezone={timezone}
+        />
+      )}
+
       {/* ── Chat tab — two column layout ── */}
       {tab === 'chat' && (
         <div className="flex gap-3" style={{ height: 'calc(100vh - 220px)', minHeight: '500px' }}>
@@ -1021,6 +1047,185 @@ export default function TribePage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Tribe Picks View ──────────────────────────────────────────────────────────
+function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: {
+  tribePicksData: any
+  loading: boolean
+  myId: string
+  onRefresh: () => void
+  timezone: string
+}) {
+  const { formatKickoff } = require('@/lib/timezone') as typeof import('@/lib/timezone')
+  const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
+
+  if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+  if (!tribePicksData) return (
+    <div className="text-center py-12">
+      <p className="text-sm text-gray-500 mb-3">Load tribe picks to see how everyone predicted.</p>
+      <button onClick={onRefresh} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
+        Load picks
+      </button>
+    </div>
+  )
+
+  const { fixtures, members, picks } = tribePicksData
+  if (!fixtures?.length) return (
+    <div className="text-center py-12">
+      <p className="text-gray-400 text-sm">No locked fixtures yet — picks will appear here once matches are locked.</p>
+    </div>
+  )
+
+  // picks: { fixture_id → { user_id → { home, away, pen_winner, points_earned } } }
+  const picksMap: Record<number, Record<string, any>> = picks ?? {}
+
+  // Colour for a pick cell
+  const cellColour = (fixtureId: number, userId: string) => {
+    const pick = picksMap[fixtureId]?.[userId]
+    const fx   = fixtures.find((f: any) => f.id === fixtureId)
+    if (!pick)        return 'bg-gray-100 text-gray-400'      // no pick
+    if (!fx?.result)  return 'bg-amber-50 text-amber-800 border border-amber-200'  // locked, no result yet
+    const pts = pick.points_earned ?? 0
+    if (pts <= 0)     return 'bg-red-100 text-red-700'         // wrong
+    const sc  = fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
+              : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
+    if (pts >= sc)    return 'bg-green-100 text-green-800 font-semibold'  // exact
+    return 'bg-blue-100 text-blue-800'                         // correct result
+  }
+
+  const pickLabel = (fixtureId: number, userId: string) => {
+    const pick = picksMap[fixtureId]?.[userId]
+    if (!pick) return '—'
+    return `${pick.home}–${pick.away}`
+  }
+
+  // Group fixtures by round
+  const roundOrder = ['gs','r32','r16','qf','sf','tp','f']
+  const roundLabels: Record<string, string> = {
+    gs:'Group Stage', r32:'Rd of 32', r16:'Rd of 16',
+    qf:'Quarters', sf:'Semis', tp:'3rd Place', f:'Final',
+  }
+  const byRound: Record<string, any[]> = {}
+  for (const f of fixtures) {
+    if (!byRound[f.round]) byRound[f.round] = []
+    byRound[f.round].push(f)
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-gray-500">Picks for locked fixtures — colour coded by result</p>
+        <button onClick={onRefresh} className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
+      </div>
+
+      {/* Colour key */}
+      <div className="flex gap-2 flex-wrap mb-4 text-[11px]">
+        {[
+          { colour: 'bg-green-100 text-green-800', label: '★ Exact score' },
+          { colour: 'bg-blue-100 text-blue-800',   label: '✓ Correct result' },
+          { colour: 'bg-red-100 text-red-700',     label: '✗ Wrong' },
+          { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label: 'Awaiting result' },
+          { colour: 'bg-gray-100 text-gray-400',   label: 'No pick' },
+        ].map(k => (
+          <div key={k.label} className="flex items-center gap-1.5">
+            <div className={`w-6 h-4 rounded text-[9px] flex items-center justify-center ${k.colour}`}>•</div>
+            <span className="text-gray-500">{k.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {roundOrder.filter(r => byRound[r]?.length).map(round => (
+        <div key={round} className="mb-6">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            {roundLabels[round]}
+          </p>
+
+          {byRound[round].map((fx: any) => {
+            const isExpanded = expandedFixture === fx.id
+            const roundPicks = picksMap[fx.id] ?? {}
+            const memberCount = members.length
+            const pickCount   = Object.keys(roundPicks).length
+            const exactCount  = Object.values(roundPicks).filter((p: any) => {
+              const sc = fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
+                : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
+              return (p as any).points_earned >= sc
+            }).length
+            const correctCount = Object.values(roundPicks).filter((p: any) =>
+              (p as any).points_earned > 0 && (p as any).points_earned < (
+                fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
+                : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
+              )
+            ).length
+
+            return (
+              <div key={fx.id} className="mb-3 bg-white border border-gray-200 rounded-xl overflow-hidden">
+                {/* Fixture header */}
+                <button
+                  onClick={() => setExpandedFixture(isExpanded ? null : fx.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-left min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {flag(fx.home)} {fx.home} <span className="text-gray-400 font-normal mx-1">vs</span> {flag(fx.away)} {fx.away}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        {formatKickoff(fx.kickoff_utc, timezone, { date: true, time: true })}
+                        {fx.result && (
+                          <span className="ml-2 font-semibold text-gray-600">
+                            Result: {fx.result.home}–{fx.result.away}
+                            {fx.pen_winner && ` (pens: ${fx.pen_winner})`}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    {fx.result && (
+                      <div className="flex gap-1.5 text-[11px]">
+                        {exactCount   > 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">★ {exactCount}</span>}
+                        {correctCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">✓ {correctCount}</span>}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-gray-400">{pickCount}/{memberCount}</span>
+                    <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+
+                {/* Member picks grid */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 px-4 py-3">
+                    <div className="space-y-2">
+                      {members.map((member: any) => {
+                        const pick   = roundPicks[member.user_id]
+                        const isMe   = member.user_id === myId
+                        const colour = cellColour(fx.id, member.user_id)
+                        return (
+                          <div key={member.user_id}
+                            className={clsx('flex items-center justify-between rounded-lg px-3 py-2', isMe && 'ring-1 ring-green-400')}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar name={member.display_name} size="xs" />
+                              <span className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
+                                {member.display_name}{isMe && ' (you)'}
+                              </span>
+                            </div>
+                            <div className={clsx('px-3 py-1 rounded-lg text-sm font-mono font-semibold min-w-[60px] text-center', colour)}>
+                              {pickLabel(fx.id, member.user_id)}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }
