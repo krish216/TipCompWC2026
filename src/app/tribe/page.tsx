@@ -1170,6 +1170,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
 }) {
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
+  const [activePickRound, setActivePickRound] = useState<string>('gs')
 
   if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
@@ -1216,6 +1217,9 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
     if (!byRound[f.round]) byRound[f.round] = []
     byRound[f.round].push(f)
   }
+  const availableRounds = roundOrder.filter(r => byRound[r]?.length)
+  // Auto-select first available round if current selection has no data
+  const effectiveRound = byRound[activePickRound]?.length ? activePickRound : (availableRounds[0] ?? 'gs')
 
   return (
     <div>
@@ -1240,9 +1244,26 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
         ))}
       </div>
 
-      {roundOrder.filter(r => byRound[r]?.length).map(round => (
-        <div key={round} className="mb-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{roundLabels[round]}</p>
+      {/* Round filter tabs */}
+      {availableRounds.length > 1 && (
+        <div className="flex gap-1 flex-wrap mb-4">
+          {availableRounds.map(r => (
+            <button key={r} onClick={() => { setActivePickRound(r); setExpandedFixture(null) }}
+              className={clsx(
+                'px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
+                effectiveRound === r
+                  ? 'bg-green-600 border-green-700 text-white'
+                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              )}>
+              {roundLabels[r]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Fixtures for selected round */}
+      {[effectiveRound].filter(r => byRound[r]?.length).map(round => (
+        <div key={round} className="mb-2">
           {byRound[round].map((fx: any) => {
             const isExpanded  = expandedFixture === fx.id
             const roundPicks  = picksMap[fx.id] ?? {}
