@@ -5,7 +5,7 @@ import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, getOutcome } from '@/types'
+import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -24,17 +24,18 @@ const FLAGS: Record<string, string> = {
   USA:'🇺🇸', Uzbekistan:'🇺🇿',
 }
 const flag = (t: string) => FLAGS[t] ?? '🏳️'
+const short = (t: string) => t.length > 10 ? t.split(' ')[0] : t
 
 interface Props {
-  fixture: Fixture
-  round: RoundId
+  fixture:     Fixture
+  round:       RoundId
   prediction?: { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null } | null
-  result?: (MatchScore & { pen_winner?: string|null; result_outcome?: string|null }) | null
-  locked?: boolean
-  saving?: boolean
+  result?:     (MatchScore & { pen_winner?: string|null; result_outcome?: string|null }) | null
+  locked?:     boolean
+  saving?:     boolean
   isFavourite?: boolean
-  challenge?: { prize: string; sponsor?: string|null; org_name?: string } | null
-  timezone?: string
+  challenge?:  { prize: string; sponsor?: string|null } | null
+  timezone?:   string
   onPredict:    (fixtureId: number, side: 'home'|'away', value: number) => void
   onOutcome?:   (fixtureId: number, outcome: 'H'|'D'|'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
@@ -52,9 +53,9 @@ export function MatchRow({
   const [localAway, setLocalAway] = useState<string>(
     prediction && prediction.away >= 0 ? String(prediction.away) : ''
   )
-  const prevPredRef = React.useRef(prediction)
-  if (prevPredRef.current !== prediction) {
-    prevPredRef.current = prediction
+  const prevRef = React.useRef(prediction)
+  if (prevRef.current !== prediction) {
+    prevRef.current = prediction
     if (prediction && prediction.home >= 0 && localHome === '') setLocalHome(String(prediction.home))
     if (prediction && prediction.away >= 0 && localAway === '') setLocalAway(String(prediction.away))
   }
@@ -62,79 +63,65 @@ export function MatchRow({
   const isExactRound   = EXACT_SCORE_ROUNDS.includes(round)
   const isOutcomeRound = OUTCOME_ROUNDS.includes(round)
   const isKnockout     = KNOCKOUT_ROUNDS.includes(round)
-  const selectedOutcome = (prediction as any)?.outcome ?? null
-  const penWinner       = (prediction as any)?.pen_winner ?? null
-  const isPredDraw      = isExactRound
+  const sel            = (prediction as any)?.outcome ?? null   // 'H'|'D'|'A'|null
+  const penWinner      = (prediction as any)?.pen_winner ?? null
+  const isPredDraw     = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
-    : selectedOutcome === 'D'
-  const showPenPick  = isKnockout && !result && !locked && isPredDraw
-  const hasPred = isOutcomeRound
-    ? selectedOutcome != null
-    : prediction != null && prediction.home >= 0 && prediction.away >= 0
+    : sel === 'D'
+  const showPenPick = isKnockout && !result && !locked && isPredDraw
+  const hasPred     = isOutcomeRound ? sel != null : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
   const pts = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
   const sc  = SCORING[round] ?? SCORING['f']
-  const kickoffLabel = formatKickoff(fixture.kickoff_utc, timezone)
 
-  // State-derived card style
-  const resultOutcome = result ? (result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D') : null
-  const isCorrect = hasPred && pts !== null && pts > 0
-  const isExact   = hasPred && pts === sc.exact && isExactRound
-  const isWrong   = hasPred && result && pts === 0
+  const resultOutcome = result
+    ? (result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D')
+    : null
+
+  const isCorrect = hasPred && !!result && (pts ?? 0) > 0
+  const isExact   = isCorrect && isExactRound && pts === sc.exact
+  const isWrong   = hasPred && !!result && pts === 0
 
   const handleChange = useCallback((side: 'home'|'away', raw: string) => {
-    let display = raw
+    let v = raw
     if (raw !== '') {
       const n = parseInt(raw, 10)
-      if (isNaN(n) || n < 0) display = '0'
-      else if (n > 20) display = '20'
-      else display = String(n)
+      v = isNaN(n) || n < 0 ? '0' : n > 20 ? '20' : String(n)
     }
-    if (side === 'home') {
-      setLocalHome(display)
-      onPredict(fixture.id, 'home', display === '' ? -1 : parseInt(display, 10))
-    } else {
-      setLocalAway(display)
-      onPredict(fixture.id, 'away', display === '' ? -1 : parseInt(display, 10))
-    }
+    if (side === 'home') { setLocalHome(v); onPredict(fixture.id, 'home', v === '' ? -1 : parseInt(v)) }
+    else                 { setLocalAway(v); onPredict(fixture.id, 'away', v === '' ? -1 : parseInt(v)) }
   }, [fixture.id, onPredict])
 
-  const shortName = (t: string) => t.length > 10 ? t.split(' ')[0] : t
+  // ── Card border / bg based on result state ──────────────────────────────────
+  const cardClass = clsx(
+    'rounded-2xl border mb-2.5 overflow-hidden transition-all',
+    isExact   && 'border-green-300 bg-green-50',
+    isCorrect && !isExact && 'border-blue-200 bg-blue-50/40',
+    isWrong   && 'border-red-200 bg-red-50/30',
+    !result && hasPred  && 'border-gray-200 bg-white',
+    !result && !hasPred && !locked && 'border-gray-200 bg-white',
+    locked && !result  && 'border-gray-200 bg-gray-50/60',
+    isFavourite && !result && 'ring-1 ring-purple-200',
+  )
 
   return (
-    <div className={clsx(
-      'rounded-xl border mb-2 overflow-hidden transition-all',
-      isExact              && 'border-green-300 bg-green-50',
-      isCorrect && !isExact && 'border-blue-200 bg-blue-50/40',
-      isWrong              && 'border-red-200 bg-red-50/30',
-      !result && hasPred   && 'border-gray-200 bg-white',
-      !result && !hasPred && !locked && 'border-dashed border-amber-300 bg-amber-50/30',
-      locked && !result    && 'border-gray-200 bg-gray-50',
-      isFavourite && !result && 'ring-1 ring-purple-200',
-    )}>
+    <div className={cardClass}>
 
-      {/* Top bar: kickoff + badges */}
-      <div className={clsx(
-        'flex items-center justify-between px-3 py-1.5 text-[11px] border-b',
-        isExact   ? 'bg-green-100/60 border-green-200' :
-        isCorrect ? 'bg-blue-50 border-blue-100' :
-        isWrong   ? 'bg-red-50/50 border-red-100' :
-        locked && !result ? 'bg-gray-100 border-gray-200' :
-        !hasPred  ? 'bg-amber-50/60 border-amber-100' :
-                    'bg-gray-50 border-gray-100'
-      )}>
-        <div className="flex items-center gap-2 text-gray-400">
+      {/* ── Top meta bar ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
           {locked && !result && (
-            <svg className="w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 12 12" fill="currentColor">
+            <svg className="w-3 h-3 text-gray-400" viewBox="0 0 12 12" fill="currentColor">
               <rect x="1" y="5" width="10" height="7" rx="1.5"/>
               <path d="M3.5 5V3.5a2.5 2.5 0 015 0V5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
             </svg>
           )}
-          <span className="font-medium text-gray-500">{kickoffLabel}</span>
+          <span>{formatKickoff(fixture.kickoff_utc, timezone)}</span>
           <span className="text-gray-300">·</span>
-          <span className="truncate max-w-[160px] text-gray-400">{fixture.venue}</span>
+          <span className="truncate max-w-[150px]">{fixture.venue}</span>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 text-[11px]">
           {isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) && (
             <span className="text-purple-600 font-semibold">⭐ 2×</span>
           )}
@@ -142,74 +129,113 @@ export function MatchRow({
             <span className="text-purple-600 font-medium">🎯 {challenge.prize}</span>
           )}
           {saving && <span className="text-gray-400 animate-pulse">saving…</span>}
-          {!locked && !result && hasPred && !saving && (
-            <span className="text-green-600 font-medium">✓</span>
+          {!saving && !locked && !result && hasPred && (
+            <span className="text-green-600 font-semibold">✓ saved</span>
           )}
           {!locked && !result && !hasPred && (
-            <span className="text-amber-500 font-medium">Pick now</span>
+            <span className="text-amber-500 font-semibold">Pick now</span>
           )}
           {pts !== null && <PointsBadge pts={pts} maxExact={sc.exact} />}
         </div>
       </div>
 
-      {/* Main content: teams + prediction */}
-      <div className="px-3 py-3">
-        <div className="flex items-center gap-2">
+      {/* ── Main row: flag · team · [buttons] · team · flag ────────────────── */}
+      <div className="flex items-center px-3 pb-3 gap-2">
 
-          {/* Home team */}
-          <div className="flex-1 flex items-center gap-2 justify-end min-w-0">
-            <span className={clsx(
-              'font-semibold text-sm truncate text-right',
-              result && resultOutcome === 'H' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-800'
-            )}>
-              {shortName(fixture.home)}
-            </span>
-            <span className="text-2xl flex-shrink-0">{flag(fixture.home)}</span>
-          </div>
+        {/* Home team */}
+        <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
+          <span className="text-4xl leading-none">{flag(fixture.home)}</span>
+          <span className={clsx(
+            'text-[11px] font-semibold text-center leading-tight',
+            result && resultOutcome === 'H' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-700'
+          )}>
+            {short(fixture.home)}
+          </span>
+        </div>
 
-          {/* Centre: prediction + result */}
-          <div className="flex flex-col items-center gap-1 flex-shrink-0 px-1">
-            {isOutcomeRound ? (
-              /* Outcome buttons: 1 / X / 2 */
-              <div className="flex gap-1">
+        {/* Centre prediction area */}
+        <div className="flex-1 flex flex-col items-center gap-1.5">
+          {isOutcomeRound ? (
+            <>
+              {/* Three outcome radio buttons filling the space */}
+              <div className={clsx(
+                'flex w-full rounded-xl p-1 gap-1',
+                locked && !result ? 'bg-gray-100' : 'bg-gray-100',
+              )}>
                 {(['H','D','A'] as const).map(o => {
-                  const label   = o === 'H' ? '1' : o === 'D' ? 'X' : '2'
-                  const isPick  = selectedOutcome === o
+                  const isPick  = sel === o
                   const isRes   = resultOutcome === o
+
                   if (result) {
                     return (
                       <div key={o} className={clsx(
-                        'w-10 h-10 flex items-center justify-center text-sm font-bold rounded-lg border',
-                        isRes && isPick   && 'bg-green-500 border-green-600 text-white',
-                        isRes && !isPick  && 'bg-green-100 border-green-200 text-green-700',
-                        !isRes && isPick  && 'bg-red-100 border-red-300 text-red-600',
-                        !isRes && !isPick && 'bg-gray-50 border-gray-200 text-gray-300',
-                      )}>{label}</div>
+                        'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
+                        isRes && isPick  && 'bg-green-500 shadow-sm',
+                        isRes && !isPick && 'bg-green-100',
+                        !isRes && isPick && 'bg-red-100',
+                        !isRes && !isPick && 'bg-transparent',
+                      )}>
+                        <div className={clsx(
+                          'w-5 h-5 rounded-full border-2 flex items-center justify-center',
+                          isRes && isPick  && 'border-white bg-white',
+                          isRes && !isPick && 'border-green-400 bg-white',
+                          !isRes && isPick && 'border-red-400 bg-white',
+                          !isRes && !isPick && 'border-gray-300 bg-white',
+                        )}>
+                          {isPick && (
+                            <div className={clsx(
+                              'w-2.5 h-2.5 rounded-full',
+                              isRes ? 'bg-green-500' : 'bg-red-400'
+                            )} />
+                          )}
+                        </div>
+                      </div>
                     )
                   }
+
                   return (
                     <button key={o}
                       disabled={locked}
                       onClick={() => !locked && onOutcome?.(fixture.id, o)}
                       className={clsx(
-                        'w-10 h-10 flex items-center justify-center text-sm font-bold rounded-lg border transition-all',
-                        locked && 'opacity-50 cursor-not-allowed',
-                        isPick && o === 'H' && 'bg-blue-600 border-blue-700 text-white shadow-md scale-105',
-                        isPick && o === 'D' && 'bg-gray-700 border-gray-800 text-white shadow-md scale-105',
-                        isPick && o === 'A' && 'bg-red-600 border-red-700 text-white shadow-md scale-105',
-                        !isPick && !locked && 'bg-white border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 hover:bg-gray-50',
-                        !isPick && locked  && 'bg-gray-50 border-gray-200 text-gray-300',
-                      )}>{label}</button>
+                        'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
+                        !locked && 'hover:bg-gray-200 active:scale-95',
+                        locked && 'cursor-not-allowed',
+                        isPick && 'bg-white shadow-sm',
+                      )}>
+                      <div className={clsx(
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all',
+                        isPick  ? 'border-blue-500 bg-white' : 'border-gray-300 bg-white',
+                      )}>
+                        {isPick && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
+                      </div>
+                    </button>
                   )
                 })}
               </div>
-            ) : (
-              /* Score inputs (tp, f) */
-              <div className="flex items-center gap-1.5">
+
+              {/* Label row: home team · Draw · away team */}
+              <div className="flex w-full text-[10px] text-gray-400 font-medium">
+                <span className="flex-1 text-center">{short(fixture.home)}</span>
+                <span className="flex-1 text-center">Draw</span>
+                <span className="flex-1 text-center">{short(fixture.away)}</span>
+              </div>
+
+              {/* Result score */}
+              {result && (
+                <div className="text-xs font-bold text-gray-600 mt-0.5">
+                  {result.home} – {result.away}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Exact score inputs (tp, f) */
+            <>
+              <div className="flex items-center gap-2">
                 <input type="number" min={0} max={20}
                   value={localHome} disabled={locked || !!result}
                   className={clsx(
-                    'w-11 h-11 text-center text-base font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
+                    'w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
                     locked || result ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
                     localHome !== '' ? 'bg-white border-green-400 text-gray-900' :
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
@@ -217,11 +243,11 @@ export function MatchRow({
                   onChange={e => handleChange('home', e.target.value)}
                   onFocus={e => e.target.select()} inputMode="numeric"
                 />
-                <span className="text-gray-400 font-light text-lg">–</span>
+                <span className="text-gray-300 font-light text-2xl">–</span>
                 <input type="number" min={0} max={20}
                   value={localAway} disabled={locked || !!result}
                   className={clsx(
-                    'w-11 h-11 text-center text-base font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
+                    'w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
                     locked || result ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
                     localAway !== '' ? 'bg-white border-green-400 text-gray-900' :
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
@@ -230,80 +256,64 @@ export function MatchRow({
                   onFocus={e => e.target.select()} inputMode="numeric"
                 />
               </div>
-            )}
-
-            {/* Result score (exact rounds always shown; outcome rounds shown below buttons) */}
-            {result && isExactRound && (
-              <div className="flex items-center gap-1 mt-1">
-                <span className="text-[10px] text-gray-400 font-medium">
-                  {result.home}–{result.away}
-                </span>
-              </div>
-            )}
-            {result && isOutcomeRound && (
-              <div className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                {result.home}–{result.away}
-              </div>
-            )}
-
-            {/* Label row */}
-            {!result && isOutcomeRound && (
-              <div className="flex gap-1 text-[9px] text-gray-400 w-full justify-between mt-0.5">
-                <span className="w-10 text-center">{shortName(fixture.home)}</span>
-                <span className="w-10 text-center">Draw</span>
-                <span className="w-10 text-center">{shortName(fixture.away)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Away team */}
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <span className="text-2xl flex-shrink-0">{flag(fixture.away)}</span>
-            <span className={clsx(
-              'font-semibold text-sm truncate',
-              result && resultOutcome === 'A' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-800'
-            )}>
-              {shortName(fixture.away)}
-            </span>
-          </div>
+              {result && (
+                <div className="text-xs font-bold text-gray-500 mt-1">
+                  Result: {result.home}–{result.away}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Penalty winner picker */}
-        {showPenPick && onPenWinner && (
-          <div className="mt-3 pt-2.5 border-t border-amber-200">
-            <p className="text-[11px] text-amber-700 font-semibold mb-2 text-center">
-              🥅 Who wins on penalties?
-            </p>
-            <div className="flex gap-2">
-              {[fixture.home, fixture.away].map(team => (
-                <button key={team} onClick={() => onPenWinner(fixture.id, team)}
-                  className={clsx(
-                    'flex-1 py-2 px-3 text-xs font-semibold rounded-xl border transition-all',
-                    penWinner === team
-                      ? 'bg-amber-500 border-amber-600 text-white shadow-sm scale-[1.02]'
-                      : 'bg-white border-amber-200 text-amber-800 hover:bg-amber-50 hover:border-amber-300'
-                  )}>
-                  {flag(team)} {team}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Penalty result */}
-        {result && isKnockout && (result as any).pen_winner && (
-          <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5">
-            <span className="text-[11px] text-gray-500">
-              Penalties: <span className="font-semibold text-gray-700">{flag((result as any).pen_winner)} {(result as any).pen_winner}</span>
-            </span>
-            {penWinner && (
-              penWinner === (result as any).pen_winner
-                ? <span className="text-[11px] text-green-600 font-semibold">✓</span>
-                : <span className="text-[11px] text-red-500 font-semibold">✗</span>
-            )}
-          </div>
-        )}
+        {/* Away team */}
+        <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
+          <span className="text-4xl leading-none">{flag(fixture.away)}</span>
+          <span className={clsx(
+            'text-[11px] font-semibold text-center leading-tight',
+            result && resultOutcome === 'A' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-700'
+          )}>
+            {short(fixture.away)}
+          </span>
+        </div>
       </div>
+
+      {/* ── Penalty winner picker ──────────────────────────────────────────── */}
+      {showPenPick && onPenWinner && (
+        <div className="mx-3 mb-3 pt-2.5 border-t border-amber-200">
+          <p className="text-[11px] text-amber-700 font-semibold mb-2 text-center">
+            🥅 Who wins on penalties?
+          </p>
+          <div className="flex gap-2">
+            {[fixture.home, fixture.away].map(team => (
+              <button key={team} onClick={() => onPenWinner(fixture.id, team)}
+                className={clsx(
+                  'flex-1 py-2 px-3 text-xs font-semibold rounded-xl border-2 transition-all',
+                  penWinner === team
+                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50'
+                )}>
+                {flag(team)} {team}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Penalty result ─────────────────────────────────────────────────── */}
+      {result && isKnockout && (result as any).pen_winner && (
+        <div className="mx-3 mb-3 pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5">
+          <span className="text-[11px] text-gray-500">
+            Penalties: <span className="font-semibold text-gray-700">
+              {flag((result as any).pen_winner)} {(result as any).pen_winner}
+            </span>
+          </span>
+          {penWinner && (
+            penWinner === (result as any).pen_winner
+              ? <span className="text-[11px] text-green-600 font-bold">✓</span>
+              : <span className="text-[11px] text-red-500 font-bold">✗</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
