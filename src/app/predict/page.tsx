@@ -7,7 +7,7 @@ import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { calcPoints, SCORING, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { calcPoints, SCORING, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -79,7 +79,7 @@ export default function PredictPage() {
         // Predictions map
         const pm: PredMap = {}
         for (const p of (predData.data ?? []) as any[]) {
-          pm[p.fixture_id] = { home: p.home, away: p.away }
+          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null }
         }
         setPredictions(pm)
 
@@ -154,6 +154,23 @@ export default function PredictPage() {
     })
   }, [predictions])
 
+  const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
+    // Clear pen_winner if switching away from draw
+    setPredictions(prev => ({
+      ...prev,
+      [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), outcome, pen_winner: outcome !== 'D' ? null : prev[fixtureId]?.pen_winner }
+    }))
+    setSaving(prev => new Set(prev).add(fixtureId))
+    try {
+      await fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: outcome !== 'D' ? null : undefined }] }),
+      })
+    } catch { toast.error('Network error — prediction not saved') }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+  }, [])
+
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
@@ -202,6 +219,7 @@ export default function PredictPage() {
       const fs = TAB_TO_ROUNDS[tab].flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
+        if (OUTCOME_ROUNDS.includes(f.round)) return p && (p as any).outcome != null
         return p && p.home >= 0 && p.away >= 0
       }).length
       counts[tab] = { entered, total: fs.length }
@@ -316,6 +334,7 @@ export default function PredictPage() {
       timezone={timezone}
       challenge={challenges[f.id] ?? null}
       onPredict={onPredict}
+      onOutcome={onOutcome}
       onPenWinner={onPenWinner}
     />
   )

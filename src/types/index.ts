@@ -3,7 +3,9 @@
 export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'  // UI-facing round tabs
 export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']
-export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','tp','f']  // rounds where draws go to penalties  // both map to the 'finals' tab
+export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','tp','f']  // rounds where draws go to penalties
+export const EXACT_SCORE_ROUNDS: RoundId[] = ['tp', 'f']    // only these rounds require exact score
+export const OUTCOME_ROUNDS: RoundId[]     = ['gs','r32','r16','qf','sf']  // pick outcome only
 
 export interface ScoringRule {
   result: number
@@ -43,7 +45,8 @@ export interface Prediction {
   user_id: string
   home: number
   away: number
-  pen_winner?: string | null   // team name — required when draw predicted in knockout round
+  outcome?:    'H' | 'D' | 'A' | null  // outcome-only rounds (gs–sf)
+  pen_winner?: string | null             // for knockout draws in exact-score rounds
   created_at: string
   updated_at: string
   points_earned?: number  // null until result confirmed
@@ -127,29 +130,35 @@ export function getOutcome(h: number, a: number): 'H' | 'A' | 'D' {
 export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
 
 export function calcPoints(
-  pred: Pick<Prediction, 'home' | 'away' | 'pen_winner'> | null | undefined,
-  result: (MatchScore & { pen_winner?: string | null }) | null | undefined,
+  pred: Pick<Prediction, 'home' | 'away' | 'pen_winner' | 'outcome'> | null | undefined,
+  result: (MatchScore & { pen_winner?: string | null; result_outcome?: string | null }) | null | undefined,
   round: RoundId,
   isFavourite = false
 ): number | null {
   if (!result) return null
-  if (!pred) return 0
+  if (!pred)   return 0
   const sc         = SCORING[round]
   const multiplier = isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) ? 2 : 1
-  const isKnockout = KNOCKOUT_ROUNDS.includes(round)
-  const isDraw     = pred.home === pred.away
+  const isExact    = EXACT_SCORE_ROUNDS.includes(round)
 
-  // Exact score: scores match AND penalty winner matches (if draw in knockout)
-  if (pred.home === result.home && pred.away === result.away) {
-    if (isKnockout && isDraw && result.pen_winner) {
-      // Correct penalty winner = exact; wrong = correct result only
-      return (pred.pen_winner === result.pen_winner ? sc.exact : sc.result) * multiplier
+  if (isExact) {
+    // tp and f: exact score + optional penalty winner
+    const isKnockout = KNOCKOUT_ROUNDS.includes(round)
+    const isDraw     = pred.home === pred.away
+    if (pred.home === result.home && pred.away === result.away) {
+      if (isKnockout && isDraw && result.pen_winner) {
+        return (pred.pen_winner === result.pen_winner ? sc.exact : sc.result) * multiplier
+      }
+      return sc.exact * multiplier
     }
-    return sc.exact * multiplier
+    if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) {
+      return sc.result * multiplier
+    }
+    return 0
+  } else {
+    // gs through sf: outcome only
+    const predOutcome   = pred.outcome ?? getOutcome(pred.home ?? 0, pred.away ?? 0)
+    const resultOutcome = result.result_outcome ?? getOutcome(result.home, result.away)
+    return predOutcome === resultOutcome ? sc.result * multiplier : 0
   }
-  // Correct result (outcome matches)
-  if (getOutcome(pred.home, pred.away) === getOutcome(result.home, result.away)) {
-    return sc.result * multiplier
-  }
-  return 0
 }

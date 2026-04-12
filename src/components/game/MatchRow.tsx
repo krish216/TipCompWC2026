@@ -6,7 +6,7 @@ import type { SharePayload } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS } from '@/types'
+import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, getOutcome } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -36,7 +36,8 @@ interface Props {
   isFavourite?: boolean
   challenge?: { prize: string; sponsor?: string | null; org_name?: string } | null
   timezone?: string
-  onPredict:   (fixtureId: number, side: 'home' | 'away', value: number) => void
+  onPredict:    (fixtureId: number, side: 'home' | 'away', value: number) => void
+  onOutcome?:   (fixtureId: number, outcome: 'H' | 'D' | 'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
 }
 
@@ -44,7 +45,7 @@ export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
   timezone = 'UTC',
-  onPredict, onPenWinner,
+  onPredict, onOutcome, onPenWinner,
 }: Props) {
   // Local state for input display — allows spinners and direct typing to work
   // independently without waiting for the parent state to propagate
@@ -67,19 +68,26 @@ export function MatchRow({
   const predHome = prediction && prediction.home >= 0 ? String(prediction.home) : ''
   const predAway = prediction && prediction.away >= 0 ? String(prediction.away) : ''
 
+  const isExactRound = EXACT_SCORE_ROUNDS.includes(round)
+  const isOutcomeRound = OUTCOME_ROUNDS.includes(round)
   const isKnockout   = KNOCKOUT_ROUNDS.includes(round)
-  const isPredDraw   = prediction != null && prediction.home === prediction.away && prediction.home >= 0
+  const selectedOutcome = (prediction as any)?.outcome ?? null
+  const isPredDraw   = isExactRound
+    ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
+    : selectedOutcome === 'D'
   const showPenPick  = isKnockout && !result && !locked && isPredDraw
-  const hasPred  = prediction != null && prediction.home >= 0 && prediction.away >= 0
+  const hasPred = isOutcomeRound
+    ? selectedOutcome != null
+    : prediction != null && prediction.home >= 0 && prediction.away >= 0
   const pts      = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
   const sc       = SCORING[round] ?? SCORING['f']  // fallback for safety
   const kickoffLabel = formatKickoff(fixture.kickoff_utc, timezone)
 
   const rowClass = clsx(
     'border rounded-lg p-3 mb-2 transition-colors',
-    result && pts === sc.exact               && 'match-exact border-green-400',
-    result && pts === sc.result && pts > 0   && 'match-correct border-blue-400',
-    result && pts === 0 && hasPred           && 'match-wrong border-red-300',
+    result && !isOutcomeRound && pts === sc.exact     && 'match-exact border-green-400',
+    result && pts === sc.result && pts > 0            && 'match-correct border-blue-400',
+    result && pts === 0 && hasPred                    && 'match-wrong border-red-300',
     !result && !hasPred && !locked           && 'match-open',
     locked && !result                        && 'bg-gray-50 border-gray-200',
     !result && hasPred && !locked            && 'border-gray-200 bg-white',
@@ -178,7 +186,7 @@ export function MatchRow({
         </div>
       </div>
 
-      {/* Teams + score inputs */}
+      {/* Teams + prediction area */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
 
         {/* Home team */}
@@ -190,9 +198,60 @@ export function MatchRow({
           <span className="text-lg">{flag(fixture.home)}</span>
         </div>
 
-        {/* Score inputs */}
+        {/* Prediction input: outcome buttons (gs–sf) or score inputs (tp, f) */}
         <div className="flex items-end gap-3">
-          {/* Player pick */}
+          {isOutcomeRound ? (
+            /* ── Outcome picker ── */
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] text-gray-400 font-medium">Pick</span>
+              {result ? (
+                /* Show result outcome after match */
+                <div className="flex gap-1">
+                  {(['H','D','A'] as const).map(o => {
+                    const resultOutcome = result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D'
+                    const isResult = o === resultOutcome
+                    const isPick   = o === selectedOutcome
+                    return (
+                      <div key={o} className={clsx(
+                        'w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg border',
+                        isResult && isPick  && 'bg-green-100 border-green-400 text-green-800',
+                        isResult && !isPick && 'bg-green-50 border-green-300 text-green-600',
+                        !isResult && isPick && 'bg-red-100 border-red-300 text-red-700',
+                        !isResult && !isPick && 'bg-gray-50 border-gray-200 text-gray-300',
+                      )}>
+                        {o === 'H' ? '1' : o === 'D' ? 'X' : '2'}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex gap-1">
+                  {(['H','D','A'] as const).map(o => (
+                    <button key={o}
+                      disabled={locked}
+                      onClick={() => !locked && onOutcome && onOutcome(fixture.id, o)}
+                      className={clsx(
+                        'w-9 h-9 flex items-center justify-center text-sm font-bold rounded-lg border transition-colors',
+                        locked && 'cursor-not-allowed opacity-60',
+                        !locked && selectedOutcome !== o && 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:border-gray-400',
+                        selectedOutcome === o && o === 'H' && 'bg-blue-600 border-blue-700 text-white shadow-sm',
+                        selectedOutcome === o && o === 'D' && 'bg-gray-600 border-gray-700 text-white shadow-sm',
+                        selectedOutcome === o && o === 'A' && 'bg-red-600 border-red-700 text-white shadow-sm',
+                        selectedOutcome !== o && 'border-gray-200 bg-white text-gray-400',
+                      )}>
+                      {o === 'H' ? '1' : o === 'D' ? 'X' : '2'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-1 text-[9px] text-gray-400 w-full justify-between px-0.5">
+                <span>{fixture.home.split(' ')[0]}</span>
+                <span>Draw</span>
+                <span>{fixture.away.split(' ')[0]}</span>
+              </div>
+            </div>
+          ) : (
+          /* ── Score inputs (tp, f) ── */
           <div className="flex flex-col items-center gap-1">
             <span className="text-[10px] text-gray-400 font-medium">Pick</span>
             <div className="flex items-center gap-1.5">
@@ -219,6 +278,8 @@ export function MatchRow({
               />
             </div>
           </div>
+
+          )} {/* end score inputs ternary */}
 
           {/* Result (shown when available) */}
           {result && (
