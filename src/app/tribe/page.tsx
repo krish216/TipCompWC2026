@@ -1169,7 +1169,6 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
 function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: {
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
 }) {
-  const { formatKickoff } = require('@/lib/timezone') as typeof import('@/lib/timezone')
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
 
   if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
