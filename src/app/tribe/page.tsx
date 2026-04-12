@@ -1191,21 +1191,19 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
 
   const picksMap: Record<number, Record<string, any>> = picks ?? {}
 
-  // Colour based on points_earned vs the exact threshold for that round
-  const EXACT_PTS: Record<string, number> = {
-    gs:5, r32:8, r16:10, qf:14, sf:20, tp:10, f:30
-  }
+  // Colour derived directly from prediction vs result — never relies on points_earned
   const cellInfo = (fx: any, userId: string) => {
     const pick = picksMap[fx.id]?.[userId]
     if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
     const label = `${pick.home}–${pick.away}`
-    // No result yet — awaiting
     if (!fx.result) return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
-    const pts     = Number(pick.points_earned ?? 0)
-    const exactPt = EXACT_PTS[fx.round] ?? 5
-    if (pts <= 0)      return { colour: 'bg-red-100 text-red-700',   label }
-    if (pts >= exactPt)return { colour: 'bg-green-100 text-green-800 font-semibold', label }
-    return { colour: 'bg-blue-100 text-blue-800', label }
+    const ph = Number(pick.home);  const pa = Number(pick.away)
+    const rh = Number(fx.result.home); const ra = Number(fx.result.away)
+    const predOutcome   = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
+    const resultOutcome = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
+    if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label } // exact
+    if (predOutcome === resultOutcome) return { colour: 'bg-blue-100 text-blue-800', label }           // correct result
+    return { colour: 'bg-red-100 text-red-700', label }                                                // wrong
   }
 
   const roundOrder = ['gs','r32','r16','qf','sf','tp','f']
@@ -1248,11 +1246,18 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
           {byRound[round].map((fx: any) => {
             const isExpanded  = expandedFixture === fx.id
             const roundPicks  = picksMap[fx.id] ?? {}
-            const exactPt     = EXACT_PTS[fx.round] ?? 5
-            const exactCount  = Object.values(roundPicks).filter((p: any) => Number(p.points_earned) >= exactPt).length
-            const correctCount= Object.values(roundPicks).filter((p: any) => {
-              const pts = Number(p.points_earned ?? 0)
-              return pts > 0 && pts < exactPt
+            const exactCount = Object.values(roundPicks).filter((p: any) => {
+              if (!fx.result) return false
+              return Number(p.home) === Number(fx.result.home) && Number(p.away) === Number(fx.result.away)
+            }).length
+            const correctCount = Object.values(roundPicks).filter((p: any) => {
+              if (!fx.result) return false
+              const ph = Number(p.home); const pa = Number(p.away)
+              const rh = Number(fx.result.home); const ra = Number(fx.result.away)
+              if (ph === rh && pa === ra) return false // exact — don't double count
+              const po = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
+              const ro = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
+              return po === ro
             }).length
 
             return (
