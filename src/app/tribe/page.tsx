@@ -967,48 +967,20 @@ export default function TribePage() {
           <button key={t} onClick={() => setTab(t)}
             className={clsx('px-4 py-1.5 text-xs font-medium rounded-md transition-colors',
               tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-            {t === 'chat' ? '💬 Match chat' : '🏆 Leaderboard'}
+            {t === 'leaderboard' ? '🏆 Standings' : t === 'picks' ? '📊 Picks' : '💬 Chat'}
           </button>
         ))}
       </div>
 
-      {/* ── Leaderboard tab ── */}
+      {/* ── Standings tab — cross-tab by round ── */}
       {tab === 'leaderboard' && (
-        <Card className="p-0 overflow-hidden">
-          <div className="grid grid-cols-[32px_1fr_70px_50px_50px] gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-            <span>#</span><span>Member</span>
-            <span className="text-right">Points</span>
-            <span className="text-right">Exact</span>
-            <span className="text-right">✓</span>
-          </div>
-          {sortedMembers.length === 0
-            ? <EmptyState title="No members yet" description="Share the invite code to get started." />
-            : sortedMembers.map((member, i) => {
-              const isMe = member.user_id === myId
-              return (
-                <div key={member.user_id}
-                  className={clsx('grid grid-cols-[32px_1fr_70px_50px_50px] gap-2 px-3 py-3 border-b border-gray-100 last:border-0', isMe && 'bg-green-50')}>
-                  <div className="flex items-center justify-center"><Medal rank={i + 1} /></div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={member.display_name} src={member.avatar_url} size="xs" />
-                    <span className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
-                      {member.display_name}{isMe && ' (you)'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <span className={clsx('text-sm font-semibold', isMe ? 'text-green-700' : 'text-gray-900')}>{member.total_points}</span>
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <span className="text-xs text-purple-700 font-medium">{member.exact_count}</span>
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <span className="text-xs text-blue-700 font-medium">{member.correct_count}</span>
-                  </div>
-                </div>
-              )
-            })
-          }
-        </Card>
+        <TribeStandingsView
+          members={sortedMembers}
+          myId={myId}
+          tribePicksData={tribePicksData}
+          onLoadPicks={loadPicks}
+          picksLoading={picksLoading}
+        />
       )}
 
       {/* ── Picks tab ── */}
@@ -1051,18 +1023,157 @@ export default function TribePage() {
   )
 }
 
+// ── Tribe Standings (cross-tab by round) ─────────────────────────────────────
+const ROUND_ORDER_DISPLAY = ['gs','r32','r16','qf','sf','tp','f'] as const
+const ROUND_SHORT: Record<string, string> = {
+  gs:'GS', r32:'R32', r16:'R16', qf:'QF', sf:'SF', tp:'3rd', f:'FIN'
+}
+
+function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksLoading }: {
+  members: Member[]
+  myId: string
+  tribePicksData: any
+  onLoadPicks: () => void
+  picksLoading: boolean
+}) {
+  // Load picks on mount if not yet loaded
+  useEffect(() => {
+    if (!tribePicksData && !picksLoading) onLoadPicks()
+  }, [])
+
+  // Build per-member per-round points from picks data
+  const roundBreakdown = useMemo(() => {
+    if (!tribePicksData) return {}
+    const { fixtures, picks } = tribePicksData
+    const breakdown: Record<string, Record<string, number>> = {}
+    members.forEach(m => { breakdown[m.user_id] = {} })
+    ;(fixtures ?? []).forEach((fx: any) => {
+      const fxPicks = picks?.[fx.id] ?? {}
+      Object.entries(fxPicks).forEach(([uid, p]: any) => {
+        if (!breakdown[uid]) breakdown[uid] = {}
+        const pts = Number(p.points_earned ?? 0)
+        if (pts > 0) {
+          breakdown[uid][fx.round] = (breakdown[uid][fx.round] ?? 0) + pts
+        }
+      })
+    })
+    return breakdown
+  }, [tribePicksData, members])
+
+  // Which rounds have any data
+  const activeRounds = ROUND_ORDER_DISPLAY.filter(r =>
+    members.some(m => (roundBreakdown[m.user_id]?.[r] ?? 0) > 0)
+  )
+
+  if (picksLoading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+
+  if (members.length === 0) return (
+    <EmptyState title="No members yet" description="Share the invite code to get started." />
+  )
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide sticky left-0 bg-gray-50 min-w-[120px]">
+                Member
+              </th>
+              {activeRounds.length === 0
+                ? <th className="px-3 py-2.5 text-[11px] font-semibold text-gray-400">Awaiting results</th>
+                : activeRounds.map(r => (
+                  <th key={r} className="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide min-w-[44px]">
+                    {ROUND_SHORT[r]}
+                  </th>
+                ))
+              }
+              <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-gray-700 uppercase tracking-wide bg-gray-50">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((member, i) => {
+              const isMe  = member.user_id === myId
+              const breakdown = roundBreakdown[member.user_id] ?? {}
+              const totalFromBreakdown = Object.values(breakdown).reduce((s, v) => s + v, 0)
+              // Use member.total_points as source of truth; breakdown may differ slightly due to filter timing
+              const displayTotal = member.total_points
+
+              return (
+                <tr key={member.user_id}
+                  className={clsx(
+                    'border-b border-gray-100 last:border-0 transition-colors',
+                    isMe ? 'bg-green-50' : 'hover:bg-gray-50'
+                  )}>
+                  {/* Member name */}
+                  <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white hover:bg-gray-50')}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Medal rank={i + 1} />
+                      <Avatar name={member.display_name} src={member.avatar_url} size="xs" />
+                      <span className={clsx('font-medium truncate', isMe && 'text-green-700')}>
+                        {member.display_name}{isMe && ' (you)'}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Points per round */}
+                  {activeRounds.length === 0
+                    ? <td className="px-3 py-2.5 text-center text-gray-400">—</td>
+                    : activeRounds.map(r => {
+                      const pts = breakdown[r] ?? 0
+                      return (
+                        <td key={r} className="px-2 py-2.5 text-center">
+                          {pts > 0
+                            ? <span className={clsx(
+                                'inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
+                                isMe ? 'bg-green-200 text-green-900' : 'bg-gray-100 text-gray-700'
+                              )}>{pts}</span>
+                            : <span className="text-gray-300">—</span>
+                          }
+                        </td>
+                      )
+                    })
+                  }
+
+                  {/* Total */}
+                  <td className="px-3 py-2.5 text-right">
+                    <span className={clsx('font-bold text-sm', isMe ? 'text-green-700' : 'text-gray-900')}>
+                      {displayTotal}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      {activeRounds.length > 0 && (
+        <div className="mt-2 flex gap-3 flex-wrap text-[11px] text-gray-400">
+          {activeRounds.map(r => (
+            <span key={r}><span className="font-medium text-gray-500">{ROUND_SHORT[r]}</span> = {
+              r==='gs'?'Group Stage':r==='r32'?'Round of 32':r==='r16'?'Round of 16':
+              r==='qf'?'Quarter-finals':r==='sf'?'Semi-finals':r==='tp'?'3rd Place':'Final'
+            }</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Tribe Picks View ──────────────────────────────────────────────────────────
 function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: {
-  tribePicksData: any
-  loading: boolean
-  myId: string
-  onRefresh: () => void
-  timezone: string
+  tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
 }) {
   const { formatKickoff } = require('@/lib/timezone') as typeof import('@/lib/timezone')
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
 
   if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+
   if (!tribePicksData) return (
     <div className="text-center py-12">
       <p className="text-sm text-gray-500 mb-3">Load tribe picks to see how everyone predicted.</p>
@@ -1075,38 +1186,33 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
   const { fixtures, members, picks } = tribePicksData
   if (!fixtures?.length) return (
     <div className="text-center py-12">
-      <p className="text-gray-400 text-sm">No locked fixtures yet — picks will appear here once matches are locked.</p>
+      <p className="text-gray-400 text-sm">No locked fixtures yet — picks will appear here once matches kick off.</p>
     </div>
   )
 
-  // picks: { fixture_id → { user_id → { home, away, pen_winner, points_earned } } }
   const picksMap: Record<number, Record<string, any>> = picks ?? {}
 
-  // Colour for a pick cell
-  const cellColour = (fixtureId: number, userId: string) => {
-    const pick = picksMap[fixtureId]?.[userId]
-    const fx   = fixtures.find((f: any) => f.id === fixtureId)
-    if (!pick)        return 'bg-gray-100 text-gray-400'      // no pick
-    if (!fx?.result)  return 'bg-amber-50 text-amber-800 border border-amber-200'  // locked, no result yet
-    const pts = pick.points_earned ?? 0
-    if (pts <= 0)     return 'bg-red-100 text-red-700'         // wrong
-    const sc  = fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
-              : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
-    if (pts >= sc)    return 'bg-green-100 text-green-800 font-semibold'  // exact
-    return 'bg-blue-100 text-blue-800'                         // correct result
+  // Colour based on points_earned vs the exact threshold for that round
+  const EXACT_PTS: Record<string, number> = {
+    gs:5, r32:8, r16:10, qf:14, sf:20, tp:10, f:30
+  }
+  const cellInfo = (fx: any, userId: string) => {
+    const pick = picksMap[fx.id]?.[userId]
+    if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
+    const label = `${pick.home}–${pick.away}`
+    // No result yet — awaiting
+    if (!fx.result) return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
+    const pts     = Number(pick.points_earned ?? 0)
+    const exactPt = EXACT_PTS[fx.round] ?? 5
+    if (pts <= 0)      return { colour: 'bg-red-100 text-red-700',   label }
+    if (pts >= exactPt)return { colour: 'bg-green-100 text-green-800 font-semibold', label }
+    return { colour: 'bg-blue-100 text-blue-800', label }
   }
 
-  const pickLabel = (fixtureId: number, userId: string) => {
-    const pick = picksMap[fixtureId]?.[userId]
-    if (!pick) return '—'
-    return `${pick.home}–${pick.away}`
-  }
-
-  // Group fixtures by round
   const roundOrder = ['gs','r32','r16','qf','sf','tp','f']
   const roundLabels: Record<string, string> = {
-    gs:'Group Stage', r32:'Rd of 32', r16:'Rd of 16',
-    qf:'Quarters', sf:'Semis', tp:'3rd Place', f:'Final',
+    gs:'Group Stage', r32:'Round of 32', r16:'Round of 16',
+    qf:'Quarter-finals', sf:'Semi-finals', tp:'3rd Place', f:'Final',
   }
   const byRound: Record<string, any[]> = {}
   for (const f of fixtures) {
@@ -1117,108 +1223,93 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-gray-500">Picks for locked fixtures — colour coded by result</p>
+        <p className="text-[11px] text-gray-500">Locked fixtures — picks colour coded once results are in</p>
         <button onClick={onRefresh} className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
       </div>
 
       {/* Colour key */}
-      <div className="flex gap-2 flex-wrap mb-4 text-[11px]">
+      <div className="flex gap-3 flex-wrap mb-4">
         {[
           { colour: 'bg-green-100 text-green-800', label: '★ Exact score' },
           { colour: 'bg-blue-100 text-blue-800',   label: '✓ Correct result' },
           { colour: 'bg-red-100 text-red-700',     label: '✗ Wrong' },
-          { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label: 'Awaiting result' },
-          { colour: 'bg-gray-100 text-gray-400',   label: 'No pick' },
+          { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label: '⏳ Awaiting result' },
+          { colour: 'bg-gray-100 text-gray-400',   label: '— No pick' },
         ].map(k => (
           <div key={k.label} className="flex items-center gap-1.5">
-            <div className={`w-6 h-4 rounded text-[9px] flex items-center justify-center ${k.colour}`}>•</div>
-            <span className="text-gray-500">{k.label}</span>
+            <div className={`w-8 h-5 rounded text-[9px] flex items-center justify-center ${k.colour}`}>ab</div>
+            <span className="text-[11px] text-gray-500">{k.label}</span>
           </div>
         ))}
       </div>
 
       {roundOrder.filter(r => byRound[r]?.length).map(round => (
-        <div key={round} className="mb-6">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            {roundLabels[round]}
-          </p>
-
+        <div key={round} className="mb-5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{roundLabels[round]}</p>
           {byRound[round].map((fx: any) => {
-            const isExpanded = expandedFixture === fx.id
-            const roundPicks = picksMap[fx.id] ?? {}
-            const memberCount = members.length
-            const pickCount   = Object.keys(roundPicks).length
-            const exactCount  = Object.values(roundPicks).filter((p: any) => {
-              const sc = fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
-                : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
-              return (p as any).points_earned >= sc
+            const isExpanded  = expandedFixture === fx.id
+            const roundPicks  = picksMap[fx.id] ?? {}
+            const exactPt     = EXACT_PTS[fx.round] ?? 5
+            const exactCount  = Object.values(roundPicks).filter((p: any) => Number(p.points_earned) >= exactPt).length
+            const correctCount= Object.values(roundPicks).filter((p: any) => {
+              const pts = Number(p.points_earned ?? 0)
+              return pts > 0 && pts < exactPt
             }).length
-            const correctCount = Object.values(roundPicks).filter((p: any) =>
-              (p as any).points_earned > 0 && (p as any).points_earned < (
-                fx.round === 'gs' ? 5 : fx.round === 'r32' ? 8 : fx.round === 'r16' ? 10
-                : fx.round === 'qf' ? 14 : fx.round === 'sf' ? 20 : fx.round === 'tp' ? 10 : 30
-              )
-            ).length
 
             return (
-              <div key={fx.id} className="mb-3 bg-white border border-gray-200 rounded-xl overflow-hidden">
-                {/* Fixture header */}
+              <div key={fx.id} className="mb-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <button
                   onClick={() => setExpandedFixture(isExpanded ? null : fx.id)}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {flag(fx.home)} {fx.home} <span className="text-gray-400 font-normal mx-1">vs</span> {flag(fx.away)} {fx.away}
-                      </p>
-                      <p className="text-[11px] text-gray-400">
-                        {formatKickoff(fx.kickoff_utc, timezone, { date: true, time: true })}
-                        {fx.result && (
-                          <span className="ml-2 font-semibold text-gray-600">
-                            Result: {fx.result.home}–{fx.result.away}
-                            {fx.pen_winner && ` (pens: ${fx.pen_winner})`}
-                          </span>
-                        )}
-                      </p>
-                    </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {flag(fx.home)} {fx.home} <span className="text-gray-400 font-normal text-xs mx-1">vs</span> {flag(fx.away)} {fx.away}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {formatKickoff(fx.kickoff_utc, timezone, { date: true, time: true })}
+                      {fx.result && (
+                        <span className="ml-2 font-semibold text-gray-700">
+                          {fx.result.home}–{fx.result.away}
+                          {fx.pen_winner && ` (pens: ${fx.pen_winner})`}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                     {fx.result && (
-                      <div className="flex gap-1.5 text-[11px]">
-                        {exactCount   > 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">★ {exactCount}</span>}
-                        {correctCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">✓ {correctCount}</span>}
+                      <div className="flex gap-1">
+                        {exactCount   > 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[11px] rounded font-medium">★{exactCount}</span>}
+                        {correctCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[11px] rounded font-medium">✓{correctCount}</span>}
                       </div>
                     )}
-                    <span className="text-[11px] text-gray-400">{pickCount}/{memberCount}</span>
-                    <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                    <span className="text-[11px] text-gray-400">
+                      {Object.keys(roundPicks).length}/{members.length}
+                    </span>
+                    <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </button>
 
-                {/* Member picks grid */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-3">
-                    <div className="space-y-2">
-                      {members.map((member: any) => {
-                        const pick   = roundPicks[member.user_id]
-                        const isMe   = member.user_id === myId
-                        const colour = cellColour(fx.id, member.user_id)
-                        return (
-                          <div key={member.user_id}
-                            className={clsx('flex items-center justify-between rounded-lg px-3 py-2', isMe && 'ring-1 ring-green-400')}>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Avatar name={member.display_name} size="xs" />
-                              <span className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
-                                {member.display_name}{isMe && ' (you)'}
-                              </span>
-                            </div>
-                            <div className={clsx('px-3 py-1 rounded-lg text-sm font-mono font-semibold min-w-[60px] text-center', colour)}>
-                              {pickLabel(fx.id, member.user_id)}
-                            </div>
+                  <div className="border-t border-gray-100 px-4 py-3 space-y-1.5">
+                    {members.map((member: any) => {
+                      const { colour, label } = cellInfo(fx, member.user_id)
+                      const isMe = member.user_id === myId
+                      return (
+                        <div key={member.user_id}
+                          className={clsx('flex items-center justify-between rounded-lg px-3 py-1.5', isMe && 'ring-1 ring-green-400 bg-green-50/50')}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar name={member.display_name} size="xs" />
+                            <span className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
+                              {member.display_name}{isMe && ' (you)'}
+                            </span>
                           </div>
-                        )
-                      })}
-                    </div>
+                          <span className={clsx('px-3 py-1 rounded-lg text-xs font-mono font-semibold min-w-[52px] text-center', colour)}>
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
