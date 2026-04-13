@@ -93,10 +93,15 @@ export function MatchRow({
   }, [fixture.id, onPredict])
 
   // ── Card border / bg based on result state ──────────────────────────────────
+  const noTip = !!result && !hasPred  // result in but no prediction was made
+
   const cardClass = clsx(
     'rounded-2xl border mb-2.5 overflow-hidden transition-all',
-    isCorrect && 'border-green-300 bg-green-50',
-    isWrong   && 'border-red-200 bg-red-50/30',
+    // Only colour-code when player actually made a prediction
+    isCorrect && !noTip && 'border-green-300 bg-green-50',
+    isWrong   && !noTip && 'border-red-200 bg-red-50/30',
+    // No prediction — neutral always
+    noTip               && 'border-gray-200 bg-white opacity-75',
     !result && hasPred  && 'border-gray-200 bg-white',
     !result && !hasPred && !locked && 'border-gray-200 bg-white',
     locked && !result   && 'border-gray-200 bg-gray-50/60',
@@ -133,6 +138,11 @@ export function MatchRow({
           )}
           {!locked && !result && !hasPred && (
             <span className="text-amber-500 font-semibold">Pick now</span>
+          )}
+          {noTip && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-full">
+              ✗ No Tip Entered
+            </span>
           )}
           {pts !== null && <PointsBadge pts={pts} maxExact={sc.exact} />}
         </div>
