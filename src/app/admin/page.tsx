@@ -107,69 +107,135 @@ function ResetPasswordPanel() {
   const [confirm,  setConfirm]  = useState('')
   const [loading,  setLoading]  = useState(false)
   const [showPwd,  setShowPwd]  = useState(false)
+  const [result,   setResult]   = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const pwdStrength = password.length === 0 ? 0 : password.length < 8 ? 1 : password.length < 12 ? 2 : 3
+  const pwdMatch    = confirm.length > 0 && password === confirm
+  const pwdMismatch = confirm.length > 0 && password !== confirm
+  const canSubmit   = email.trim().length > 0 && password.length >= 8 && pwdMatch && !loading
 
   const reset = async () => {
-    if (!email.trim())            { toast.error('Enter an email address'); return }
-    if (password.length < 8)      { toast.error('Password must be at least 8 characters'); return }
-    if (password !== confirm)     { toast.error('Passwords do not match'); return }
-    if (!confirm(`Reset password for ${email.trim()}?`)) return
+    if (!canSubmit) return
+    setResult(null)
     setLoading(true)
-    const res  = await fetch('/api/admin/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim(), new_password: password }),
-    })
-    const { success, error } = await res.json()
-    setLoading(false)
-    if (success) {
-      toast.success(`Password reset for ${email.trim()}`)
-      setEmail(''); setPassword(''); setConfirm('')
-    } else {
-      toast.error(error ?? 'Failed to reset password')
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), new_password: password }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setResult({ ok: true, msg: `Password successfully reset for ${email.trim()}` })
+        setEmail(''); setPassword(''); setConfirm('')
+        toast.success('Password reset successfully')
+      } else {
+        const msg = data.error ?? `Server error (${res.status})`
+        setResult({ ok: false, msg })
+        toast.error(msg)
+      }
+    } catch (e: any) {
+      const msg = 'Network error — could not reach the server'
+      setResult({ ok: false, msg })
+      toast.error(msg)
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Reset user password</p>
-      <p className="text-[11px] text-gray-400 mb-3">Set a new password for any user account. Use for test accounts or locked-out users.</p>
-      <div className="space-y-2">
-        <input
-          type="email" value={email} onChange={e => setEmail(e.target.value)}
-          placeholder="user@example.com"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-        />
-        <div className="relative">
+      <p className="text-[11px] text-gray-400 mb-3">Set a new password directly for any user account.</p>
+
+      <div className="space-y-2.5">
+        {/* Email */}
+        <div>
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">User email</label>
           <input
-            type={showPwd ? 'text' : 'password'}
-            value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="New password (min 8 chars)"
-            className="w-full px-3 py-2 pr-16 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+            type="email" value={email} onChange={e => { setEmail(e.target.value); setResult(null) }}
+            placeholder="user@example.com"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
           />
-          <button type="button" onClick={() => setShowPwd(v => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 hover:text-gray-600 px-1">
-            {showPwd ? 'Hide' : 'Show'}
-          </button>
         </div>
-        <input
-          type={showPwd ? 'text' : 'password'}
-          value={confirm} onChange={e => setConfirm(e.target.value)}
-          placeholder="Confirm new password"
-          onKeyDown={e => e.key === 'Enter' && reset()}
-          className={clsx(
-            'w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white',
-            confirm && confirm !== password ? 'border-red-300' : 'border-gray-300'
+
+        {/* New password */}
+        <div>
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">New password</label>
+          <div className="relative">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              value={password} onChange={e => { setPassword(e.target.value); setResult(null) }}
+              placeholder="Minimum 8 characters"
+              className={clsx(
+                'w-full px-3 py-2 pr-16 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white',
+                password.length > 0 && password.length < 8 ? 'border-amber-300' : 'border-gray-300'
+              )}
+            />
+            <button type="button" onClick={() => setShowPwd(v => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 hover:text-gray-600 px-1">
+              {showPwd ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {/* Strength bar */}
+          {password.length > 0 && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex gap-1 flex-1">
+                {[1,2,3].map(i => (
+                  <div key={i} className={clsx('h-1 flex-1 rounded-full transition-colors',
+                    pwdStrength >= i
+                      ? i === 1 ? 'bg-red-400' : i === 2 ? 'bg-amber-400' : 'bg-green-400'
+                      : 'bg-gray-200'
+                  )} />
+                ))}
+              </div>
+              <span className="text-[10px] text-gray-400">
+                {pwdStrength === 1 ? 'Weak' : pwdStrength === 2 ? 'Fair' : 'Strong'}
+              </span>
+            </div>
           )}
-        />
-        {confirm && confirm !== password && (
-          <p className="text-[11px] text-red-500">Passwords do not match</p>
+        </div>
+
+        {/* Confirm password */}
+        <div>
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">Confirm password</label>
+          <div className="relative">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              value={confirm} onChange={e => { setConfirm(e.target.value); setResult(null) }}
+              placeholder="Re-enter password"
+              onKeyDown={e => e.key === 'Enter' && reset()}
+              className={clsx(
+                'w-full px-3 py-2 pr-8 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white',
+                pwdMismatch ? 'border-red-300' : pwdMatch ? 'border-green-400' : 'border-gray-300'
+              )}
+            />
+            {pwdMatch && (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 text-sm">✓</span>
+            )}
+          </div>
+          {pwdMismatch && (
+            <p className="text-[11px] text-red-500 mt-1">Passwords do not match</p>
+          )}
+        </div>
+
+        {/* Inline result feedback */}
+        {result && (
+          <div className={clsx(
+            'flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs font-medium',
+            result.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'
+          )}>
+            <span className="flex-shrink-0 text-sm">{result.ok ? '✅' : '❌'}</span>
+            <span>{result.msg}</span>
+          </div>
         )}
+
+        {/* Submit */}
         <button
           onClick={reset}
-          disabled={loading || !email.trim() || password.length < 8 || password !== confirm}
-          className="w-full py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
-          {loading && <Spinner className="w-4 h-4 text-white" />}
-          Reset password
+          disabled={!canSubmit}
+          className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors">
+          {loading ? <><Spinner className="w-4 h-4 text-white" /> Resetting…</> : 'Reset password'}
         </button>
       </div>
     </Card>
