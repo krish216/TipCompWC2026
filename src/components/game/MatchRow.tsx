@@ -69,7 +69,10 @@ export function MatchRow({
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
   const showPenPick = isKnockout && !result && !locked && isPredDraw
-  const hasPred     = isOutcomeRound ? sel != null : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
+  const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !result && !locked
+  const hasPred     = isOutcomeRound
+    ? (sel != null && !awaitingPen)   // knockout draw without pen pick = not yet saved
+    : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
   const pts = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
   const sc  = SCORING[round] ?? SCORING['f']
@@ -103,7 +106,8 @@ export function MatchRow({
     // No prediction — neutral always
     noTip               && 'border-gray-200 bg-white opacity-75',
     !result && hasPred  && 'border-gray-200 bg-white',
-    !result && !hasPred && !locked && 'border-gray-200 bg-white',
+    awaitingPen              && 'border-amber-300 bg-amber-50/40',
+    !result && !hasPred && !awaitingPen && !locked && 'border-gray-200 bg-white',
     locked && !result   && 'border-gray-200 bg-gray-50/60',
     isFavourite && !result && 'ring-1 ring-purple-200',
   )
@@ -136,7 +140,10 @@ export function MatchRow({
           {!saving && !locked && !result && hasPred && (
             <span className="text-green-600 font-semibold">✓ saved</span>
           )}
-          {!locked && !result && !hasPred && (
+          {!saving && awaitingPen && (
+            <span className="text-amber-600 font-semibold animate-pulse">🥅 Pick penalties ↓</span>
+          )}
+          {!locked && !result && !hasPred && !awaitingPen && (
             <span className="text-amber-500 font-semibold">Pick now</span>
           )}
           {noTip && (

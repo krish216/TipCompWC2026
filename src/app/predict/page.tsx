@@ -7,7 +7,7 @@ import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { calcPoints, SCORING, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { calcPoints, SCORING, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -144,32 +144,50 @@ export default function PredictPage() {
       ...prev,
       [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), pen_winner: team }
     }))
-    // Save via API
     const p = predictions[fixtureId]
     if (!p) return
-    await fetch('/api/predictions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home: p.home, away: p.away, pen_winner: team }] }),
-    })
+    setSaving(prev => new Set(prev).add(fixtureId))
+    try {
+      // Save outcome + pen_winner together (this is the completing action for knockout draws)
+      await fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome: p.outcome ?? null, pen_winner: team }] }),
+      })
+    } catch { toast.error('Network error — penalty pick not saved') }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
   }, [predictions])
 
   const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
-    // Clear pen_winner if switching away from draw
+    // Look up round for this fixture
+    const allFx = Object.values(fixtures).flat() as Fixture[]
+    const fx = allFx.find(f => f.id === fixtureId)
+    const isKnockout = fx ? KNOCKOUT_ROUNDS.includes(fx.round) : false
+    const needsPen = isKnockout && outcome === 'D'
+
+    // Always update local state immediately
     setPredictions(prev => ({
       ...prev,
-      [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), outcome, pen_winner: outcome !== 'D' ? null : prev[fixtureId]?.pen_winner }
+      [fixtureId]: {
+        ...(prev[fixtureId] ?? { home: 0, away: 0 }),
+        outcome,
+        pen_winner: outcome !== 'D' ? null : prev[fixtureId]?.pen_winner ?? null,
+      }
     }))
+
+    // For knockout draws: don't save yet — wait for pen winner selection
+    if (needsPen) return
+
     setSaving(prev => new Set(prev).add(fixtureId))
     try {
       await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: outcome !== 'D' ? null : undefined }] }),
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: null }] }),
       })
     } catch { toast.error('Network error — prediction not saved') }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-  }, [])
+  }, [fixtures])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
