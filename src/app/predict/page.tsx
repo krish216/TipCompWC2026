@@ -312,8 +312,18 @@ export default function PredictPage() {
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
     if (showFilter === 'all') return sorted
-    // 'pending': unlocked fixtures with no prediction yet (or locked/played show all)
-    const pending = sorted.filter(f => !results[f.id] && !isLocked(f) && !predictions[f.id])
+    // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
+    const isIncomplete = (f: Fixture) => {
+      if (results[f.id] || isLocked(f)) return false
+      const p = predictions[f.id]
+      if (!p) return true  // no prediction at all
+      // Knockout draw with no pen winner selected = incomplete
+      const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
+      const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+      return false
+    }
+    const pending = sorted.filter(isIncomplete)
     // If nothing pending, fall back to showing all so page isn't empty
     return pending.length > 0 ? pending : sorted
   }, [fixtures, activeRound, showFilter, results, predictions, roundLocks])
@@ -334,9 +344,15 @@ export default function PredictPage() {
 
   // First fixture that needs a prediction (not locked, no result, no prediction)
   const nextUnpredictedId = useMemo(() => {
-    return visibleFixtures.find(f =>
-      !results[f.id] && !isLocked(f) && !predictions[f.id]
-    )?.id ?? null
+    return visibleFixtures.find(f => {
+      if (results[f.id] || isLocked(f)) return false
+      const p = predictions[f.id]
+      if (!p) return true
+      const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
+      const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+      return false
+    })?.id ?? null
   }, [visibleFixtures, results, predictions, roundLocks])
 
   const renderMatchRow = (f: Fixture) => (
@@ -445,7 +461,15 @@ export default function PredictPage() {
       {/* Filter toggle */}
       {(() => {
         const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound] ?? fixtures[rid] ?? [])
-        const pendingCount = allFs.filter(f => !results[f.id] && !isLocked(f) && !predictions[f.id]).length
+        const pendingCount = allFs.filter(f => {
+          if (results[f.id] || isLocked(f)) return false
+          const p = predictions[f.id]
+          if (!p) return true
+          const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
+          const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+          if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+          return false
+        }).length
         return pendingCount > 0 ? (
           <div className="flex items-center gap-2 mb-3">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
