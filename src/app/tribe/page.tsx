@@ -1258,20 +1258,12 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
         <button onClick={onRefresh} className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
       </div>
 
-      {/* Colour key */}
-      <div className="flex gap-3 flex-wrap mb-4">
-        {[
-          { colour: 'bg-green-100 text-green-800', label: '★ Exact score' },
-          { colour: 'bg-blue-100 text-blue-800',   label: '✓ Correct result' },
-          { colour: 'bg-red-100 text-red-700',     label: '✗ Wrong' },
-          { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label: '⏳ Awaiting result' },
-          { colour: 'bg-gray-100 text-gray-400',   label: '— No pick' },
-        ].map(k => (
-          <div key={k.label} className="flex items-center gap-1.5">
-            <div className={`w-8 h-5 rounded text-[9px] flex items-center justify-center ${k.colour}`}>ab</div>
-            <span className="text-[11px] text-gray-500">{k.label}</span>
-          </div>
-        ))}
+      {/* Legend */}
+      <div className="flex items-center gap-3 flex-wrap mb-4 text-[11px] text-gray-500">
+        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-green-400"/><span>Correct</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-red-300"/><span>Wrong</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-amber-300"/><span>Awaiting result</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-gray-200"/><span>No pick</span></div>
       </div>
 
       {/* Round filter tabs — always shown, empty rounds disabled */}
@@ -1305,76 +1297,173 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
 
       {/* Fixtures for selected round */}
       {[effectiveRound].filter(r => byRound[r]?.length).map(round => (
-        <div key={round} className="mb-2">
+        <div key={round} className="space-y-3">
           {byRound[round].map((fx: any) => {
-            const isExpanded  = expandedFixture === fx.id
-            const roundPicks  = picksMap[fx.id] ?? {}
-            const isORound = OUTCOME_ROUNDS_SET.has(fx.round)
-            const rh2 = fx.result ? Number(fx.result.home) : 0
-            const ra2 = fx.result ? Number(fx.result.away) : 0
-            const ro2 = rh2 > ra2 ? 'H' : ra2 > rh2 ? 'A' : 'D'
-            const exactCount = !fx.result ? 0 : Object.values(roundPicks).filter((p: any) => {
+            const isExpanded = expandedFixture === fx.id
+            const roundPicks = picksMap[fx.id] ?? {}
+            const isORound   = OUTCOME_ROUNDS_SET.has(fx.round)
+            const rh2 = fx.result ? Number(fx.result.home) : null
+            const ra2 = fx.result ? Number(fx.result.away) : null
+            const ro2 = rh2 !== null && ra2 !== null ? (rh2 > ra2 ? 'H' : ra2 > rh2 ? 'A' : 'D') : null
+            const correctCount = !fx.result ? 0 : Object.values(roundPicks).filter((p: any) => {
               if (isORound) return p.outcome === ro2
-              return Number(p.home) === rh2 && Number(p.away) === ra2
-            }).length
-            const correctCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) => {
               const ph = Number(p.home); const pa = Number(p.away)
-              if (ph === rh2 && pa === ra2) return false
               const po = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
               return po === ro2
             }).length
+            const exactCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) =>
+              Number(p.home) === rh2 && Number(p.away) === ra2
+            ).length
+            const pickCount  = Object.keys(roundPicks).length
+            const pctCorrect = fx.result && pickCount > 0 ? Math.round(correctCount / pickCount * 100) : null
 
             return (
-              <div key={fx.id} className="mb-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div key={fx.id} className={clsx(
+                'rounded-2xl border overflow-hidden transition-all',
+                fx.result ? 'border-gray-200 bg-white' : 'border-gray-200 bg-white'
+              )}>
+                {/* ── Fixture header ── */}
                 <button
                   onClick={() => setExpandedFixture(isExpanded ? null : fx.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                  className="w-full text-left px-4 pt-3 pb-3 hover:bg-gray-50/80 transition-colors"
                 >
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {flag(fx.home)} {fx.home} <span className="text-gray-400 font-normal text-xs mx-1">vs</span> {flag(fx.away)} {fx.away}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {formatKickoff(fx.kickoff_utc, timezone, { date: true, time: true })}
-                      {fx.result && (
-                        <span className="ml-2 font-semibold text-gray-700">
-                          {fx.result.home}–{fx.result.away}
-                          {fx.pen_winner && ` (pens: ${fx.pen_winner})`}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                    {fx.result && (
-                      <div className="flex gap-1">
-                        {exactCount   > 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[11px] rounded font-medium">★{exactCount}</span>}
-                        {correctCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[11px] rounded font-medium">✓{correctCount}</span>}
-                      </div>
-                    )}
-                    <span className="text-[11px] text-gray-400">
-                      {Object.keys(roundPicks).length}/{members.length}
+                  {/* Teams row */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xl">{flag(fx.home)}</span>
+                    <span className={clsx('text-sm font-bold flex-1', !fx.result ? 'text-gray-800' : ro2 === 'H' ? 'text-gray-900' : 'text-gray-400')}>
+                      {fx.home}
                     </span>
-                    <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                    {fx.result ? (
+                      <span className="px-3 py-1 bg-gray-900 text-white text-sm font-bold rounded-lg tabular-nums">
+                        {fx.result.home} – {fx.result.away}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300 font-medium px-2">vs</span>
+                    )}
+                    <span className={clsx('text-sm font-bold flex-1 text-right', !fx.result ? 'text-gray-800' : ro2 === 'A' ? 'text-gray-900' : 'text-gray-400')}>
+                      {fx.away}
+                    </span>
+                    <span className="text-xl">{flag(fx.away)}</span>
+                  </div>
+
+                  {/* Meta + stats row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                      <span>{formatKickoff(fx.kickoff_utc, timezone, { date: true, time: false })}</span>
+                      {fx.pen_winner && (
+                        <span className="text-amber-600 font-medium">🥅 {fx.pen_winner} (pens)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {fx.result && pctCorrect !== null && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-400 rounded-full transition-all"
+                              style={{ width: `${pctCorrect}%` }} />
+                          </div>
+                          <span className="text-[11px] font-semibold text-green-600">{pctCorrect}%</span>
+                        </div>
+                      )}
+                      <span className="text-[11px] text-gray-400">{pickCount}/{members.length} picked</span>
+                      <span className="text-gray-300 text-xs ml-1">{isExpanded ? '▲' : '▼'}</span>
+                    </div>
                   </div>
                 </button>
 
+                {/* ── Member picks grid — expanded ── */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-3 space-y-1.5">
+                  <div className="border-t border-gray-100 divide-y divide-gray-50">
                     {members.map((member: any) => {
-                      const { colour, label } = cellInfo(fx, member.user_id)
-                      const isMe = member.user_id === myId
+                      const pick  = roundPicks[member.user_id]
+                      const isMe  = member.user_id === myId
+
+                      // Determine pick display and state
+                      let pickDisplay: React.ReactNode = (
+                        <span className="text-[11px] text-gray-300 italic">No pick</span>
+                      )
+                      let rowState: 'correct' | 'wrong' | 'pending' | 'none' = 'none'
+
+                      if (pick) {
+                        if (!fx.result) {
+                          rowState = 'pending'
+                          if (isORound) {
+                            const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
+                            pickDisplay = pick.outcome === 'D'
+                              ? <span className="flex items-center gap-1 text-xs font-semibold text-gray-700">
+                                  {flag(fx.home)} <span className="text-gray-400 mx-0.5">—</span> {flag(fx.away)}
+                                  <span className="ml-1 text-[10px] text-gray-400">Draw</span>
+                                </span>
+                              : <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
+                                  {flag(teamPicked!)} {teamPicked}
+                                </span>
+                          } else {
+                            pickDisplay = <span className="text-xs font-bold text-gray-700 tabular-nums">{pick.home} – {pick.away}</span>
+                          }
+                        } else {
+                          // Result is in — colour by correctness
+                          const isCorrect = isORound
+                            ? pick.outcome === ro2
+                            : (Number(pick.home) > Number(pick.away) ? 'H' : Number(pick.away) > Number(pick.home) ? 'A' : 'D') === ro2
+                          const isExact = !isORound && Number(pick.home) === rh2 && Number(pick.away) === ra2
+                          rowState = isCorrect ? 'correct' : 'wrong'
+
+                          if (isORound) {
+                            const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
+                            pickDisplay = pick.outcome === 'D'
+                              ? <span className={clsx('flex items-center gap-1 text-xs font-semibold',
+                                  isCorrect ? 'text-green-800' : 'text-red-700')}>
+                                  {flag(fx.home)} <span className="mx-0.5 opacity-60">—</span> {flag(fx.away)}
+                                  <span className="ml-1 text-[10px]">Draw</span>
+                                </span>
+                              : <span className={clsx('flex items-center gap-1.5 text-xs font-semibold',
+                                  isCorrect ? 'text-green-800' : 'text-red-700')}>
+                                  {flag(teamPicked!)} {teamPicked}
+                                </span>
+                          } else {
+                            pickDisplay = (
+                              <span className={clsx('flex items-center gap-1 text-xs font-bold tabular-nums',
+                                isExact ? 'text-green-800' : isCorrect ? 'text-blue-800' : 'text-red-700')}>
+                                {pick.home} – {pick.away}
+                                {isExact && <span className="text-[10px] ml-0.5">★</span>}
+                              </span>
+                            )
+                          }
+                        }
+                      }
+
                       return (
                         <div key={member.user_id}
-                          className={clsx('flex items-center justify-between rounded-lg px-3 py-1.5', isMe && 'ring-1 ring-green-400 bg-green-50/50')}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Avatar name={member.display_name} size="xs" />
-                            <span className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
-                              {member.display_name}{isMe && ' (you)'}
-                            </span>
-                          </div>
-                          <span className={clsx('px-3 py-1 rounded-lg text-xs font-mono font-semibold min-w-[52px] text-center', colour)}>
-                            {label}
+                          className={clsx(
+                            'flex items-center gap-3 px-4 py-2.5 transition-colors',
+                            isMe && 'bg-green-50/60',
+                            rowState === 'correct' && 'bg-green-50/40',
+                            rowState === 'wrong'   && 'bg-red-50/30',
+                          )}>
+                          {/* Left indicator bar */}
+                          <div className={clsx('w-0.5 h-6 rounded-full flex-shrink-0',
+                            rowState === 'correct' ? 'bg-green-400' :
+                            rowState === 'wrong'   ? 'bg-red-300' :
+                            rowState === 'pending' ? 'bg-amber-300' : 'bg-gray-200'
+                          )} />
+
+                          <Avatar name={member.display_name} size="xs" />
+
+                          <span className={clsx('text-xs font-medium flex-1 truncate',
+                            isMe ? 'text-green-700' : 'text-gray-700')}>
+                            {member.display_name}{isMe && ' (you)'}
                           </span>
+
+                          <div className="flex-shrink-0">
+                            {pickDisplay}
+                          </div>
+
+                          {/* Result icon */}
+                          {fx.result && pick && (
+                            <span className={clsx('text-sm flex-shrink-0',
+                              rowState === 'correct' ? 'text-green-500' : 'text-red-400')}>
+                              {rowState === 'correct' ? '✓' : '✗'}
+                            </span>
+                          )}
                         </div>
                       )
                     })}
