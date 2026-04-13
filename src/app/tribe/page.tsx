@@ -1244,22 +1244,34 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
         ))}
       </div>
 
-      {/* Round filter tabs */}
-      {availableRounds.length > 1 && (
-        <div className="flex gap-1 flex-wrap mb-4">
-          {availableRounds.map(r => (
-            <button key={r} onClick={() => { setActivePickRound(r); setExpandedFixture(null) }}
+      {/* Round filter tabs — always shown, empty rounds disabled */}
+      <div className="flex gap-1 flex-wrap mb-4">
+        {roundOrder.map(r => {
+          const hasFixtures = !!byRound[r]?.length
+          const isActive    = effectiveRound === r
+          return (
+            <button key={r}
+              disabled={!hasFixtures}
+              onClick={() => { setActivePickRound(r); setExpandedFixture(null) }}
               className={clsx(
                 'px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
-                effectiveRound === r
-                  ? 'bg-green-600 border-green-700 text-white'
-                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+                isActive && hasFixtures  && 'bg-green-600 border-green-700 text-white',
+                !isActive && hasFixtures && 'border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400',
+                !hasFixtures             && 'border-gray-200 text-gray-300 cursor-not-allowed',
               )}>
               {roundLabels[r]}
+              {hasFixtures && (
+                <span className={clsx(
+                  'ml-1 text-[10px] font-semibold',
+                  isActive ? 'text-green-200' : 'text-gray-400'
+                )}>
+                  {byRound[r].length}
+                </span>
+              )}
             </button>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
 
       {/* Fixtures for selected round */}
       {[effectiveRound].filter(r => byRound[r]?.length).map(round => (
