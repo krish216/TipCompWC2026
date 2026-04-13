@@ -101,6 +101,81 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
 }
 
 // ── Grant tournament admin panel ──────────────────────────────────────────────
+function ResetPasswordPanel() {
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm,  setConfirm]  = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [showPwd,  setShowPwd]  = useState(false)
+
+  const reset = async () => {
+    if (!email.trim())            { toast.error('Enter an email address'); return }
+    if (password.length < 8)      { toast.error('Password must be at least 8 characters'); return }
+    if (password !== confirm)     { toast.error('Passwords do not match'); return }
+    if (!confirm(`Reset password for ${email.trim()}?`)) return
+    setLoading(true)
+    const res  = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), new_password: password }),
+    })
+    const { success, error } = await res.json()
+    setLoading(false)
+    if (success) {
+      toast.success(`Password reset for ${email.trim()}`)
+      setEmail(''); setPassword(''); setConfirm('')
+    } else {
+      toast.error(error ?? 'Failed to reset password')
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Reset user password</p>
+      <p className="text-[11px] text-gray-400 mb-3">Set a new password for any user account. Use for test accounts or locked-out users.</p>
+      <div className="space-y-2">
+        <input
+          type="email" value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="user@example.com"
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+        />
+        <div className="relative">
+          <input
+            type={showPwd ? 'text' : 'password'}
+            value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="New password (min 8 chars)"
+            className="w-full px-3 py-2 pr-16 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+          />
+          <button type="button" onClick={() => setShowPwd(v => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 hover:text-gray-600 px-1">
+            {showPwd ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <input
+          type={showPwd ? 'text' : 'password'}
+          value={confirm} onChange={e => setConfirm(e.target.value)}
+          placeholder="Confirm new password"
+          onKeyDown={e => e.key === 'Enter' && reset()}
+          className={clsx(
+            'w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white',
+            confirm && confirm !== password ? 'border-red-300' : 'border-gray-300'
+          )}
+        />
+        {confirm && confirm !== password && (
+          <p className="text-[11px] text-red-500">Passwords do not match</p>
+        )}
+        <button
+          onClick={reset}
+          disabled={loading || !email.trim() || password.length < 8 || password !== confirm}
+          className="w-full py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
+          {loading && <Spinner className="w-4 h-4 text-white" />}
+          Reset password
+        </button>
+      </div>
+    </Card>
+  )
+}
+
 function GrantAdminPanel() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -598,6 +673,7 @@ export default function AdminPage() {
       <OrgRegistryPanel />
       <OrganisationsPanel />
       <GrantAdminPanel />
+      <ResetPasswordPanel />
 
       <div className="grid grid-cols-3 gap-2 mb-4">
         <StatCard label="Entered"   value={stats.entered}                    accent="green" />
