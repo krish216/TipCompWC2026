@@ -24,7 +24,7 @@ const FLAGS: Record<string, string> = {
   USA:'🇺🇸', Uzbekistan:'🇺🇿',
 }
 const flag = (t: string) => FLAGS[t] ?? '🏳️'
-const short = (t: string) => t.length > 10 ? t.split(' ')[0] : t
+const short = (t: string) => t.length > 14 ? t.replace('and ', '& ').split(' ').map((w,i) => i === 0 ? w : w[0]+'.').join(' ') : t
 
 interface Props {
   fixture:     Fixture
@@ -156,7 +156,7 @@ export function MatchRow({
           <span className="text-4xl leading-none">{flag(fixture.home)}</span>
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight',
-            result && resultOutcome === 'H' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-700'
+            result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
           )}>
             {short(fixture.home)}
           </span>
@@ -179,23 +179,20 @@ export function MatchRow({
                     return (
                       <div key={o} className={clsx(
                         'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
-                        isRes && isPick  && 'bg-green-100',
-                        !isRes && isPick && 'bg-red-100',
+                        !noTip && isRes && isPick  && 'bg-green-100',
+                        !noTip && !isRes && isPick && 'bg-red-100',
                       )}>
                         <div className={clsx(
                           'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                          isRes && isPick  && 'border-green-500',
-                          !isRes && isPick && 'border-red-400',
-                          !isPick          && 'border-gray-200',
+                          !noTip && isRes && isPick  && 'border-green-500',
+                          !noTip && !isRes && isPick && 'border-red-400',
+                          (!isPick || noTip)         && 'border-gray-200',
                         )}>
-                          {isPick && (
+                          {!noTip && isPick && (
                             <div className={clsx(
                               'w-2.5 h-2.5 rounded-full',
                               isRes ? 'bg-green-500' : 'bg-red-400'
                             )} />
-                          )}
-                          {!isPick && isRes && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-green-200" />
                           )}
                         </div>
                       </div>
@@ -279,7 +276,7 @@ export function MatchRow({
           <span className="text-4xl leading-none">{flag(fixture.away)}</span>
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight',
-            result && resultOutcome === 'A' ? 'text-gray-900' : result ? 'text-gray-400' : 'text-gray-700'
+            result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
           )}>
             {short(fixture.away)}
           </span>
