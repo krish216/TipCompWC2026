@@ -38,7 +38,7 @@ export default function RulesPage() {
     <div className="max-w-2xl mx-auto px-4 py-6">
       <h1 className="text-lg font-semibold text-gray-900 mb-1">How to play</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Pick the winner or draw for every group stage and knockout match. For the 3rd place play-off and Final, predict the exact score.
+        Pick the winner or draw for every group stage and knockout match. For the Semi-finals, 3rd place play-off and Final, predict the exact score.
         Earn more points in later rounds. Pick a favourite team for double points in the Group Stage and Round of 32.
       </p>
 
@@ -62,7 +62,7 @@ export default function RulesPage() {
           </div>
           {SCORING_ROWS.map(({ rid, label, badge, highlight }, i) => {
             const sc          = SCORING[rid]
-            const isExact     = ['tp','f'].includes(rid)
+            const isExact     = ['sf','tp','f'].includes(rid)
             return (
               <div key={rid} className={`grid grid-cols-[1fr_80px_80px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
                 <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export default function RulesPage() {
           <span><span className="font-medium text-purple-700">★ Exact</span> — correct score (3rd place &amp; Final only)</span>
           <span><span className="font-medium text-gray-500">✗ Wrong</span> — 0 pts</span>
         </div>
-        <p className="text-xs text-gray-400 mt-2">3rd place play-off and Final require an exact score prediction. All other rounds use 1/X/2 outcome only.</p>
+        <p className="text-xs text-gray-400 mt-2">Semi-finals, 3rd place play-off and Final require an exact score prediction. All other rounds use 1/X/2 outcome only.</p>
       </section>
 
       {/* Penalty shootout scoring */}

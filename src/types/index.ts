@@ -4,8 +4,8 @@ export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'  // UI-facing round tabs
 export const FINALS_ROUNDS: RoundId[] = ['tp', 'f']
 export const KNOCKOUT_ROUNDS: RoundId[] = ['r32','r16','qf','sf','tp','f']  // rounds where draws go to penalties
-export const EXACT_SCORE_ROUNDS: RoundId[] = ['tp', 'f']    // only these rounds require exact score
-export const OUTCOME_ROUNDS: RoundId[]     = ['gs','r32','r16','qf','sf']  // pick outcome only
+export const EXACT_SCORE_ROUNDS: RoundId[] = ['sf','tp', 'f']  // these rounds require exact score
+export const OUTCOME_ROUNDS: RoundId[]     = ['gs','r32','r16','qf']       // pick outcome only
 
 export interface ScoringRule {
   result: number
