@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data, predictions_scored: count ?? 0 })
 }
 
-// DELETE /api/results?fixture_id=X — admin: clear a result
+// DELETE /api/results?fixture_id=X — clear one result
+// DELETE /api/results                — clear ALL results (no fixture_id param)
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -108,20 +109,32 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const fixture_id = parseInt(searchParams.get('fixture_id') ?? '')
-  if (isNaN(fixture_id)) return NextResponse.json({ error: 'fixture_id required' }, { status: 400 })
-
+  const fixture_id_raw = searchParams.get('fixture_id')
   const admin = createAdminClient()
 
-  await (admin
-    .from('fixtures') as any)
-    .update({ home_score: null, away_score: null, result_set_at: null, result_set_by: null })
-    .eq('id', fixture_id)
+  if (fixture_id_raw) {
+    // ── Single fixture ──────────────────────────────────────────────────────
+    const fixture_id = parseInt(fixture_id_raw)
+    if (isNaN(fixture_id)) return NextResponse.json({ error: 'Invalid fixture_id' }, { status: 400 })
 
-  await (admin
-    .from('predictions') as any)
-    .update({ points_earned: null })
-    .eq('fixture_id', fixture_id)
+    await (admin.from('fixtures') as any)
+      .update({ home_score: null, away_score: null, pen_winner: null, result_outcome: null, result_set_at: null, result_set_by: null })
+      .eq('id', fixture_id)
+
+    await (admin.from('predictions') as any)
+      .update({ points_earned: null })
+      .eq('fixture_id', fixture_id)
+
+  } else {
+    // ── All results ─────────────────────────────────────────────────────────
+    await (admin.from('fixtures') as any)
+      .update({ home_score: null, away_score: null, pen_winner: null, result_outcome: null, result_set_at: null, result_set_by: null })
+      .not('home_score', 'is', null)   // only rows that have a result
+
+    await (admin.from('predictions') as any)
+      .update({ points_earned: null })
+      .not('points_earned', 'is', null)  // only rows that have been scored
+  }
 
   return NextResponse.json({ success: true })
 }
