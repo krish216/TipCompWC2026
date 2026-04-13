@@ -433,6 +433,12 @@ export default function SettingsPage() {
         </Card>
       </section>
 
+      {/* Tournament enrollments */}
+      <section className="mb-6">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">My Tournaments</h2>
+        <TournamentEnrollments />
+      </section>
+
       {/* Account */}
       <section>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Account</h2>
@@ -490,6 +496,147 @@ export default function SettingsPage() {
           </div>
         </Card>
       </section>
+    </div>
+  )
+}
+
+// ── Tournament Enrollments ─────────────────────────────────────────────────
+function TournamentEnrollments() {
+  const { supabase, session } = useSupabase()
+  const [allTourns,     setAllTourns]     = useState<any[]>([])
+  const [enrolled,      setEnrolled]      = useState<Record<string, string>>({}) // tid -> fav_team
+  const [saving,        setSaving]        = useState<string | null>(null)
+  const [favDraft,      setFavDraft]      = useState<Record<string, string>>({})
+  const [loading,       setLoading]       = useState(true)
+
+  useEffect(() => {
+    if (!session) return
+    Promise.all([
+      fetch('/api/tournaments').then(r => r.json()),
+      fetch('/api/user-tournaments').then(r => r.json()),
+    ]).then(([all, mine]) => {
+      setAllTourns((all.data ?? []).filter((t: any) => t.status !== 'completed'))
+      const map: Record<string, string> = {}
+      const draft: Record<string, string> = {}
+      ;(mine.data ?? []).forEach((e: any) => {
+        const tid = e.tournament_id
+        map[tid]   = e.favourite_team ?? ''
+        draft[tid] = e.favourite_team ?? ''
+      })
+      setEnrolled(map)
+      setFavDraft(draft)
+      setLoading(false)
+    })
+  }, [session])
+
+  const enrol = async (tid: string) => {
+    setSaving(tid)
+    await fetch('/api/user-tournaments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: tid, favourite_team: favDraft[tid] || null }),
+    })
+    setEnrolled(prev => ({ ...prev, [tid]: favDraft[tid] ?? '' }))
+    setSaving(null)
+    toast.success('Enrolled!')
+  }
+
+  const leave = async (tid: string, name: string) => {
+    if (!confirm(`Leave ${name}? Your predictions will be kept but you won't appear on the leaderboard.`)) return
+    setSaving(tid)
+    await fetch(`/api/user-tournaments?tournament_id=${tid}`, { method: 'DELETE' })
+    setEnrolled(prev => { const n = { ...prev }; delete n[tid]; return n })
+    setSaving(null)
+    toast.success('Left tournament')
+  }
+
+  const saveFav = async (tid: string) => {
+    setSaving(tid)
+    await fetch('/api/user-tournaments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: tid, favourite_team: favDraft[tid] || null }),
+    })
+    setEnrolled(prev => ({ ...prev, [tid]: favDraft[tid] ?? '' }))
+    setSaving(null)
+    toast.success('Favourite team updated')
+  }
+
+  if (loading) return <div className="py-4 text-sm text-gray-400">Loading…</div>
+
+  if (allTourns.length === 0) return (
+    <Card><p className="text-sm text-gray-400 text-center py-2">No active tournaments</p></Card>
+  )
+
+  const ALL_TEAMS = [
+    'Algeria','Argentina','Australia','Austria','Belgium','Bosnia and Herzegovina',
+    'Brazil','Canada','Cape Verde','Colombia','Croatia','Curacao','Czechia','DR Congo',
+    'Ecuador','Egypt','England','France','Germany','Ghana','Haiti','Iran','Iraq',
+    'Ivory Coast','Japan','Jordan','Mexico','Morocco','Netherlands','New Zealand',
+    'Norway','Panama','Paraguay','Portugal','Qatar','Saudi Arabia','Scotland','Senegal',
+    'South Africa','South Korea','Spain','Sweden','Switzerland','Tunisia','Turkey',
+    'Uruguay','USA','Uzbekistan',
+  ].sort()
+
+  return (
+    <div className="space-y-3">
+      {allTourns.map(t => {
+        const isEnrolled = t.id in enrolled
+        const isSaving   = saving === t.id
+        return (
+          <Card key={t.id} className={isEnrolled ? 'border-green-300 bg-green-50/40' : ''}>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-900">⚽ {t.name}</p>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    t.status === 'active' ? 'bg-green-200 text-green-800' : 'bg-blue-100 text-blue-700'
+                  }`}>{t.status}</span>
+                </div>
+                {t.start_date && (
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })}
+                  </p>
+                )}
+              </div>
+              {isEnrolled ? (
+                <button onClick={() => leave(t.id, t.name)} disabled={isSaving}
+                  className="text-[11px] font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0">
+                  Leave
+                </button>
+              ) : (
+                <button onClick={() => enrol(t.id)} disabled={isSaving}
+                  className="text-[11px] font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1 transition-colors flex-shrink-0 flex items-center gap-1.5">
+                  {isSaving && <Spinner className="w-3 h-3 text-white" />}
+                  Join
+                </button>
+              )}
+            </div>
+
+            {/* Enrolled: show favourite team picker */}
+            {isEnrolled && (
+              <div className="mt-2 pt-2 border-t border-green-100">
+                <label className="block text-[11px] font-medium text-gray-500 mb-1">Favourite team</label>
+                <div className="flex gap-2">
+                  <select value={favDraft[t.id] ?? ''}
+                    onChange={e => setFavDraft(prev => ({ ...prev, [t.id]: e.target.value }))}
+                    className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                    <option value="">No favourite team</option>
+                    {ALL_TEAMS.map(team => <option key={team} value={team}>{team}</option>)}
+                  </select>
+                  {favDraft[t.id] !== (enrolled[t.id] ?? '') && (
+                    <button onClick={() => saveFav(t.id)} disabled={isSaving}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg flex items-center gap-1">
+                      {isSaving ? <Spinner className="w-3 h-3 text-white" /> : 'Save'}
+                    </button>
+                  )}
+                </div>
+                {(enrolled[t.id]) && (
+                  <p className="text-[11px] text-purple-600 mt-1">⭐ Double points on {enrolled[t.id]} matches in Group Stage &amp; Rd of 32</p>
+                )}
+              </div>
+            )}
+          </Card>
+        )
+      })}
     </div>
   )
 }

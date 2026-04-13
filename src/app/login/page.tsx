@@ -41,7 +41,13 @@ export default function LoginPage() {
   const [name,     setName]     = useState('')
   const [country,  setCountry]  = useState('')
   const [timezone, setTimezone] = useState('UTC')
-  const [favTeam,  setFavTeam]  = useState('')
+  const [favTeam,      setFavTeam]      = useState('')
+  const [dob,          setDob]          = useState('')
+  const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string}[]>([])
+  const [selectedTourns, setSelectedTourns] = useState<Record<string, string>>(
+    // map of tournament_id -> favourite_team
+    {}
+  )
 
   // Post-registration screens
   const [registered, setRegistered] = useState(false)  // show "check email"
@@ -70,6 +76,19 @@ export default function LoginPage() {
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 
   useEffect(() => { setTimezone(detectTimezone()) }, [])
+
+  // Fetch active/upcoming tournaments for registration
+  useEffect(() => {
+    fetch('/api/tournaments')
+      .then(r => r.json())
+      .then(({ data }) => {
+        const active = (data ?? []).filter((t: any) => t.status !== 'completed')
+        setTournaments(active)
+        // Pre-select the only tournament if there's just one
+        if (active.length === 1) setSelectedTourns({ [active[0].id]: '' })
+      })
+      .catch(() => {})
+  }, [])
 
   // When session is established after verification, check onboarding status
   useEffect(() => {
@@ -178,12 +197,20 @@ export default function LoginPage() {
           id:                  newUser.id,
           email:               newUser.email!,
           display_name:        displayName,
-          favourite_team:      favTeam || null,
+          favourite_team:      Object.values(selectedTourns)[0] || null,
           country:             country || null,
           timezone:            timezone || 'UTC',
+          date_of_birth:       dob || null,
+          tournament_id:       Object.keys(selectedTourns)[0] || null,
           org_id:              (publicOrg as any)?.id ?? null,
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
+
+        // Enrol in each selected tournament (fire-and-forget, handled after email confirm)
+        // We store the selection in sessionStorage to process after email verification
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('pending_tournaments', JSON.stringify(selectedTourns))
+        }
 
         // Show "check your email" confirmation
         setRegistered(true)
@@ -241,6 +268,22 @@ export default function LoginPage() {
             })
           }
         }
+      }
+
+      // Enrol in pending tournaments from registration (stored before email verify)
+      const pending = typeof window !== 'undefined' ? sessionStorage.getItem('pending_tournaments') : null
+      if (pending) {
+        try {
+          const tourns: Record<string, string> = JSON.parse(pending)
+          await Promise.all(Object.entries(tourns).map(([tid, fav]) =>
+            fetch('/api/user-tournaments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tournament_id: tid, favourite_team: fav || null }),
+            })
+          ))
+          sessionStorage.removeItem('pending_tournaments')
+        } catch { /* ignore */ }
       }
 
       // Mark onboarding complete
@@ -482,18 +525,76 @@ export default function LoginPage() {
                   {getTimezonesForCountry(country).map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
                 </select>
               </div>
-              {!tournamentStarted && (
+              {/* Tournament selection — multi-select with per-tournament fav team */}
+              {tournaments.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Favourite team <span className="text-gray-400 font-normal">(earn 2× points)</span>
+                    Tournaments <span className="text-red-500">*</span>
+                    <span className="text-gray-400 font-normal ml-1">— select all you want to participate in</span>
                   </label>
-                  <select value={favTeam} onChange={e => setFavTeam(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                    <option value="">Select a team (optional)</option>
-                    {ALL_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <div className="space-y-2">
+                    {tournaments.map(t => {
+                      const enrolled = t.id in selectedTourns
+                      const favForT  = selectedTourns[t.id] ?? ''
+                      return (
+                        <div key={t.id} className={`rounded-xl border transition-all ${enrolled ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                          {/* Tournament toggle */}
+                          <button type="button"
+                            onClick={() => setSelectedTourns(prev => {
+                              const next = { ...prev }
+                              if (enrolled) delete next[t.id]
+                              else next[t.id] = ''
+                              return next
+                            })}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${enrolled ? 'bg-green-500 border-green-500' : 'border-gray-300 bg-white'}`}>
+                              {enrolled && <span className="text-white text-xs font-bold">✓</span>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">⚽ {t.name}</p>
+                              {t.start_date && <p className="text-[11px] text-gray-400">
+                                {new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' })}
+                              </p>}
+                            </div>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${t.status === 'active' ? 'bg-green-200 text-green-800' : 'bg-blue-100 text-blue-700'}`}>
+                              {t.status}
+                            </span>
+                          </button>
+                          {/* Favourite team for this tournament */}
+                          {enrolled && !tournamentStarted && (
+                            <div className="px-3 pb-2.5 pt-0">
+                              <select value={favForT}
+                                onChange={e => setSelectedTourns(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+                                <option value="">⭐ Pick your favourite team (optional, earns 2× points)</option>
+                                {ALL_TEAMS.map(team => <option key={team} value={team}>{team}</option>)}
+                              </select>
+                              {favForT && (
+                                <p className="text-[11px] text-purple-600 mt-1 pl-1">
+                                  ⭐ Double points on {favForT} matches in Group Stage &amp; Rd of 32
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {Object.keys(selectedTourns).length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1.5">Select at least one tournament to continue</p>
+                  )}
                 </div>
               )}
+
+              {/* Date of birth */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Date of birth <span className="text-gray-400 font-normal">(required for age-restricted organisations)</span>
+                </label>
+                <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+              </div>
             </>
           )}
 
