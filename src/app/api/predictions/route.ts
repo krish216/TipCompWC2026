@@ -4,8 +4,11 @@ import { z } from 'zod'
 
 const PredictionSchema = z.object({
   fixture_id: z.number().int().positive(),
-  home: z.number().int().min(0).max(30),
-  away: z.number().int().min(0).max(30),
+  // Outcome-only rounds: outcome provided, home/away optional
+  home:       z.number().int().min(0).max(30).optional(),
+  away:       z.number().int().min(0).max(30).optional(),
+  outcome:    z.enum(['H','D','A']).nullable().optional(),
+  pen_winner: z.string().nullable().optional(),
 })
 const BulkSchema = z.object({ predictions: z.array(PredictionSchema).min(1).max(20) })
 
@@ -53,12 +56,14 @@ export async function POST(request: NextRequest) {
   const fixtures = (fixturesRaw ?? []) as any[]
   const { data: roundLockRows } = await supabase
     .from('round_locks').select('round, is_open')
-  const openRounds = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round))
+  const hasLockRows = (roundLockRows ?? []).length > 0
+  const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round))
 
   const now = new Date(); const locked: number[] = []
   fixtures.forEach((fx: any) => {
     const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
-    const roundLocked   = !openRounds.has(fx.round)
+    // If no lock rows exist, default: gs open, everything else locked
+    const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
     const hasResult     = fx.home_score !== null
     if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
   })
