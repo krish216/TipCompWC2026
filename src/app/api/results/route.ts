@@ -7,6 +7,7 @@ const ResultSchema = z.object({
   fixture_id: z.number().int().positive(),
   home:       z.number().int().min(0).max(30),
   away:       z.number().int().min(0).max(30),
+  pen_winner: z.string().nullable().optional(),
 })
 
 // Helper — checks admin_users table via service role (bypasses RLS)
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { fixture_id, home, away } = parsed.data
+  const { fixture_id, home, away, pen_winner } = parsed.data
   const admin = createAdminClient()
 
   const { data, error } = await (admin
