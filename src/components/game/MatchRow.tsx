@@ -95,12 +95,11 @@ export function MatchRow({
   // ── Card border / bg based on result state ──────────────────────────────────
   const cardClass = clsx(
     'rounded-2xl border mb-2.5 overflow-hidden transition-all',
-    isExact   && 'border-green-300 bg-green-50',
-    isCorrect && !isExact && 'border-blue-200 bg-blue-50/40',
+    isCorrect && 'border-green-300 bg-green-50',
     isWrong   && 'border-red-200 bg-red-50/30',
     !result && hasPred  && 'border-gray-200 bg-white',
     !result && !hasPred && !locked && 'border-gray-200 bg-white',
-    locked && !result  && 'border-gray-200 bg-gray-50/60',
+    locked && !result   && 'border-gray-200 bg-gray-50/60',
     isFavourite && !result && 'ring-1 ring-purple-200',
   )
 
@@ -170,23 +169,23 @@ export function MatchRow({
                     return (
                       <div key={o} className={clsx(
                         'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
-                        isRes && isPick  && 'bg-green-500 shadow-sm',
-                        isRes && !isPick && 'bg-green-100',
+                        isRes && isPick  && 'bg-green-100',
                         !isRes && isPick && 'bg-red-100',
-                        !isRes && !isPick && 'bg-transparent',
                       )}>
                         <div className={clsx(
                           'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-                          isRes && isPick  && 'border-white bg-white',
-                          isRes && !isPick && 'border-green-400 bg-white',
-                          !isRes && isPick && 'border-red-400 bg-white',
-                          !isRes && !isPick && 'border-gray-300 bg-white',
+                          isRes && isPick  && 'border-green-500',
+                          !isRes && isPick && 'border-red-400',
+                          !isPick          && 'border-gray-200',
                         )}>
                           {isPick && (
                             <div className={clsx(
                               'w-2.5 h-2.5 rounded-full',
                               isRes ? 'bg-green-500' : 'bg-red-400'
                             )} />
+                          )}
+                          {!isPick && isRes && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-green-200" />
                           )}
                         </div>
                       </div>

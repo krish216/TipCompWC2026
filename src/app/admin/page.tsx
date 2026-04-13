@@ -470,7 +470,7 @@ export default function AdminPage() {
     load()
   }, [session])
 
-  const handleSave = useCallback(async (fixtureId: number, home: number, away: number) => {
+  const handleSave = useCallback(async (fixtureId: number, home: number, away: number, pen_winner?: string | null) => {
     const res = await fetch('/api/results', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
