@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
   // Get all predictions for these fixtures from tribe members
   const { data: predRows } = await (adminClient.from('predictions') as any)
-    .select('user_id, fixture_id, home, away, pen_winner, points_earned')
+    .select('user_id, fixture_id, home, away, outcome, pen_winner, points_earned')
     .in('fixture_id', fixtureIds)
     .in('user_id', memberIds)
 
@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
     picks[p.fixture_id][p.user_id] = {
       home:          p.home,
       away:          p.away,
+      outcome:       p.outcome ?? null,
       pen_winner:    p.pen_winner,
       points_earned: p.points_earned,
     }

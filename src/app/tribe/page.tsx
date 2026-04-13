@@ -1192,19 +1192,49 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
 
   const picksMap: Record<number, Record<string, any>> = picks ?? {}
 
-  // Colour derived directly from prediction vs result — never relies on points_earned
+  const OUTCOME_ROUNDS_SET = new Set(['gs','r32','r16','qf'])
+  const EXACT_ROUNDS_SET   = new Set(['sf','tp','f'])
+
+  // Map outcome code to display label
+  const outcomeLabel = (o: string | null) =>
+    o === 'H' ? '1' : o === 'D' ? 'X' : o === 'A' ? '2' : null
+
+  // Colour and label derived from prediction vs result
   const cellInfo = (fx: any, userId: string) => {
     const pick = picksMap[fx.id]?.[userId]
     if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
-    const label = `${pick.home}–${pick.away}`
-    if (!fx.result) return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
-    const ph = Number(pick.home);  const pa = Number(pick.away)
+
+    const isOutcomeRound = OUTCOME_ROUNDS_SET.has(fx.round)
+    const isExactRound   = EXACT_ROUNDS_SET.has(fx.round)
+
+    // Build display label
+    const label = isOutcomeRound
+      ? (outcomeLabel(pick.outcome) ?? '—')  // show 1 / X / 2
+      : `${pick.home}–${pick.away}`           // show score for sf/tp/f
+
+    // No result yet — amber awaiting
+    if (!fx.result) {
+      const needsPen = fx.round !== 'gs' && !['gs'].includes(fx.round) && pick.outcome === 'D' && !pick.pen_winner
+      if (needsPen) return { colour: 'bg-amber-50 text-amber-700 border border-amber-300', label: `${label} 🥅?` }
+      return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
+    }
+
+    // Compute outcomes for comparison
     const rh = Number(fx.result.home); const ra = Number(fx.result.away)
-    const predOutcome   = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
     const resultOutcome = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
-    if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label } // exact
-    if (predOutcome === resultOutcome) return { colour: 'bg-blue-100 text-blue-800', label }           // correct result
-    return { colour: 'bg-red-100 text-red-700', label }                                                // wrong
+
+    if (isOutcomeRound) {
+      if (!pick.outcome) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
+      if (pick.outcome === resultOutcome) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
+      return { colour: 'bg-red-100 text-red-700', label }
+    } else {
+      // Exact score round
+      const ph = Number(pick.home); const pa = Number(pick.away)
+      const predOutcome = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
+      if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
+      if (predOutcome === resultOutcome) return { colour: 'bg-blue-100 text-blue-800', label }
+      return { colour: 'bg-red-100 text-red-700', label }
+    }
   }
 
   const roundOrder = ['gs','r32','r16','qf','sf','tp','f']
@@ -1279,18 +1309,19 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
           {byRound[round].map((fx: any) => {
             const isExpanded  = expandedFixture === fx.id
             const roundPicks  = picksMap[fx.id] ?? {}
-            const exactCount = Object.values(roundPicks).filter((p: any) => {
-              if (!fx.result) return false
-              return Number(p.home) === Number(fx.result.home) && Number(p.away) === Number(fx.result.away)
+            const isORound = OUTCOME_ROUNDS_SET.has(fx.round)
+            const rh2 = fx.result ? Number(fx.result.home) : 0
+            const ra2 = fx.result ? Number(fx.result.away) : 0
+            const ro2 = rh2 > ra2 ? 'H' : ra2 > rh2 ? 'A' : 'D'
+            const exactCount = !fx.result ? 0 : Object.values(roundPicks).filter((p: any) => {
+              if (isORound) return p.outcome === ro2
+              return Number(p.home) === rh2 && Number(p.away) === ra2
             }).length
-            const correctCount = Object.values(roundPicks).filter((p: any) => {
-              if (!fx.result) return false
+            const correctCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) => {
               const ph = Number(p.home); const pa = Number(p.away)
-              const rh = Number(fx.result.home); const ra = Number(fx.result.away)
-              if (ph === rh && pa === ra) return false // exact — don't double count
+              if (ph === rh2 && pa === ra2) return false
               const po = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
-              const ro = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
-              return po === ro
+              return po === ro2
             }).length
 
             return (
