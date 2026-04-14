@@ -434,7 +434,7 @@ function AnnouncementsFeed() {
   )
 }
 
-// ── Tribe dropdown with description ──────────────────────────────────────────
+// ── Tribe dropdown with member count ─────────────────────────────────────────
 function TribeDropdown({ tribes, onJoin, loading }: {
   tribes: {id:string;name:string;description?:string|null;invite_code:string;member_count?:number}[]
   onJoin: (code: string) => void
@@ -444,42 +444,61 @@ function TribeDropdown({ tribes, onJoin, loading }: {
   const selectedTribe = tribes.find(t => t.invite_code === selected)
 
   return (
-    <div className="space-y-3">
-      <select
-        value={selected}
-        onChange={e => setSelected(e.target.value)}
-        className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-      >
-        <option value="">Select a tribe…</option>
-        {tribes.map(t => (
-          <option key={t.id} value={t.invite_code}>
-            {t.name}{t.member_count !== undefined ? ` (${t.member_count} member${t.member_count !== 1 ? 's' : ''})` : ''}
-          </option>
-        ))}
-      </select>
+    <div className="space-y-2">
+      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+        Choose a tribe ({tribes.length} available)
+      </label>
 
+      {/* Tribe cards — radio style */}
+      <div className="space-y-2">
+        {tribes.map(t => {
+          const count     = t.member_count ?? 0
+          const isChosen  = selected === t.invite_code
+          return (
+            <button key={t.id} type="button"
+              onClick={() => setSelected(isChosen ? '' : t.invite_code)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
+                isChosen
+                  ? 'border-green-400 bg-green-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+              }`}>
+              {/* Radio indicator */}
+              <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                isChosen ? 'border-green-500' : 'border-gray-300'
+              }`}>
+                {isChosen && <div className="w-2 h-2 rounded-full bg-green-500" />}
+              </div>
+              {/* Tribe info */}
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold truncate ${isChosen ? 'text-green-800' : 'text-gray-800'}`}>
+                  {t.name}
+                </p>
+                {t.description && (
+                  <p className="text-[11px] text-gray-400 truncate">{t.description}</p>
+                )}
+              </div>
+              {/* Member count badge */}
+              <div className={`flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                isChosen ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+              }`}>
+                <span>👥</span>
+                <span>{count}</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Join button */}
       {selectedTribe && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <div className="flex items-start justify-between mb-2">
-            <p className="text-sm font-semibold text-gray-900">{selectedTribe.name}</p>
-            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5 flex-shrink-0 ml-2">
-              👥 {selectedTribe.member_count ?? 0} member{(selectedTribe.member_count ?? 0) !== 1 ? 's' : ''}
-            </span>
-          </div>
-          {selectedTribe.description ? (
-            <p className="text-xs text-gray-500 mb-3">{selectedTribe.description}</p>
-          ) : (
-            <p className="text-xs text-gray-400 italic mb-3">No description</p>
-          )}
-          <button
-            onClick={() => onJoin(selectedTribe.invite_code)}
-            disabled={loading}
-            className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2"
-          >
-            {loading ? <Spinner className="w-4 h-4 text-white" /> : null}
-            Join {selectedTribe.name}
-          </button>
-        </div>
+        <button
+          onClick={() => onJoin(selectedTribe.invite_code)}
+          disabled={loading}
+          className="w-full py-2.5 mt-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
+        >
+          {loading && <Spinner className="w-4 h-4 text-white" />}
+          Join {selectedTribe.name}
+        </button>
       )}
     </div>
   )
@@ -488,94 +507,83 @@ function TribeDropdown({ tribes, onJoin, loading }: {
 function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; activeTournamentId: string | null }) {
   const { session, supabase } = useSupabase()
 
-  type Step = 'loading' | 'no-org' | 'has-org' | 'join-org' | 'create-org'
-  const [step,         setStep]         = useState<Step>('loading')
-  const [userComp,      setUserOrg]      = useState<{id:string;name:string;slug:string}|null>(null)
-  const [isCompAdmin,   setIsOrgAdmin]   = useState(false)
-  const [compTribes,    setOrgTribes]    = useState<any[]>([])
-  const [tournComps,    setTournOrgs]    = useState<any[]>([])   // orgs for current tournament
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState<string|null>(null)
-  const [tribeCode,    setTribeCode]    = useState('')
+  const MAX_COMPS = 3
 
-  // Join org by code
-  const [compCode,      setOrgCode]      = useState('')
-  const [compLookup,    setOrgLookup]    = useState<{id:string;name:string}|null>(null)
-  const [compCodeErr,   setOrgCodeErr]   = useState<string|null>(null)
-  const [lookingUp,    setLookingUp]    = useState(false)
+  // All comps user has joined for this tournament
+  const [myComps,       setMyComps]       = useState<{id:string;name:string;app_name?:string|null;slug:string;logo_url?:string|null}[]>([])
+  const [compTribesMap, setCompTribesMap] = useState<Record<string, any[]>>({})  // compId → tribes[]
+  const [initLoading,   setInitLoading]   = useState(true)
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState<string|null>(null)
 
-  // Create org fields
-  const [newCompName,   setNewOrgName]   = useState('')
-  const [ownerPhone,   setOwnerPhone]   = useState('')
-  const [ownerEmail,   setOwnerEmail]   = useState('')
-  const [logoFile,     setLogoFile]     = useState<File|null>(null)
-  const [logoPreview,  setLogoPreview]  = useState<string|null>(null)
+  // Join comp by code
+  const [showJoinComp,  setShowJoinComp]  = useState(false)
+  const [compCode,      setCompCode]      = useState('')
+  const [compLookup,    setCompLookup]    = useState<{id:string;name:string}|null>(null)
+  const [compCodeErr,   setCompCodeErr]   = useState<string|null>(null)
+  const [lookingUp,     setLookingUp]     = useState(false)
+
+  // Create comp
+  const [showCreateComp,setShowCreateComp]= useState(false)
+  const [newCompName,   setNewCompName]   = useState('')
+  const [ownerPhone,    setOwnerPhone]    = useState('')
+  const [ownerEmail,    setOwnerEmail]    = useState('')
+  const [logoFile,      setLogoFile]      = useState<File|null>(null)
+  const [logoPreview,   setLogoPreview]   = useState<string|null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const isPublicOrg = !userComp || userComp.slug === 'public'
-
-  useEffect(() => {
+  // Load all comps user belongs to for this tournament
+  const loadMyComps = async () => {
     if (!session) return
-    ;(async () => {
-      try {
+    try {
       const { data: me } = await supabase
         .from('users').select('comp_id').eq('id', session.user.id).single()
-      const compId = (me as any)?.comp_id ?? null
+      const primaryCompId = (me as any)?.comp_id ?? null
 
-      let org = null
-      if (compId) {
+      // Get comps for active tournament where user is a member
+      const comps: any[] = []
+      if (primaryCompId && activeTournamentId) {
         const { data: compRow } = await supabase
-          .from('comps').select('id, name, slug, tournament_id').eq('id', compId).single()
-        org = compRow ?? null
-      }
-      setUserOrg(org as any)
-
-      // Check if user's org belongs to the active tournament
-      const orgMatchesTournament = org && org.slug !== 'public' &&
-        (activeTournamentId ? (org as any).tournament_id === activeTournamentId : true)
-
-      if (org && org.slug !== 'public' && orgMatchesTournament) {
-        // User has an org for this tournament — load its tribes
-        const [adminRes, tribesData] = await Promise.all([
-          fetch('/api/comp-admins').then(r => r.json()),
-          fetch(`/api/tribes/list?comp_id=${org.id}`).then(r => r.json()),
-        ])
-        setIsOrgAdmin(adminRes.is_org_admin === true)
-        setOrgTribes((tribesData.data ?? []) as any[])
-        setStep('has-org')
-      } else {
-        // User has no org, or org is for a different tournament — show tournament orgs
-        if (activeTournamentId) {
-          const res  = await fetch(`/api/comps?tournament_id=${activeTournamentId}`)
-          const data = await res.json()
-          setTournOrgs(data.data ?? [])
+          .from('comps').select('id, name, app_name, slug, logo_url, tournament_id')
+          .eq('id', primaryCompId).single()
+        if (compRow && (compRow as any).tournament_id === activeTournamentId) {
+          comps.push(compRow)
         }
-        setStep('no-org')
       }
-      } catch (e: any) {
-        console.error('NoTribePanel init error:', e)
-        setStep('no-org')
-      }
-    })()
-  }, [session, supabase, activeTournamentId])
+      setMyComps(comps)
 
-  const lookupOrgCode = async () => {
-    setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
-    const res = await fetch(`/api/comps?code=${compCode}`)
-    const { data, error } = await res.json()
-    setLookingUp(false)
-    if (error || !data) setOrgCodeErr('Code not found — check with your comp admin')
-    else {
-      // Verify org is for the active tournament
-      if (activeTournamentId && data.tournament_id && data.tournament_id !== activeTournamentId) {
-        setOrgCodeErr('This comp is not linked to your current tournament')
-      } else {
-        setOrgLookup(data)
+      // Load tribes for each comp
+      if (comps.length > 0) {
+        const tribesMap: Record<string, any[]> = {}
+        await Promise.all(comps.map(async (c: any) => {
+          const res  = await fetch(`/api/tribes/list?comp_id=${c.id}`)
+          const data = await res.json()
+          tribesMap[c.id] = data.data ?? []
+        }))
+        setCompTribesMap(tribesMap)
       }
+    } catch (e: any) {
+      console.error('loadMyComps error:', e)
     }
+    setInitLoading(false)
   }
 
-  const joinOrg = async () => {
+  useEffect(() => { loadMyComps() }, [session, activeTournamentId])
+
+  const lookupCompCode = async () => {
+    setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
+    const res = await fetch(`/api/comps?code=${compCode.toUpperCase()}`)
+    const { data, error } = await res.json()
+    setLookingUp(false)
+    if (error || !data) { setCompCodeErr('Code not found — check with your comp admin'); return }
+    if (activeTournamentId && data.tournament_id && data.tournament_id !== activeTournamentId)
+      { setCompCodeErr('This comp is not for your current tournament'); return }
+    if (myComps.some(c => c.id === data.id))
+      { setCompCodeErr('You have already joined this comp'); return }
+    setCompLookup(data)
+  }
+
+  const joinComp = async () => {
     if (!compLookup) return
     setLoading(true); setError(null)
     const res = await fetch('/api/comp-admins/self-register', {
@@ -583,16 +591,13 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
       body: JSON.stringify({ comp_id: compLookup.id, invite_code: compCode.toUpperCase() }),
     })
     const { success, error } = await res.json()
+    if (!success) { setError(error ?? 'Failed to join comp'); setLoading(false); return }
+    setShowJoinComp(false); setCompCode(''); setCompLookup(null)
+    await loadMyComps()
     setLoading(false)
-    if (!success) { setError(error ?? 'Failed to join comp'); return }
-    // Reload tribes for new org
-    const tribesData = await fetch(`/api/tribes/list?comp_id=${compLookup.id}`).then(r => r.json())
-    setUserOrg(compLookup as any)
-    setOrgTribes(tribesData.data ?? [])
-    setStep('has-org')
   }
 
-  const createOrg = async () => {
+  const createComp = async () => {
     if (!newCompName.trim()) return
     setLoading(true); setError(null)
     const res = await fetch('/api/comps/create', {
@@ -609,27 +614,26 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
 
     if (logoFile && session?.user.id) {
       const ext  = logoFile.name.split('.').pop()
-      const path = `${session.user.id}/logo.${ext}`
-      const { data: uploaded } = await supabase.storage
-        .from('org-logos').upload(path, logoFile, { upsert: true })
+      const p    = `${session.user.id}/logo.${ext}`
+      const { data: uploaded } = await supabase.storage.from('org-logos').upload(p, logoFile, { upsert: true })
       if (uploaded) {
-        const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
+        const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(p)
         await fetch('/api/comps/create', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ comp_id: org.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
         })
       }
     }
-    setUserOrg(org)
-    setStep('has-org')
+    setShowCreateComp(false); setNewCompName(''); setOwnerPhone(''); setOwnerEmail('')
+    await loadMyComps()
     setLoading(false)
   }
 
-  const joinTribeByCode = async (code: string) => {
+  const joinTribe = async (inviteCode: string) => {
     setLoading(true); setError(null)
     const res = await fetch('/api/tribes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invite_code: code }),
+      body: JSON.stringify({ invite_code: inviteCode }),
     })
     const { error } = await res.json()
     setLoading(false)
@@ -647,155 +651,142 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
     reader.readAsDataURL(file)
   }
 
-  if (step === 'loading') return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+  if (initLoading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
-  // ── Step: User has org for this tournament — show tribe picker ────────────
-  if (step === 'has-org') return (
+  return (
     <div className="space-y-4">
-      {userComp && userComp.slug !== 'public' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-          <p className="text-[11px] text-blue-600 font-semibold uppercase tracking-wide mb-0.5">Your Comp</p>
-          <p className="text-sm font-bold text-blue-900">🏢 {userComp.name}</p>
-          <p className="text-[11px] text-blue-500 mt-0.5">All tribes shown below belong to your comp.</p>
-        </div>
-      )}
 
-      {compTribes.length > 0 && (
-        <TribeDropdown tribes={compTribes} onJoin={joinTribeByCode} loading={loading} />
-      )}
-
-      {/* Manual invite code */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-xs font-semibold text-gray-600 mb-2">Or enter a tribe invite code</p>
-        <div className="flex gap-2">
-          <input type="text" value={tribeCode} onChange={e => setTribeCode(e.target.value.toUpperCase())}
-            placeholder="E.G. XJAB4K89" maxLength={8}
-            className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white uppercase" />
-          <button onClick={() => joinTribeByCode(tribeCode)} disabled={loading || tribeCode.length < 6}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
-            Join
-          </button>
-        </div>
-      </div>
-      {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-    </div>
-  )
-
-  // ── Step: No org for this tournament ────────────────────────────────────────
-  if (step === 'no-org') return (
-    <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-        <p className="text-sm font-semibold text-amber-800">No comp linked to this tournament</p>
-        <p className="text-[11px] text-amber-600 mt-0.5">
-          Join an existing comp for this tournament, or create a new one.
-        </p>
-      </div>
-
-      {/* Existing orgs for this tournament */}
-      {tournComps.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Available comps</p>
-          <div className="space-y-2">
-            {tournComps.map((org: any) => (
-              <div key={org.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                {org.logo_url
-                  ? <img src={org.logo_url} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt={org.name} />
-                  : <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-sm flex-shrink-0">🏢</div>
-                }
-                <span className="flex-1 text-sm font-semibold text-gray-800">{org.app_name || org.name}</span>
+      {/* ── Each comp the user has joined ── */}
+      {myComps.map(comp => {
+        const tribes = compTribesMap[comp.id] ?? []
+        return (
+          <div key={comp.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            {/* Comp header */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border-b border-blue-100">
+              {comp.logo_url
+                ? <img src={comp.logo_url} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" alt={comp.name} />
+                : <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center text-lg flex-shrink-0">🏢</div>
+              }
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-blue-900 truncate">{comp.app_name || comp.name}</p>
+                <p className="text-[11px] text-blue-500">Your comp — pick a tribe below</p>
               </div>
-            ))}
+            </div>
+
+            {/* Tribe picker */}
+            <div className="px-4 py-4">
+              {tribes.length === 0 ? (
+                <p className="text-sm text-gray-400 italic text-center py-2">No tribes available yet — check back soon.</p>
+              ) : (
+                <TribeDropdown tribes={tribes} onJoin={joinTribe} loading={loading} />
+              )}
+              {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg mt-2">{error}</p>}
+            </div>
           </div>
-          <p className="text-[11px] text-gray-400 mt-2">Enter the invite code from your comp admin to join one of these.</p>
+        )
+      })}
+
+      {/* ── No comps joined yet ── */}
+      {myComps.length === 0 && !showJoinComp && !showCreateComp && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4 text-center">
+          <p className="text-sm font-semibold text-amber-800 mb-1">You haven't joined a comp yet</p>
+          <p className="text-[11px] text-amber-600">Join an existing comp with an invite code, or create your own.</p>
         </div>
       )}
 
-      {/* Join by code */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">🔑 Join with invite code</p>
-        <div className="flex gap-2 mb-2">
-          <input type="text" value={compCode} onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
-            placeholder="8-digit org code"
-            className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white uppercase" />
-          <button onClick={lookupOrgCode} disabled={lookingUp || compCode.length < 4}
-            className="px-3 py-2 border border-gray-300 hover:bg-gray-50 text-sm rounded-lg flex items-center gap-1.5">
-            {lookingUp ? <Spinner className="w-4 h-4" /> : 'Look up'}
-          </button>
-        </div>
-        {compCodeErr && <p className="text-xs text-red-600 mb-2">{compCodeErr}</p>}
-        {compLookup && (
-          <div className="mb-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-            <p className="text-sm font-semibold text-green-800">🏢 {compLookup.name}</p>
-            <button onClick={joinOrg} disabled={loading}
-              className="mt-2 w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
-              {loading && <Spinner className="w-4 h-4 text-white" />}
-              Join {compLookup.name}
+      {/* ── Join comp by code ── */}
+      {showJoinComp ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">🔑 Join a comp</p>
+            <button onClick={() => { setShowJoinComp(false); setCompCode(''); setCompLookup(null); setCompCodeErr(null) }}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={compCode}
+              onChange={e => { setCompCode(e.target.value.toUpperCase()); setCompLookup(null); setCompCodeErr(null) }}
+              placeholder="Enter 8-digit comp code"
+              maxLength={10}
+              className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white uppercase" />
+            <button onClick={lookupCompCode} disabled={lookingUp || compCode.length < 4}
+              className="px-3 py-2 border border-gray-300 hover:bg-gray-50 text-sm rounded-lg flex items-center gap-1.5 disabled:opacity-50">
+              {lookingUp ? <Spinner className="w-4 h-4" /> : 'Look up'}
             </button>
           </div>
-        )}
-      </div>
-
-      {/* Create new org */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <button onClick={() => setStep('create-org')}
-          className="w-full py-2.5 border-2 border-dashed border-gray-300 hover:border-green-400 text-gray-500 hover:text-green-700 text-sm font-medium rounded-xl transition-colors">
-          + Create a new comp for this tournament
-        </button>
-      </div>
-
-      {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-    </div>
-  )
-
-  // ── Step: Create org ──────────────────────────────────────────────────────
-  if (step === 'create-org') return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <button onClick={() => setStep('no-org')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
-        <p className="text-sm font-semibold text-gray-800">Create a new comp</p>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name *</label>
-        <input type="text" value={newCompName} onChange={e => setNewOrgName(e.target.value)}
-          placeholder="e.g. Acme Corp"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">Contact phone</label>
-        <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)}
-          placeholder="+61 4XX XXX XXX"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">Contact email</label>
-        <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
-          placeholder="admin@yourcompany.com"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">Logo <span className="text-gray-400 font-normal">(optional, max 2MB)</span></label>
-        <div className="flex items-center gap-3">
-          {logoPreview
-            ? <img src={logoPreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-            : <div className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-2xl flex-shrink-0">🏢</div>
-          }
-          <button type="button" onClick={() => fileRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
-            {logoFile ? 'Change logo' : 'Upload logo'}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+          {compCodeErr && <p className="text-xs text-red-600">{compCodeErr}</p>}
+          {compLookup && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-xl">
+              <p className="text-sm font-bold text-green-800 mb-2">🏢 {compLookup.name}</p>
+              <button onClick={joinComp} disabled={loading}
+                className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
+                {loading && <Spinner className="w-4 h-4 text-white" />}
+                Join {compLookup.name}
+              </button>
+            </div>
+          )}
+          {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
         </div>
-      </div>
-      {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-      <button onClick={createOrg} disabled={loading || !newCompName.trim()}
-        className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
-        {loading && <Spinner className="w-4 h-4 text-white" />}
-        Create comp →
-      </button>
+      ) : null}
+
+      {/* ── Create comp ── */}
+      {showCreateComp ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-800">Create a new comp</p>
+            <button onClick={() => { setShowCreateComp(false); setNewCompName('') }}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          </div>
+          <input type="text" value={newCompName} onChange={e => setNewCompName(e.target.value)}
+            placeholder="Comp name *"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)}
+            placeholder="Contact phone"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
+            placeholder="Contact email"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <div className="flex items-center gap-3">
+            {logoPreview
+              ? <img src={logoPreview} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+              : <div className="w-10 h-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-xl flex-shrink-0">🏢</div>
+            }
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
+              {logoFile ? 'Change logo' : 'Upload logo (optional)'}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+          <button onClick={createComp} disabled={loading || !newCompName.trim()}
+            className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
+            {loading && <Spinner className="w-4 h-4 text-white" />}
+            Create comp →
+          </button>
+        </div>
+      ) : null}
+
+      {/* ── Action buttons: join or create (shown when not already open) ── */}
+      {!showJoinComp && !showCreateComp && (
+        <div className="flex gap-2">
+          <button onClick={() => setShowJoinComp(true)}
+            className="flex-1 py-2.5 border-2 border-gray-300 hover:border-green-400 hover:text-green-700 text-gray-600 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5">
+            🔑 Join comp
+          </button>
+          {myComps.length < MAX_COMPS && (
+            <button onClick={() => setShowCreateComp(true)}
+              className="flex-1 py-2.5 border-2 border-dashed border-gray-300 hover:border-green-400 hover:text-green-700 text-gray-500 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5">
+              + Create comp
+            </button>
+          )}
+          {myComps.length >= MAX_COMPS && (
+            <div className="flex-1 py-2.5 border-2 border-gray-200 text-gray-300 text-xs font-medium rounded-xl text-center flex items-center justify-center">
+              Max {MAX_COMPS} comps reached
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
-
-  return null
 }
 
 
