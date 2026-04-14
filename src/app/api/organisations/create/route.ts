@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 const CreateSchema = z.object({
   name:        z.string().min(2).max(80).trim(),
+  tournament_id: z.string().uuid().optional(),
   owner_name:  z.string().optional(),
   owner_phone: z.string().optional(),
   owner_email: z.string().optional(),

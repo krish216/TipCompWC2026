@@ -7,32 +7,43 @@ const CreateOrgSchema = z.object({
   name: z.string().min(2).max(80).trim(),
 })
 
-// GET /api/organisations?code=XXXX — look up org by invite code
-// GET /api/organisations           — list all orgs (tournament admin only)
+// GET /api/organisations?code=XXXX            — look up org by invite code
+// GET /api/organisations?tournament_id=XXX    — list orgs for a tournament (any authenticated user)
+// GET /api/organisations                      — list all orgs (tournament admin only)
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { searchParams } = new URL(request.url)
-  const code = searchParams.get('code')?.trim().toUpperCase()
+  const code          = searchParams.get('code')?.trim().toUpperCase()
+  const tournament_id = searchParams.get('tournament_id')
 
   if (code) {
-    // Public lookup by invite code — used at registration
     const { data, error } = await supabase
       .from('organisations')
-      .select('id, name, slug, invite_code')
+      .select('id, name, slug, invite_code, logo_url, tournament_id')
       .eq('invite_code', code)
-      .neq('slug', 'public')   // PUBLIC org can't be joined by code
+      .neq('slug', 'public')
       .single()
-
-    if (error || !data) {
-      return NextResponse.json({ error: 'Invalid organisation code' }, { status: 404 })
-    }
+    if (error || !data) return NextResponse.json({ error: 'Invalid organisation code' }, { status: 404 })
     return NextResponse.json({ data })
   }
 
-  // Full list — tournament admin only
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (tournament_id) {
+    // Any authenticated user can list orgs for a specific tournament
+    // (used on tribe page to let players join/create an org for their active tournament)
+    const { data, error } = await supabase
+      .from('organisations')
+      .select('id, name, slug, invite_code, logo_url, tournament_id, app_name')
+      .eq('tournament_id', tournament_id)
+      .neq('slug', 'public')
+      .order('name')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: data ?? [] })
+  }
+
+  // Full list — tournament admin only
   const adminClient = createAdminClient()
   const { data: isAdmin } = await adminClient
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
@@ -40,10 +51,9 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('organisations')
-    .select('id, name, slug, invite_code')
-    .neq('slug', 'public')    // don't show PUBLIC in admin list
+    .select('id, name, slug, invite_code, tournament_id')
+    .neq('slug', 'public')
     .order('name')
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })
 }
@@ -64,8 +74,6 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Organisation name required' }, { status: 422 })
 
   const { name } = parsed.data
-
-  // Auto-generate a slug and unique 8-char invite code
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase() +
                      Math.random().toString(36).substring(2, 6).toUpperCase()
