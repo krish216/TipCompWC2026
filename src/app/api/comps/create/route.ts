@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const { comp_id, logo_url, user_id, app_name, min_age } = body ?? {}
-  if (!org_id || !user_id) {
+  if (!comp_id || !user_id) {
     return NextResponse.json({ error: 'comp_id and user_id required' }, { status: 400 })
   }
 
