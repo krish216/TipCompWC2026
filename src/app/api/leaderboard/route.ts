@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
 
     // Resolve active tournament for this user
     const { data: userRow } = await supabase
-      .from('users').select('tribe_id, org_id, active_tournament_id').eq('id', user.id).single()
+      .from('users').select('tribe_id, comp_id, active_tournament_id').eq('id', user.id).single()
     const tribeId = (userRow as any)?.tribe_id ?? null
-    const orgId   = (userRow as any)?.org_id   ?? null
+    const compId   = (userRow as any)?.org_id   ?? null
     let tournamentId = searchParams.get('tournament_id') ?? (userRow as any)?.active_tournament_id ?? null
     if (!tournamentId) {
       const { data: setting } = await adminClient
@@ -40,16 +40,16 @@ export async function GET(request: NextRequest) {
         .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
       scopeUserIds = (members ?? []).map((m: any) => m.user_id)
       if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
-    } else if (scope === 'org' && orgId) {
+    } else if (scope === 'org' && compId) {
       const { data: members } = await adminClient
-        .from('users').select('id').eq('org_id', orgId)
+        .from('users').select('id').eq('comp_id', compId)
       scopeUserIds = (members ?? []).map((m: any) => m.id)
       if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     }
 
     // Query leaderboard view
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
+      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('exact_count',  { ascending: false })
       .limit(limit)
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
       const myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, tribe_name, tribe_id, org_name, org_id, total_points, exact_count, correct_count, predictions_made')
+        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()

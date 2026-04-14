@@ -284,7 +284,7 @@ function OrgRegistryPanel() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/organisations/registry')
+    fetch('/api/comps/registry')
       .then(r => r.json())
       .then(d => { setOrgs(d.data ?? []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -293,10 +293,10 @@ function OrgRegistryPanel() {
   return (
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
-        Registered organisations <span className="text-gray-400 font-normal ml-1">({orgs.length})</span>
+        Registered comps <span className="text-gray-400 font-normal ml-1">({orgs.length})</span>
       </p>
       {loading ? <Spinner className="w-4 h-4" /> : orgs.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">No self-created organisations yet</p>
+        <p className="text-xs text-gray-400 italic">No self-created comps yet</p>
       ) : (
         <div className="space-y-2">
           {orgs.map(o => (
@@ -366,11 +366,11 @@ function MonetisationPanel() {
     fetch('/api/app-settings').then(r => r.json()).then(d => {
       setEnabled(d.data?.monetisation_enabled === 'true')
     })
-    fetch('/api/organisations/registry').then(r => r.json()).then(async d => {
+    fetch('/api/comps/registry').then(r => r.json()).then(async d => {
       const orgs = d.data ?? []
       // fetch subscriptions for each org
       const subResults = await Promise.all(
-        orgs.map((o: any) => fetch(`/api/org-subscriptions?org_id=${o.id}`).then(r => r.json()))
+        orgs.map((o: any) => fetch(`/api/comp-subscriptions?comp_id=${o.id}`).then(r => r.json()))
       )
       setSubs(orgs.map((o: any, i: number) => ({ ...o, sub: subResults[i]?.data })))
     })
@@ -388,16 +388,16 @@ function MonetisationPanel() {
     toast.success(newVal ? 'Monetisation enabled — payment required for new orgs' : 'Monetisation disabled — orgs bypass payment')
   }
 
-  const upgradeSub = async (orgId: string, tier: string) => {
+  const upgradeSub = async (compId: string, tier: string) => {
     const ref = prompt('Payment reference / note (optional):') ?? ''
-    await fetch('/api/org-subscriptions', {
+    await fetch('/api/comp-subscriptions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, tier, payment_ref: ref }),
+      body: JSON.stringify({ comp_id: compId, tier, payment_ref: ref }),
     })
     toast.success(`Subscription updated to ${tier}`)
     // refresh
-    const updated = await fetch(`/api/org-subscriptions?org_id=${orgId}`).then(r => r.json())
-    setSubs(prev => prev.map(s => s.id === orgId ? { ...s, sub: updated.data } : s))
+    const updated = await fetch(`/api/comp-subscriptions?comp_id=${compId}`).then(r => r.json())
+    setSubs(prev => prev.map(s => s.id === compId ? { ...s, sub: updated.data } : s))
   }
 
   const TIER_COLOURS: Record<string, string> = {
@@ -423,14 +423,14 @@ function MonetisationPanel() {
       </div>
       <p className="text-[11px] text-gray-500 mb-4">
         {enabled
-          ? '✅ Payment required — new organisations must pay before creating tribes (trial still free for 14 days).'
-          : '⏸️ Payment bypass — organisations can create tribes without paying.'}
+          ? '✅ Payment required — new comps must pay before creating tribes (trial still free for 14 days).'
+          : '⏸️ Payment bypass — comps can create tribes without paying.'}
       </p>
 
       {/* Subscription overview */}
       {subs.length > 0 && (
         <div>
-          <p className="text-[11px] font-medium text-gray-500 mb-2">Organisation subscriptions</p>
+          <p className="text-[11px] font-medium text-gray-500 mb-2">Comp subscriptions</p>
           <div className="space-y-2">
             {subs.map((org: any) => {
               const sub = org.sub
@@ -438,7 +438,7 @@ function MonetisationPanel() {
               const trialEnds = sub?.trial_ends_at ? new Date(sub.trial_ends_at) : null
               const trialDaysLeft = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - Date.now()) / 86400000)) : null
               return (
-                <div key={org.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <div key={comp.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-medium text-gray-800 truncate">{org.name}</p>
@@ -455,7 +455,7 @@ function MonetisationPanel() {
                   </div>
                   <select
                     defaultValue={tier}
-                    onChange={e => upgradeSub(org.id, e.target.value)}
+                    onChange={e => upgradeSub(comp.id, e.target.value)}
                     className="text-[11px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none"
                   >
                     <option value="trial">Trial</option>
@@ -473,8 +473,8 @@ function MonetisationPanel() {
   )
 }
 
-// ── Organisations panel ────────────────────────────────────────────────────────
-function OrganisationsPanel() {
+// ── Comps panel ────────────────────────────────────────────────────────
+function CompsPanel() {
   const [orgs,    setOrgs]    = useState<any[]>([])
   const [name,    setName]    = useState('')
   const [loading, setLoading] = useState(false)
@@ -482,7 +482,7 @@ function OrganisationsPanel() {
   const [copied,  setCopied]  = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/organisations')
+    fetch('/api/comps')
       .then(r => r.json())
       .then(d => { setOrgs(d.data ?? []); setFetching(false) })
       .catch(() => setFetching(false))
@@ -491,7 +491,7 @@ function OrganisationsPanel() {
   const create = async () => {
     if (!name.trim()) return
     setLoading(true)
-    const res = await fetch('/api/organisations', {
+    const res = await fetch('/api/comps', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim() }),
@@ -500,7 +500,7 @@ function OrganisationsPanel() {
     setLoading(false)
     if (error) toast.error(error)
     else {
-      toast.success(`Organisation "${data.name}" created`)
+      toast.success(`Comp "${data.name}" created`)
       setOrgs(prev => [...prev, data])
       setName('')
     }
@@ -514,9 +514,9 @@ function OrganisationsPanel() {
 
   return (
     <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisations</p>
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Comps</p>
       <p className="text-[11px] text-gray-500 mb-3">
-        Create an organisation and share its unique code with the org admin.
+        Create an comp and share its unique code with the org admin.
         They register using that code to gain org admin access.
       </p>
 
@@ -524,7 +524,7 @@ function OrganisationsPanel() {
       <div className="flex gap-2 mb-4">
         <input type="text" value={name} onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && create()}
-          placeholder="Organisation name e.g. Acme Corp"
+          placeholder="Comp name e.g. Acme Corp"
           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
         <button onClick={create} disabled={loading || !name.trim()}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
@@ -535,7 +535,7 @@ function OrganisationsPanel() {
 
       {/* Org list with codes */}
       {fetching ? <Spinner className="w-4 h-4" /> : orgs.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">No organisations created yet</p>
+        <p className="text-xs text-gray-400 italic">No comps created yet</p>
       ) : (
         <div className="space-y-2">
           {orgs.map(o => (
@@ -737,7 +737,7 @@ export default function AdminPage() {
       <TournamentPanel />
       <MonetisationPanel />
       <OrgRegistryPanel />
-      <OrganisationsPanel />
+      <CompsPanel />
       <GrantAdminPanel />
       <ResetPasswordPanel />
 

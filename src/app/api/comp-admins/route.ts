@@ -2,45 +2,45 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// GET /api/org-admins — check if current user is org admin
+// GET /api/comp-admins — check if current user is org admin
 export async function GET() {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ is_org_admin: false })
 
   const adminClient = createAdminClient()
-  const { data } = await (adminClient.from('org_admins') as any)
-    .select('org_id, organisations(id, name, slug, invite_code, logo_url, app_name)')
+  const { data } = await (adminClient.from('comp_admins') as any)
+    .select('comp_id, comps(id, name, slug, invite_code, logo_url, app_name)')
     .eq('user_id', user.id)
     .single()
 
   if (!data) return NextResponse.json({ is_org_admin: false })
   // Supabase may return nested relation as array or object — normalise
-  const orgRaw = (data as any).organisations
+  const orgRaw = (data as any).comps
   const org    = Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : orgRaw
   return NextResponse.json({
     is_org_admin: true,
-    org_id: (data as any).org_id,
+    comp_id: (data as any).comp_id,
     org,
   })
 }
 
-// POST /api/org-admins — grant org admin (tournament admin or existing org admin)
+// POST /api/comp-admins — grant org admin (tournament admin or existing org admin)
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { email, org_id } = await request.json()
-  if (!email || !org_id) return NextResponse.json({ error: 'email and org_id required' }, { status: 400 })
+  const { email, comp_id } = await request.json()
+  if (!email || !comp_id) return NextResponse.json({ error: 'email and org_id required' }, { status: 400 })
 
   // Verify caller is tournament admin OR org admin of this org
   const { data: isTournamentAdmin } = await adminClient
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
-  const { data: isOrgAdmin } = await (adminClient.from('org_admins') as any)
-    .select('user_id').eq('user_id', user.id).eq('org_id', org_id).single()
-  if (!isTournamentAdmin && !isOrgAdmin) {
+  const { data: isCompAdmin } = await (adminClient.from('comp_admins') as any)
+    .select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
+  if (!isTournamentAdmin && !isCompAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
 
   // Assign user to this org and grant org admin
   await (adminClient.from('users') as any)
-    .update({ org_id }).eq('id', (target as any).id)
-  await (adminClient.from('org_admins') as any)
-    .upsert({ org_id, user_id: (target as any).id })
+    .update({ comp_id }).eq('id', (target as any).id)
+  await (adminClient.from('comp_admins') as any)
+    .upsert({ comp_id, user_id: (target as any).id })
 
   return NextResponse.json({ success: true })
 }

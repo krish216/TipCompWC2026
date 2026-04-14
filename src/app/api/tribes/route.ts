@@ -10,15 +10,15 @@ const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCa
 async function getUserOrgInfo(userId: string) {
   const adminClient = createAdminClient()
   const { data: user } = await adminClient
-    .from('users').select('org_id').eq('id', userId).single()
-  const orgId = (user as any)?.org_id ?? null
+    .from('users').select('comp_id').eq('id', userId).single()
+  const compId = (user as any)?.comp_id ?? null
 
-  const { data: orgAdmin } = await (adminClient.from('org_admins') as any)
-    .select('org_id').eq('user_id', userId).single()
+  const { data: compAdmin } = await (adminClient.from('comp_admins') as any)
+    .select('comp_id').eq('user_id', userId).single()
 
   return {
-    org_id:       orgId,
-    is_org_admin: !!orgAdmin,
+    comp_id:       compId,
+    is_org_admin: !!compAdmin,
   }
 }
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const tribeId = (me as any).tribe_id
 
   const { data: tribe, error } = await supabase
-    .from('tribes').select('id, name, invite_code, created_at, org_id, tournament_id').eq('id', tribeId).single()
+    .from('tribes').select('id, name, invite_code, created_at, comp_id, tournament_id').eq('id', tribeId).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const { data: memberRows } = await supabase
@@ -90,12 +90,12 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { org_id, is_org_admin } = await getUserOrgInfo(user.id)
+  const { comp_id, is_org_admin } = await getUserOrgInfo(user.id)
   if (!is_org_admin) {
-    return NextResponse.json({ error: 'Only organisation admins can create tribes' }, { status: 403 })
+    return NextResponse.json({ error: 'Only comp admins can create tribes' }, { status: 403 })
   }
-  if (!org_id) {
-    return NextResponse.json({ error: 'You must belong to an organisation first' }, { status: 400 })
+  if (!comp_id) {
+    return NextResponse.json({ error: 'You must belong to an comp first' }, { status: 400 })
   }
 
   const body   = await request.json().catch(() => null)
@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
 
   // Check tribe name is unique within this org (case-insensitive)
   const { data: existingTribe } = await (adminClient.from('tribes') as any)
-    .select('id').ilike('name', parsed.data.name).eq('org_id', org_id).single()
+    .select('id').ilike('name', parsed.data.name).eq('comp_id', comp_id).single()
   if (existingTribe) {
-    return NextResponse.json({ error: 'A tribe with this name already exists in your organisation' }, { status: 409 })
+    return NextResponse.json({ error: 'A tribe with this name already exists in your comp' }, { status: 409 })
   }
 
   // Generate unique invite code
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       description: parsed.data.description || null,
       created_by: user.id,
       invite_code: inviteCode,
-      org_id,
+      comp_id,
       tournament_id: parsed.data.tournament_id ?? null,
     })
     .select().single()
@@ -143,15 +143,15 @@ export async function PATCH(request: NextRequest) {
     .from('users').select('tribe_id, org_id').eq('id', user.id).single()
   if ((me as any)?.tribe_id) return NextResponse.json({ error: 'Already in a tribe' }, { status: 409 })
 
-  const userOrgId = (me as any)?.org_id ?? null
+  const userCompId = (me as any)?.comp_id ?? null
 
   const { data: tribe } = await supabase
     .from('tribes').select('id, name, org_id').eq('invite_code', parsed.data.invite_code).single()
   if (!tribe) return NextResponse.json({ error: 'Tribe not found — check the invite code' }, { status: 404 })
 
   // Enforce org membership
-  if (userOrgId && (tribe as any).org_id && userOrgId !== (tribe as any).org_id) {
-    return NextResponse.json({ error: 'This tribe belongs to a different organisation' }, { status: 403 })
+  if (userCompId && (tribe as any).comp_id && userCompId !== (tribe as any).comp_id) {
+    return NextResponse.json({ error: 'This tribe belongs to a different comp' }, { status: 403 })
   }
 
   // Enforce max tribe size of 25

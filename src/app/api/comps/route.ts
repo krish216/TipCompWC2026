@@ -7,9 +7,9 @@ const CreateOrgSchema = z.object({
   name: z.string().min(2).max(80).trim(),
 })
 
-// GET /api/organisations?code=XXXX            — look up org by invite code
-// GET /api/organisations?tournament_id=XXX    — list orgs for a tournament (any authenticated user)
-// GET /api/organisations                      — list all orgs (tournament admin only)
+// GET /api/comps?code=XXXX            — look up org by invite code
+// GET /api/comps?tournament_id=XXX    — list orgs for a tournament (any authenticated user)
+// GET /api/comps                      — list all orgs (tournament admin only)
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { searchParams } = new URL(request.url)
@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const { data, error } = await supabase
-      .from('organisations')
+      .from('comps')
       .select('id, name, slug, invite_code, logo_url, tournament_id')
       .eq('invite_code', code)
       .neq('slug', 'public')
       .single()
-    if (error || !data) return NextResponse.json({ error: 'Invalid organisation code' }, { status: 404 })
+    if (error || !data) return NextResponse.json({ error: 'Invalid comp code' }, { status: 404 })
     return NextResponse.json({ data })
   }
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Any authenticated user can list orgs for a specific tournament
     // (used on tribe page to let players join/create an org for their active tournament)
     const { data, error } = await supabase
-      .from('organisations')
+      .from('comps')
       .select('id, name, slug, invite_code, logo_url, tournament_id, app_name')
       .eq('tournament_id', tournament_id)
       .neq('slug', 'public')
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data, error } = await supabase
-    .from('organisations')
+    .from('comps')
     .select('id, name, slug, invite_code, tournament_id')
     .neq('slug', 'public')
     .order('name')
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] })
 }
 
-// POST /api/organisations — create a new org (tournament admin only)
+// POST /api/comps — create a new org (tournament admin only)
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
@@ -71,14 +71,14 @@ export async function POST(request: NextRequest) {
 
   const body   = await request.json().catch(() => null)
   const parsed = CreateOrgSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: 'Organisation name required' }, { status: 422 })
+  if (!parsed.success) return NextResponse.json({ error: 'Comp name required' }, { status: 422 })
 
   const { name } = parsed.data
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase() +
                      Math.random().toString(36).substring(2, 6).toUpperCase()
 
-  const { data: org, error } = await (adminClient.from('organisations') as any)
+  const { data: org, error } = await (adminClient.from('comps') as any)
     .insert({ name, slug, invite_code: inviteCode, created_by: user.id })
     .select().single()
 

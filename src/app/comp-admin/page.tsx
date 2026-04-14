@@ -11,7 +11,7 @@ interface Member { id: string; display_name: string; email: string; tribe_id: st
 interface Org    { id: string; name: string; slug: string; invite_code?: string; logo_url?: string | null }
 
 // ── Create tribe form ──────────────────────────────────────────────────────────
-function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: Tribe) => void }) {
+function CreateTribeForm({ compId, onCreated }: { compId: string; onCreated: (t: Tribe) => void }) {
   const [name,        setName]        = useState('')
   const [description, setDescription] = useState('')
   const [loading,     setLoading]     = useState(false)
@@ -29,7 +29,7 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
     setLoading(false)
     if (error) {
       if (res.status === 409) {
-        setError(`A tribe named "${name.trim()}" already exists in this organisation. Please choose a different name.`)
+        setError(`A tribe named "${name.trim()}" already exists in this comp. Please choose a different name.`)
       } else {
         setError(error)
       }
@@ -80,24 +80,24 @@ function CreateTribeForm({ orgId, onCreated }: { orgId: string; onCreated: (t: T
         </button>
       </div>
       <p className="text-[11px] text-gray-400 mt-2">
-        Players in your organisation can join using the invite code.
+        Players in your comp can join using the invite code.
       </p>
     </Card>
   )
 }
 
 // ── Grant org admin form ───────────────────────────────────────────────────────
-function GrantOrgAdminForm({ orgId }: { orgId: string }) {
+function GrantOrgAdminForm({ compId }: { compId: string }) {
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
 
   const grant = async () => {
     if (!email.trim()) return
     setLoading(true)
-    const res = await fetch('/api/org-admins', {
+    const res = await fetch('/api/comp-admins', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ email: email.trim(), org_id: orgId }),
+      body:    JSON.stringify({ email: email.trim(), comp_id: compId }),
     })
     const { success, error } = await res.json()
     setLoading(false)
@@ -125,7 +125,7 @@ function GrantOrgAdminForm({ orgId }: { orgId: string }) {
         </button>
       </div>
       <p className="text-[11px] text-gray-400 mt-2">
-        The user must already have a registered account in your organisation.
+        The user must already have a registered account in your comp.
       </p>
     </Card>
   )
@@ -190,8 +190,8 @@ function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
 }
 
 // ── Logo upload component ─────────────────────────────────────────────────────
-function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
-  orgId: string; currentLogo: string | null; onUploaded: (url: string) => void
+function OrgLogoUpload({ compId, currentLogo, onUploaded }: {
+  compId: string; currentLogo: string | null; onUploaded: (url: string) => void
 }) {
   const { supabase, session } = useSupabase()
   const fileRef    = useRef<HTMLInputElement>(null)
@@ -204,7 +204,7 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !orgId || !session) return
+    if (!file || !compId || !session) return
     if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2MB'); return }
 
     const reader = new FileReader()
@@ -222,14 +222,14 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
     const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
     const logoUrl = urlData.publicUrl
 
-    await fetch('/api/organisations/create', {
+    await fetch('/api/comps/create', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, logo_url: logoUrl, user_id: session.user.id }),
+      body: JSON.stringify({ comp_id: compId, logo_url: logoUrl, user_id: session.user.id }),
     })
 
     // Verify saved
-    const verifyRes  = await fetch('/api/org-admins')
+    const verifyRes  = await fetch('/api/comp-admins')
     const verifyData = await verifyRes.json()
     const savedLogo  = verifyData.org?.logo_url ?? logoUrl
     onUploaded(savedLogo)
@@ -270,8 +270,8 @@ function OrgLogoUpload({ orgId, currentLogo, onUploaded }: {
 // ── App name panel ────────────────────────────────────────────────────────────
 const DEFAULT_APP_NAME = 'World Cup 2026 Tipping Comp'
 
-function AppNamePanel({ orgId, currentName, onSaved, userId }: {
-  orgId: string; currentName: string; onSaved: (name: string) => void; userId: string
+function AppNamePanel({ compId, currentName, onSaved, userId }: {
+  compId: string; currentName: string; onSaved: (name: string) => void; userId: string
 }) {
   const [name,    setName]    = useState(currentName)
   const [saving,  setSaving]  = useState(false)
@@ -280,10 +280,10 @@ function AppNamePanel({ orgId, currentName, onSaved, userId }: {
 
   const save = async () => {
     setSaving(true)
-    const res = await fetch('/api/organisations/create', {
+    const res = await fetch('/api/comps/create', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, app_name: name.trim() || null, user_id: userId }),
+      body: JSON.stringify({ comp_id: compId, app_name: name.trim() || null, user_id: userId }),
     })
     const { success, error } = await res.json()
     setSaving(false)
@@ -299,7 +299,7 @@ function AppNamePanel({ orgId, currentName, onSaved, userId }: {
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Competition name</p>
       <p className="text-[11px] text-gray-500 mb-3">
-        Shown as the title on the home page for your organisation members.
+        Shown as the title on the home page for your comp members.
         Leave blank to use the default.
       </p>
       <div className="flex gap-2">
@@ -325,8 +325,8 @@ function AppNamePanel({ orgId, currentName, onSaved, userId }: {
 }
 
 // ── Age restriction panel ─────────────────────────────────────────────────────
-function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
-  orgId: string; currentMinAge: number | null; onSaved: (age: number | null) => void; userId: string
+function AgeRestrictionPanel({ compId, currentMinAge, onSaved, userId }: {
+  compId: string; currentMinAge: number | null; onSaved: (age: number | null) => void; userId: string
 }) {
   const [minAge, setMinAge] = useState<string>(currentMinAge ? String(currentMinAge) : '')
   const [saving, setSaving] = useState(false)
@@ -337,9 +337,9 @@ function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
     const val = minAge.trim() ? parseInt(minAge) : null
     if (val !== null && (val < 13 || val > 99)) { toast.error('Age must be between 13 and 99'); return }
     setSaving(true)
-    const res = await fetch('/api/organisations/create', {
+    const res = await fetch('/api/comps/create', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, min_age: val, user_id: userId }),
+      body: JSON.stringify({ comp_id: compId, min_age: val, user_id: userId }),
     })
     const { success, error } = await res.json()
     setSaving(false)
@@ -351,7 +351,7 @@ function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Age restriction</p>
       <p className="text-[11px] text-gray-500 mb-3">
-        Set a minimum age requirement for joining your organisation. Players must provide their date of birth at registration.
+        Set a minimum age requirement for joining your comp. Players must provide their date of birth at registration.
         Leave blank for no age restriction.
       </p>
       <div className="flex items-center gap-3">
@@ -378,7 +378,7 @@ function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
       </div>
       {currentMinAge && (
         <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-          ⚠️ Players under {currentMinAge} will be blocked from joining your organisation.
+          ⚠️ Players under {currentMinAge} will be blocked from joining your comp.
           Existing members under {currentMinAge} are not affected.
         </p>
       )}
@@ -387,24 +387,24 @@ function AgeRestrictionPanel({ orgId, currentMinAge, onSaved, userId }: {
 }
 
 // ── Domain restriction panel (Enterprise only) ────────────────────────────────
-function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }) {
+function DomainRestrictionPanel({ compId, tier }: { compId: string; tier: string }) {
   const [domain,  setDomain]  = useState('')
   const [current, setCurrent] = useState<string | null>(null)
   const [saving,  setSaving]  = useState(false)
 
   useEffect(() => {
-    // Fetch current domain restriction from organisations table
-    fetch(`/api/organisations/domain?org_id=${orgId}`)
+    // Fetch current domain restriction from comps table
+    fetch(`/api/comps/domain?comp_id=${compId}`)
       .then(r => r.json())
       .then(d => { setCurrent(d.email_domain ?? null); setDomain(d.email_domain ?? '') })
       .catch(() => {})
-  }, [orgId])
+  }, [compId])
 
   const save = async () => {
     setSaving(true)
-    const res = await fetch('/api/organisations/domain', {
+    const res = await fetch('/api/comps/domain', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, email_domain: domain.trim().toLowerCase() || null }),
+      body: JSON.stringify({ comp_id: compId, email_domain: domain.trim().toLowerCase() || null }),
     })
     const { success, error } = await res.json()
     setSaving(false)
@@ -419,7 +419,7 @@ function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }
         <span className="text-2xl">🔒</span>
         <div>
           <p className="text-xs font-medium text-gray-700">Enterprise subscription required</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Restrict organisation membership to players with a specific email domain (e.g. @acmecorp.com).</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Restrict comp membership to players with a specific email domain (e.g. @acmecorp.com).</p>
         </div>
       </div>
     </Card>
@@ -429,7 +429,7 @@ function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Email domain restriction</p>
       <p className="text-[11px] text-gray-500 mb-3">
-        When set, only players whose email address matches this domain can join your organisation.
+        When set, only players whose email address matches this domain can join your comp.
         Leave blank to allow any email address.
       </p>
       {current && (
@@ -462,21 +462,21 @@ function DomainRestrictionPanel({ orgId, tier }: { orgId: string; tier: string }
 }
 
 // ── Subscription card ─────────────────────────────────────────────────────────
-function SubscriptionCard({ orgId }: { orgId: string }) {
+function SubscriptionCard({ compId }: { compId: string }) {
   const [sub,     setSub]     = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [monetOn, setMonetOn] = useState(false)
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/org-subscriptions?org_id=${orgId}`).then(r => r.json()),
+      fetch(`/api/comp-subscriptions?comp_id=${compId}`).then(r => r.json()),
       fetch('/api/app-settings').then(r => r.json()),
     ]).then(([subData, settingsData]) => {
       setSub(subData.data)
       setMonetOn(settingsData.data?.monetisation_enabled === 'true')
       setLoading(false)
     })
-  }, [orgId])
+  }, [compId])
 
   if (loading) return null
   if (!monetOn) return (
@@ -485,7 +485,7 @@ function SubscriptionCard({ orgId }: { orgId: string }) {
         <span className="text-base">⏸️</span>
         <div>
           <p className="text-xs font-medium text-gray-700">Monetisation is currently disabled</p>
-          <p className="text-[11px] text-gray-400">All organisations have full access — no payment required during this period.</p>
+          <p className="text-[11px] text-gray-400">All comps have full access — no payment required during this period.</p>
         </div>
       </div>
     </Card>
@@ -550,7 +550,7 @@ function SubscriptionCard({ orgId }: { orgId: string }) {
 }
 
 // ── Prizes panel ───────────────────────────────────────────────────────────────
-function PrizesPanel({ orgId }: { orgId: string }) {
+function PrizesPanel({ compId }: { compId: string }) {
   const [prizes,  setPrizes]  = useState<any[]>([])
   const [place,   setPlace]   = useState('1')
   const [desc,    setDesc]    = useState('')
@@ -558,15 +558,15 @@ function PrizesPanel({ orgId }: { orgId: string }) {
   const [saving,  setSaving]  = useState(false)
 
   useEffect(() => {
-    fetch(`/api/org-prizes?org_id=${orgId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
-  }, [orgId])
+    fetch(`/api/comp-prizes?comp_id=${compId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
+  }, [compId])
 
   const addPrize = async () => {
     if (!desc.trim()) return
     setSaving(true)
-    const res = await fetch('/api/org-prizes', {
+    const res = await fetch('/api/comp-prizes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, place: parseInt(place), description: desc.trim(), sponsor: sponsor.trim() }),
+      body: JSON.stringify({ comp_id: compId, place: parseInt(place), description: desc.trim(), sponsor: sponsor.trim() }),
     })
     const { data } = await res.json()
     setSaving(false)
@@ -578,7 +578,7 @@ function PrizesPanel({ orgId }: { orgId: string }) {
   }
 
   const removePrize = async (p: number) => {
-    await fetch(`/api/org-prizes?org_id=${orgId}&place=${p}`, { method: 'DELETE' })
+    await fetch(`/api/comp-prizes?comp_id=${compId}&place=${p}`, { method: 'DELETE' })
     setPrizes(prev => prev.filter(x => x.place !== p))
     toast.success('Prize removed')
   }
@@ -627,7 +627,7 @@ function PrizesPanel({ orgId }: { orgId: string }) {
 }
 
 // ── Announcements panel ────────────────────────────────────────────────────────
-function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName: string; userId: string }) {
+function AnnouncementsPanel({ compId, compName, userId }: { compId: string; compName: string; userId: string }) {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [title,   setTitle]   = useState('')
   const [body,    setBody]    = useState('')
@@ -635,25 +635,25 @@ function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName
 
   useEffect(() => {
     fetch('/api/announcements').then(r => r.json()).then(d =>
-      setAnnouncements((d.data ?? []).filter((a: any) => a.org_id === orgId || !a.org_id))
+      setAnnouncements((d.data ?? []).filter((a: any) => a.org_id === compId || !a.comp_id))
     )
     // Re-fetch all and filter by this org
     fetch('/api/announcements').then(r => r.json()).then(d => {
       const mine = (d.data ?? []).filter((a: any) => {
-        const orgRaw = a.organisations
+        const orgRaw = a.comps
         const aOrg   = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
-        return aOrg?.name === orgName
+        return aOrg?.name === compName
       })
       setAnnouncements(mine)
     })
-  }, [orgId, orgName])
+  }, [compId, compName])
 
   const post = async () => {
     if (!title.trim() || !body.trim()) return
     setSaving(true)
     const res = await fetch('/api/announcements', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, title: title.trim(), body: body.trim() }),
+      body: JSON.stringify({ comp_id: compId, title: title.trim(), body: body.trim() }),
     })
     const { data, error } = await res.json()
     setSaving(false)
@@ -672,7 +672,7 @@ function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName
   return (
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Announcements</p>
-      <p className="text-[11px] text-gray-500 mb-3">Post a message visible to all PUBLIC organisation members — invite them to join <strong>{orgName}</strong>.</p>
+      <p className="text-[11px] text-gray-500 mb-3">Post a message visible to all PUBLIC comp members — invite them to join <strong>{compName}</strong>.</p>
 
       {/* Compose */}
       <div className="space-y-2 mb-4">
@@ -716,7 +716,7 @@ function AnnouncementsPanel({ orgId, orgName, userId }: { orgId: string; orgName
 }
 
 // ── Challenges panel ──────────────────────────────────────────────────────────
-function ChallengesPanel({ orgId }: { orgId: string }) {
+function ChallengesPanel({ compId }: { compId: string }) {
   const { supabase } = useSupabase()
   const [challenges, setChallenges] = useState<any[]>([])
   const [fixtures,   setFixtures]   = useState<any[]>([])
@@ -729,7 +729,7 @@ function ChallengesPanel({ orgId }: { orgId: string }) {
   useEffect(() => {
     // Load challenges and upcoming fixtures
     Promise.all([
-      fetch(`/api/org-challenges?org_id=${orgId}`).then(r => r.json()),
+      fetch(`/api/comp-challenges?comp_id=${compId}`).then(r => r.json()),
       fetch('/api/fixtures').then(r => r.json()),
     ]).then(([challengeData, fxData]) => {
       setChallenges(challengeData.data ?? [])
@@ -738,14 +738,14 @@ function ChallengesPanel({ orgId }: { orgId: string }) {
         .sort((a: any, b: any) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
       setFixtures(upcoming)
     })
-  }, [orgId])
+  }, [compId])
 
   const createChallenge = async () => {
     if (!fixtureId || !prize.trim()) return
     setSaving(true)
-    const res = await fetch('/api/org-challenges', {
+    const res = await fetch('/api/comp-challenges', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, fixture_id: parseInt(fixtureId), prize: prize.trim(), sponsor: sponsor.trim() }),
+      body: JSON.stringify({ comp_id: compId, fixture_id: parseInt(fixtureId), prize: prize.trim(), sponsor: sponsor.trim() }),
     })
     const { data, error } = await res.json()
     setSaving(false)
@@ -757,7 +757,7 @@ function ChallengesPanel({ orgId }: { orgId: string }) {
 
   const deleteChallenge = async (id: string) => {
     if (!confirm('Delete this challenge?')) return
-    const res = await fetch(`/api/org-challenges?id=${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/comp-challenges?id=${id}`, { method: 'DELETE' })
     const { success, error } = await res.json()
     if (success) { setChallenges(prev => prev.filter(c => c.id !== id)); toast.success('Deleted') }
     else toast.error(error)
@@ -778,7 +778,7 @@ function ChallengesPanel({ orgId }: { orgId: string }) {
     <Card className="mb-4">
       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Daily challenges</p>
       <p className="text-[11px] text-gray-500 mb-3">
-        Set one challenge per day — players in your organisation who predict the exact score for that fixture win the prize.
+        Set one challenge per day — players in your comp who predict the exact score for that fixture win the prize.
       </p>
 
       {/* Create form */}
@@ -890,20 +890,20 @@ export default function OrgAdminPage() {
   const { session } = useSupabase()
 
   const [loading,    setLoading]    = useState(true)
-  const [isOrgAdmin, setIsOrgAdmin] = useState<boolean | null>(null)
+  const [isCompAdmin, setIsOrgAdmin] = useState<boolean | null>(null)
   const [org,        setOrg]        = useState<Org | null>(null)
   const [tribes,     setTribes]     = useState<Tribe[]>([])
   const [members,    setMembers]    = useState<Member[]>([])
   const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
-  const [orgTier,    setOrgTier]    = useState<string>('trial')
-  const [orgDomain,  setOrgDomain]  = useState<string | null>(null)
-  const [orgAppName, setOrgAppName] = useState<string>('')
-  const [orgMinAge,  setOrgMinAge]  = useState<number | null>(null)
+  const [compTier,    setOrgTier]    = useState<string>('trial')
+  const [compDomain,  setOrgDomain]  = useState<string | null>(null)
+  const [compAppName, setOrgAppName] = useState<string>('')
+  const [compMinAge,  setOrgMinAge]  = useState<number | null>(null)
 
   useEffect(() => {
     if (!session) return
     const load = async () => {
-      const adminRes  = await fetch('/api/org-admins')
+      const adminRes  = await fetch('/api/comp-admins')
       const adminData = await adminRes.json()
 
       if (!adminData.is_org_admin) { setIsOrgAdmin(false); setLoading(false); return }
@@ -914,20 +914,20 @@ export default function OrgAdminPage() {
       setOrgAppName(adminData.org?.app_name ?? '')
       setOrgMinAge(adminData.org?.min_age ?? null)
       // Fetch subscription tier
-      if (adminData.org_id) {
+      if (adminData.comp_id) {
         const [subRes, domainRes] = await Promise.all([
-          fetch(`/api/org-subscriptions?org_id=${adminData.org_id}`),
-          fetch(`/api/organisations/domain?org_id=${adminData.org_id}`),
+          fetch(`/api/comp-subscriptions?comp_id=${adminData.org_id}`),
+          fetch(`/api/comps/domain?comp_id=${adminData.org_id}`),
         ])
         const [subData, domainData] = await Promise.all([subRes.json(), domainRes.json()])
         setOrgTier(subData.data?.tier ?? 'trial')
         setOrgDomain(domainData.email_domain ?? null)
       }
-      const orgId = adminData.org_id
+      const compId = adminData.comp_id
 
       const [tribesRes, membersRes] = await Promise.all([
-        fetch(`/api/tribes/list?org_id=${orgId}`),
-        fetch(`/api/org-admins/members?org_id=${orgId}`),
+        fetch(`/api/tribes/list?comp_id=${compId}`),
+        fetch(`/api/comp-admins/members?comp_id=${compId}`),
       ])
       if (tribesRes.ok)  { const d = await tribesRes.json();  setTribes((d.data ?? []) as any[]) }
       if (membersRes.ok) { const d = await membersRes.json(); setMembers(d.data ?? []) }
@@ -938,7 +938,7 @@ export default function OrgAdminPage() {
 
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
-  if (!isOrgAdmin) return (
+  if (!isCompAdmin) return (
     <div className="max-w-md mx-auto px-4 py-20 text-center">
       <div className="text-5xl mb-4">🔒</div>
       <h1 className="text-lg font-semibold text-gray-900 mb-2">Access denied</h1>
@@ -954,7 +954,7 @@ export default function OrgAdminPage() {
         <div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <h1 className="text-lg font-semibold text-gray-900">Organisation Admin</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Comp Admin</h1>
           </div>
           {org && (
             <p className="text-xs text-gray-500 mt-0.5">
@@ -971,7 +971,7 @@ export default function OrgAdminPage() {
 
       {/* Org invite code — displayed prominently for sharing */}
       <Card className="mb-4">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation invite code</p>
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Comp invite code</p>
         <p className="text-[11px] text-gray-500 mb-3">
           Share this code with members so they can join <strong>{org?.name}</strong> from the Tribe page.
         </p>
@@ -996,15 +996,15 @@ export default function OrgAdminPage() {
 
       {/* Org logo — Business and Enterprise only */}
       <Card className="mb-4">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Organisation logo</p>
-        {['business','enterprise'].includes(orgTier) ? (
-          <OrgLogoUpload orgId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Comp logo</p>
+        {['business','enterprise'].includes(compTier) ? (
+          <OrgLogoUpload compId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
         ) : (
           <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
             <span className="text-2xl">🔒</span>
             <div>
               <p className="text-xs font-medium text-gray-700">Business or Enterprise subscription required</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Upgrade your plan to upload an organisation logo.</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Upgrade your plan to upload an comp logo.</p>
             </div>
           </div>
         )}
@@ -1023,29 +1023,29 @@ export default function OrgAdminPage() {
       </div>
 
       {/* Subscription status */}
-      {org && <SubscriptionCard orgId={org.id} />}
+      {org && <SubscriptionCard compId={comp.id} />}
 
       {/* Custom app name */}
-      {org && <AppNamePanel orgId={org.id} currentName={orgAppName} onSaved={setOrgAppName} userId={session?.user.id ?? ''} />}
+      {org && <AppNamePanel compId={comp.id} currentName={compAppName} onSaved={setOrgAppName} userId={session?.user.id ?? ''} />}
 
       {/* Age restriction */}
-      {org && <AgeRestrictionPanel orgId={org.id} currentMinAge={orgMinAge} onSaved={setOrgMinAge} userId={session?.user.id ?? ''} />}
+      {org && <AgeRestrictionPanel compId={comp.id} currentMinAge={compMinAge} onSaved={setOrgMinAge} userId={session?.user.id ?? ''} />}
 
       {/* Domain restriction — Enterprise only */}
-      {org && <DomainRestrictionPanel orgId={org.id} tier={orgTier} />}
+      {org && <DomainRestrictionPanel compId={comp.id} tier={compTier} />}
 
       {/* Grant org admin */}
-      {org && <GrantOrgAdminForm orgId={org.id} />}
+      {org && <GrantOrgAdminForm compId={comp.id} />}
 
       {/* Prizes */}
-      {org && <PrizesPanel orgId={org.id} />}
+      {org && <PrizesPanel compId={comp.id} />}
 
       {/* Announcements */}
       {/* Announcements — only for orgs without domain restriction */}
-      {org && !orgDomain && (
-        <AnnouncementsPanel orgId={org.id} orgName={org.name} userId={session?.user.id ?? ''} />
+      {org && !compDomain && (
+        <AnnouncementsPanel compId={comp.id} compName={org.name} userId={session?.user.id ?? ''} />
       )}
-      {org && orgDomain && (
+      {org && compDomain && (
         <Card className="mb-4">
           <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Announcements</p>
           <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
@@ -1053,7 +1053,7 @@ export default function OrgAdminPage() {
             <div>
               <p className="text-xs font-medium text-amber-800">Announcements unavailable</p>
               <p className="text-[11px] text-amber-700 mt-0.5">
-                Your organisation has a domain restriction (<span className="font-mono font-medium">@{orgDomain}</span>).
+                Your comp has a domain restriction (<span className="font-mono font-medium">@{compDomain}</span>).
                 Announcements target PUBLIC members who may not have a matching email — remove the domain restriction to enable this feature.
               </p>
             </div>
@@ -1062,10 +1062,10 @@ export default function OrgAdminPage() {
       )}
 
       {/* Challenges */}
-      {org && <ChallengesPanel orgId={org.id} />}
+      {org && <ChallengesPanel compId={comp.id} />}
 
       {/* Create tribe */}
-      {org && <CreateTribeForm orgId={org.id} onCreated={t => setTribes(prev => [...prev, t])} />}
+      {org && <CreateTribeForm compId={comp.id} onCreated={t => setTribes(prev => [...prev, t])} />}
 
       {/* Tribes list */}
       <div className="mb-2 flex items-center justify-between">
@@ -1074,7 +1074,7 @@ export default function OrgAdminPage() {
       </div>
 
       {tribes.length === 0 ? (
-        <EmptyState title="No tribes yet" description="Create the first tribe for your organisation using the form above." />
+        <EmptyState title="No tribes yet" description="Create the first tribe for your comp using the form above." />
       ) : (
         tribes.map(t => <TribeCard key={t.id} tribe={t} members={members} />)
       )}

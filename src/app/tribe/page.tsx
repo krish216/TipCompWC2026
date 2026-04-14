@@ -412,16 +412,16 @@ function AnnouncementsFeed() {
   if (announcements.length === 0) return null
   return (
     <div className="mb-5">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">📢 Organisation announcements</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">📢 Comp announcements</p>
       <div className="space-y-2">
         {announcements.map((a: any) => {
-          const orgRaw = a.organisations
+          const orgRaw = a.comps
           const org    = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
           return (
             <div key={a.id} className="bg-white border border-blue-200 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
                 {org?.logo_url && <img src={org.logo_url} alt={org.name} className="w-5 h-5 rounded object-cover" />}
-                <p className="text-[11px] font-medium text-blue-700">{org?.name ?? 'Organisation'}</p>
+                <p className="text-[11px] font-medium text-blue-700">{org?.name ?? 'Comp'}</p>
               </div>
               <p className="text-xs font-semibold text-gray-900">{a.title}</p>
               <p className="text-xs text-gray-600 mt-0.5">{a.body}</p>
@@ -490,42 +490,42 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
 
   type Step = 'loading' | 'no-org' | 'has-org' | 'join-org' | 'create-org'
   const [step,         setStep]         = useState<Step>('loading')
-  const [userOrg,      setUserOrg]      = useState<{id:string;name:string;slug:string}|null>(null)
-  const [isOrgAdmin,   setIsOrgAdmin]   = useState(false)
-  const [orgTribes,    setOrgTribes]    = useState<any[]>([])
-  const [tournOrgs,    setTournOrgs]    = useState<any[]>([])   // orgs for current tournament
+  const [userComp,      setUserOrg]      = useState<{id:string;name:string;slug:string}|null>(null)
+  const [isCompAdmin,   setIsOrgAdmin]   = useState(false)
+  const [compTribes,    setOrgTribes]    = useState<any[]>([])
+  const [tournComps,    setTournOrgs]    = useState<any[]>([])   // orgs for current tournament
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState<string|null>(null)
   const [tribeCode,    setTribeCode]    = useState('')
 
   // Join org by code
-  const [orgCode,      setOrgCode]      = useState('')
-  const [orgLookup,    setOrgLookup]    = useState<{id:string;name:string}|null>(null)
-  const [orgCodeErr,   setOrgCodeErr]   = useState<string|null>(null)
+  const [compCode,      setOrgCode]      = useState('')
+  const [compLookup,    setOrgLookup]    = useState<{id:string;name:string}|null>(null)
+  const [compCodeErr,   setOrgCodeErr]   = useState<string|null>(null)
   const [lookingUp,    setLookingUp]    = useState(false)
 
   // Create org fields
-  const [newOrgName,   setNewOrgName]   = useState('')
+  const [newCompName,   setNewOrgName]   = useState('')
   const [ownerPhone,   setOwnerPhone]   = useState('')
   const [ownerEmail,   setOwnerEmail]   = useState('')
   const [logoFile,     setLogoFile]     = useState<File|null>(null)
   const [logoPreview,  setLogoPreview]  = useState<string|null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const isPublicOrg = !userOrg || userOrg.slug === 'public'
+  const isPublicOrg = !userComp || userComp.slug === 'public'
 
   useEffect(() => {
     if (!session) return
     ;(async () => {
       const { data: me } = await supabase
-        .from('users').select('org_id').eq('id', session.user.id).single()
-      const orgId = (me as any)?.org_id ?? null
+        .from('users').select('comp_id').eq('id', session.user.id).single()
+      const compId = (me as any)?.comp_id ?? null
 
       let org = null
-      if (orgId) {
-        const { data: orgRow } = await supabase
-          .from('organisations').select('id, name, slug, tournament_id').eq('id', orgId).single()
-        org = orgRow ?? null
+      if (compId) {
+        const { data: compRow } = await supabase
+          .from('comps').select('id, name, slug, tournament_id').eq('id', compId).single()
+        org = compRow ?? null
       }
       setUserOrg(org as any)
 
@@ -536,8 +536,8 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
       if (org && org.slug !== 'public' && orgMatchesTournament) {
         // User has an org for this tournament — load its tribes
         const [adminRes, tribesData] = await Promise.all([
-          fetch('/api/org-admins').then(r => r.json()),
-          fetch(`/api/tribes/list?org_id=${org.id}`).then(r => r.json()),
+          fetch('/api/comp-admins').then(r => r.json()),
+          fetch(`/api/tribes/list?comp_id=${comp.id}`).then(r => r.json()),
         ])
         setIsOrgAdmin(adminRes.is_org_admin === true)
         setOrgTribes((tribesData.data ?? []) as any[])
@@ -545,7 +545,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
       } else {
         // User has no org, or org is for a different tournament — show tournament orgs
         if (activeTournamentId) {
-          const res  = await fetch(`/api/organisations?tournament_id=${activeTournamentId}`)
+          const res  = await fetch(`/api/comps?tournament_id=${activeTournamentId}`)
           const data = await res.json()
           setTournOrgs(data.data ?? [])
         }
@@ -556,14 +556,14 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
 
   const lookupOrgCode = async () => {
     setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
-    const res = await fetch(`/api/organisations?code=${orgCode}`)
+    const res = await fetch(`/api/comps?code=${compCode}`)
     const { data, error } = await res.json()
     setLookingUp(false)
-    if (error || !data) setOrgCodeErr('Code not found — check with your organisation admin')
+    if (error || !data) setOrgCodeErr('Code not found — check with your comp admin')
     else {
       // Verify org is for the active tournament
       if (activeTournamentId && data.tournament_id && data.tournament_id !== activeTournamentId) {
-        setOrgCodeErr('This organisation is not linked to your current tournament')
+        setOrgCodeErr('This comp is not linked to your current tournament')
       } else {
         setOrgLookup(data)
       }
@@ -571,36 +571,36 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
   }
 
   const joinOrg = async () => {
-    if (!orgLookup) return
+    if (!compLookup) return
     setLoading(true); setError(null)
-    const res = await fetch('/api/org-admins/self-register', {
+    const res = await fetch('/api/comp-admins/self-register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgLookup.id, invite_code: orgCode.toUpperCase() }),
+      body: JSON.stringify({ comp_id: compLookup.id, invite_code: compCode.toUpperCase() }),
     })
     const { success, error } = await res.json()
     setLoading(false)
-    if (!success) { setError(error ?? 'Failed to join organisation'); return }
+    if (!success) { setError(error ?? 'Failed to join comp'); return }
     // Reload tribes for new org
-    const tribesData = await fetch(`/api/tribes/list?org_id=${orgLookup.id}`).then(r => r.json())
-    setUserOrg(orgLookup as any)
+    const tribesData = await fetch(`/api/tribes/list?comp_id=${compLookup.id}`).then(r => r.json())
+    setUserOrg(compLookup as any)
     setOrgTribes(tribesData.data ?? [])
     setStep('has-org')
   }
 
   const createOrg = async () => {
-    if (!newOrgName.trim()) return
+    if (!newCompName.trim()) return
     setLoading(true); setError(null)
-    const res = await fetch('/api/organisations/create', {
+    const res = await fetch('/api/comps/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: newOrgName.trim(), owner_phone: ownerPhone.trim(),
+        name: newCompName.trim(), owner_phone: ownerPhone.trim(),
         owner_email: ownerEmail.trim(), owner_name: '',
         user_id: session!.user.id, email: session!.user.email,
         tournament_id: activeTournamentId,
       }),
     })
     const { data: org, error: orgErr } = await res.json()
-    if (orgErr || !org) { setError(orgErr ?? 'Failed to create organisation'); setLoading(false); return }
+    if (orgErr || !org) { setError(orgErr ?? 'Failed to create comp'); setLoading(false); return }
 
     if (logoFile && session?.user.id) {
       const ext  = logoFile.name.split('.').pop()
@@ -609,9 +609,9 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
         .from('org-logos').upload(path, logoFile, { upsert: true })
       if (uploaded) {
         const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
-        await fetch('/api/organisations/create', {
+        await fetch('/api/comps/create', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ org_id: org.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
+          body: JSON.stringify({ comp_id: comp.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
         })
       }
     }
@@ -647,16 +647,16 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
   // ── Step: User has org for this tournament — show tribe picker ────────────
   if (step === 'has-org') return (
     <div className="space-y-4">
-      {userOrg && userOrg.slug !== 'public' && (
+      {userComp && userComp.slug !== 'public' && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-          <p className="text-[11px] text-blue-600 font-semibold uppercase tracking-wide mb-0.5">Your Organisation</p>
-          <p className="text-sm font-bold text-blue-900">🏢 {userOrg.name}</p>
-          <p className="text-[11px] text-blue-500 mt-0.5">All tribes shown below belong to your organisation.</p>
+          <p className="text-[11px] text-blue-600 font-semibold uppercase tracking-wide mb-0.5">Your Comp</p>
+          <p className="text-sm font-bold text-blue-900">🏢 {userComp.name}</p>
+          <p className="text-[11px] text-blue-500 mt-0.5">All tribes shown below belong to your comp.</p>
         </div>
       )}
 
-      {orgTribes.length > 0 && (
-        <TribeDropdown tribes={orgTribes} onJoin={joinTribeByCode} loading={loading} />
+      {compTribes.length > 0 && (
+        <TribeDropdown tribes={compTribes} onJoin={joinTribeByCode} loading={loading} />
       )}
 
       {/* Manual invite code */}
@@ -680,19 +680,19 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
   if (step === 'no-org') return (
     <div className="space-y-4">
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-        <p className="text-sm font-semibold text-amber-800">No organisation linked to this tournament</p>
+        <p className="text-sm font-semibold text-amber-800">No comp linked to this tournament</p>
         <p className="text-[11px] text-amber-600 mt-0.5">
-          Join an existing organisation for this tournament, or create a new one.
+          Join an existing comp for this tournament, or create a new one.
         </p>
       </div>
 
       {/* Existing orgs for this tournament */}
-      {tournOrgs.length > 0 && (
+      {tournComps.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Available organisations</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Available comps</p>
           <div className="space-y-2">
-            {tournOrgs.map((org: any) => (
-              <div key={org.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+            {tournComps.map((org: any) => (
+              <div key={comp.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 {org.logo_url
                   ? <img src={org.logo_url} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt={org.name} />
                   : <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-sm flex-shrink-0">🏢</div>
@@ -701,7 +701,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-gray-400 mt-2">Enter the invite code from your organisation admin to join one of these.</p>
+          <p className="text-[11px] text-gray-400 mt-2">Enter the invite code from your comp admin to join one of these.</p>
         </div>
       )}
 
@@ -709,22 +709,22 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">🔑 Join with invite code</p>
         <div className="flex gap-2 mb-2">
-          <input type="text" value={orgCode} onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
+          <input type="text" value={compCode} onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
             placeholder="8-digit org code"
             className="flex-1 px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white uppercase" />
-          <button onClick={lookupOrgCode} disabled={lookingUp || orgCode.length < 4}
+          <button onClick={lookupOrgCode} disabled={lookingUp || compCode.length < 4}
             className="px-3 py-2 border border-gray-300 hover:bg-gray-50 text-sm rounded-lg flex items-center gap-1.5">
             {lookingUp ? <Spinner className="w-4 h-4" /> : 'Look up'}
           </button>
         </div>
-        {orgCodeErr && <p className="text-xs text-red-600 mb-2">{orgCodeErr}</p>}
-        {orgLookup && (
+        {compCodeErr && <p className="text-xs text-red-600 mb-2">{compCodeErr}</p>}
+        {compLookup && (
           <div className="mb-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-            <p className="text-sm font-semibold text-green-800">🏢 {orgLookup.name}</p>
+            <p className="text-sm font-semibold text-green-800">🏢 {compLookup.name}</p>
             <button onClick={joinOrg} disabled={loading}
               className="mt-2 w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
               {loading && <Spinner className="w-4 h-4 text-white" />}
-              Join {orgLookup.name}
+              Join {compLookup.name}
             </button>
           </div>
         )}
@@ -734,7 +734,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
         <button onClick={() => setStep('create-org')}
           className="w-full py-2.5 border-2 border-dashed border-gray-300 hover:border-green-400 text-gray-500 hover:text-green-700 text-sm font-medium rounded-xl transition-colors">
-          + Create a new organisation for this tournament
+          + Create a new comp for this tournament
         </button>
       </div>
 
@@ -747,11 +747,11 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
     <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2 mb-1">
         <button onClick={() => setStep('no-org')} className="text-gray-400 hover:text-gray-600 text-lg">←</button>
-        <p className="text-sm font-semibold text-gray-800">Create a new organisation</p>
+        <p className="text-sm font-semibold text-gray-800">Create a new comp</p>
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1.5">Organisation name *</label>
-        <input type="text" value={newOrgName} onChange={e => setNewOrgName(e.target.value)}
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name *</label>
+        <input type="text" value={newCompName} onChange={e => setNewOrgName(e.target.value)}
           placeholder="e.g. Acme Corp"
           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
       </div>
@@ -782,10 +782,10 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
         </div>
       </div>
       {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-      <button onClick={createOrg} disabled={loading || !newOrgName.trim()}
+      <button onClick={createOrg} disabled={loading || !newCompName.trim()}
         className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
         {loading && <Spinner className="w-4 h-4 text-white" />}
-        Create organisation →
+        Create comp →
       </button>
     </div>
   )
@@ -794,11 +794,11 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
 }
 
 
-function PrizesDisplay({ orgId }: { orgId: string }) {
+function PrizesDisplay({ compId }: { compId: string }) {
   const [prizes, setPrizes] = useState<any[]>([])
   useEffect(() => {
-    fetch(`/api/org-prizes?org_id=${orgId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
-  }, [orgId])
+    fetch(`/api/comp-prizes?comp_id=${compId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
+  }, [compId])
   if (prizes.length === 0) return null
   const MEDALS = ['🥇','🥈','🥉','4️⃣','5️⃣']
   return (
@@ -874,10 +874,10 @@ export default function TribePage() {
         return
       }
       // Fetch org name for display
-      if (raw.org_id) {
-        const { data: orgRow } = await supabase
-          .from('organisations').select('name, logo_url').eq('id', raw.org_id).single()
-        if (orgRow) raw._org = orgRow
+      if (raw.comp_id) {
+        const { data: compRow } = await supabase
+          .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
+        if (compRow) raw._org = compRow
       }
       const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
         const u = tm.users ?? tm.user ?? {}
@@ -966,7 +966,7 @@ export default function TribePage() {
       </div>
 
       {/* Prizes */}
-      {(tribe as any).org_id && <PrizesDisplay orgId={(tribe as any).org_id} />}
+      {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-4 w-fit">
