@@ -9,7 +9,7 @@ import { Avatar } from '@/components/ui'
 const NAV = [
   { href: '/predict',     label: 'Predict' },
   { href: '/leaderboard', label: 'ScoreBoard' },
-  { href: '/tribe',       label: 'Tribe' },
+  { href: '/tribe',       label: 'Join tribe' },
   { href: '/rules',       label: 'Rules' },
 ]
 

@@ -862,6 +862,17 @@ export default function TribePage() {
 
     if (tribeData.data) {
       const raw = tribeData.data
+      // Check tribe belongs to the active tournament
+      if (tid && raw.tournament_id && raw.tournament_id !== tid) {
+        // Tribe is for a different tournament — show NoTribePanel
+        setTribe(null)
+        setFixtures((fxData.data ?? []).map((f: any) => ({
+          id: f.id, round: f.round, group: f.group, home: f.home, away: f.away,
+          kickoff_utc: f.kickoff_utc, venue: f.venue, result: f.result ?? null,
+        })))
+        setLoading(false)
+        return
+      }
       // Fetch org name for display
       if (raw.org_id) {
         const { data: orgRow } = await supabase

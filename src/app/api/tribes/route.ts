@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const tribeId = (me as any).tribe_id
 
   const { data: tribe, error } = await supabase
-    .from('tribes').select('id, name, invite_code, created_at, org_id').eq('id', tribeId).single()
+    .from('tribes').select('id, name, invite_code, created_at, org_id, tournament_id').eq('id', tribeId).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const { data: memberRows } = await supabase
@@ -44,8 +44,15 @@ export async function GET(request: NextRequest) {
 
   const { data: userRows } = await supabase
     .from('users').select('id, display_name, avatar_url').in('id', memberIds)
-  const { data: lbRows } = await supabase
+  // Get active tournament from user to scope leaderboard
+  const { data: userTournRow } = await supabase
+    .from('users').select('active_tournament_id').eq('id', user.id).single()
+  const activeTid = (userTournRow as any)?.active_tournament_id ?? null
+
+  let lbQ = supabase
     .from('leaderboard').select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
+  if (activeTid) lbQ = (lbQ as any).eq('tournament_id', activeTid)
+  const { data: lbRows } = await lbQ
 
   const userMap: Record<string, any> = {}
   ;(userRows ?? []).forEach((u: any) => { userMap[u.id] = u })
