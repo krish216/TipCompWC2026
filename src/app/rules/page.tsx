@@ -46,42 +46,42 @@ export default function RulesPage() {
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Points by round</h2>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="grid grid-cols-[1fr_80px_80px_80px] text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <div className="grid grid-cols-[1fr_72px_60px_60px_70px] text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
             <span>Round</span>
-            <div className="text-center leading-tight">
-              <span>Pick type</span>
-            </div>
-            <div className="text-right leading-tight">
-              <span className="text-blue-600">✓</span><br/>
-              <span>Correct</span>
-            </div>
-            <div className="text-right leading-tight">
-              <span className="text-purple-600">★</span><br/>
-              <span>Exact</span>
-            </div>
+            <div className="text-center leading-tight"><span>Pick type</span></div>
+            <div className="text-right leading-tight"><span className="text-blue-600">✓</span><br/><span>Result</span></div>
+            <div className="text-right leading-tight"><span className="text-purple-600">★</span><br/><span>Exact</span></div>
+            <div className="text-right leading-tight"><span className="text-amber-600">⚡</span><br/><span>Bonus</span></div>
           </div>
           {SCORING_ROWS.map(({ rid, label, badge, highlight }, i) => {
             const sc          = SCORING[rid]
             const isExact     = ['sf','tp','f'].includes(rid)
+            const hasPenBonus = ['r32','r16','qf','sf','tp','f'].includes(rid)
+            const hasExactBonus = ['sf','tp','f'].includes(rid)
             return (
-              <div key={rid} className={`grid grid-cols-[1fr_80px_80px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
-                <div className="flex items-center gap-2">
+              <div key={rid} className={`grid grid-cols-[1fr_72px_60px_60px_70px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-gray-800">{label}</span>
                   {badge && <span className="text-[11px] font-medium px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">{badge}</span>}
                 </div>
                 <div className="text-center">
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${isExact ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {isExact ? 'Exact score' : '1 / X / 2'}
+                  <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full ${isExact ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-600'}`}>
+                    {isExact ? 'Score' : '1/X/2'}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-semibold text-blue-700">✓ {sc.result}</span>
+                  <span className="text-sm font-semibold text-blue-700">{sc.result}</span>
                 </div>
                 <div className="text-right">
                   {isExact
-                    ? <span className="text-sm font-semibold text-purple-700">★ {sc.exact}</span>
+                    ? <span className="text-sm font-semibold text-purple-700">{sc.exact + 5}</span>
                     : <span className="text-sm text-gray-300">—</span>
                   }
+                </div>
+                <div className="text-right text-[11px]">
+                  {hasExactBonus && <div className="text-purple-600 font-medium">+5 exact</div>}
+                  {hasPenBonus   && <div className="text-amber-600 font-medium">+5 pens</div>}
+                  {!hasExactBonus && !hasPenBonus && <span className="text-gray-300">—</span>}
                 </div>
               </div>
             )

@@ -16,7 +16,9 @@ export default function HomePage() {
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
-  const [orgData,     setOrgData]     = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
+  const [orgData,             setOrgData]             = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
+  const [userTournaments,     setUserTournaments]     = useState<any[]>([])
+  const [activeTournamentId,  setActiveTournamentId]  = useState<string | null>(null)
   const [activeTournament, setActiveTournament] = useState<{name:string;slug:string}|null>(null)
   const started = Date.now() >= KICKOFF.getTime()
 
@@ -41,9 +43,17 @@ export default function HomePage() {
         setOrgData(null)
       }
       // Fetch active tournament name for display
-      const settingsRes = await fetch('/api/app-settings')
-      const settingsData = await settingsRes.json()
-      const activeTournId = settingsData.data?.active_tournament_id
+      const [settingsRes, userTournRes] = await Promise.all([
+        fetch('/api/app-settings'),
+        fetch('/api/user-tournaments'),
+      ])
+      const settingsData  = await settingsRes.json()
+      const userTournData = await userTournRes.json()
+      setUserTournaments(userTournData.data ?? [])
+      // Active tournament: user's preference, or fall back to app-wide active
+      const userPrefTournId = (userTournData.data ?? []).find((ut: any) => ut.tournament_id)?.tournament_id
+      const activeTournId   = userPrefTournId ?? settingsData.data?.active_tournament_id
+      setActiveTournamentId(activeTournId ?? null)
       if (activeTournId) {
         const { data: tournRow } = await supabase
           .from('tournaments').select('name, slug').eq('id', activeTournId).single()
@@ -71,6 +81,13 @@ export default function HomePage() {
     </Link>
   )
 
+  const switchTournament = async (tid: string, tname: string) => {
+    setActiveTournamentId(tid)
+    setActiveTournament(userTournaments.find((ut: any) => ut.tournament_id === tid)?.tournaments ?? { name: tname, slug: '' })
+    // Save as user's active tournament
+    await supabase.from('users').update({ active_tournament_id: tid }).eq('id', session!.user.id)
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
@@ -97,9 +114,32 @@ export default function HomePage() {
         <p className="text-sm text-gray-500">
           {activeTournament
             ? <>Predict every match of <strong>{activeTournament.name}</strong>. Compete with your tribe.</>
-            : 'Predict every match of the FIFA World Cup. Compete with your tribe.'
+            : 'Predict every match. Compete with your tribe.'
           }
         </p>
+
+        {/* Tournament switcher */}
+        {session && userTournaments.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+            {userTournaments.map((ut: any) => {
+              const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
+              if (!t) return null
+              const isActive = activeTournamentId === ut.tournament_id
+              return (
+                <button key={ut.tournament_id}
+                  onClick={() => switchTournament(ut.tournament_id, t.name)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                    isActive
+                      ? 'bg-green-600 border-green-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700'
+                  }`}>
+                  ⚽ {t.name}
+                  {isActive && <span className="ml-1 text-green-200">●</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {session && !loading && (
