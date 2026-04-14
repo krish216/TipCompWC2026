@@ -16,7 +16,7 @@ export default function HomePage() {
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
-  const [orgData,             setOrgData]             = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
+  const [compData,             setOrgData]             = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
   const [userTournaments,     setUserTournaments]     = useState<any[]>([])
   const [activeTournamentId,  setActiveTournamentId]  = useState<string | null>(null)
   const [activeTournament, setActiveTournament] = useState<{name:string;slug:string}|null>(null)
@@ -26,7 +26,7 @@ export default function HomePage() {
     if (!session) { setLoading(false); return }
     const load = async () => {
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team, org_id').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, favourite_team, comp_id').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
@@ -34,11 +34,11 @@ export default function HomePage() {
       setDisplayName(ud?.display_name ?? null)
       setFavTeam(ud?.favourite_team ?? null)
       // Fetch org explicitly to avoid RLS issues with nested joins
-      const orgId = ud?.org_id ?? null
-      if (orgId) {
-        const { data: orgRow } = await supabase
-          .from('organisations').select('name, logo_url, app_name').eq('id', orgId).single()
-        setOrgData(orgRow ?? null)
+      const compId = ud?.comp_id ?? null
+      if (compId) {
+        const { data: compRow } = await supabase
+          .from('comps').select('name, logo_url, app_name').eq('id', compId).single()
+        setOrgData(compRow ?? null)
       } else {
         setOrgData(null)
       }
@@ -98,9 +98,9 @@ export default function HomePage() {
 
       <div className="mb-8 text-center">
         {/* Show org logo if user belongs to a non-PUBLIC org, otherwise WC26 logo */}
-        {session && orgData?.logo_url && orgData.name !== 'PUBLIC' ? (
+        {session && compData?.logo_url && compData.name !== 'PUBLIC' ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={orgData.logo_url} alt={orgData.name}
+          <img src={compData.logo_url} alt={compData.name}
             className="w-20 h-20 mx-auto mb-3 rounded-xl object-cover border border-gray-200 drop-shadow-md" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
@@ -109,10 +109,10 @@ export default function HomePage() {
             className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
         )}
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {session && orgData?.app_name
-            ? orgData.app_name
-            : session && orgData?.name && orgData.name !== 'PUBLIC'
-              ? `${orgData.name} Tipping Comp`
+          {session && compData?.app_name
+            ? compData.app_name
+            : session && compData?.name && compData.name !== 'PUBLIC'
+              ? `${compData.name} Tipping Comp`
               : 'World Cup 2026 Tipping Comp'}
         </h1>
         <p className="text-sm text-gray-500">
@@ -158,7 +158,7 @@ export default function HomePage() {
           {/* Welcome card */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-1 min-w-[140px]">
-              {(!orgData?.logo_url || orgData.name === 'PUBLIC') && (
+              {(!compData?.logo_url || compData.name === 'PUBLIC') && (
                 <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
                   {(displayName ?? session.user.email ?? 'P').charAt(0).toUpperCase()}
                 </div>
@@ -167,8 +167,8 @@ export default function HomePage() {
                 <p className="text-sm font-semibold text-gray-900">
                   Welcome back, {displayName}! 👋
                 </p>
-                {orgData?.name && orgData.name !== 'PUBLIC' && (
-                  <p className="text-xs text-blue-600 mt-0.5">🏢 {orgData.name}</p>
+                {compData?.name && compData.name !== 'PUBLIC' && (
+                  <p className="text-xs text-blue-600 mt-0.5">🏢 {compData.name}</p>
                 )}
                 {favTeam && <p className="text-xs text-purple-600 mt-0.5">⭐ {favTeam}</p>}
               </div>

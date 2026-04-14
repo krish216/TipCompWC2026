@@ -17,7 +17,7 @@ const CreateSchema = z.object({
   favourite_team: z.string().optional(),
 })
 
-// POST /api/organisations/create — self-service org creation
+// POST /api/comps/create — self-service org creation
 // Uses admin client throughout — no session required.
 // user_id is passed explicitly because the browser session is not yet
 // established when this is called immediately after signUp.
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const body   = await request.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Organisation name and user_id are required' }, { status: 422 })
+    return NextResponse.json({ error: 'Comp name and user_id are required' }, { status: 422 })
   }
 
   const {
@@ -36,15 +36,15 @@ export async function POST(request: NextRequest) {
   const adminClient = createAdminClient()
 
   // Step 1: check org name is unique before doing anything
-  const { data: existing } = await (adminClient.from('organisations') as any)
+  const { data: existing } = await (adminClient.from('comps') as any)
     .select('id').ilike('name', name).single()
   if (existing) {
-    return NextResponse.json({ error: 'An organisation with this name already exists' }, { status: 409 })
+    return NextResponse.json({ error: 'An comp with this name already exists' }, { status: 409 })
   }
 
   // Step 2: upsert user row FIRST and wait for it to fully commit
   // This must happen before the org insert because of the FK constraint
-  const { data: publicOrg } = await (adminClient.from('organisations') as any)
+  const { data: publicOrg } = await (adminClient.from('comps') as any)
     .select('id').eq('slug', 'public').single()
   const publicOrgId = (publicOrg as any)?.id ?? null
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     favourite_team: favourite_team || null,
     country:        country        || null,
     timezone:       timezone       || 'UTC',
-    org_id:         publicOrgId,
+    comp_id:         publicOrgId,
   }, { onConflict: 'id', ignoreDuplicates: false })
 
   if (userError) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   const code     = (Math.random().toString(36).substring(2, 6) +
                     Math.random().toString(36).substring(2, 6)).toUpperCase()
 
-  const { data: org, error } = await (adminClient.from('organisations') as any)
+  const { data: org, error } = await (adminClient.from('comps') as any)
     .insert({
       name, slug,
       invite_code:     code,
@@ -84,47 +84,47 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     if (error.code === '23505') {
-      return NextResponse.json({ error: 'An organisation with this name already exists' }, { status: 409 })
+      return NextResponse.json({ error: 'An comp with this name already exists' }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const orgId = (org as any).id
+  const compId = (org as any).id
 
   // Step 4: assign user to new org and grant org admin
   await Promise.all([
-    (adminClient.from('users') as any).update({ org_id: orgId }).eq('id', user_id),
-    (adminClient.from('org_admins') as any).upsert({ org_id: orgId, user_id }),
+    (adminClient.from('users') as any).update({ comp_id: compId }).eq('id', user_id),
+    (adminClient.from('comp_admins') as any).upsert({ comp_id: compId, user_id }),
   ])
 
   return NextResponse.json({ data: org }, { status: 201 })
 }
 
-// PATCH /api/organisations/create — update logo URL after upload
+// PATCH /api/comps/create — update logo URL after upload
 export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
-  const { org_id, logo_url, user_id, app_name, min_age } = body ?? {}
+  const { comp_id, logo_url, user_id, app_name, min_age } = body ?? {}
   if (!org_id || !user_id) {
-    return NextResponse.json({ error: 'org_id and user_id required' }, { status: 400 })
+    return NextResponse.json({ error: 'comp_id and user_id required' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()
 
   // Verify caller is org admin or created the org
-  const { data: org } = await (adminClient.from('organisations') as any)
-    .select('created_by').eq('id', org_id).single()
-  const { data: orgAdminRow } = await (adminClient.from('org_admins') as any)
-    .select('user_id').eq('user_id', user_id).eq('org_id', org_id).single()
-  if (!org || ((org as any).created_by !== user_id && !orgAdminRow)) {
+  const { data: org } = await (adminClient.from('comps') as any)
+    .select('created_by').eq('id', comp_id).single()
+  const { data: compAdminRow } = await (adminClient.from('comp_admins') as any)
+    .select('user_id').eq('user_id', user_id).eq('comp_id', comp_id).single()
+  if (!org || ((org as any).created_by !== user_id && !compAdminRow)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await (adminClient.from('organisations') as any)
+  await (adminClient.from('comps') as any)
     .update({
         ...(logo_url  !== undefined ? { logo_url }              : {}),
         ...(app_name  !== undefined ? { app_name: app_name || null } : {}),
         ...(min_age   !== undefined ? { min_age:  min_age ?? null  } : {}),
-      }).eq('id', org_id)
+      }).eq('id', comp_id)
 
   return NextResponse.json({ success: true })
 }

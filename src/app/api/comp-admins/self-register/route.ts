@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { comp_id, invite_code } = await request.json()
-  if (!org_id || !invite_code) {
-    return NextResponse.json({ error: 'org_id and invite_code required' }, { status: 400 })
+  if (!comp_id || !invite_code) {
+    return NextResponse.json({ error: 'comp_id and invite_code required' }, { status: 400 })
   }
 
   // Verify the invite code matches the org

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// POST /api/org-challenges/settle — settle challenges for a fixture after result is entered
+// POST /api/comp-challenges/settle — settle challenges for a fixture after result is entered
 // Called automatically from the results API, or manually by tournament admin
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
   const { home_score, away_score } = fixture as any
 
   // Find unsettled challenges for this fixture
-  const { data: challenges } = await (adminClient.from('org_challenges') as any)
-    .select('id, org_id').eq('fixture_id', fixture_id).eq('settled', false)
+  const { data: challenges } = await (adminClient.from('comp_challenges') as any)
+    .select('id, comp_id').eq('fixture_id', fixture_id).eq('settled', false)
 
   if (!challenges?.length) return NextResponse.json({ settled: 0, winners: 0 })
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   for (const challenge of challenges as any[]) {
     // Find org members who predicted the exact score
     const { data: orgMembers } = await adminClient
-      .from('users').select('id').eq('org_id', challenge.org_id)
+      .from('users').select('id').eq('comp_id', challenge.comp_id)
     const memberIds = (orgMembers ?? []).map((m: any) => m.id)
 
     if (memberIds.length === 0) continue
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark challenge as settled
-    await (adminClient.from('org_challenges') as any)
+    await (adminClient.from('comp_challenges') as any)
       .update({ settled: true }).eq('id', challenge.id)
   }
 

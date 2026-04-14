@@ -140,13 +140,13 @@ export async function PATCH(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid invite code' }, { status: 422 })
 
   const { data: me } = await supabase
-    .from('users').select('tribe_id, org_id').eq('id', user.id).single()
+    .from('users').select('tribe_id, comp_id').eq('id', user.id).single()
   if ((me as any)?.tribe_id) return NextResponse.json({ error: 'Already in a tribe' }, { status: 409 })
 
   const userCompId = (me as any)?.comp_id ?? null
 
   const { data: tribe } = await supabase
-    .from('tribes').select('id, name, org_id').eq('invite_code', parsed.data.invite_code).single()
+    .from('tribes').select('id, name, comp_id').eq('invite_code', parsed.data.invite_code).single()
   if (!tribe) return NextResponse.json({ error: 'Tribe not found — check the invite code' }, { status: 404 })
 
   // Enforce org membership

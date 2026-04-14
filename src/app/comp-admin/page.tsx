@@ -635,7 +635,7 @@ function AnnouncementsPanel({ compId, compName, userId }: { compId: string; comp
 
   useEffect(() => {
     fetch('/api/announcements').then(r => r.json()).then(d =>
-      setAnnouncements((d.data ?? []).filter((a: any) => a.org_id === compId || !a.comp_id))
+      setAnnouncements((d.data ?? []).filter((a: any) => a.comp_id === compId || !a.comp_id))
     )
     // Re-fetch all and filter by this org
     fetch('/api/announcements').then(r => r.json()).then(d => {
@@ -916,8 +916,8 @@ export default function OrgAdminPage() {
       // Fetch subscription tier
       if (adminData.comp_id) {
         const [subRes, domainRes] = await Promise.all([
-          fetch(`/api/comp-subscriptions?comp_id=${adminData.org_id}`),
-          fetch(`/api/comps/domain?comp_id=${adminData.org_id}`),
+          fetch(`/api/comp-subscriptions?comp_id=${adminData.comp_id}`),
+          fetch(`/api/comps/domain?comp_id=${adminData.comp_id}`),
         ])
         const [subData, domainData] = await Promise.all([subRes.json(), domainRes.json()])
         setOrgTier(subData.data?.tier ?? 'trial')
