@@ -39,32 +39,26 @@ const SNAPSHOT_TO_ROUNDS: Record<string, RoundId[]> = {
 const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
 
 // ── Challenge Results tab ─────────────────────────────────────────────────────
-function ChallengeResultsTab() {
-  const { supabase, session } = useSupabase()
+function ChallengeResultsTab({ selectedComp }: { selectedComp: string | null }) {
+  const { session } = useSupabase()
   const [challenges, setChallenges] = useState<any[]>([])
   const [loading,    setLoading]    = useState(true)
-  const [compId,      setOrgId]      = useState<string | null>(null)
   const myId = session?.user.id ?? ''
 
   useEffect(() => {
-    if (!session) return
-    ;(async () => {
-      const { data: me } = await supabase
-        .from('users').select('comp_id').eq('id', session.user.id).single()
-      const oid = (me as any)?.org_id ?? null
-      setOrgId(oid)
-      if (!oid) { setLoading(false); return }
-
-      const res  = await fetch(`/api/comp-challenges?org_id=${oid}`)
-      const data = await res.json()
-      setChallenges((data.data ?? []).filter((c: any) => c.settled))
-      setLoading(false)
-    })()
-  }, [session, supabase])
+    if (!session || !selectedComp) { setLoading(false); return }
+    setLoading(true)
+    fetch(`/api/comp-challenges?comp_id=${selectedComp}`)
+      .then(r => r.json())
+      .then(data => {
+        setChallenges((data.data ?? []).filter((c: any) => c.settled))
+        setLoading(false)
+      })
+  }, [session, selectedComp])
 
   if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
-  if (!compId || challenges.length === 0) return (
+  if (!selectedComp || challenges.length === 0) return (
     <EmptyState
       title="No challenge results yet"
       description="Challenges are settled automatically when match results are entered."
@@ -204,16 +198,31 @@ export default function LeaderboardPage() {
       const cid   = (userRow as any)?.comp_id ?? null
       setActiveTournamentId(tid)
 
-      // Fetch all comps the user is part of for this tournament
-      if (tid) {
+      // Fetch only comps this user has JOINED (from user_tournaments → comp)
+      const utRes  = await fetch('/api/user-tournaments')
+      const utData = await utRes.json()
+      const enrolledTournIds = new Set((utData.data ?? []).map((ut: any) => ut.tournament_id))
+
+      // Get comps for the active tournament that the user is a member of
+      const compSet: {id:string;name:string;app_name?:string|null}[] = []
+      if (cid) {
+        // Primary comp — fetch details
+        const { data: myCompRow } = await supabase
+          .from('comps').select('id, name, app_name').eq('id', cid).single()
+        if (myCompRow) compSet.push(myCompRow as any)
+      }
+      // If enrolled in multiple tournaments, check for comps in each
+      // For now, show comps for active tournament where user is a member
+      if (tid && compSet.length === 0) {
         const res  = await fetch(`/api/comps?tournament_id=${tid}`)
         const data = await res.json()
-        const comps = (data.data ?? []) as any[]
-        setUserComps(comps)
-        // Default to user's current comp
-        const myComp = comps.find((c: any) => c.id === cid) ?? comps[0] ?? null
-        if (myComp && !selectedComp) setSelectedComp(myComp.id)
+        const allComps = (data.data ?? []) as any[]
+        // Only include comps where the user is actually a member
+        compSet.push(...allComps.filter((c: any) => c.id === cid))
       }
+      setUserComps(compSet)
+      const firstComp = compSet[0] ?? null
+      if (firstComp && !selectedComp) setSelectedComp(firstComp.id)
 
       fetchLeaderboard(scope, tid)
     })()
@@ -265,6 +274,50 @@ export default function LeaderboardPage() {
         <p className="text-xs text-gray-500 mt-0.5">Updates instantly when results are confirmed</p>
       </div>
 
+      {/* Comp selector — always visible at top, filters all tabs */}
+      {userComps.length > 0 && (
+        <div className="mb-4">
+          {userComps.length === 1 ? (
+            <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-gray-200 rounded-xl">
+              <span className="text-xl">🏢</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Viewing comp</p>
+                <p className="text-sm font-bold text-gray-900 truncate">{userComps[0].app_name || userComps[0].name}</p>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Select comp</p>
+              <div className="flex gap-2 flex-wrap">
+                {userComps.map(c => (
+                  <button key={c.id}
+                    onClick={() => {
+                      setSelectedComp(c.id)
+                      setEntries([]); setMyEntry(null)
+                      fetchLeaderboard(scope)
+                    }}
+                    className={clsx(
+                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold',
+                      selectedComp === c.id
+                        ? 'bg-green-600 border-green-600 text-white shadow-sm scale-[1.02]'
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-green-400 hover:shadow-sm'
+                    )}>
+                    <span>🏢</span>
+                    <span>{c.app_name || c.name}</span>
+                    {selectedComp === c.id && (
+                      <span className="flex items-center gap-0.5 text-green-200 text-[10px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"/>
+                        Active
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Top-level tabs: Leaderboard / Challenge Results */}
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl">
         {([
@@ -282,7 +335,7 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Challenge Results tab */}
-      {mainTab === 'challenges' && <ChallengeResultsTab />}
+      {mainTab === 'challenges' && <ChallengeResultsTab selectedComp={selectedComp} />}
 
       {/* Leaderboard tab */}
       {mainTab === 'leaderboard' && (
@@ -299,33 +352,6 @@ export default function LeaderboardPage() {
               </button>
             ))}
           </div>
-
-          {/* Comp picker — shown when scope is comp and user has multiple comps */}
-          {scope === 'comp' && userComps.length > 0 && (
-            <div className="mb-3">
-              {userComps.length === 1 ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs">
-                  <span className="text-base">🏢</span>
-                  <span className="font-semibold text-blue-800">{userComps[0].app_name || userComps[0].name}</span>
-                  <span className="text-blue-500 ml-auto">Showing leaderboard for this comp</span>
-                </div>
-              ) : (
-                <div className="flex gap-1.5 flex-wrap">
-                  {userComps.map(c => (
-                    <button key={c.id}
-                      onClick={() => { setSelectedComp(c.id); fetchLeaderboard('comp') }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
-                        selectedComp === c.id
-                          ? 'bg-green-600 border-green-600 text-white shadow-sm'
-                          : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700'
-                      }`}>
-                      🏢 {c.app_name || c.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Round snapshot pills */}
           <div className="flex gap-1.5 flex-wrap mb-4">
