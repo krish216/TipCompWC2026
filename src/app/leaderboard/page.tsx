@@ -8,14 +8,14 @@ import type { LeaderboardEntry, RoundId } from '@/types'
 import { ShareButton } from '@/components/game/ShareCard'
 import { SCORING } from '@/types'
 
-type Scope     = 'tribe' | 'org' | 'global'
+type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = 'all' | RoundId
 type MainTab   = 'leaderboard' | 'challenges'
 
 const SCOPE_LABELS: Record<Scope, string> = {
-  tribe:  'My tribe',
-  org:    'My organisation',
-  global: 'Global',
+  tribe: 'My tribe',
+  comp:  'Comp',
+  global:'Global',
 }
 
 const ROUND_SNAPSHOTS: { id: RoundView; label: string }[] = [
@@ -43,19 +43,19 @@ function ChallengeResultsTab() {
   const { supabase, session } = useSupabase()
   const [challenges, setChallenges] = useState<any[]>([])
   const [loading,    setLoading]    = useState(true)
-  const [orgId,      setOrgId]      = useState<string | null>(null)
+  const [compId,      setOrgId]      = useState<string | null>(null)
   const myId = session?.user.id ?? ''
 
   useEffect(() => {
     if (!session) return
     ;(async () => {
       const { data: me } = await supabase
-        .from('users').select('org_id').eq('id', session.user.id).single()
+        .from('users').select('comp_id').eq('id', session.user.id).single()
       const oid = (me as any)?.org_id ?? null
       setOrgId(oid)
       if (!oid) { setLoading(false); return }
 
-      const res  = await fetch(`/api/org-challenges?org_id=${oid}`)
+      const res  = await fetch(`/api/comp-challenges?org_id=${oid}`)
       const data = await res.json()
       setChallenges((data.data ?? []).filter((c: any) => c.settled))
       setLoading(false)
@@ -64,7 +64,7 @@ function ChallengeResultsTab() {
 
   if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
-  if (!orgId || challenges.length === 0) return (
+  if (!compId || challenges.length === 0) return (
     <EmptyState
       title="No challenge results yet"
       description="Challenges are settled automatically when match results are entered."
@@ -166,8 +166,10 @@ function ChallengeResultsTab() {
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
 
-  const [mainTab,   setMainTab]   = useState<MainTab>('leaderboard')
-  const [scope,     setScope]     = useState<Scope>('org')
+  const [mainTab,    setMainTab]    = useState<MainTab>('leaderboard')
+  const [userComps,  setUserComps]  = useState<{id:string;name:string;app_name?:string|null}[]>([])
+  const [selectedComp, setSelectedComp] = useState<string | null>(null)
+  const [scope,     setScope]     = useState<Scope>('comp')
   const [roundView, setRoundView] = useState<RoundView>('all')
   const [entries,   setEntries]   = useState<any[]>([])
   const [myEntry,   setMyEntry]   = useState<any | null>(null)
@@ -195,12 +197,26 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (!session) return
-    supabase.from('users').select('active_tournament_id').eq('id', session.user.id).single()
-      .then(({ data }) => {
-        const tid = (data as any)?.active_tournament_id ?? null
-        setActiveTournamentId(tid)
-        fetchLeaderboard(scope, tid)
-      })
+    ;(async () => {
+      const { data: userRow } = await supabase
+        .from('users').select('active_tournament_id, comp_id').eq('id', session.user.id).single()
+      const tid   = (userRow as any)?.active_tournament_id ?? null
+      const cid   = (userRow as any)?.comp_id ?? null
+      setActiveTournamentId(tid)
+
+      // Fetch all comps the user is part of for this tournament
+      if (tid) {
+        const res  = await fetch(`/api/comps?tournament_id=${tid}`)
+        const data = await res.json()
+        const comps = (data.data ?? []) as any[]
+        setUserComps(comps)
+        // Default to user's current comp
+        const myComp = comps.find((c: any) => c.id === cid) ?? comps[0] ?? null
+        if (myComp && !selectedComp) setSelectedComp(myComp.id)
+      }
+
+      fetchLeaderboard(scope, tid)
+    })()
   }, [session, scope])
 
   useEffect(() => {
@@ -271,9 +287,9 @@ export default function LeaderboardPage() {
       {/* Leaderboard tab */}
       {mainTab === 'leaderboard' && (
         <>
-          {/* Scope sub-tabs: Tribe / Org / Global */}
-          <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg">
-            {(['tribe','org','global'] as Scope[]).map(s => (
+          {/* Scope sub-tabs */}
+          <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg">
+            {(['tribe','comp','global'] as Scope[]).map(s => (
               <button key={s} onClick={() => { setScope(s); setExpanded(null) }}
                 className={clsx(
                   'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
@@ -283,6 +299,33 @@ export default function LeaderboardPage() {
               </button>
             ))}
           </div>
+
+          {/* Comp picker — shown when scope is comp and user has multiple comps */}
+          {scope === 'comp' && userComps.length > 0 && (
+            <div className="mb-3">
+              {userComps.length === 1 ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs">
+                  <span className="text-base">🏢</span>
+                  <span className="font-semibold text-blue-800">{userComps[0].app_name || userComps[0].name}</span>
+                  <span className="text-blue-500 ml-auto">Showing leaderboard for this comp</span>
+                </div>
+              ) : (
+                <div className="flex gap-1.5 flex-wrap">
+                  {userComps.map(c => (
+                    <button key={c.id}
+                      onClick={() => { setSelectedComp(c.id); fetchLeaderboard('comp') }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
+                        selectedComp === c.id
+                          ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                          : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700'
+                      }`}>
+                      🏢 {c.app_name || c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Round snapshot pills */}
           <div className="flex gap-1.5 flex-wrap mb-4">
@@ -307,7 +350,7 @@ export default function LeaderboardPage() {
             <EmptyState title={message} description={scope === 'tribe' ? 'Go to the Tribe tab to join one.' : ''} />
           ) : filteredEntries.length === 0 ? (
             <EmptyState
-              title={scope === 'tribe' ? 'No tribe members yet' : scope === 'org' ? 'No organisation members yet' : 'No predictions yet'}
+              title={scope === 'tribe' ? 'No tribe members yet' : scope === 'comp' ? 'No comp members yet' : 'No predictions yet'}
               description={scope === 'tribe' ? 'Invite friends to your tribe.' : 'Be the first!'}
             />
           ) : (
@@ -325,8 +368,8 @@ export default function LeaderboardPage() {
                         <p className={clsx('text-xs font-medium text-center truncate w-full px-1', isMe && 'text-green-700')}>
                           {entry.display_name.split(' ')[0]}{isMe && ' (you)'}
                         </p>
-                        {scope === 'global' && entry.org_name && (
-                          <p className="text-[9px] text-gray-400 truncate w-full text-center px-1">{entry.org_name}</p>
+                        {scope === 'global' && entry.comp_name && (
+                          <p className="text-[9px] text-gray-400 truncate w-full text-center px-1">{entry.comp_name}</p>
                         )}
                         <div className={clsx('w-full flex flex-col items-center justify-end rounded-t-lg pb-3 pt-2', heights[i],
                           podiumRank===1?'bg-amber-100':podiumRank===2?'bg-gray-100':'bg-orange-50')}>
@@ -385,8 +428,8 @@ export default function LeaderboardPage() {
                               {entry.tribe_name && (
                                 <span className="text-[10px] text-gray-400 truncate">🏆 {entry.tribe_name}</span>
                               )}
-                              {scope === 'global' && entry.org_name && entry.org_name !== 'PUBLIC' && (
-                                <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.org_name}</span>
+                              {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
+                                <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.comp_name}</span>
                               )}
                             </div>
                           </div>

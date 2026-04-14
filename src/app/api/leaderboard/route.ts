@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
-    const scope = searchParams.get('scope') ?? 'org'
+    const scope = searchParams.get('scope') ?? 'comp'
     const limit = scope === 'tribe' ? 25 : 50
 
     // Resolve active tournament for this user
     const { data: userRow } = await supabase
       .from('users').select('tribe_id, comp_id, active_tournament_id').eq('id', user.id).single()
     const tribeId = (userRow as any)?.tribe_id ?? null
-    const compId   = (userRow as any)?.org_id   ?? null
+    const compId   = (userRow as any)?.comp_id   ?? null
     let tournamentId = searchParams.get('tournament_id') ?? (userRow as any)?.active_tournament_id ?? null
     if (!tournamentId) {
       const { data: setting } = await adminClient
@@ -40,11 +40,15 @@ export async function GET(request: NextRequest) {
         .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
       scopeUserIds = (members ?? []).map((m: any) => m.user_id)
       if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
-    } else if (scope === 'org' && compId) {
-      const { data: members } = await adminClient
-        .from('users').select('id').eq('comp_id', compId)
-      scopeUserIds = (members ?? []).map((m: any) => m.id)
-      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+    } else if (scope === 'comp') {
+      const explicitCompId = searchParams.get('comp_id')
+      const effectiveCompId = explicitCompId ?? compId
+      if (effectiveCompId) {
+        const { data: members } = await adminClient
+          .from('users').select('id').eq('comp_id', effectiveCompId)
+        scopeUserIds = (members ?? []).map((m: any) => m.id)
+        if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+      }
     }
 
     // Query leaderboard view
