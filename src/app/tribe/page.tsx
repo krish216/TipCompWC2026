@@ -517,6 +517,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
   useEffect(() => {
     if (!session) return
     ;(async () => {
+      try {
       const { data: me } = await supabase
         .from('users').select('comp_id').eq('id', session.user.id).single()
       const compId = (me as any)?.comp_id ?? null
@@ -537,7 +538,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
         // User has an org for this tournament — load its tribes
         const [adminRes, tribesData] = await Promise.all([
           fetch('/api/comp-admins').then(r => r.json()),
-          fetch(`/api/tribes/list?comp_id=${comp.id}`).then(r => r.json()),
+          fetch(`/api/tribes/list?comp_id=${org.id}`).then(r => r.json()),
         ])
         setIsOrgAdmin(adminRes.is_org_admin === true)
         setOrgTribes((tribesData.data ?? []) as any[])
@@ -549,6 +550,10 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
           const data = await res.json()
           setTournOrgs(data.data ?? [])
         }
+        setStep('no-org')
+      }
+      } catch (e: any) {
+        console.error('NoTribePanel init error:', e)
         setStep('no-org')
       }
     })()
@@ -611,7 +616,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
         const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
         await fetch('/api/comps/create', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ comp_id: comp.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
+          body: JSON.stringify({ comp_id: org.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
         })
       }
     }
@@ -692,7 +697,7 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined: () => void; 
           <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Available comps</p>
           <div className="space-y-2">
             {tournComps.map((org: any) => (
-              <div key={comp.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div key={org.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 {org.logo_url
                   ? <img src={org.logo_url} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt={org.name} />
                   : <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-sm flex-shrink-0">🏢</div>
