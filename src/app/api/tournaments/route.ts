@@ -7,7 +7,7 @@ export async function GET() {
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('tournaments')
-    .select('id, name, description, slug, status, start_date, end_date, logo_url, created_at')
+    .select('id, name, description, slug, status, start_date, end_date, logo_url, teams, created_at')
     .order('start_date', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })

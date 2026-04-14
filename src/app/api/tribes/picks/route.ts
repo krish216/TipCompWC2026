@@ -31,12 +31,22 @@ export async function GET(request: NextRequest) {
   const memberIds = members.map((m: any) => m.user_id)
 
   // Get locked fixtures (kickoff <= now + 5min OR has result)
+  // Resolve tribe's tournament from any member's active_tournament_id
+  const { data: tribeUserRow } = await (adminClient.from('users') as any)
+    .select('active_tournament_id')
+    .eq('tribe_id', tribeId)
+    .not('active_tournament_id', 'is', null)
+    .limit(1)
+    .single()
+  const tournamentId = (tribeUserRow as any)?.active_tournament_id ?? null
+
   const cutoff = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-  const { data: fixtureRows } = await adminClient
-    .from('fixtures')
+  let fixturesQ = (adminClient.from('fixtures') as any)
     .select('id, round, home, away, kickoff_utc, venue, home_score, away_score, pen_winner')
     .or(`kickoff_utc.lte.${cutoff},home_score.not.is.null`)
     .order('kickoff_utc', { ascending: true })
+  if (tournamentId) fixturesQ = fixturesQ.eq('tournament_id', tournamentId)
+  const { data: fixtureRows } = await fixturesQ
 
   const fixtures = (fixtureRows ?? []).map((f: any) => ({
     id:          f.id,
@@ -54,10 +64,12 @@ export async function GET(request: NextRequest) {
   const fixtureIds = fixtures.map((f: any) => f.id)
 
   // Get all predictions for these fixtures from tribe members
-  const { data: predRows } = await (adminClient.from('predictions') as any)
+  let predQ = (adminClient.from('predictions') as any)
     .select('user_id, fixture_id, home, away, outcome, pen_winner, points_earned')
     .in('fixture_id', fixtureIds)
     .in('user_id', memberIds)
+  if (tournamentId) predQ = predQ.eq('tournament_id', tournamentId)
+  const { data: predRows } = await predQ
 
   // Build picks map: { fixture_id: { user_id: { home, away, pen_winner, points_earned } } }
   const picks: Record<number, Record<string, any>> = {}

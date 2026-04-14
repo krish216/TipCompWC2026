@@ -44,8 +44,9 @@ export default function LoginPage() {
   const [favTeam,      setFavTeam]      = useState('')
   const [dob,          setDob]          = useState('')
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string}[]>([])
-  const [selectedTourn,  setSelectedTourn]  = useState<string>('')    // single tournament id
-  const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')   // fav team for that tournament
+  const [selectedTourn,  setSelectedTourn]  = useState<string>('')
+  const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')
+  const [tournTeamsMap,  setTournTeamsMap]   = useState<Record<string, string[]>>({})
 
   // Post-registration screens
   const [registered, setRegistered] = useState(false)  // show "check email"
@@ -84,6 +85,12 @@ export default function LoginPage() {
         setTournaments(active)
         // Pre-select the only tournament if there's just one
         if (active.length === 1) setSelectedTourn(active[0].id)
+        // Build teams map per tournament
+        const tmap: Record<string, string[]> = {}
+        active.forEach((t: any) => {
+          if (t.teams?.length) tmap[t.id] = [...t.teams].sort()
+        })
+        setTournTeamsMap(tmap)
       })
       .catch(() => {})
   }, [])
@@ -586,7 +593,9 @@ export default function LoginPage() {
                   <select value={favTeamForTourn} onChange={e => setFavTeamForTourn(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
                     <option value="">No favourite team</option>
-                    {ALL_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(tournTeamsMap[selectedTourn || tournaments[0]?.id] ?? ALL_TEAMS).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
                   </select>
                   {favTeamForTourn && (
                     <p className="text-[11px] text-purple-600 mt-1">

@@ -51,8 +51,12 @@ export default function HomePage() {
       const userTournData = await userTournRes.json()
       setUserTournaments(userTournData.data ?? [])
       // Active tournament: user's preference, or fall back to app-wide active
-      const userPrefTournId = (userTournData.data ?? []).find((ut: any) => ut.tournament_id)?.tournament_id
-      const activeTournId   = userPrefTournId ?? settingsData.data?.active_tournament_id
+      // Active tournament: prefer user's explicit choice, else first enrolled, else app default
+      const { data: userPrefRow } = await supabase
+        .from('users').select('active_tournament_id').eq('id', session.user.id).single()
+      const userActiveTournId = (userPrefRow as any)?.active_tournament_id
+      const firstEnrolledId   = (userTournData.data ?? [])[0]?.tournament_id
+      const activeTournId     = userActiveTournId ?? firstEnrolledId ?? settingsData.data?.active_tournament_id
       setActiveTournamentId(activeTournId ?? null)
       if (activeTournId) {
         const { data: tournRow } = await supabase
@@ -119,7 +123,7 @@ export default function HomePage() {
         </p>
 
         {/* Tournament switcher */}
-        {session && userTournaments.length > 1 && (
+        {session && userTournaments.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
             {userTournaments.map((ut: any) => {
               const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
@@ -128,13 +132,20 @@ export default function HomePage() {
               return (
                 <button key={ut.tournament_id}
                   onClick={() => switchTournament(ut.tournament_id, t.name)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                  disabled={isActive}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-full border-2 transition-all ${
                     isActive
-                      ? 'bg-green-600 border-green-700 text-white'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700'
+                      ? 'bg-green-600 border-green-600 text-white shadow-md scale-[1.03] cursor-default'
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700 hover:shadow-sm'
                   }`}>
-                  ⚽ {t.name}
-                  {isActive && <span className="ml-1 text-green-200">●</span>}
+                  <span>⚽</span>
+                  <span>{t.name}</span>
+                  {isActive && (
+                    <span className="flex items-center gap-0.5 ml-0.5 text-green-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
+                      Current
+                    </span>
+                  )}
                 </button>
               )
             })}

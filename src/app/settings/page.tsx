@@ -566,15 +566,7 @@ function TournamentEnrollments() {
     <Card><p className="text-sm text-gray-400 text-center py-2">No active tournaments</p></Card>
   )
 
-  const ALL_TEAMS = [
-    'Algeria','Argentina','Australia','Austria','Belgium','Bosnia and Herzegovina',
-    'Brazil','Canada','Cape Verde','Colombia','Croatia','Curacao','Czechia','DR Congo',
-    'Ecuador','Egypt','England','France','Germany','Ghana','Haiti','Iran','Iraq',
-    'Ivory Coast','Japan','Jordan','Mexico','Morocco','Netherlands','New Zealand',
-    'Norway','Panama','Paraguay','Portugal','Qatar','Saudi Arabia','Scotland','Senegal',
-    'South Africa','South Korea','Spain','Sweden','Switzerland','Tunisia','Turkey',
-    'Uruguay','USA','Uzbekistan',
-  ].sort()
+  // teams come from tournament data — fall back to empty (all sorted when rendering)
 
   return (
     <div className="space-y-3">
@@ -620,7 +612,9 @@ function TournamentEnrollments() {
                     onChange={e => setFavDraft(prev => ({ ...prev, [t.id]: e.target.value }))}
                     className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
                     <option value="">No favourite team</option>
-                    {ALL_TEAMS.map(team => <option key={team} value={team}>{team}</option>)}
+                    {(t.teams?.length ? [...t.teams].sort() : []).map((team: string) => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
                   </select>
                   {favDraft[t.id] !== (enrolled[t.id] ?? '') && (
                     <button onClick={() => saveFav(t.id)} disabled={isSaving}

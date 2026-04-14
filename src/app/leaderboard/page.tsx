@@ -171,15 +171,18 @@ export default function LeaderboardPage() {
   const [roundView, setRoundView] = useState<RoundView>('all')
   const [entries,   setEntries]   = useState<any[]>([])
   const [myEntry,   setMyEntry]   = useState<any | null>(null)
-  const [loading,   setLoading]   = useState(true)
+  const [loading,        setLoading]        = useState(true)
+  const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
   const [error,     setError]     = useState<string | null>(null)
   const [message,   setMessage]   = useState<string | null>(null)
   const [expanded,  setExpanded]  = useState<string | null>(null)
 
-  const fetchLeaderboard = async (sc: Scope) => {
+  const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
     setLoading(true); setError(null); setMessage(null)
+    const tid = tournId ?? activeTournamentId
     try {
-      const res = await fetch(`/api/leaderboard?scope=${sc}&limit=100`)
+      const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}`
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch')
       const { data, my_entry, message: msg, error: apiErr } = await res.json()
       if (apiErr) { setError(apiErr); return }
@@ -190,7 +193,15 @@ export default function LeaderboardPage() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { if (session) fetchLeaderboard(scope) }, [session, scope])
+  useEffect(() => {
+    if (!session) return
+    supabase.from('users').select('active_tournament_id').eq('id', session.user.id).single()
+      .then(({ data }) => {
+        const tid = (data as any)?.active_tournament_id ?? null
+        setActiveTournamentId(tid)
+        fetchLeaderboard(scope, tid)
+      })
+  }, [session, scope])
 
   useEffect(() => {
     if (!session) return
