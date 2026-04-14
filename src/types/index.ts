@@ -15,7 +15,7 @@ export const EXACT_BONUS_PTS = 5
 
 export interface ScoringRule {
   result: number
-  exact: number
+  exact: number  // kept for display/rules reference; calcPoints uses result + EXACT_BONUS_PTS
   label: string
 }
 
@@ -108,16 +108,15 @@ export function calcPoints(
 
   if (isExact) {
     // sf, tp, f — predict exact score
-    const resultOutcome = getOutcome(result.home, result.away)
-    const predOutcome   = getOutcome(pred.home, pred.away)
-    const isExactScore  = pred.home === result.home && pred.away === result.away
+    // Points: result pts for correct outcome; result pts + 5 bonus for exact score
+    const resultOutcome   = getOutcome(result.home, result.away)
+    const predOutcome     = getOutcome(pred.home, pred.away)
+    const isExactScore    = pred.home === result.home && pred.away === result.away
     const isCorrectResult = predOutcome === resultOutcome
 
     if (isExactScore) {
-      // Base exact pts + exact bonus (sf+)
-      const base  = sc.exact
-      const extra = EXACT_BONUS_ROUNDS.includes(round) ? EXACT_BONUS_PTS : 0
-      return (base + extra) * multiplier
+      // Correct exact score = result points + 5 bonus (no separate "exact" tier)
+      return (sc.result + EXACT_BONUS_PTS) * multiplier
     }
     if (isCorrectResult) return sc.result * multiplier
     return 0

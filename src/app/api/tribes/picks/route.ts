@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tribeId = new URL(request.url).searchParams.get('tribe_id')
+  const url = new URL(request.url)
+  const tribeId = url.searchParams.get('tribe_id')
+  const tournamentIdParam = url.searchParams.get('tournament_id')
   if (!tribeId) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
 
   // Verify user is a member of this tribe
@@ -31,14 +33,13 @@ export async function GET(request: NextRequest) {
   const memberIds = members.map((m: any) => m.user_id)
 
   // Get locked fixtures (kickoff <= now + 5min OR has result)
-  // Resolve tribe's tournament from any member's active_tournament_id
-  const { data: tribeUserRow } = await (adminClient.from('users') as any)
-    .select('active_tournament_id')
-    .eq('tribe_id', tribeId)
-    .not('active_tournament_id', 'is', null)
-    .limit(1)
-    .single()
-  const tournamentId = (tribeUserRow as any)?.active_tournament_id ?? null
+  // Use explicit param or derive from tribe's tournament_id column
+  let tournamentId: string | null = tournamentIdParam
+  if (!tournamentId) {
+    const { data: tribeRow } = await (adminClient.from('tribes') as any)
+      .select('tournament_id').eq('id', tribeId).single()
+    tournamentId = (tribeRow as any)?.tournament_id ?? null
+  }
 
   const cutoff = new Date(Date.now() + 5 * 60 * 1000).toISOString()
   let fixturesQ = (adminClient.from('fixtures') as any)

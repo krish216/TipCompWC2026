@@ -834,7 +834,8 @@ export default function TribePage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
   const [tribe,       setTribe]       = useState<TribeData | null>(null)
-  const [tribePicksData, setTribePicksData] = useState<any | null>(null)
+  const [tribePicksData,     setTribePicksData]     = useState<any | null>(null)
+  const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
   const [picksLoading,   setPicksLoading]   = useState(false)
   const [fixtures,    setFixtures]    = useState<Fixture[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -843,7 +844,8 @@ export default function TribePage() {
   const loadPicks = async () => {
     if (!tribe) return
     setPicksLoading(true)
-    const res  = await fetch(`/api/tribes/picks?tribe_id=${tribe.id}`)
+    const tidParam = activeTournamentId ? `&tournament_id=${activeTournamentId}` : ''
+    const res  = await fetch(`/api/tribes/picks?tribe_id=${tribe.id}${tidParam}`)
     const data = await res.json()
     setTribePicksData(data)
     setPicksLoading(false)
@@ -858,9 +860,15 @@ export default function TribePage() {
 
   const loadTribe = async () => {
     setLoading(true)
+    // Resolve active tournament for the current user
+    const { data: userRow } = await supabase
+      .from('users').select('active_tournament_id').eq('id', session!.user.id).single()
+    const tid = (userRow as any)?.active_tournament_id ?? null
+    setActiveTournamentId(tid)
+
     const [tribeRes, fxRes] = await Promise.all([
       fetch('/api/tribes'),
-      fetch('/api/fixtures'),
+      fetch(`/api/fixtures${tid ? `?tournament_id=${tid}` : ''}`),
     ])
     const [tribeData, fxData] = await Promise.all([tribeRes.json(), fxRes.json()])
 
