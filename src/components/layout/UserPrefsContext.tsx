@@ -61,7 +61,12 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [loading,           setLoading]           = useState(true)
 
   // Load comps for a given tournament id
-  const loadComps = useCallback(async (tournId: string, prefCompId?: string | null) => {
+  // userId passed explicitly to avoid stale closure on session
+  const loadComps = useCallback(async (
+    tournId:    string,
+    userId:     string,
+    prefCompId: string | null = null
+  ): Promise<Comp[]> => {
     try {
       const res  = await fetch('/api/user-comps')
       const data = await res.json()
@@ -71,20 +76,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
         comps = (data.data as any[])
           .map((uc: any) => {
-            // Supabase returns nested relation as object or single-element array
             const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
             return c ?? null
           })
           .filter((c: any): c is Comp => !!c && c.tournament_id === tournId)
       }
 
-      // If user_comps returned nothing (table missing or not backfilled),
-      // fall back to reading users.comp_id directly
-      if (comps.length === 0 && session) {
+      // Fallback: query users.comp_id directly if user_comps was empty
+      if (comps.length === 0) {
         const { data: userRow } = await supabase
           .from('users')
           .select('comp_id, comps(id, name, app_name, slug, logo_url, tournament_id)')
-          .eq('id', session.user.id)
+          .eq('id', userId)
           .single()
         const c = userRow && (userRow as any).comp_id
           ? (Array.isArray((userRow as any).comps) ? (userRow as any).comps[0] : (userRow as any).comps)
@@ -94,8 +97,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
       setTournsComps(comps)
 
-      // Resolve starting comp: prefer stored pref, else first
-      const startComp = prefCompId && comps.some((c: any) => c.id === prefCompId)
+      // Auto-select: stored pref if still valid, else first comp
+      const startComp = (prefCompId && comps.some((c: any) => c.id === prefCompId))
         ? prefCompId
         : comps[0]?.id ?? null
       setSelectedCompId(startComp)
@@ -104,7 +107,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       console.error('loadComps error:', e)
       return []
     }
-  }, [session, supabase])
+  }, [supabase])
 
   // Initial load
   useEffect(() => {
@@ -141,7 +144,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       setSelectedTournId(startTournId)
 
       // 3. Load comps for starting tournament
-      if (startTournId) await loadComps(startTournId, prefCompId)
+      if (startTournId) {
+        const resolvedComps = await loadComps(startTournId, session.user.id, prefCompId)
+        // If user_preferences had no comp_id but we resolved one, persist it
+        if (!prefCompId && resolvedComps.length > 0) {
+          await fetch('/api/user-preferences', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comp_id: resolvedComps[0].id }),
+          })
+        }
+      }
 
       setLoading(false)
     })()
@@ -151,7 +163,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setSelectedTournId(id)
     setSelectedCompId(null)
     setTournsComps([])
-    await loadComps(id, null)
+    if (session) await loadComps(id, session.user.id, null)
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tournament_id: id, comp_id: null }),
