@@ -9,6 +9,7 @@ import type { RoundId } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 import { useTimezone } from '@/hooks/useTimezone'
 import { SCORING } from '@/types'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Member {
@@ -522,23 +523,35 @@ function TribeDropdown({ tribes, onJoin, loading }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // NoTribePanel
 // ─────────────────────────────────────────────────────────────────────────────
-function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; activeTournamentId:string|null }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// NoTribePanel — join comps, create comps, join/switch tribes
+// ─────────────────────────────────────────────────────────────────────────────
+function NoTribePanel({
+  onJoined, activeTournamentId, selectedComp, selectedTourn,
+}: {
+  onJoined:             () => void
+  activeTournamentId:   string | null
+  selectedComp:         { id:string; name:string; app_name?:string|null; logo_url?:string|null } | null
+  selectedTourn:        { id:string; name:string } | null
+}) {
   const { session, supabase } = useSupabase()
   const MAX_COMPS = 3
 
+  type View = 'main' | 'join-comp' | 'create-comp'
+  const [view,          setView]          = useState<View>('main')
   const [myComps,       setMyComps]       = useState<any[]>([])
   const [compTribesMap, setCompTribesMap] = useState<Record<string,any[]>>({})
   const [initLoading,   setInitLoading]   = useState(true)
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState<string|null>(null)
 
-  const [showJoinComp,  setShowJoinComp]  = useState(false)
+  // Join comp
   const [compCode,      setCompCode]      = useState('')
   const [compLookup,    setCompLookup]    = useState<{id:string;name:string}|null>(null)
   const [compCodeErr,   setCompCodeErr]   = useState<string|null>(null)
   const [lookingUp,     setLookingUp]     = useState(false)
 
-  const [showCreateComp,setShowCreateComp]= useState(false)
+  // Create comp
   const [newCompName,   setNewCompName]   = useState('')
   const [ownerPhone,    setOwnerPhone]    = useState('')
   const [ownerEmail,    setOwnerEmail]    = useState('')
@@ -549,44 +562,30 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
   const loadMyComps = async () => {
     if (!session) return
     try {
-      // Try user_comps first (multi-comp join table)
+      const res  = await fetch('/api/user-comps')
+      const data = await res.json()
       let comps: any[] = []
-      try {
-        const res  = await fetch('/api/user-comps')
-        const data = await res.json()
-        if (!data.error && Array.isArray(data.data)) {
-          comps = (data.data as any[])
-            .map((uc: any) => {
-              // Supabase returns nested as object or array depending on relation
-              const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
-              return c ?? null
-            })
-            .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
-        }
-      } catch { /* user_comps may not exist yet — fall through */ }
-
-      // Fallback: use users.comp_id (single comp)
+      if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
+        comps = data.data
+          .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
+          .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
+      }
       if (comps.length === 0) {
-        const { data: me } = await supabase
-          .from('users').select('comp_id').eq('id', session.user.id).single()
-        const primaryCompId = (me as any)?.comp_id ?? null
-        if (primaryCompId) {
-          const { data: compRow } = await supabase
-            .from('comps').select('id, name, app_name, slug, logo_url, tournament_id, invite_code')
-            .eq('id', primaryCompId).single()
-          if (compRow && (!activeTournamentId || (compRow as any).tournament_id === activeTournamentId)) {
-            comps = [compRow]
-          }
+        const { data: ur } = await supabase.from('users').select('comp_id').eq('id', session.user.id).single()
+        const cid = (ur as any)?.comp_id
+        if (cid) {
+          const { data: cr } = await supabase.from('comps')
+            .select('id, name, app_name, slug, logo_url, tournament_id').eq('id', cid).single()
+          if (cr && (!activeTournamentId || (cr as any).tournament_id === activeTournamentId)) comps = [cr]
         }
       }
-
       setMyComps(comps)
       if (comps.length > 0) {
         const map: Record<string,any[]> = {}
         await Promise.all(comps.map(async (c: any) => {
-          const res  = await fetch(`/api/tribes/list?comp_id=${c.id}`)
-          const json = await res.json()
-          map[c.id]  = json.data ?? []
+          const r = await fetch(`/api/tribes/list?comp_id=${c.id}`)
+          const d = await r.json()
+          map[c.id] = d.data ?? []
         }))
         setCompTribesMap(map)
       }
@@ -596,14 +595,15 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
 
   useEffect(() => { loadMyComps() }, [session, activeTournamentId])
 
-  const lookupCompCode = async () => {
+  const lookupComp = async () => {
     setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
     const { data, error } = await fetch(`/api/comps?code=${compCode.toUpperCase()}`).then(r=>r.json())
     setLookingUp(false)
-    if (error||!data)       { setCompCodeErr('Code not found — check with your comp admin'); return }
+    if (error || !data) { setCompCodeErr('Code not found — check with your comp admin'); return }
     if (activeTournamentId && data.tournament_id && data.tournament_id !== activeTournamentId)
-                            { setCompCodeErr('This comp is not for your current tournament'); return }
-    if (myComps.some(c=>c.id===data.id)) { setCompCodeErr('You already joined this comp'); return }
+      { setCompCodeErr('This comp is not for your current tournament'); return }
+    if (myComps.some(c => c.id === data.id))
+      { setCompCodeErr('You already joined this comp'); return }
     setCompLookup(data)
   }
 
@@ -611,11 +611,11 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
     if (!compLookup) return
     setLoading(true); setError(null)
     const { success, error } = await fetch('/api/comp-admins/self-register', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comp_id: compLookup.id, invite_code: compCode.toUpperCase() }),
     }).then(r=>r.json())
     if (!success) { setError(error ?? 'Failed to join comp'); setLoading(false); return }
-    setShowJoinComp(false); setCompCode(''); setCompLookup(null)
+    setView('main'); setCompCode(''); setCompLookup(null)
     await loadMyComps(); setLoading(false)
   }
 
@@ -623,35 +623,35 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
     if (!newCompName.trim()) return
     setLoading(true); setError(null)
     const { data: org, error: orgErr } = await fetch('/api/comps/create', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: newCompName.trim(), owner_phone: ownerPhone.trim(),
-        owner_email: ownerEmail.trim(), owner_name:'',
+        owner_email: ownerEmail.trim(), owner_name: '',
         user_id: session!.user.id, email: session!.user.email,
         tournament_id: activeTournamentId,
       }),
     }).then(r=>r.json())
-    if (orgErr||!org) { setError(orgErr ?? 'Failed to create comp'); setLoading(false); return }
+    if (orgErr || !org) { setError(orgErr ?? 'Failed to create comp'); setLoading(false); return }
     if (logoFile && session?.user.id) {
       const ext = logoFile.name.split('.').pop()
       const p   = `${session.user.id}/logo.${ext}`
-      const { data: uploaded } = await supabase.storage.from('org-logos').upload(p, logoFile, { upsert:true })
+      const { data: uploaded } = await supabase.storage.from('org-logos').upload(p, logoFile, { upsert: true })
       if (uploaded) {
         const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(p)
         await fetch('/api/comps/create', {
-          method:'PATCH', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ comp_id:org.id, logo_url:urlData.publicUrl, user_id:session!.user.id }),
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comp_id: org.id, logo_url: urlData.publicUrl, user_id: session!.user.id }),
         })
       }
     }
-    setShowCreateComp(false); setNewCompName(''); setOwnerPhone(''); setOwnerEmail('')
+    setView('main'); setNewCompName(''); setOwnerPhone(''); setOwnerEmail('')
     await loadMyComps(); setLoading(false)
   }
 
-  const joinTribe = async (inviteCode:string) => {
+  const joinTribe = async (inviteCode: string) => {
     setLoading(true); setError(null)
     const { error } = await fetch('/api/tribes', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invite_code: inviteCode }),
     }).then(r=>r.json())
     setLoading(false)
@@ -659,146 +659,169 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
     onJoined()
   }
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 2*1024*1024) { setError('Logo must be under 2MB'); return }
-    setLogoFile(file)
-    const reader = new FileReader()
-    reader.onloadend = () => setLogoPreview(reader.result as string)
-    reader.readAsDataURL(file)
+  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return
+    if (f.size > 2*1024*1024) { setError('Logo must be under 2MB'); return }
+    setLogoFile(f)
+    const r = new FileReader(); r.onloadend = () => setLogoPreview(r.result as string); r.readAsDataURL(f)
   }
 
   if (initLoading) return (
-    <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'80px 0', gap:12}}>
-      <Spinner className="w-6 h-6"/>
-      <p style={{fontSize:13, color:'var(--color-text-tertiary)', margin:0}}>Loading…</p>
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
+      <Spinner className="w-7 h-7" />
     </div>
   )
 
-  // ── INLINE FORM: join comp ──────────────────────────────────────────────────
-  if (showJoinComp) return (
-    <div style={{display:'flex', flexDirection:'column', gap:12}}>
-      <button onClick={() => { setShowJoinComp(false); setCompCode(''); setCompLookup(null); setCompCodeErr(null) }}
-        style={{display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', fontSize:13, color:'var(--color-text-secondary)', alignSelf:'flex-start', padding:'4px 0'}}>
+  // ── View: Join comp ──────────────────────────────────────────────────────────
+  if (view === 'join-comp') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <button onClick={() => { setView('main'); setCompCode(''); setCompLookup(null); setCompCodeErr(null) }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)', alignSelf: 'flex-start', padding: '4px 0' }}>
         ← Back
       </button>
-      <div style={{background:'var(--color-background-primary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-xl)', padding:'20px 16px', display:'flex', flexDirection:'column', gap:12}}>
+      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <p style={{margin:'0 0 2px', fontSize:15, fontWeight:500, color:'var(--color-text-primary)'}}>Join a comp</p>
-          <p style={{margin:0, fontSize:13, color:'var(--color-text-secondary)'}}>Enter the invite code from your comp admin</p>
+          <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Join a comp</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Enter the invite code from your comp admin</p>
         </div>
-        <div style={{display:'flex', gap:8}}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <input type="text" value={compCode}
-            onChange={e=>{setCompCode(e.target.value.toUpperCase()); setCompLookup(null); setCompCodeErr(null)}}
+            onChange={e => { setCompCode(e.target.value.toUpperCase()); setCompLookup(null); setCompCodeErr(null) }}
             placeholder="INVITE CODE" maxLength={10}
-            style={{flex:1, fontFamily:'var(--font-mono)', textTransform:'uppercase', letterSpacing:'0.1em'}}
-          />
-          <button onClick={lookupCompCode} disabled={lookingUp||compCode.length<4}
-            style={{padding:'0 16px', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', background:'transparent', cursor:'pointer', fontSize:13, fontWeight:500, color:'var(--color-text-primary)', display:'flex', alignItems:'center', gap:6, opacity:(lookingUp||compCode.length<4)?0.4:1}}>
-            {lookingUp ? <Spinner className="w-4 h-4"/> : 'Find'}
+            style={{ flex: 1, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
+          <button onClick={lookupComp} disabled={lookingUp || compCode.length < 4}
+            style={{ padding: '0 16px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', opacity: (lookingUp || compCode.length < 4) ? 0.4 : 1 }}>
+            {lookingUp ? <Spinner className="w-4 h-4" /> : 'Find'}
           </button>
         </div>
-        {compCodeErr && <p style={{margin:0, fontSize:12, padding:'8px 12px', borderRadius:'var(--border-radius-md)', background:'var(--color-background-danger)', color:'var(--color-text-danger)'}}>{compCodeErr}</p>}
+        {compCodeErr && <p style={{ margin: 0, fontSize: 12, padding: '8px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)' }}>{compCodeErr}</p>}
         {compLookup && (
-          <div style={{padding:'14px', borderRadius:'var(--border-radius-lg)', border:'1.5px solid var(--color-border-success)', background:'var(--color-background-success)', display:'flex', flexDirection:'column', gap:10}}>
-            <p style={{margin:0, fontSize:14, fontWeight:500, color:'var(--color-text-success)'}}>🏢 {compLookup.name}</p>
+          <div style={{ padding: '14px', borderRadius: 'var(--border-radius-lg)', border: '1.5px solid var(--color-border-success)', background: 'var(--color-background-success)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-success)' }}>🏢 {compLookup.name}</p>
             <button onClick={joinComp} disabled={loading}
-              style={{padding:'10px 0', border:'none', borderRadius:'var(--border-radius-md)', background:'var(--color-background-success)', color:'var(--color-text-success)', fontSize:14, fontWeight:500, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:loading?0.6:1}}>
-              {loading && <Spinner className="w-4 h-4"/>}
-              Join {compLookup.name}
+              style={{ padding: '10px 0', border: 'none', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-success)', color: 'var(--color-text-success)', fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+              {loading && <Spinner className="w-4 h-4" />} Join {compLookup.name}
             </button>
           </div>
         )}
-        {error && <p style={{margin:0, fontSize:12, color:'var(--color-text-danger)'}}>{error}</p>}
+        {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>}
       </div>
     </div>
   )
 
-  // ── INLINE FORM: create comp ─────────────────────────────────────────────────
-  if (showCreateComp) return (
-    <div style={{display:'flex', flexDirection:'column', gap:12}}>
-      <button onClick={() => { setShowCreateComp(false); setNewCompName('') }}
-        style={{display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', fontSize:13, color:'var(--color-text-secondary)', alignSelf:'flex-start', padding:'4px 0'}}>
+  // ── View: Create comp ────────────────────────────────────────────────────────
+  if (view === 'create-comp') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <button onClick={() => { setView('main'); setNewCompName('') }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)', alignSelf: 'flex-start', padding: '4px 0' }}>
         ← Back
       </button>
-      <div style={{background:'var(--color-background-primary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-xl)', padding:'20px 16px', display:'flex', flexDirection:'column', gap:12}}>
+      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <p style={{margin:'0 0 2px', fontSize:15, fontWeight:500, color:'var(--color-text-primary)'}}>Create a comp</p>
-          <p style={{margin:0, fontSize:13, color:'var(--color-text-secondary)'}}>Set up a competition group for your team or friends</p>
+          <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Create a comp</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Set up a competition for your team or group</p>
         </div>
-        <input type="text" value={newCompName} onChange={e=>setNewCompName(e.target.value)} placeholder="Comp name *"/>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
-          <input type="tel" value={ownerPhone} onChange={e=>setOwnerPhone(e.target.value)} placeholder="Phone (optional)"/>
-          <input type="email" value={ownerEmail} onChange={e=>setOwnerEmail(e.target.value)} placeholder="Email (optional)"/>
+        <input type="text" value={newCompName} onChange={e => setNewCompName(e.target.value)} placeholder="Comp name *" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)} placeholder="Phone (optional)" />
+          <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="Email (optional)" />
         </div>
-        <div style={{display:'flex', alignItems:'center', gap:12}}>
-          <div onClick={()=>fileRef.current?.click()} style={{width:44, height:44, borderRadius:'var(--border-radius-md)', border:'0.5px solid var(--color-border-secondary)', overflow:'hidden', cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:'var(--color-background-secondary)', fontSize:20}}>
-            {logoPreview ? <img src={logoPreview} style={{width:'100%', height:'100%', objectFit:'cover'}} alt=""/> : '🏢'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div onClick={() => fileRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', overflow: 'hidden', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-secondary)', fontSize: 20 }}>
+            {logoPreview ? <img src={logoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : '🏢'}
           </div>
-          <div>
-            <button type="button" onClick={()=>fileRef.current?.click()}
-              style={{fontSize:12, fontWeight:500, padding:'5px 12px', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', background:'transparent', cursor:'pointer', color:'var(--color-text-primary)'}}>
-              {logoFile ? 'Change logo' : 'Upload logo'}
-            </button>
-            <p style={{margin:'3px 0 0', fontSize:11, color:'var(--color-text-tertiary)'}}>Optional · max 2MB</p>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange}/>
+          <button type="button" onClick={() => fileRef.current?.click()}
+            style={{ fontSize: 12, fontWeight: 500, padding: '5px 12px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)' }}>
+            {logoFile ? 'Change logo' : 'Upload logo'}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
         </div>
-        {error && <p style={{margin:0, fontSize:12, padding:'8px 12px', borderRadius:'var(--border-radius-md)', background:'var(--color-background-danger)', color:'var(--color-text-danger)'}}>{error}</p>}
-        <button onClick={createComp} disabled={loading||!newCompName.trim()}
-          style={{padding:'11px 0', border:'none', borderRadius:'var(--border-radius-lg)', background:'var(--color-text-primary)', color:'var(--color-background-primary)', fontSize:14, fontWeight:500, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(loading||!newCompName.trim())?0.35:1}}>
-          {loading && <Spinner className="w-4 h-4"/>}
-          Create comp
+        {error && <p style={{ margin: 0, fontSize: 12, padding: '8px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)' }}>{error}</p>}
+        <button onClick={createComp} disabled={loading || !newCompName.trim()}
+          style={{ marginTop: 4, padding: '11px 0', border: 'none', borderRadius: 'var(--border-radius-lg)', background: 'var(--color-text-primary)', color: 'var(--color-background-primary)', fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: (loading || !newCompName.trim()) ? 0.35 : 1 }}>
+          {loading && <Spinner className="w-4 h-4" />} Create comp
         </button>
       </div>
     </div>
   )
 
-  // ── MAIN VIEW ────────────────────────────────────────────────────────────────
+  // ── View: Main ───────────────────────────────────────────────────────────────
   return (
-    <div style={{display:'flex', flexDirection:'column', gap:16, paddingBottom:32}}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
 
-      {/* Joined comp cards */}
+      {/* Hero — context-aware header */}
+      <div style={{
+        borderRadius: 'var(--border-radius-xl)', overflow: 'hidden',
+        background: 'linear-gradient(135deg, #0d3d2a 0%, #1a5c3e 60%, #0f4d34 100%)',
+        padding: '24px 20px',
+      }}>
+        {selectedComp ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              {selectedComp.logo_url
+                ? <img src={selectedComp.logo_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+                : <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏢</div>
+              }
+              <div>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
+                  {selectedComp.app_name || selectedComp.name}
+                </p>
+                {selectedTourn && <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{selectedTourn.name}</p>}
+              </div>
+            </div>
+            <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
+              You're in this comp — pick a tribe below to compete with friends.
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Join the competition</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+              Join or create a comp to access tribes, climb the leaderboard, and compete with your group.
+            </p>
+            <a href="/" style={{ display: 'inline-block', marginTop: 12, fontSize: 12, color: 'rgba(74,222,128,0.9)', textDecoration: 'none', fontWeight: 500 }}>
+              ← Select a tournament on the home page first
+            </a>
+          </>
+        )}
+      </div>
+
+      {/* Joined comp cards with tribe pickers */}
       {myComps.map((comp, idx) => {
         const tribes = compTribesMap[comp.id] ?? []
         return (
-          <div key={comp.id} style={{background:'var(--color-background-primary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-xl)', overflow:'hidden'}}>
-            {/* Header */}
-            <div style={{display:'flex', alignItems:'center', gap:12, padding:'14px 16px', background:'var(--color-background-secondary)', borderBottom:'0.5px solid var(--color-border-tertiary)'}}>
+          <div key={comp.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', overflow: 'hidden' }}>
+            {/* Comp header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--color-background-secondary)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
               {comp.logo_url
-                ? <img src={comp.logo_url} alt={comp.name} style={{width:36, height:36, borderRadius:'var(--border-radius-md)', objectFit:'cover', flexShrink:0}}/>
-                : <div style={{width:36, height:36, borderRadius:'var(--border-radius-md)', background:'var(--color-background-tertiary)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0}}>🏢</div>
+                ? <img src={comp.logo_url} alt={comp.name} style={{ width: 36, height: 36, borderRadius: 'var(--border-radius-md)', objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 36, height: 36, borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🏢</div>
               }
-              <div style={{flex:1, minWidth:0}}>
-                <p style={{margin:0, fontSize:14, fontWeight:500, color:'var(--color-text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {comp.app_name || comp.name}
                 </p>
-                <p style={{margin:'2px 0 0', fontSize:12, color:'var(--color-text-secondary)'}}>
-                  {tribes.length === 0 ? 'No tribes yet' : `${tribes.length} tribe${tribes.length!==1?'s':''} to join`}
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  {tribes.length === 0 ? 'No tribes yet' : `${tribes.length} tribe${tribes.length !== 1 ? 's' : ''} available`}
                 </p>
               </div>
               {myComps.length > 1 && (
-                <span style={{fontSize:11, color:'var(--color-text-tertiary)', flexShrink:0}}>
-                  {idx+1}/{myComps.length}
-                </span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>{idx + 1}/{myComps.length}</span>
               )}
             </div>
-
-            {/* Tribe picker or empty */}
-            <div style={{padding:16}}>
+            {/* Tribe picker */}
+            <div style={{ padding: 16 }}>
               {tribes.length === 0 ? (
-                <div style={{textAlign:'center', padding:'20px 0'}}>
-                  <p style={{margin:'0 0 4px', fontSize:14, color:'var(--color-text-secondary)'}}>No tribes available yet</p>
-                  <p style={{margin:0, fontSize:12, color:'var(--color-text-tertiary)'}}>Ask your comp admin to create one.</p>
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--color-text-secondary)' }}>No tribes available yet</p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ask your comp admin to create one.</p>
                 </div>
               ) : (
-                <TribeDropdown tribes={tribes} onJoin={joinTribe} loading={loading}/>
+                <TribeDropdown tribes={tribes} onJoin={joinTribe} loading={loading} />
               )}
             </div>
-
             {error && (
-              <p style={{margin:'0 16px 16px', padding:'8px 12px', borderRadius:'var(--border-radius-md)', background:'var(--color-background-danger)', color:'var(--color-text-danger)', fontSize:12}}>
+              <p style={{ margin: '0 16px 16px', padding: '8px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', fontSize: 12 }}>
                 {error}
               </p>
             )}
@@ -806,30 +829,29 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
         )
       })}
 
-      {/* Empty state — no comps yet */}
+      {/* No comps yet empty state */}
       {myComps.length === 0 && (
-        <div style={{background:'var(--color-background-secondary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-xl)', padding:'32px 24px', textAlign:'center'}}>
-          <p style={{fontSize:32, margin:'0 0 12px'}}>⚽</p>
-          <p style={{margin:'0 0 6px', fontSize:15, fontWeight:500, color:'var(--color-text-primary)'}}>No comp yet</p>
-          <p style={{margin:0, fontSize:13, color:'var(--color-text-secondary)', lineHeight:1.6}}>
-            Join an existing comp with an invite code,<br/>or create your own below.
+        <div style={{ background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '28px 20px', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>No comp joined yet</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            Join with an invite code or create your own below.
           </p>
         </div>
       )}
 
       {/* Action bar */}
-      <div style={{display:'grid', gridTemplateColumns: myComps.length < MAX_COMPS ? '1fr 1fr' : '1fr', gap:10}}>
-        <button onClick={()=>setShowJoinComp(true)}
-          style={{padding:'12px 0', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-lg)', background:'transparent', cursor:'pointer', fontSize:14, fontWeight:500, color:'var(--color-text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+      <div style={{ display: 'grid', gridTemplateColumns: myComps.length < MAX_COMPS ? '1fr 1fr' : '1fr', gap: 10 }}>
+        <button onClick={() => setView('join-comp')}
+          style={{ padding: '12px 0', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', background: 'transparent', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           🔑 Join comp
         </button>
         {myComps.length < MAX_COMPS ? (
-          <button onClick={()=>setShowCreateComp(true)}
-            style={{padding:'12px 0', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-lg)', background:'var(--color-background-secondary)', cursor:'pointer', fontSize:14, fontWeight:500, color:'var(--color-text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+          <button onClick={() => setView('create-comp')}
+            style={{ padding: '12px 0', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', background: 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             + Create comp
           </button>
         ) : (
-          <div style={{padding:'12px 0', border:'0.5px dashed var(--color-border-tertiary)', borderRadius:'var(--border-radius-lg)', textAlign:'center', fontSize:12, color:'var(--color-text-tertiary)'}}>
+          <div style={{ padding: '12px 0', border: '0.5px dashed var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', textAlign: 'center', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
             Max {MAX_COMPS} comps reached
           </div>
         )}
@@ -842,13 +864,18 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
 export default function TribePage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
-  const [tribe,       setTribe]       = useState<TribeData | null>(null)
-  const [tribePicksData,     setTribePicksData]     = useState<any | null>(null)
+  const { selectedComp, selectedTourn } = useUserPrefs()
+
+  const [tribe,          setTribe]          = useState<TribeData | null>(null)
+  const [tribePicksData, setTribePicksData] = useState<any | null>(null)
   const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
   const [picksLoading,   setPicksLoading]   = useState(false)
-  const [fixtures,    setFixtures]    = useState<Fixture[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [tab,         setTab]         = useState<MainTab>('leaderboard')
+  const [fixtures,       setFixtures]       = useState<Fixture[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [tab,            setTab]            = useState<MainTab>('leaderboard')
+  const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
+  const [copied,         setCopied]         = useState(false)
+  const myId = session?.user.id ?? ''
 
   const loadPicks = async () => {
     if (!tribe) return
@@ -863,13 +890,9 @@ export default function TribePage() {
   useEffect(() => {
     if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
   }, [tab, tribe])
-  const [chatTopic,   setChatTopic]   = useState<ChatTopic>('general')
-  const [copied,      setCopied]      = useState(false)
-  const myId = session?.user.id ?? ''
 
   const loadTribe = async () => {
     setLoading(true)
-    // Resolve active tournament for the current user
     const { data: userRow } = await supabase
       .from('user_preferences').select('tournament_id').eq('user_id', session!.user.id).single()
     const tid = (userRow as any)?.tournament_id ?? null
@@ -883,52 +906,36 @@ export default function TribePage() {
 
     if (tribeData.data) {
       const raw = tribeData.data
-      // Check tribe belongs to the active tournament
       if (tid && raw.tournament_id && raw.tournament_id !== tid) {
-        // Tribe is for a different tournament — show NoTribePanel
         setTribe(null)
-        setFixtures((fxData.data ?? []).map((f: any) => ({
-          id: f.id, round: f.round, group: f.group, home: f.home, away: f.away,
-          kickoff_utc: f.kickoff_utc, venue: f.venue, result: f.result ?? null,
-        })))
-        setLoading(false)
-        return
-      }
-      // Fetch org name for display
-      if (raw.comp_id) {
-        const { data: compRow } = await supabase
-          .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
-        if (compRow) raw._org = compRow
-      }
-      const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
-        const u = tm.users ?? tm.user ?? {}
-        return {
-          user_id:      u.id ?? '',
-          display_name: u.display_name ?? 'Unknown',
-          avatar_url:   u.avatar_url ?? null,
-          total_points: u.total_points ?? 0,
-          exact_count:  u.exact_count  ?? 0,
-          correct_count:u.correct_count ?? 0,
-          joined_at:    tm.joined_at ?? '',
+      } else {
+        if (raw.comp_id) {
+          const { data: compRow } = await supabase
+            .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
+          if (compRow) raw._org = compRow
         }
-      })
-      setTribe({ ...raw, members })
+        const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
+          const u = tm.users ?? tm.user ?? {}
+          return {
+            user_id:       u.id ?? '',
+            display_name:  u.display_name ?? 'Unknown',
+            avatar_url:    u.avatar_url ?? null,
+            total_points:  u.total_points ?? 0,
+            exact_count:   u.exact_count  ?? 0,
+            correct_count: u.correct_count ?? 0,
+            joined_at:     tm.joined_at ?? '',
+          }
+        })
+        setTribe({ ...raw, members })
+      }
     } else {
       setTribe(null)
     }
 
-    // Build fixture list with results
-    const fixtureList: Fixture[] = (fxData.data ?? []).map((f: any) => ({
-      id:          f.id,
-      round:       f.round,
-      group:       f.group,
-      home:        f.home,
-      away:        f.away,
-      kickoff_utc: f.kickoff_utc,
-      venue:       f.venue,
-      result:      f.result ?? null,
-    }))
-    setFixtures(fixtureList)
+    setFixtures((fxData.data ?? []).map((f: any) => ({
+      id: f.id, round: f.round, group: f.group, home: f.home, away: f.away,
+      kickoff_utc: f.kickoff_utc, venue: f.venue, result: f.result ?? null,
+    })))
     setLoading(false)
   }
 
@@ -952,94 +959,154 @@ export default function TribePage() {
     ? [...tribe.members].sort((a, b) => b.total_points - a.total_points)
     : []
 
-  if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
-  if (!tribe)  return <NoTribePanel onJoined={loadTribe} activeTournamentId={activeTournamentId} />
-
-  const TAB_LABELS: Record<MainTab, string> = {
-    leaderboard: 'Standings',
-    picks:       'Picks',
-    chat:        'Chat',
+  // ── Context bar — shown at top of every state ──────────────────────────────
+  const ContextBar = () => {
+    if (!selectedTourn && !selectedComp) return null
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 16px', marginBottom: 16,
+        background: 'var(--color-background-secondary)',
+        border: '0.5px solid var(--color-border-tertiary)',
+        borderRadius: 'var(--border-radius-lg)',
+      }}>
+        {selectedComp?.logo_url && (
+          <img src={selectedComp.logo_url} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {selectedComp && (
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+              {selectedComp.app_name || selectedComp.name}
+            </span>
+          )}
+          {selectedTourn && (
+            <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginLeft: selectedComp ? 8 : 0 }}>
+              {selectedTourn.name}
+            </span>
+          )}
+        </div>
+        {!selectedComp && (
+          <a href="/" style={{ fontSize: 12, color: 'var(--color-text-info)', textDecoration: 'none', flexShrink: 0 }}>
+            Select comp on Home →
+          </a>
+        )}
+      </div>
+    )
   }
+
+  if (loading) return (
+    <div className="max-w-2xl mx-auto px-4 py-4">
+      <ContextBar />
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
+        <Spinner className="w-8 h-8" />
+      </div>
+    </div>
+  )
+
+  if (!tribe) return (
+    <div className="max-w-2xl mx-auto px-4 py-4">
+      <ContextBar />
+      <NoTribePanel
+        onJoined={loadTribe}
+        activeTournamentId={activeTournamentId}
+        selectedComp={selectedComp}
+        selectedTourn={selectedTourn}
+      />
+    </div>
+  )
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-4">
 
-      {/* ── Tribe header card ── */}
+      {/* ── Hero header ── */}
       <div style={{
-        background: 'var(--color-background-primary)',
-        border: '0.5px solid var(--color-border-tertiary)',
         borderRadius: 'var(--border-radius-xl)',
-        padding: '16px',
+        overflow: 'hidden',
         marginBottom: 16,
+        border: '0.5px solid var(--color-border-tertiary)',
       }}>
-        {/* Comp badge */}
-        {(tribe as any)._org && (tribe as any)._org.name !== 'PUBLIC' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            {(tribe as any)._org.logo_url && (
-              <img src={(tribe as any)._org.logo_url} alt={(tribe as any)._org.name}
-                style={{ width: 16, height: 16, borderRadius: 4, objectFit: 'cover' }} />
-            )}
-            <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{(tribe as any)._org.name}</span>
-          </div>
-        )}
-
-        {/* Name row */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        {/* Dark banner strip */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0d3d2a 0%, #1a5c3e 60%, #0f4d34 100%)',
+          padding: '18px 20px 14px',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+        }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: 'var(--color-text-primary)' }}>{tribe.name}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-              <button onClick={copyCode} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                border: '0.5px solid var(--color-border-secondary)',
-                background: copied ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                color: copied ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                transition: 'all 0.15s',
-              }}>
-                <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}>{tribe.invite_code}</span>
-                <span>{copied ? '✓' : 'Copy'}</span>
-              </button>
-              <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+            {/* Comp + tournament context */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              {(selectedComp || (tribe as any)._org) && (() => {
+                const org = selectedComp || (tribe as any)._org
+                return (
+                  <>
+                    {org.logo_url && <img src={org.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover' }} />}
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
+                      {org.app_name || org.name}
+                    </span>
+                  </>
+                )
+              })()}
+              {selectedTourn && (
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 2 }}>
+                  · {selectedTourn.name}
+                </span>
+              )}
+            </div>
+            {/* Tribe name */}
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.3px' }}>
+              {tribe.name}
+            </h1>
+            {/* Member count + invite code */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
                 {tribe.members.length} member{tribe.members.length !== 1 ? 's' : ''}
               </span>
+              <button onClick={copyCode} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: copied ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.1)',
+                border: copied ? '1px solid rgba(74,222,128,0.4)' : '1px solid rgba(255,255,255,0.2)',
+                color: copied ? '#4ade80' : 'rgba(255,255,255,0.7)',
+                transition: 'all 0.15s', letterSpacing: '0.05em',
+              }}>
+                <span style={{ fontFamily: 'monospace' }}>{tribe.invite_code}</span>
+                <span style={{ fontSize: 10 }}>{copied ? '✓ copied' : 'copy'}</span>
+              </button>
             </div>
           </div>
           <button onClick={leaveTribe} style={{
-            padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-            border: '0.5px solid var(--color-border-danger)',
-            borderRadius: 'var(--border-radius-md)',
-            background: 'transparent', color: 'var(--color-text-danger)',
-            flexShrink: 0,
+            padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+            border: '1px solid rgba(255,100,100,0.4)', borderRadius: 'var(--border-radius-md)',
+            background: 'rgba(255,100,100,0.1)', color: 'rgba(255,150,150,0.9)',
           }}>
             Leave
           </button>
+        </div>
+
+        {/* Tab bar — sits inside the card, below the header */}
+        <div style={{
+          display: 'flex', background: 'var(--color-background-primary)',
+          borderTop: '0.5px solid var(--color-border-tertiary)',
+        }}>
+          {(['leaderboard','picks','chat'] as MainTab[]).map(t => {
+            const labels: Record<MainTab,string> = { leaderboard: 'Standings', picks: 'Picks', chat: 'Chat' }
+            const isActive = tab === t
+            return (
+              <button key={t} onClick={() => setTab(t)} style={{
+                flex: 1, padding: '11px 0', fontSize: 13, fontWeight: isActive ? 600 : 400,
+                border: 'none', cursor: 'pointer', background: 'transparent',
+                color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                borderBottom: isActive ? '2px solid #1a5c3e' : '2px solid transparent',
+                transition: 'all 0.15s',
+              }}>
+                {labels[t]}
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {/* Prizes */}
       {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
-
-      {/* ── Tab bar ── */}
-      <div style={{
-        display: 'flex', gap: 4, marginBottom: 16,
-        background: 'var(--color-background-secondary)',
-        padding: 4, borderRadius: 'var(--border-radius-lg)',
-        border: '0.5px solid var(--color-border-tertiary)',
-        width: 'fit-content',
-      }}>
-        {(['leaderboard','picks','chat'] as MainTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '7px 16px', fontSize: 13, fontWeight: tab === t ? 500 : 400,
-            borderRadius: 'var(--border-radius-md)', border: 'none', cursor: 'pointer',
-            background: tab === t ? 'var(--color-background-primary)' : 'transparent',
-            color: tab === t ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-            boxShadow: tab === t ? '0 0 0 0.5px var(--color-border-tertiary)' : 'none',
-            transition: 'all 0.15s',
-          }}>
-            {TAB_LABELS[t]}
-          </button>
-        ))}
-      </div>
 
       {/* ── Standings tab — cross-tab by round ── */}
       {tab === 'leaderboard' && (
