@@ -239,24 +239,42 @@ export default function HomePage() {
         )}
       </div>
 
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Tournament</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[{label:'Matches',value:'104'},{label:'Teams',value:'48'},{label:'Rounds',value:'7'},{label:'Max pts',value:'??'}].map(s => (
-            <div key={s.label} className="bg-white rounded-lg border border-gray-100 py-2.5 px-2">
-              <p className="text-lg font-bold text-gray-900">{s.value}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+      {/* Tournament stats — driven by selectedTourn metadata */}
+      {(() => {
+        const t = selectedTourn
+        const stats = [
+          { label: 'Matches', value: t?.total_matches != null ? String(t.total_matches) : '—' },
+          { label: 'Teams',   value: t?.total_teams   != null ? String(t.total_teams)   : '—' },
+          { label: 'Rounds',  value: t?.total_rounds  != null ? String(t.total_rounds)  : '—' },
+          { label: 'Max pts', value: '??' },
+        ]
+        const kickoffStr = t?.start_date
+          ? new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+          : null
+        const finalStr = t?.final_date
+          ? new Date(t.final_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+          : null
+        return (
+          <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              {t?.name ?? 'Tournament'}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              {stats.map(s => (
+                <div key={s.label} className="bg-white rounded-lg border border-gray-100 py-2.5 px-2">
+                  <p className="text-lg font-bold text-gray-900">{s.value}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs text-gray-500">
-          <span>🗓 Kickoff: Jun 11, 2026</span>
-          <span>·</span>
-          <span>🏟 Estadio Azteca, Mexico City</span>
-          <span>·</span>
-          <span>🏆 Final: Jul 19, MetLife Stadium</span>
-        </div>
-      </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs text-gray-500">
+              {kickoffStr && <><span>🗓 Kickoff: {kickoffStr}</span><span>·</span></>}
+              {t?.kickoff_venue && <><span>🏟 {t.kickoff_venue}</span><span>·</span></>}
+              {finalStr && t?.final_venue && <span>🏆 Final: {finalStr}, {t.final_venue}</span>}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

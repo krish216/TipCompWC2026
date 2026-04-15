@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
@@ -373,6 +374,9 @@ export default function PredictPage() {
     />
   )
 
+  // Tournament context
+  const { selectedTourn } = useUserPrefs()
+
   if (loading) return (
     <div className="flex items-center justify-center py-24">
       <Spinner className="w-8 h-8" />
@@ -382,6 +386,21 @@ export default function PredictPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-4">
       <CountdownBanner />
+
+      {/* Tournament metadata footer */}
+      {selectedTourn && (selectedTourn.kickoff_venue || selectedTourn.final_venue || selectedTourn.total_matches) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 px-1 text-xs text-gray-400">
+          {selectedTourn.total_matches != null && (
+            <span>📅 {selectedTourn.total_matches} matches</span>
+          )}
+          {selectedTourn.kickoff_venue && (
+            <span>🏟 {selectedTourn.kickoff_venue}</span>
+          )}
+          {selectedTourn.final_date && selectedTourn.final_venue && (
+            <span>🏆 Final: {new Date(selectedTourn.final_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short' })}, {selectedTourn.final_venue}</span>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">

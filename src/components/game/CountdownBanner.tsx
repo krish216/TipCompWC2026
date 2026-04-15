@@ -73,11 +73,8 @@ export function CountdownBanner() {
           <p className="text-sm font-semibold text-white">{tournName}</p>
           <p className="text-[11px] text-green-300">
             {t.started
-              ? `Tournament is underway · ${WC2026_TOTAL}`
-              : (selectedTourn?.start_date
-                  ? `Starts ${new Date(selectedTourn.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                  : WC2026_FIRST_MATCH
-                )
+              ? `Tournament is underway${selectedTourn?.total_matches ? ` · ${selectedTourn.total_matches} matches` : ` · ${WC2026_TOTAL}`}`
+              : (selectedTourn?.first_match ?? WC2026_FIRST_MATCH)
             }
           </p>
         </div>

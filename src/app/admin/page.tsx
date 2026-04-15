@@ -804,8 +804,15 @@ function TournamentPanel() {
   const [name,     setName]     = useState('')
   const [slug,     setSlug]     = useState('')
   const [desc,     setDesc]     = useState('')
-  const [startDate,setStartDate]= useState('')
-  const [endDate,  setEndDate]  = useState('')
+  const [startDate,    setStartDate]    = useState('')
+  const [endDate,      setEndDate]      = useState('')
+  const [kickoffVenue, setKickoffVenue] = useState('')
+  const [finalVenue,   setFinalVenue]   = useState('')
+  const [finalDate,    setFinalDate]    = useState('')
+  const [firstMatch,   setFirstMatch]   = useState('')
+  const [totalMatches, setTotalMatches] = useState('')
+  const [totalTeams,   setTotalTeams]   = useState('')
+  const [totalRounds,  setTotalRounds]  = useState('')
 
   useEffect(() => {
     fetch('/api/tournaments').then(r => r.json()).then(tData => {
@@ -819,7 +826,15 @@ function TournamentPanel() {
     setCreating(true)
     const res = await fetch('/api/tournaments', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), description: desc.trim(), slug: slug.trim(), start_date: startDate || null, end_date: endDate || null }),
+      body: JSON.stringify({
+        name: name.trim(), description: desc.trim(), slug: slug.trim(),
+        start_date: startDate || null, end_date: endDate || null,
+        kickoff_venue: kickoffVenue.trim() || null, final_venue: finalVenue.trim() || null,
+        final_date: finalDate || null, first_match: firstMatch.trim() || null,
+        total_matches: totalMatches ? parseInt(totalMatches) : null,
+        total_teams:   totalTeams   ? parseInt(totalTeams)   : null,
+        total_rounds:  totalRounds  ? parseInt(totalRounds)  : null,
+      }),
     })
     const { data, error } = await res.json()
     setCreating(false)
@@ -895,6 +910,35 @@ function TournamentPanel() {
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
             </div>
           </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label:'Total matches', val:totalMatches, set:setTotalMatches, type:'number', ph:'104' },
+              { label:'Total teams',   val:totalTeams,   set:setTotalTeams,   type:'number', ph:'48'  },
+              { label:'Total rounds',  val:totalRounds,  set:setTotalRounds,  type:'number', ph:'7'   },
+            ].map(f => (
+              <div key={f.label}>
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">{f.label}</label>
+                <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          <input type="text" value={kickoffVenue} onChange={e => setKickoffVenue(e.target.value)}
+            placeholder="Opening venue (e.g. Estadio Azteca, Mexico City)"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="text" value={finalVenue} onChange={e => setFinalVenue(e.target.value)}
+              placeholder="Final venue (e.g. MetLife Stadium)"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">Final date</label>
+              <input type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+          </div>
+          <input type="text" value={firstMatch} onChange={e => setFirstMatch(e.target.value)}
+            placeholder="First match label (e.g. Mexico vs South Africa · Estadio Azteca · Jun 11)"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
           <button onClick={create} disabled={creating || !name.trim() || !slug.trim()}
             className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
             {creating && <Spinner className="w-4 h-4 text-white" />}

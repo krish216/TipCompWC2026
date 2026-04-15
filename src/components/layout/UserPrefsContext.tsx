@@ -4,13 +4,20 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 export interface Tournament {
-  id:         string
-  name:       string
-  slug:       string
-  status:     string
-  is_active:  boolean
-  start_date?: string | null
-  end_date?:   string | null
+  id:             string
+  name:           string
+  slug:           string
+  status:         string
+  is_active:      boolean
+  start_date?:    string | null
+  end_date?:      string | null
+  total_matches?: number | null
+  total_teams?:   number | null
+  total_rounds?:  number | null
+  kickoff_venue?: string | null
+  final_venue?:   string | null
+  final_date?:    string | null
+  first_match?:   string | null
 }
 
 export interface Comp {
@@ -78,7 +85,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     ;(async () => {
       // 1. Active tournaments (is_active flag)
       const [tournRes, enrolledRes] = await Promise.all([
-        supabase.from('tournaments').select('id, name, slug, status, is_active, start_date, end_date')
+        supabase.from('tournaments').select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match')
           .eq('is_active', true).order('start_date', { ascending: true }),
         fetch('/api/user-tournaments'),
       ])
