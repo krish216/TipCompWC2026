@@ -13,7 +13,7 @@ import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
 type PredMap    = Record<number, { home: number; away: number }>
-type ResultMap  = Record<number, MatchScore>
+type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type RoundTab   = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
 
@@ -87,7 +87,12 @@ export default function PredictPage() {
         // Results map
         const rm: ResultMap = {}
         for (const r of (resData.data ?? []) as any[]) {
-          if (r.home_score != null) rm[r.id] = { home: r.home_score, away: r.away_score }
+          if (r.home_score != null) rm[r.id] = {
+            home:           r.home_score,
+            away:           r.away_score,
+            pen_winner:     r.pen_winner     ?? null,
+            result_outcome: r.result_outcome ?? null,
+          }
         }
         setResults(rm)
 

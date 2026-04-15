@@ -74,7 +74,7 @@ export function MatchRow({
     ? (sel != null && !awaitingPen)   // knockout draw without pen pick = not yet saved
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
-  const pts = hasPred ? calcPoints(prediction, result ?? null, round) : result ? 0 : null
+  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite) : result ? 0 : null
   const sc  = SCORING[round] ?? SCORING['f']
 
   const resultOutcome = result

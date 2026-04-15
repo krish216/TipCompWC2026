@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('fixtures')
-    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, result_set_at')
+    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, result_set_at')
     .not('home_score', 'is', null)
     .order('kickoff_utc')
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   // Auto-settle challenges for this fixture (non-blocking)
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    fetch(`${appUrl}/api/org-challenges/settle`, {
+    fetch(`${appUrl}/api/comp-challenges/settle`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Cookie': request.headers.get('cookie') ?? '' },
       body:    JSON.stringify({ fixture_id }),
