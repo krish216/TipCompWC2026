@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/comps/create — update logo URL after upload
 export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
-  const { comp_id, logo_url, user_id, min_age } = body ?? {}
+  const { comp_id, logo_url, user_id, min_age, name } = body ?? {}
   if (!comp_id || !user_id) {
     return NextResponse.json({ error: 'comp_id and user_id required' }, { status: 400 })
   }
@@ -126,9 +126,9 @@ export async function PATCH(request: NextRequest) {
 
   await (adminClient.from('comps') as any)
     .update({
-        ...(logo_url  !== undefined ? { logo_url }              : {}),
-
-        ...(min_age   !== undefined ? { min_age:  min_age ?? null  } : {}),
+        ...(name      !== undefined ? { name:     name ?? null      } : {}),
+        ...(logo_url  !== undefined ? { logo_url }                    : {}),
+        ...(min_age   !== undefined ? { min_age:  min_age ?? null   } : {}),
       }).eq('id', comp_id)
 
   return NextResponse.json({ success: true })

@@ -283,7 +283,7 @@ function AppNamePanel({ compId, currentName, onSaved, userId }: {
     const res = await fetch('/api/comps/create', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId: name.trim() || null, user_id: userId }),
+      body: JSON.stringify({ comp_id: compId, name: name.trim() || null, user_id: userId }),
     })
     const { success, error } = await res.json()
     setSaving(false)
