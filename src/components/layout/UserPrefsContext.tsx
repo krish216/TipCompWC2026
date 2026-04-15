@@ -137,14 +137,13 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check comp admin status for the resolved starting comp
+      // Check comp admin — fetch full list so adminComps is populated for the menu
       try {
-        const startComp = (prefCompId && resolvedComps.some((c: any) => c.id === prefCompId))
-          ? prefCompId : resolvedComps[0]?.id ?? null
-        const url       = startComp ? `/api/comp-admins?comp_id=${startComp}` : '/api/comp-admins'
-        const adminData = await fetch(url).then(r => r.json())
-        setIsCompAdmin(adminData.is_comp_admin === true)
-      } catch { setIsCompAdmin(false) }
+        const adminData = await fetch('/api/comp-admins').then(r => r.json())
+        const isAdmin = adminData.is_comp_admin === true
+        setIsCompAdmin(isAdmin)
+        setAdminComps(isAdmin ? (adminData.comps ?? []) : [])
+      } catch { setIsCompAdmin(false); setAdminComps([]) }
 
       setLoading(false)
     })()
