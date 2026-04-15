@@ -7,7 +7,7 @@ export async function GET() {
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('tournaments')
-    .select('id, name, description, slug, status, start_date, end_date, logo_url, teams, created_at')
+    .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, created_at')
     .order('start_date', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })
@@ -54,13 +54,14 @@ export async function PATCH(request: NextRequest) {
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, description, status, start_date, end_date, set_active } = await request.json()
+  const { id, name, description, status, start_date, end_date, set_active, is_active } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const updates: any = {}
   if (name        !== undefined) updates.name        = name
   if (description !== undefined) updates.description = description
   if (status      !== undefined) updates.status      = status
+  if (is_active   !== undefined) updates.is_active   = is_active
   if (start_date  !== undefined) updates.start_date  = start_date
   if (end_date    !== undefined) updates.end_date    = end_date
 

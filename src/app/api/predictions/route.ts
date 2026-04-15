@@ -17,11 +17,14 @@ async function getActiveTournamentId(supabase: any, userId: string): Promise<str
     .from('user_preferences').select('tournament_id').eq('user_id', userId).single()
   if ((prefs as any)?.tournament_id) return (prefs as any).tournament_id
 
-  // Fall back to first active tournament
+  // Fall back to first active tournament, then app_settings
   const { data: active } = await supabase
-    .from('tournaments').select('id').eq('status', 'active')
+    .from('tournaments').select('id').eq('is_active', true)
     .order('start_date', { ascending: true }).limit(1)
-  return (active as any)?.[0]?.id ?? null
+  if ((active as any)?.[0]?.id) return (active as any)[0].id
+  const { data: setting } = await supabase
+    .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+  return (setting as any)?.value ?? null
 }
 
 export async function GET(request: NextRequest) {

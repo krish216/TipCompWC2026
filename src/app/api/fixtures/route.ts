@@ -22,12 +22,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fall back to first active tournament
+  // Fall back to first active tournament, then app_settings
   if (!activeTournamentId) {
     const { data: active } = await supabase
-      .from('tournaments').select('id').eq('status', 'active')
+      .from('tournaments').select('id').eq('is_active', true)
       .order('start_date', { ascending: true }).limit(1)
     activeTournamentId = (active as any)?.[0]?.id ?? null
+  }
+  if (!activeTournamentId) {
+    const { data: setting } = await supabase
+      .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+    activeTournamentId = (setting as any)?.value ?? null
   }
 
   let query = supabase

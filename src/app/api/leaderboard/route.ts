@@ -29,9 +29,14 @@ export async function GET(request: NextRequest) {
     }
     if (!tournamentId) {
       const { data: active } = await supabase
-        .from('tournaments').select('id').eq('status', 'active')
+        .from('tournaments').select('id').eq('is_active', true)
         .order('start_date', { ascending: true }).limit(1)
       tournamentId = (active as any)?.[0]?.id ?? null
+    }
+    if (!tournamentId) {
+      const { data: setting } = await supabase
+        .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+      tournamentId = (setting as any)?.value ?? null
     }
 
     if (scope === 'tribe' && !tribeId) {

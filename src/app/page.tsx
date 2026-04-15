@@ -56,11 +56,26 @@ export default function HomePage() {
       const adminData = await adminRes.json()
       setIsAdmin(adminData.is_admin === true)
 
-      // 2. Active tournaments (can be multiple)
-      const { data: tourns } = await supabase
-        .from('tournaments').select('id, name, status, start_date')
-        .eq('status', 'active').order('start_date', { ascending: true })
-      const activeTourns = (tourns ?? []) as any[]
+      // 2. Tournaments the user has joined + any DB-flagged active ones
+      const [enrolledRes, activeRes] = await Promise.all([
+        fetch('/api/user-tournaments'),
+        supabase.from('tournaments').select('id, name, status, start_date')
+          .eq('is_active', true).order('start_date', { ascending: true }),
+      ])
+      const enrolledData  = await enrolledRes.json()
+      const enrolledIds   = new Set<string>()
+      const enrolledTourns: any[] = []
+      ;(enrolledData.data ?? []).forEach((ut: any) => {
+        const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
+        if (t && !enrolledIds.has(t.id)) { enrolledIds.add(t.id); enrolledTourns.push(t) }
+      })
+      // Merge with DB-active tournaments (may not be in user_tournaments)
+      const activeTourns = [...enrolledTourns]
+      ;(activeRes.data ?? []).forEach((t: any) => {
+        if (!enrolledIds.has(t.id)) activeTourns.push(t)
+      })
+      // Sort by start_date
+      activeTourns.sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
       setActiveTournaments(activeTourns)
 
       // 3. User preferences (last selected tournament + comp)
