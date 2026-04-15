@@ -344,17 +344,19 @@ export function CompAdminMenu() {
 
   useEffect(() => {
     if (!session) return
-    ;(async () => {
-      const { data: adminRows, error } = await supabase
-        .from('comp_admins').select('comp_id').eq('user_id', session.user.id)
-      if (error || !adminRows?.length) { setIsAdmin(false); return }
-      setIsAdmin(true)
-      const compIds = adminRows.map((r: any) => r.comp_id)
-      const { data: comps } = await supabase
-        .from('comps').select('id, name, app_name, logo_url, invite_code').in('id', compIds)
-      setMyComps(comps ?? [])
-      setSelectedComp((comps ?? [])[0] ?? null)
-    })()
+    // Use API endpoint (service-role) to avoid RLS issues on comp_admins table
+    fetch('/api/comp-admins')
+      .then(r => r.json())
+      .then(data => {
+        if (data.is_comp_admin && data.comps?.length) {
+          setIsAdmin(true)
+          setMyComps(data.comps)
+          setSelectedComp(data.comps[0] ?? null)
+        } else {
+          setIsAdmin(false)
+        }
+      })
+      .catch(() => setIsAdmin(false))
   }, [session])
 
   if (isAdmin === null || !isAdmin) return null  // null = loading, false = not admin

@@ -2,57 +2,54 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// GET /api/comp-admins — check if current user is org admin
+// GET /api/comp-admins
+// Returns whether the current user is a comp admin and which comps they admin
+// Uses service-role client to bypass RLS entirely
 export async function GET() {
-  const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ is_org_admin: false })
-
+  const supabase   = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data } = await (adminClient.from('comp_admins') as any)
-    .select('comp_id, comps(id, name, slug, invite_code, logo_url, app_name)')
-    .eq('user_id', user.id)
-    .single()
 
-  if (!data) return NextResponse.json({ is_org_admin: false })
-  // Supabase may return nested relation as array or object — normalise
-  const orgRaw = (data as any).comps
-  const org    = Array.isArray(orgRaw) ? (orgRaw[0] ?? null) : orgRaw
-  return NextResponse.json({
-    is_org_admin: true,
-    comp_id: (data as any).comp_id,
-    org,
-  })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ is_comp_admin: false, comps: [] })
+
+  try {
+    const { data: rows, error } = await (adminClient.from('comp_admins') as any)
+      .select('comp_id').eq('user_id', user.id)
+
+    if (error || !rows?.length) return NextResponse.json({ is_comp_admin: false, comps: [] })
+
+    const compIds = rows.map((r: any) => r.comp_id)
+    const { data: comps } = await (adminClient.from('comps') as any)
+      .select('id, name, app_name, logo_url, invite_code').in('id', compIds)
+
+    return NextResponse.json({ is_comp_admin: true, comps: comps ?? [] })
+  } catch {
+    return NextResponse.json({ is_comp_admin: false, comps: [] })
+  }
 }
 
-// POST /api/comp-admins — grant org admin (tournament admin or existing org admin)
+// POST /api/comp-admins — grant comp admin (tournament admin only)
 export async function POST(request: NextRequest) {
-  const supabase    = createServerSupabaseClient()
+  const supabase   = createServerSupabaseClient()
   const adminClient = createAdminClient()
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { email, comp_id } = await request.json()
-  if (!email || !comp_id) return NextResponse.json({ error: 'email and org_id required' }, { status: 400 })
-
-  // Verify caller is tournament admin OR org admin of this org
-  const { data: isTournamentAdmin } = await adminClient
+  const { data: isAdmin } = await adminClient
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
-  const { data: isCompAdmin } = await (adminClient.from('comp_admins') as any)
-    .select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
-  if (!isTournamentAdmin && !isCompAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data: target } = await adminClient
-    .from('users').select('id').eq('email', email).single()
-  if (!target) return NextResponse.json({ error: 'User not found — they must register first' }, { status: 404 })
+  const { email, comp_id } = await request.json()
+  if (!email || !comp_id) return NextResponse.json({ error: 'email and comp_id required' }, { status: 400 })
 
-  // Assign user to this org and grant org admin
-  await (adminClient.from('users') as any)
-    .update({ comp_id }).eq('id', (target as any).id)
-  await (adminClient.from('comp_admins') as any)
-    .upsert({ comp_id, user_id: (target as any).id })
+  const { data: target } = await adminClient.auth.admin.listUsers()
+  const targetUser = target?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+  if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+  const { error } = await (adminClient.from('comp_admins') as any)
+    .upsert({ comp_id, user_id: targetUser.id }, { onConflict: 'comp_id,user_id' })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }
