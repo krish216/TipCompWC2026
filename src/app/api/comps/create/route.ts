@@ -73,12 +73,13 @@ export async function POST(request: NextRequest) {
     .insert({
       name, slug,
       invite_code:     code,
-      created_by:      user_id,   // FK is safe now — user row exists
+      created_by:      user_id,
       owner_name:      owner_name  || null,
       owner_phone:     owner_phone || null,
       owner_email:     owner_email || null,
       is_self_created: true,
       approved:        true,
+      tournament_id:   parsed.data.tournament_id ?? null,
     })
     .select().single()
 
@@ -91,10 +92,14 @@ export async function POST(request: NextRequest) {
 
   const compId = (org as any).id
 
-  // Step 4: assign user to new org and grant org admin
+  // Step 4: assign user to new comp, enrol in user_comps, and grant comp admin
   await Promise.all([
     (adminClient.from('users') as any).update({ comp_id: compId }).eq('id', user_id),
     (adminClient.from('comp_admins') as any).upsert({ comp_id: compId, user_id }),
+    (adminClient.from('user_comps') as any).upsert(
+      { user_id, comp_id: compId },
+      { onConflict: 'user_id,comp_id' }
+    ),
   ])
 
   return NextResponse.json({ data: org }, { status: 201 })

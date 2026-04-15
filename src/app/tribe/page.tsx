@@ -549,23 +549,21 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
   const loadMyComps = async () => {
     if (!session) return
     try {
-      const { data: me } = await supabase
-        .from('users').select('comp_id').eq('id', session.user.id).single()
-      const primaryCompId = (me as any)?.comp_id ?? null
-      const comps: any[] = []
-      if (primaryCompId && activeTournamentId) {
-        const { data: compRow } = await supabase
-          .from('comps').select('id, name, app_name, slug, logo_url, tournament_id')
-          .eq('id', primaryCompId).single()
-        if (compRow && (compRow as any).tournament_id === activeTournamentId) comps.push(compRow)
-      }
+      // Use user_comps join table for multi-comp support
+      const res  = await fetch('/api/user-comps')
+      const data = await res.json()
+      const all  = (data.data ?? []) as any[]
+      // Filter to comps for the active tournament
+      const comps = all
+        .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
+        .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
       setMyComps(comps)
       if (comps.length > 0) {
         const map: Record<string,any[]> = {}
-        await Promise.all(comps.map(async (c:any) => {
+        await Promise.all(comps.map(async (c: any) => {
           const res  = await fetch(`/api/tribes/list?comp_id=${c.id}`)
-          const data = await res.json()
-          map[c.id] = data.data ?? []
+          const json = await res.json()
+          map[c.id]  = json.data ?? []
         }))
         setCompTribesMap(map)
       }

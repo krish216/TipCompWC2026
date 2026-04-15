@@ -44,5 +44,11 @@ export async function POST(request: NextRequest) {
   await (adminClient.from('users') as any)
     .update({ comp_id }).eq('id', user.id)
 
+  // Enrol in user_comps (multi-comp membership table)
+  await supabase.from('user_comps' as any).upsert(
+    { user_id: user.id, comp_id },
+    { onConflict: 'user_id,comp_id' }
+  )
+
   return NextResponse.json({ success: true, comp_name: (org as any).name })
 }

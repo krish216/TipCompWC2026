@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
+import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 const NAV = [
   { href: '/predict',     label: 'Predict' },
@@ -51,19 +52,14 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
                   Tournament
                 </Link>
               )}
-              {isCompAdmin && (
-                <Link href="/org-admin"
-                  className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                    pathname.startsWith('/org-admin') ? 'bg-blue-50 text-blue-700' : 'text-blue-400 hover:text-blue-600 hover:bg-blue-50')}>
-                  Org Admin
-                </Link>
-              )}
+
             </div>
           )}
 
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {isCompAdmin && <CompAdminMenu />}
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
