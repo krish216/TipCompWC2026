@@ -62,7 +62,7 @@ export default function PredictPage() {
           fetch('/api/predictions'),
           fetch('/api/results'),
           fetch('/api/round-locks'),
-          supabase.from('users').select('favourite_team').eq('id', session.user.id).single(),
+          fetch('/api/user-tournaments'),
         ])
 
         const [fxData, predData, resData, locksData] = await Promise.all([
@@ -94,8 +94,13 @@ export default function PredictPage() {
         // Round locks
         setRoundLocks(locksData?.data ?? {})
 
-        // Favourite team
-        setFavouriteTeam((userRes.data as any)?.favourite_team ?? null)
+        // Favourite team — from user_tournaments (per-tournament)
+        const userTournsData = await userRes.json()
+        const activeTournId  = (fxData.data?.[0] as any)?.tournament_id ?? null
+        const myEnrollment   = (userTournsData.data ?? []).find(
+          (ut: any) => ut.tournament_id === activeTournId
+        )
+        setFavouriteTeam(myEnrollment?.favourite_team ?? null)
       } catch (err) {
         console.error('Failed to load predict page data:', err)
       } finally {
@@ -254,7 +259,8 @@ export default function PredictPage() {
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
-      const pts     = hasPred ? calcPoints(p, r ?? null, f.round) : null
+      const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav) : null
 
       if (r && pts !== null) {
         totalPts += pts
@@ -278,7 +284,8 @@ export default function PredictPage() {
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
-      const pts     = hasPred ? calcPoints(p, r ?? null, f.round) : null
+      const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav) : null
       if (pts !== null && r) {
         const tab = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round
         rp[tab]   = (rp[tab] ?? 0) + pts
@@ -298,7 +305,8 @@ export default function PredictPage() {
       played++
       const p       = predictions[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
-      const v       = hasPred ? (calcPoints(p, r, f.round) ?? 0) : 0
+      const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+      const v       = hasPred ? (calcPoints(p, r, f.round, isFav) ?? 0) : 0
       pts += v
       if (v === sc.exact)                  exactCt++
       else if (v === sc.result && v > 0)   correctCt++

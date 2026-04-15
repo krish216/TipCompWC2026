@@ -39,10 +39,7 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Update the user's primary tournament_id to most recently joined
-  await supabase.from('users').update({
-    tournament_id,
-    favourite_team: favourite_team || null,
-  }).eq('id', user.id)
+  await supabase.from('users').update({ tournament_id }).eq('id', user.id)
 
   return NextResponse.json({ success: true })
 }

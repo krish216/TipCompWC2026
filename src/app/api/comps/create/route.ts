@@ -14,7 +14,6 @@ const CreateSchema = z.object({
   email:          z.string().email().optional(),
   country:        z.string().optional(),
   timezone:       z.string().optional(),
-  favourite_team: z.string().optional(),
 })
 
 // POST /api/comps/create — self-service org creation
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const {
     name, owner_name, owner_phone, owner_email, user_id,
-    display_name, email, country, timezone, favourite_team,
+    display_name, email, country, timezone,
   } = parsed.data
 
   const adminClient = createAdminClient()
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
     id:             user_id,
     email:          email          ?? '',
     display_name:   display_name  ?? email?.split('@')[0] ?? 'Player',
-    favourite_team: favourite_team || null,
     country:        country        || null,
     timezone:       timezone       || 'UTC',
     comp_id:         publicOrgId,

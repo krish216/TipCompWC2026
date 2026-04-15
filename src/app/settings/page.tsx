@@ -81,14 +81,13 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, favourite_team, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
         supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).single(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
         setDob((userRes.data as any).date_of_birth ?? '')
-        const ft = (userRes.data as any).favourite_team ?? ''
         setFavTeam(ft); setSavedFavTeam(ft)
         const ct = (userRes.data as any).country ?? ''
         const tz = (userRes.data as any).timezone ?? 'UTC'
@@ -137,7 +136,7 @@ export default function SettingsPage() {
     setSavingFav(true)
     const { error } = await supabase
       .from('users')
-      .update({ favourite_team: favTeam || null })
+      .update({ display_name: displayName || null })
       .eq('id', session.user.id)
     setSavingFav(false)
     if (error) {
@@ -416,7 +415,7 @@ export default function SettingsPage() {
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date of birth</h2>
         <Card>
           <p className="text-xs text-gray-500 mb-3">
-            Required if you want to join an age-restricted organisation. Not shown publicly.
+            Required if you want to join an age-restricted comp. Not shown publicly.
           </p>
           <div className="flex gap-2 items-end">
             <div className="flex-1">
