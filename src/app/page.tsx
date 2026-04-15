@@ -26,10 +26,12 @@ export default function HomePage() {
     activeTournaments, tournsComps,
     selectedTournId, selectedCompId,
     selectedTourn, selectedComp,
+    isCompAdmin,
     pickTournament, pickComp,
     loading: contextLoading,
   } = useUserPrefs()
 
+  // favourite_team is per-tournament, stored in user_tournaments
   const [favTeam,     setFavTeam]     = useState<string>('')
   const [savingFav,   setSavingFav]   = useState(false)
 
@@ -48,14 +50,13 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, comp_id, favourite_team').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, comp_id').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
       // Override with DB value (source of truth)
       if (ud?.display_name) setDisplayName(ud.display_name)
-      if (ud?.favourite_team) setFavTeam(ud.favourite_team)
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
@@ -71,6 +72,10 @@ export default function HomePage() {
     load()
   }, [session, supabase])
 
+  useEffect(() => {
+    if (session && selectedTournId) loadFavTeam(selectedTournId)
+  }, [session, selectedTournId])
+
   const NavCard = ({ href, icon, title, description, accent = false }: {
     href: string; icon: string; title: string; description: string; accent?: boolean
   }) => (
@@ -85,10 +90,27 @@ export default function HomePage() {
 
   // pickTournament and pickComp come from useUserPrefs()
 
+  // Load fav team for the selected tournament from user_tournaments
+  const loadFavTeam = async (tournId: string) => {
+    const { data } = await supabase
+      .from('user_tournaments')
+      .select('favourite_team')
+      .eq('user_id', session!.user.id)
+      .eq('tournament_id', tournId)
+      .single()
+    setFavTeam((data as any)?.favourite_team ?? '')
+  }
+
+  // Save fav team to user_tournaments for the selected tournament
   const saveFavTeam = async (team: string) => {
+    if (!selectedTournId) return
     setSavingFav(true)
     setFavTeam(team)
-    await supabase.from('users').update({ favourite_team: team || null }).eq('id', session!.user.id)
+    await fetch('/api/user-tournaments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
+    })
     setSavingFav(false)
   }
 
@@ -110,42 +132,74 @@ export default function HomePage() {
       {session && (
         <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* Step 1 — Tournament */}
-          <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
-            <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              {activeTournaments.length > 1 ? 'Select tournament' : 'Tournament'}
-            </p>
-            {(loading || contextLoading) ? (
-              <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
-                <Spinner className="w-5 h-5" />
-              </div>
-            ) : activeTournaments.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>No active tournaments</p>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {activeTournaments.map(t => {
-                  const isSel = selectedTournId === t.id
-                  return (
-                    <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                        borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
-                        border: isSel ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-                        background: isSel ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                        color: isSel ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                        fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
-                      }}>
-                      <span>⚽</span>
-                      <span>{t.name}</span>
-                      {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-success)', opacity: 0.7 }} />}
-                    </button>
-                  )
-                })}
+          {/* Card 1 — Tournament + favourite team (grouped together) */}
+          <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', overflow: 'hidden' }}>
+
+            {/* Tournament pills */}
+            <div style={{ padding: '14px 16px', borderBottom: selectedTournId && selectedTourn?.teams?.length ? '0.5px solid var(--color-border-tertiary)' : 'none' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                {activeTournaments.length > 1 ? 'Select tournament' : 'Tournament'}
+              </p>
+              {(loading || contextLoading) ? (
+                <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
+                  <Spinner className="w-5 h-5" />
+                </div>
+              ) : activeTournaments.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>No active tournaments</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {activeTournaments.map(t => {
+                    const isSel = selectedTournId === t.id
+                    return (
+                      <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                          borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
+                          border: isSel ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
+                          background: isSel ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+                          color: isSel ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                          fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
+                        }}>
+                        <span>⚽</span>
+                        <span>{t.name}</span>
+                        {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-success)', opacity: 0.7 }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Favourite team — inside same card, only when tournament has teams */}
+            {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+              <div style={{ padding: '12px 16px', background: 'var(--color-background-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+                    ⭐ Fav team
+                  </span>
+                  <select
+                    value={favTeam}
+                    onChange={e => saveFavTeam(e.target.value)}
+                    disabled={savingFav}
+                    style={{
+                      flex: 1, padding: '6px 10px', fontSize: 13,
+                      border: favTeam ? '1.5px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
+                      borderRadius: 'var(--border-radius-md)',
+                      background: 'var(--color-background-primary)',
+                      color: favTeam ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                      cursor: 'pointer', outline: 'none', fontWeight: favTeam ? 500 : 400,
+                    }}>
+                    <option value="">Pick your team — double pts Grp &amp; R32</option>
+                    {(selectedTourn.teams as string[]).sort().map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Step 2 — Comp (only after tournament is selected) */}
+          {/* Card 2 — Comp (only after tournament is selected) */}
           {selectedTournId && (
             <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
               <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
@@ -153,68 +207,47 @@ export default function HomePage() {
               </p>
               {tournsComps.length === 0 ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
-                    No comp joined for this tournament
-                  </p>
-                  <a href="/tribe" style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-success)', textDecoration: 'none', flexShrink: 0 }}>
-                    Join one →
-                  </a>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)' }}>No comp joined for this tournament</p>
+                  <a href="/tribe" style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-success)', textDecoration: 'none', flexShrink: 0 }}>Join one →</a>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {tournsComps.map(c => {
-                    const isSel = selectedCompId === c.id
-                    return (
-                      <button key={c.id} onClick={() => !isSel && pickComp(c)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                          borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
-                          border: isSel ? '2px solid var(--color-border-info)' : '1.5px solid var(--color-border-tertiary)',
-                          background: isSel ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
-                          color: isSel ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
-                          fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
-                        }}>
-                        {c.logo_url && <img src={c.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />}
-                        <span>{c.name}</span>
-                        {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-info)', opacity: 0.7 }} />}
-                      </button>
-                    )
-                  })}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {tournsComps.map(c => {
+                      const isSel = selectedCompId === c.id
+                      return (
+                        <button key={c.id} onClick={() => !isSel && pickComp(c)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                            borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
+                            border: isSel ? '2px solid var(--color-border-info)' : '1.5px solid var(--color-border-tertiary)',
+                            background: isSel ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
+                            color: isSel ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
+                            fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
+                          }}>
+                          {c.logo_url && <img src={c.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />}
+                          <span>{c.name}</span>
+                          {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-info)', opacity: 0.7 }} />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* Comp admin badge */}
+                  {isCompAdmin && selectedComp && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '8px 12px', borderRadius: 'var(--border-radius-md)',
+                      background: 'var(--color-background-warning)',
+                      border: '1px solid var(--color-border-warning)',
+                    }}>
+                      <span style={{ fontSize: 14 }}>🛠</span>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: 'var(--color-text-warning)' }}>
+                        You are the Comp Manager for <strong>{selectedComp.name}</strong>
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Step 3 — Favourite team (only after tournament selected, uses tournament.teams) */}
-          {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
-            <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
-              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Favourite team <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>— double pts in Group Stage &amp; Rd of 32</span>
-              </p>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <select
-                  value={favTeam}
-                  onChange={e => saveFavTeam(e.target.value)}
-                  disabled={savingFav}
-                  style={{
-                    flex: 1, padding: '8px 12px', fontSize: 13,
-                    border: favTeam ? '1.5px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-                    borderRadius: 'var(--border-radius-lg)',
-                    background: favTeam ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                    color: favTeam ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                    cursor: 'pointer', outline: 'none',
-                  }}>
-                  <option value="">Select your team…</option>
-                  {(selectedTourn.teams as string[]).sort().map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                {favTeam && (
-                  <span style={{ fontSize: 13, flexShrink: 0 }}>
-                    ⭐ {favTeam}
-                  </span>
-                )}
-              </div>
             </div>
           )}
 
@@ -227,15 +260,20 @@ export default function HomePage() {
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedComp ? (selectedComp.name) : selectedTourn?.name}
+                  {selectedComp ? selectedComp.name : selectedTourn?.name}
                 </p>
-                {selectedComp && selectedTourn && (
-                  <p style={{ margin: '1px 0 0', fontSize: 11, color: 'var(--color-text-secondary)' }}>{selectedTourn.name}</p>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  {selectedComp && selectedTourn && (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{selectedTourn.name}</span>
+                  )}
+                  {favTeam && (
+                    <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>· ⭐ {favTeam}</span>
+                  )}
+                </div>
               </div>
-              <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
-                {selectedComp ? 'Active context' : 'No comp selected'}
-              </span>
+              {!selectedComp && (
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>No comp selected</span>
+              )}
             </div>
           )}
         </div>
