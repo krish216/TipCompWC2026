@@ -891,7 +891,7 @@ export default function OrgAdminPage() {
   const { session } = useSupabase()
   const { selectedComp, isCompAdmin, loading: ctxLoading } = useUserPrefs()
 
-  const [loading,     setLoading]  = useState(true)
+  const [loading,     setLoading]  = useState(false)
   const [tribes,      setTribes]   = useState<Tribe[]>([])
   const [members,     setMembers]  = useState<Member[]>([])
   const [compTier,    setOrgTier]  = useState<string>('trial')
@@ -922,8 +922,8 @@ export default function OrgAdminPage() {
     }).catch(() => setLoading(false))
   }, [session, selectedComp?.id])
 
-  // Wait for context to finish loading
-  if (ctxLoading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
+  // Wait for context AND local data to finish loading
+  if (ctxLoading || loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
   // Not a comp admin for the selected comp — prompt to go home and pick one
   if (!isCompAdmin || !selectedComp) return (
@@ -943,8 +943,6 @@ export default function OrgAdminPage() {
       </a>
     </div>
   )
-
-  if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
   // Alias for panel components
   const comp = org!

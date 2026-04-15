@@ -22,9 +22,11 @@ export interface Tournament {
 }
 
 export interface Comp {
-  id:        string
-  name:      string
-  logo_url?: string | null
+  id:          string
+  name:        string
+  logo_url?:   string | null
+  invite_code?: string | null
+  tournament_id?: string | null
 }
 
 interface UserPrefsCtx {
