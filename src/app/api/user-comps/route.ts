@@ -18,13 +18,12 @@ export async function GET() {
   // If user_comps is empty (migration not run or backfill missed), fall back to users.comp_id
   if (!error && (!rows || rows.length === 0)) {
     const { data: userRow } = await supabase
-      .from('users')
-      .select('comp_id, comps(id, name, app_name, slug, logo_url, tournament_id, invite_code)')
-      .eq('id', user.id)
-      .single()
-
-    const comp = userRow && (userRow as any).comp_id
-      ? (Array.isArray((userRow as any).comps) ? (userRow as any).comps[0] : (userRow as any).comps)
+      .from('users').select('comp_id').eq('id', user.id).single()
+    const compId = (userRow as any)?.comp_id ?? null
+    const comp = compId
+      ? (await supabase.from('comps')
+          .select('id, name, app_name, slug, logo_url, tournament_id, invite_code')
+          .eq('id', compId).single()).data
       : null
 
     if (comp) {

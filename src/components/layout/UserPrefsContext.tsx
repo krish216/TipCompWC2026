@@ -87,20 +87,21 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         console.log('[loadComps] user-comps empty/error:', data.error)
       }
 
-      // Fallback: query users.comp_id directly
+      // Fallback: query users.comp_id then fetch comp separately (avoids ambiguous FK embed)
       if (comps.length === 0) {
         console.log('[loadComps] falling back to users.comp_id for userId=', userId)
         const { data: userRow, error: userErr } = await supabase
-          .from('users')
-          .select('comp_id, comps(id, name, app_name, slug, logo_url, tournament_id)')
-          .eq('id', userId)
-          .single()
-        console.log('[loadComps] userRow:', JSON.stringify(userRow), 'err:', userErr?.message)
-        const c = userRow && (userRow as any).comp_id
-          ? (Array.isArray((userRow as any).comps) ? (userRow as any).comps[0] : (userRow as any).comps)
-          : null
-        console.log('[loadComps] fallback comp:', JSON.stringify(c), 'tournId match:', c?.tournament_id === tournId)
-        if (c && c.tournament_id === tournId) comps = [c]
+          .from('users').select('comp_id').eq('id', userId).single()
+        console.log('[loadComps] userRow comp_id:', (userRow as any)?.comp_id, 'err:', userErr?.message)
+        const compId = (userRow as any)?.comp_id ?? null
+        if (compId) {
+          const { data: compRow, error: compErr } = await supabase
+            .from('comps')
+            .select('id, name, app_name, slug, logo_url, tournament_id')
+            .eq('id', compId).single()
+          console.log('[loadComps] fallback compRow:', JSON.stringify(compRow), 'err:', compErr?.message, 'tournId match:', (compRow as any)?.tournament_id === tournId)
+          if (compRow && (compRow as any).tournament_id === tournId) comps = [compRow as Comp]
+        }
       }
 
       console.log('[loadComps] final comps:', comps.length)
