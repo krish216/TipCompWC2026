@@ -6,7 +6,8 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 import toast from 'react-hot-toast'
 
-interface Comp { id: string; name: string; app_name?: string | null; logo_url?: string | null; invite_code?: string }
+interface Comp { id: string; name: string;
+ logo_url?: string | null; invite_code?: string }
 
 // ─── Individual menu panels ────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ function InviteTipsters({ comp, onClose }: { comp: Comp; onClose: () => void }) 
   return (
     <Panel title="Invite Tipsters" onClose={onClose}>
       <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '0 0 16px' }}>
-        Share this link so players can register and automatically join <strong>{comp.app_name || comp.name}</strong>.
+        Share this link so players can register and automatically join <strong>{comp?.name}</strong>.
       </p>
       <div style={{ background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-md)', padding: '10px 12px', fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', wordBreak: 'break-all', marginBottom: 12 }}>
         {link}
@@ -91,7 +92,7 @@ function ManageTipsters({ comp, onClose }: { comp: Comp; onClose: () => void }) 
 
 function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => void; onSaved: () => void }) {
   const { supabase, session } = useSupabase()
-  const [appName,  setAppName]  = useState(comp.app_name || '')
+  const [appName, setAppName] = useState(comp.name || '')
   const [saving,   setSaving]   = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [preview,  setPreview]  = useState<string | null>(comp.logo_url || null)
@@ -111,7 +112,7 @@ function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => v
     }
     await fetch('/api/comps/create', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, user_id: session!.user.id, app_name: appName || null, ...(logoUrl ? { logo_url: logoUrl } : {}) }),
+      body: JSON.stringify({ comp_id: comp.id, user_id: session!.user.id: appName || null, ...(logoUrl ? { logo_url: logoUrl } : {}) }),
     })
     setSaving(false); toast.success('Settings saved'); onSaved()
   }
@@ -271,7 +272,7 @@ function EmailTipsters({ comp, onClose }: { comp: Comp; onClose: () => void }) {
         <div style={{ textAlign: 'center', padding: '24px 0' }}>
           <p style={{ fontSize: 32, margin: '0 0 8px' }}>✅</p>
           <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>Message sent!</p>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>All tipsters in {comp.app_name || comp.name} have been notified.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>All tipsters in {comp?.name} have been notified.</p>
           <button onClick={() => { setSent(false); setSubject(''); setBody('') }} style={{ ...btnStyle('secondary'), marginTop: 16 }}>Send another</button>
         </div>
       ) : (
@@ -333,33 +334,35 @@ const MENU_ITEMS: { id: MenuItem; icon: string; label: string }[] = [
   { id: 'email',     icon: '✉️',   label: 'Email All Tipsters'},
 ]
 
-export function CompAdminMenu() {
+export function CompAdminMenu({ adminComps }: { adminComps?: Comp[] }) {
   const { supabase, session } = useSupabase()
-  const [open,      setOpen]      = useState(false)
-  const [activePanel, setActivePanel] = useState<MenuItem | null>(null)
-  const [myComps,   setMyComps]   = useState<Comp[]>([])
-  const [selectedComp, setSelectedComp] = useState<Comp | null>(null)
-  const [isAdmin,   setIsAdmin]   = useState<boolean | null>(null)  // null = still checking
+  const [open,         setOpen]         = useState(false)
+  const [activePanel,  setActivePanel]  = useState<MenuItem | null>(null)
+  const [myComps,      setMyComps]      = useState<Comp[]>(adminComps ?? [])
+  const [selectedComp, setSelectedComp] = useState<Comp | null>(adminComps?.[0] ?? null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // If no comps passed as props, fetch from API as fallback
   useEffect(() => {
+    if (adminComps?.length) {
+      setMyComps(adminComps)
+      setSelectedComp(adminComps[0] ?? null)
+      return
+    }
     if (!session) return
-    // Use API endpoint (service-role) to avoid RLS issues on comp_admins table
     fetch('/api/comp-admins')
       .then(r => r.json())
       .then(data => {
         if (data.is_comp_admin && data.comps?.length) {
-          setIsAdmin(true)
           setMyComps(data.comps)
           setSelectedComp(data.comps[0] ?? null)
-        } else {
-          setIsAdmin(false)
         }
       })
-      .catch(() => setIsAdmin(false))
-  }, [session])
+      .catch(() => {})
+  }, [session, adminComps])
 
-  if (isAdmin === null || !isAdmin) return null  // null = loading, false = not admin
+  // Always render if shown — Navbar gates visibility via isCompAdmin from context
+  if (!myComps.length) return null
 
   const comp = selectedComp
 
@@ -410,7 +413,7 @@ export function CompAdminMenu() {
                       : <div style={{ width: 32, height: 32, borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏢</div>
                     }
                     <div>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{comp?.app_name || comp?.name || 'Comp Admin'}</p>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{comp?.name || 'Comp Admin'}</p>
                       <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-tertiary)' }}>Comp management</p>
                     </div>
                   </div>
@@ -428,7 +431,7 @@ export function CompAdminMenu() {
                         background: selectedComp?.id === c.id ? 'var(--color-background-success)' : 'transparent',
                         color: selectedComp?.id === c.id ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
                       }}>
-                        {c.app_name || c.name}
+                        {c.name}
                       </button>
                     ))}
                   </div>

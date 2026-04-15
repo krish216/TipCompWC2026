@@ -35,6 +35,7 @@ interface UserPrefsCtx {
   selectedTourn:      Tournament | null
   selectedComp:       Comp | null
   isCompAdmin:        boolean
+  adminComps:         { id: string; name: string; logo_url?: string | null; invite_code?: string }[]
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
   loading:            boolean
@@ -57,6 +58,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
   const [isCompAdmin,       setIsCompAdmin]       = useState(false)
+  const [adminComps,        setAdminComps]        = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
 
   // Load comps for a given tournament — filtered server-side via ?tournament_id=
   const loadComps = useCallback(async (
@@ -161,10 +163,12 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
   const checkCompAdmin = useCallback(async (compId?: string | null) => {
     try {
-      const url  = compId ? `/api/comp-admins?comp_id=${compId}` : '/api/comp-admins'
-      const data = await fetch(url).then(r => r.json())
-      setIsCompAdmin(data.is_comp_admin === true)
-    } catch { setIsCompAdmin(false) }
+      // Always fetch all admin comps (no comp_id filter) so menu has the full list
+      const data = await fetch('/api/comp-admins').then(r => r.json())
+      const isAdmin = data.is_comp_admin === true
+      setIsCompAdmin(isAdmin)
+      setAdminComps(isAdmin ? (data.comps ?? []) : [])
+    } catch { setIsCompAdmin(false); setAdminComps([]) }
   }, [])
 
   const pickComp = useCallback(async (comp: Comp) => {
@@ -186,7 +190,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       activeTournaments, tournsComps,
       selectedTournId, selectedCompId,
       selectedTourn, selectedComp,
-      isCompAdmin,
+      isCompAdmin, adminComps,
       pickTournament, pickComp,
       loading,
     }}>

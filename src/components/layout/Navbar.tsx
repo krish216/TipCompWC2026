@@ -21,8 +21,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin: ctxCompAdmin } = useUserPrefs()
-  // Use context value (live) over SSR prop (stale)
+  const { isCompAdmin: ctxCompAdmin, adminComps } = useUserPrefs()
   const showCompAdmin = ctxCompAdmin || isCompAdmin
 
   const signOut = async () => {
@@ -68,7 +67,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {session && showCompAdmin && <CompAdminMenu />}
+              {session && showCompAdmin && <CompAdminMenu adminComps={adminComps} />}
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
