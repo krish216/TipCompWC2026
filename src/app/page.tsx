@@ -22,7 +22,6 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
 
-  // Tournament + comp selection comes from shared context
   const {
     activeTournaments, tournsComps,
     selectedTournId, selectedCompId,
@@ -30,6 +29,9 @@ export default function HomePage() {
     pickTournament, pickComp,
     loading: contextLoading,
   } = useUserPrefs()
+
+  const [favTeam,     setFavTeam]     = useState<string>('')
+  const [savingFav,   setSavingFav]   = useState(false)
 
   const started = Date.now() >= KICKOFF.getTime()
 
@@ -46,13 +48,14 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, comp_id').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, comp_id, favourite_team').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
       // Override with DB value (source of truth)
       if (ud?.display_name) setDisplayName(ud.display_name)
+      if (ud?.favourite_team) setFavTeam(ud.favourite_team)
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
@@ -81,6 +84,13 @@ export default function HomePage() {
   )
 
   // pickTournament and pickComp come from useUserPrefs()
+
+  const saveFavTeam = async (team: string) => {
+    setSavingFav(true)
+    setFavTeam(team)
+    await supabase.from('users').update({ favourite_team: team || null }).eq('id', session!.user.id)
+    setSavingFav(false)
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -165,13 +175,46 @@ export default function HomePage() {
                           fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
                         }}>
                         {c.logo_url && <img src={c.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />}
-                        <span>{c.app_name || c.name}</span>
+                        <span>{c.name}</span>
                         {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-info)', opacity: 0.7 }} />}
                       </button>
                     )
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Step 3 — Favourite team (only after tournament selected, uses tournament.teams) */}
+          {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+            <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Favourite team <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>— double pts in Group Stage &amp; Rd of 32</span>
+              </p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  value={favTeam}
+                  onChange={e => saveFavTeam(e.target.value)}
+                  disabled={savingFav}
+                  style={{
+                    flex: 1, padding: '8px 12px', fontSize: 13,
+                    border: favTeam ? '1.5px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
+                    borderRadius: 'var(--border-radius-lg)',
+                    background: favTeam ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+                    color: favTeam ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                    cursor: 'pointer', outline: 'none',
+                  }}>
+                  <option value="">Select your team…</option>
+                  {(selectedTourn.teams as string[]).sort().map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                {favTeam && (
+                  <span style={{ fontSize: 13, flexShrink: 0 }}>
+                    ⭐ {favTeam}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -184,7 +227,7 @@ export default function HomePage() {
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedComp ? (selectedComp.app_name || selectedComp.name) : selectedTourn?.name}
+                  {selectedComp ? (selectedComp.name) : selectedTourn?.name}
                 </p>
                 {selectedComp && selectedTourn && (
                   <p style={{ margin: '1px 0 0', fontSize: 11, color: 'var(--color-text-secondary)' }}>{selectedTourn.name}</p>
@@ -213,7 +256,7 @@ export default function HomePage() {
                   Welcome back, {displayName}! 👋
                 </p>
                 {selectedComp && (
-                  <p className="text-xs text-blue-600 mt-0.5">🏢 {selectedComp.app_name || selectedComp.name}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">🏢 {selectedComp.name}</p>
                 )}
                 {selectedTourn && (
                   <p className="text-xs text-gray-400 mt-0.5">⚽ {selectedTourn.name}</p>

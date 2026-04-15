@@ -42,7 +42,7 @@ export default function LoginPage() {
   const [country,  setCountry]  = useState('')
   const [timezone, setTimezone] = useState('UTC')
   const [favTeam,      setFavTeam]      = useState('')
-  const [dob,          setDob]          = useState('')
+  const [birthYear,    setBirthYear]    = useState('')
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
   const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')
@@ -59,13 +59,13 @@ export default function LoginPage() {
   const [onboardingUserId,  setOnboardingUserId]  = useState<string | null>(null)
 
   // Org join fields
-  const [orgCode,    setOrgCode]    = useState('')
-  const [orgLookup,  setOrgLookup]  = useState<{id:string;name:string} | null>(null)
-  const [orgCodeErr, setOrgCodeErr] = useState<string | null>(null)
+  const [compCode,    setOrgCode]    = useState('')
+  const [compLookup,  setOrgLookup]  = useState<{id:string;name:string} | null>(null)
+  const [compCodeErr, setOrgCodeErr] = useState<string | null>(null)
   const [lookingUp,  setLookingUp]  = useState(false)
 
   // Org create fields
-  const [newOrgName,  setNewOrgName]  = useState('')
+  const [newCompName,  setNewOrgName]  = useState('')
   const [ownerPhone,  setOwnerPhone]  = useState('')
   const [ownerEmail,  setOwnerEmail]  = useState('')
   const [logoFile,    setLogoFile]    = useState<File | null>(null)
@@ -197,7 +197,7 @@ export default function LoginPage() {
       if (newUser) {
         // Upsert user row — PUBLIC org by default, onboarding_complete = false
         const { data: publicOrg } = await supabase
-          .from('organisations').select('id').eq('slug', 'public').single()
+          .from('comps').select('id').eq('slug', 'public').single()
         await supabase.from('users').upsert({
           id:                  newUser.id,
           email:               newUser.email!,
@@ -205,9 +205,9 @@ export default function LoginPage() {
           favourite_team:      favTeamForTourn || null,
           country:             country || null,
           timezone:            timezone || 'UTC',
-          date_of_birth:       dob || null,
+          date_of_birth:       birthYear ? `${birthYear}-01-01` : null,
           tournament_id:       (selectedTourn || tournaments[0]?.id) ?? null,
-          org_id:              (publicOrg as any)?.id ?? null,
+          comp_id:              (publicOrg as any)?.id ?? null,
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
@@ -227,7 +227,7 @@ export default function LoginPage() {
   // ── Onboarding: look up org code ──────────────────────────
   const lookupOrgCode = async () => {
     setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
-    const res = await fetch(`/api/organisations?code=${orgCode}`)
+    const res = await fetch(`/api/comps?code=${compCode}`)
     const { data, error } = await res.json()
     setLookingUp(false)
     if (error || !data) setOrgCodeErr('Code not found — check with your tournament admin')
@@ -235,29 +235,29 @@ export default function LoginPage() {
   }
 
   // ── Onboarding: complete (marks onboarding_complete = true) ─
-  const completeOnboarding = async (orgId?: string, inviteCode?: string, createPayload?: any) => {
+  const completeOnboarding = async (compId?: string, inviteCode?: string, createPayload?: any) => {
     setOnboardingLoading(true); setOnboardingError(null)
     try {
-      if (orgId && inviteCode) {
+      if (compId && inviteCode) {
         // Join existing org
-        const res = await fetch('/api/org-admins/self-register', {
+        const res = await fetch('/api/comp-admins/self-register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ org_id: orgId, invite_code: inviteCode }),
+          body: JSON.stringify({ comp_id: compId, invite_code: inviteCode }),
         })
         const { success, error } = await res.json()
-        if (!success) { setOnboardingError(error ?? 'Failed to join organisation'); setOnboardingLoading(false); return }
+        if (!success) { setOnboardingError(error ?? 'Failed to join comp'); setOnboardingLoading(false); return }
       }
 
       if (createPayload) {
         // Create new org
-        const res = await fetch('/api/organisations/create', {
+        const res = await fetch('/api/comps/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createPayload),
         })
         const { data: org, error: orgErr } = await res.json()
-        if (orgErr || !org) { setOnboardingError(orgErr ?? 'Failed to create organisation'); setOnboardingLoading(false); return }
+        if (orgErr || !org) { setOnboardingError(orgErr ?? 'Failed to create comp'); setOnboardingLoading(false); return }
 
         // Upload logo
         if (logoFile && session?.user.id) {
@@ -267,10 +267,10 @@ export default function LoginPage() {
             .from('org-logos').upload(path, logoFile, { upsert: true })
           if (uploaded) {
             const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
-            await fetch('/api/organisations/create', {
+            await fetch('/api/comps/create', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ org_id: org.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
+              body: JSON.stringify({ comp_id: comp.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
             })
           }
         }
@@ -351,14 +351,14 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">{orgStep === 'choose' ? '🎉' : orgStep === 'join' ? '🔑' : '✨'}</div>
           <h1 className="text-xl font-semibold text-gray-900">
-            {orgStep === 'choose' ? "Welcome to TipComp 2026!" : orgStep === 'join' ? 'Join an organisation' : 'Create an organisation'}
+            {orgStep === 'choose' ? "Welcome to TipComp 2026!" : orgStep === 'join' ? 'Join an comp' : 'Create an comp'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {orgStep === 'choose'
-              ? 'Set up your organisation to compete with your group'
+              ? 'Set up your comp to compete with your group'
               : orgStep === 'join'
               ? 'Enter the code shared by your tournament admin'
-              : 'Register your organisation for the tournament'}
+              : 'Register your comp for the tournament'}
           </p>
         </div>
 
@@ -369,7 +369,7 @@ export default function LoginPage() {
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
               <span className="text-2xl">🔑</span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Join an organisation</p>
+                <p className="text-sm font-semibold text-gray-900">Join an comp</p>
                 <p className="text-xs text-gray-500 mt-0.5">I have an invite code from my tournament admin</p>
               </div>
             </button>
@@ -377,7 +377,7 @@ export default function LoginPage() {
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
               <span className="text-2xl">✨</span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Create an organisation</p>
+                <p className="text-sm font-semibold text-gray-900">Create an comp</p>
                 <p className="text-xs text-gray-500 mt-0.5">Set up a new org for my company or group</p>
               </div>
             </button>
@@ -398,28 +398,28 @@ export default function LoginPage() {
         {orgStep === 'join' && (
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Organisation code</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp code</label>
               <div className="flex gap-2">
-                <input type="text" value={orgCode}
+                <input type="text" value={compCode}
                   onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
                   placeholder="e.g. ACME1234" maxLength={8}
                   className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
                 <button type="button" onClick={lookupOrgCode}
-                  disabled={lookingUp || orgCode.length < 6}
+                  disabled={lookingUp || compCode.length < 6}
                   className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50">
                   {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
                 </button>
               </div>
-              {orgLookup && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{orgLookup.name}</strong> — you'll be added as org admin</p>}
-              {orgCodeErr && <p className="text-[11px] text-red-600 mt-1.5">{orgCodeErr}</p>}
+              {compLookup && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{compLookup.name}</strong> — you'll be added as org admin</p>}
+              {compCodeErr && <p className="text-[11px] text-red-600 mt-1.5">{compCodeErr}</p>}
             </div>
             {onboardingError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>}
             <button
-              onClick={() => orgLookup && completeOnboarding(orgLookup.id, orgCode)}
-              disabled={onboardingLoading || !orgLookup}
+              onClick={() => compLookup && completeOnboarding(compLookup.id, compCode)}
+              disabled={onboardingLoading || !compLookup}
               className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2">
               {onboardingLoading && <Spinner className="w-4 h-4 text-white" />}
-              Join organisation →
+              Join comp →
             </button>
           </div>
         )}
@@ -428,8 +428,8 @@ export default function LoginPage() {
         {orgStep === 'create' && (
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Organisation name <span className="text-red-500">*</span></label>
-              <input type="text" value={newOrgName} onChange={e => setNewOrgName(e.target.value)}
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name <span className="text-red-500">*</span></label>
+              <input type="text" value={newCompName} onChange={e => setNewOrgName(e.target.value)}
                 placeholder="e.g. Acme Corp"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
             </div>
@@ -463,17 +463,17 @@ export default function LoginPage() {
             {onboardingError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>}
             <button
               onClick={() => completeOnboarding(undefined, undefined, {
-                name:        newOrgName.trim(),
+                name:        newCompName.trim(),
                 owner_phone: ownerPhone.trim(),
                 owner_email: ownerEmail.trim(),
                 owner_name:  '',
                 user_id:     session!.user.id,
                 email:       session!.user.email ?? ownerEmail,
               })}
-              disabled={onboardingLoading || !newOrgName.trim()}
+              disabled={onboardingLoading || !newCompName.trim()}
               className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2">
               {onboardingLoading && <Spinner className="w-4 h-4 text-white" />}
-              Create organisation →
+              Create comp →
             </button>
           </div>
         )}
@@ -605,14 +605,18 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Date of birth */}
+              {/* Year of birth */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Date of birth <span className="text-gray-400 font-normal">(required for age-restricted organisations)</span>
+                  Year of birth <span className="text-gray-400 font-normal">(required for age-restricted comps)</span>
                 </label>
-                <input type="date" value={dob} onChange={e => setDob(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                <select value={birthYear} onChange={e => setBirthYear(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                  <option value="">Select year</option>
+                  {Array.from({ length: new Date().getFullYear() - 1919 }, (_, i) => new Date().getFullYear() - 5 - i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
               </div>
             </>
           )}

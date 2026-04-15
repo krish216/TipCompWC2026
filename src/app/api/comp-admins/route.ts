@@ -2,25 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// GET /api/comp-admins
-// Returns whether the current user is a comp admin and which comps they admin
+// GET /api/comp-admins?comp_id=  — check if current user is admin
+// Without comp_id: returns all comps they admin
+// With comp_id:    returns whether they admin that specific comp
 // Uses service-role client to bypass RLS entirely
-export async function GET() {
-  const supabase   = createServerSupabaseClient()
+export async function GET(request: NextRequest) {
+  const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ is_comp_admin: false, comps: [] })
 
-  try {
-    const { data: rows, error } = await (adminClient.from('comp_admins') as any)
-      .select('comp_id').eq('user_id', user.id)
+  const compId = new URL(request.url).searchParams.get('comp_id')
 
+  try {
+    let query = (adminClient.from('comp_admins') as any)
+      .select('comp_id').eq('user_id', user.id)
+    if (compId) query = query.eq('comp_id', compId)
+
+    const { data: rows, error } = await query
     if (error || !rows?.length) return NextResponse.json({ is_comp_admin: false, comps: [] })
 
     const compIds = rows.map((r: any) => r.comp_id)
     const { data: comps } = await (adminClient.from('comps') as any)
-      .select('id, name, app_name, logo_url, invite_code').in('id', compIds)
+      .select('id, name, logo_url, invite_code').in('id', compIds)
 
     return NextResponse.json({ is_comp_admin: true, comps: comps ?? [] })
   } catch {

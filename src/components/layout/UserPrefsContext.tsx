@@ -18,6 +18,7 @@ export interface Tournament {
   final_venue?:   string | null
   final_date?:    string | null
   first_match?:   string | null
+  teams?:         string[] | null
 }
 
 export interface Comp {
@@ -95,7 +96,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     ;(async () => {
       // 1. Active tournaments (is_active flag)
       const [tournRes, enrolledRes] = await Promise.all([
-        supabase.from('tournaments').select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match')
+        supabase.from('tournaments').select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams')
           .eq('is_active', true).order('start_date', { ascending: true }),
         fetch('/api/user-tournaments'),
       ])
@@ -134,10 +135,12 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check comp admin status on load
+      // Check comp admin status for the resolved starting comp
       try {
-        const adminRes  = await fetch('/api/comp-admins')
-        const adminData = await adminRes.json()
+        const startComp = (prefCompId && resolvedComps.some((c: any) => c.id === prefCompId))
+          ? prefCompId : resolvedComps[0]?.id ?? null
+        const url       = startComp ? `/api/comp-admins?comp_id=${startComp}` : '/api/comp-admins'
+        const adminData = await fetch(url).then(r => r.json())
         setIsCompAdmin(adminData.is_comp_admin === true)
       } catch { setIsCompAdmin(false) }
 
@@ -156,10 +159,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     })
   }, [loadComps])
 
-  const checkCompAdmin = useCallback(async () => {
+  const checkCompAdmin = useCallback(async (compId?: string | null) => {
     try {
-      const res  = await fetch('/api/comp-admins')
-      const data = await res.json()
+      const url  = compId ? `/api/comp-admins?comp_id=${compId}` : '/api/comp-admins'
+      const data = await fetch(url).then(r => r.json())
       setIsCompAdmin(data.is_comp_admin === true)
     } catch { setIsCompAdmin(false) }
   }, [])
@@ -171,7 +174,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comp_id: comp.id }),
       }),
-      checkCompAdmin(),
+      checkCompAdmin(comp.id),   // check admin status for THIS comp
     ])
   }, [checkCompAdmin])
 
