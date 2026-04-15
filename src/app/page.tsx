@@ -17,6 +17,8 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
   const [compData,             setOrgData]             = useState<{name:string;logo_url:string|null;app_name?:string|null}|null>(null)
+  const [userComps,            setUserComps]           = useState<{id:string;name:string;app_name?:string|null;logo_url?:string|null}[]>([])
+  const [selectedCompId,       setSelectedCompId]      = useState<string | null>(null)
   const [userTournaments,     setUserTournaments]     = useState<any[]>([])
   const [activeTournamentId,  setActiveTournamentId]  = useState<string | null>(null)
   const [activeTournament, setActiveTournament] = useState<{name:string;slug:string}|null>(null)
@@ -42,6 +44,7 @@ export default function HomePage() {
       } else {
         setOrgData(null)
       }
+      // Will load comps for tournament after resolving activeTournId below
       // Fetch active tournament name for display
       const [settingsRes, userTournRes] = await Promise.all([
         fetch('/api/app-settings'),
@@ -63,6 +66,26 @@ export default function HomePage() {
           .from('tournaments').select('name, slug').eq('id', activeTournId).single()
         setActiveTournament(tournRow ?? null)
       }
+      // Fetch all comps the user has joined for the active tournament
+      if (activeTournId) {
+        try {
+          const ucRes  = await fetch('/api/user-comps')
+          const ucData = await ucRes.json()
+          if (!ucData.error && Array.isArray(ucData.data)) {
+            const comps = (ucData.data as any[])
+              .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
+              .filter((c: any) => c && c.tournament_id === activeTournId)
+            setUserComps(comps)
+            // Default selected comp: user's current comp_id or first in list
+            const primary = comps.find((c: any) => c.id === compId) ?? comps[0] ?? null
+            if (primary) {
+              setSelectedCompId(primary.id)
+              setOrgData({ name: primary.name, logo_url: primary.logo_url ?? null, app_name: primary.app_name ?? null })
+            }
+          }
+        } catch { /* user_comps may not exist yet */ }
+      }
+
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
@@ -88,8 +111,13 @@ export default function HomePage() {
   const switchTournament = async (tid: string, tname: string) => {
     setActiveTournamentId(tid)
     setActiveTournament(userTournaments.find((ut: any) => ut.tournament_id === tid)?.tournaments ?? { name: tname, slug: '' })
-    // Save as user's active tournament
     await supabase.from('users').update({ active_tournament_id: tid }).eq('id', session!.user.id)
+  }
+
+  const switchComp = async (comp: {id:string;name:string;app_name?:string|null;logo_url?:string|null}) => {
+    setSelectedCompId(comp.id)
+    setOrgData({ name: comp.name, logo_url: comp.logo_url ?? null, app_name: comp.app_name ?? null })
+    await supabase.from('users').update({ comp_id: comp.id }).eq('id', session!.user.id)
   }
 
   return (
@@ -149,6 +177,39 @@ export default function HomePage() {
                 </button>
               )
             })}
+          </div>
+        )}
+
+        {/* Comp switcher — shown when user has comps for this tournament */}
+        {session && userComps.length > 0 && (
+          <div className="mt-3">
+            {userComps.length === 1 ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-xs font-medium text-blue-700">
+                {userComps[0].logo_url && (
+                  <img src={userComps[0].logo_url} alt="" className="w-4 h-4 rounded object-cover" />
+                )}
+                🏢 {userComps[0].app_name || userComps[0].name}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                <p className="w-full text-center text-[11px] text-gray-400 mb-1">Your comp</p>
+                {userComps.map(c => {
+                  const isActive = selectedCompId === c.id
+                  return (
+                    <button key={c.id} onClick={() => switchComp(c)} disabled={isActive}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
+                        isActive
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm cursor-default'
+                          : 'bg-white border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-700'
+                      }`}>
+                      {c.logo_url && <img src={c.logo_url} alt="" className="w-4 h-4 rounded object-cover" />}
+                      <span>🏢 {c.app_name || c.name}</span>
+                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-blue-300 animate-pulse ml-0.5"/>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

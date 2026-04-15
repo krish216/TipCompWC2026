@@ -549,14 +549,37 @@ function NoTribePanel({ onJoined, activeTournamentId }: { onJoined:()=>void; act
   const loadMyComps = async () => {
     if (!session) return
     try {
-      // Use user_comps join table for multi-comp support
-      const res  = await fetch('/api/user-comps')
-      const data = await res.json()
-      const all  = (data.data ?? []) as any[]
-      // Filter to comps for the active tournament
-      const comps = all
-        .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-        .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
+      // Try user_comps first (multi-comp join table)
+      let comps: any[] = []
+      try {
+        const res  = await fetch('/api/user-comps')
+        const data = await res.json()
+        if (!data.error && Array.isArray(data.data)) {
+          comps = (data.data as any[])
+            .map((uc: any) => {
+              // Supabase returns nested as object or array depending on relation
+              const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
+              return c ?? null
+            })
+            .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
+        }
+      } catch { /* user_comps may not exist yet — fall through */ }
+
+      // Fallback: use users.comp_id (single comp)
+      if (comps.length === 0) {
+        const { data: me } = await supabase
+          .from('users').select('comp_id').eq('id', session.user.id).single()
+        const primaryCompId = (me as any)?.comp_id ?? null
+        if (primaryCompId) {
+          const { data: compRow } = await supabase
+            .from('comps').select('id, name, app_name, slug, logo_url, tournament_id, invite_code')
+            .eq('id', primaryCompId).single()
+          if (compRow && (!activeTournamentId || (compRow as any).tournament_id === activeTournamentId)) {
+            comps = [compRow]
+          }
+        }
+      }
+
       setMyComps(comps)
       if (comps.length > 0) {
         const map: Record<string,any[]> = {}
