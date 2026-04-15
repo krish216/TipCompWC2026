@@ -92,7 +92,7 @@ function ManageTipsters({ comp, onClose }: { comp: Comp; onClose: () => void }) 
 
 function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => void; onSaved: () => void }) {
   const { supabase, session } = useSupabase()
-  const [appName, setAppName] = useState(comp.name || '')
+  const [compName, setCompName] = useState(comp.name || '')
   const [saving,   setSaving]   = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [preview,  setPreview]  = useState<string | null>(comp.logo_url || null)
@@ -112,7 +112,7 @@ function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => v
     }
     await fetch('/api/comps/create', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, user_id: session!.user.id: appName || null, ...(logoUrl ? { logo_url: logoUrl } : {}) }),
+      body: JSON.stringify({ comp_id: comp.id, user_id: session!.user.id, name: compName || null, ...(logoUrl ? { logo_url: logoUrl } : {}) }),
     })
     setSaving(false); toast.success('Settings saved'); onSaved()
   }
@@ -128,7 +128,7 @@ function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => v
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={labelStyle}>Display name (shown to players)</label>
-          <input value={appName} onChange={e => setAppName(e.target.value)} placeholder={comp.name} />
+          <input value={compName} onChange={e => setAppName(e.target.value)} placeholder={comp.name} />
         </div>
         <div>
           <label style={labelStyle}>Logo</label>
