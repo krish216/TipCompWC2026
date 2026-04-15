@@ -24,7 +24,7 @@ function CreateTribeForm({ compId, onCreated }: { compId: string; onCreated: (t:
     const res = await fetch('/api/tribes', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name: name.trim(), description: description.trim() || null }),
+      body:    JSON.stringify({ name: name.trim(), description: description.trim() || null, comp_id: compId }),
     })
     const { data, error } = await res.json()
     setLoading(false)

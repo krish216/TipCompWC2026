@@ -44,10 +44,15 @@ export async function GET(request: NextRequest) {
 
   const { data: userRows } = await supabase
     .from('users').select('id, display_name, avatar_url').in('id', memberIds)
-  // Get active tournament from user_preferences
+  // Get active tournament from user_preferences, then app_settings
   const { data: userPrefs } = await supabase
     .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
-  const activeTid = (userPrefs as any)?.tournament_id ?? null
+  let activeTid = (userPrefs as any)?.tournament_id ?? null
+  if (!activeTid) {
+    const { data: setting } = await supabase
+      .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+    activeTid = (setting as any)?.value ?? null
+  }
 
   let lbQ = supabase
     .from('leaderboard').select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
@@ -84,25 +89,27 @@ export async function HEAD(request: NextRequest) {
   return NextResponse.json({})
 }
 
-// POST /api/tribes — org admin creates a new tribe
+// POST /api/tribes — comp admin creates a new tribe
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
+  const supabase   = createServerSupabaseClient()
+  const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { comp_id, is_org_admin } = await getUserOrgInfo(user.id)
-  if (!is_org_admin) {
-    return NextResponse.json({ error: 'Only comp admins can create tribes' }, { status: 403 })
-  }
-  if (!comp_id) {
-    return NextResponse.json({ error: 'You must belong to an comp first' }, { status: 400 })
-  }
 
   const body   = await request.json().catch(() => null)
   const parsed = CreateTribeSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid name' }, { status: 422 })
 
-  const adminClient = createAdminClient()
+  // comp_id must come from the request — the client knows which comp is being managed
+  const comp_id = (body as any)?.comp_id ?? null
+  if (!comp_id) return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
+
+  // Verify caller is an admin for THIS specific comp (use admin client to bypass RLS)
+  const { data: adminRows } = await (adminClient.from('comp_admins') as any)
+    .select('comp_id').eq('user_id', user.id).eq('comp_id', comp_id)
+  if (!adminRows?.length) {
+    return NextResponse.json({ error: 'Only comp admins can create tribes' }, { status: 403 })
+  }
 
   // Check tribe name is unique within this org (case-insensitive)
   const { data: existingTribe } = await (adminClient.from('tribes') as any)
