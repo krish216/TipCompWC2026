@@ -57,8 +57,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [selectedTournId,   setSelectedTournId]   = useState<string | null>(null)
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
-  const [isCompAdmin,       setIsCompAdmin]       = useState(false)
-  const [adminComps,        setAdminComps]        = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
+  // Admin comp IDs fetched once at load — isCompAdmin is derived from selectedCompId
+  const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
+  const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
 
   // Load comps for a given tournament — filtered server-side via ?tournament_id=
   const loadComps = useCallback(async (
@@ -97,22 +98,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     if (!session) { setLoading(false); return }
     ;(async () => {
       // 1. Active tournaments (is_active flag)
-      const [tournRes, enrolledRes] = await Promise.all([
-        supabase.from('tournaments').select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams')
-          .eq('is_active', true).order('start_date', { ascending: true }),
-        fetch('/api/user-tournaments'),
-      ])
-      const dbActive   = (tournRes.data ?? []) as Tournament[]
-      const enrollData = await enrolledRes.json()
-
-      // Merge enrolled tournaments (so user always sees their tournament)
-      const enrolledTourns: Tournament[] = ((enrollData.data ?? []) as any[])
-        .map((ut: any) => Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments)
-        .filter(Boolean)
-      const merged = [...dbActive]
-      enrolledTourns.forEach(t => { if (!merged.find(m => m.id === t.id)) merged.push(t) })
-      merged.sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
-      setActiveTournaments(merged)
+      const tournRes = await supabase
+        .from('tournaments')
+        .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams')
+        .eq('is_active', true)
+        .order('start_date', { ascending: true })
+      // Only show tournaments with is_active=true — inactive ones are hidden
+      const activeTourns = (tournRes.data ?? []) as Tournament[]
+      setActiveTournaments(activeTourns)
 
       // 2. User preferences
       const { data: prefs } = await supabase
@@ -137,13 +130,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check comp admin — fetch full list so adminComps is populated for the menu
+      // Fetch all comps this user admins — stored as a Set for O(1) lookup
       try {
         const adminData = await fetch('/api/comp-admins').then(r => r.json())
-        const isAdmin = adminData.is_comp_admin === true
-        setIsCompAdmin(isAdmin)
-        setAdminComps(isAdmin ? (adminData.comps ?? []) : [])
-      } catch { setIsCompAdmin(false); setAdminComps([]) }
+        if (adminData.is_comp_admin && adminData.comps?.length) {
+          setAdminCompIds(new Set((adminData.comps as any[]).map((c: any) => c.id)))
+          setAdminComps(adminData.comps)
+        }
+      } catch { /* non-admin — leave defaults */ }
 
       setLoading(false)
     })()
@@ -160,29 +154,19 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     })
   }, [loadComps])
 
-  const checkCompAdmin = useCallback(async (compId?: string | null) => {
-    try {
-      // Always fetch all admin comps (no comp_id filter) so menu has the full list
-      const data = await fetch('/api/comp-admins').then(r => r.json())
-      const isAdmin = data.is_comp_admin === true
-      setIsCompAdmin(isAdmin)
-      setAdminComps(isAdmin ? (data.comps ?? []) : [])
-    } catch { setIsCompAdmin(false); setAdminComps([]) }
-  }, [])
-
   const pickComp = useCallback(async (comp: Comp) => {
     setSelectedCompId(comp.id)
-    await Promise.all([
-      fetch('/api/user-preferences', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comp_id: comp.id }),
-      }),
-      checkCompAdmin(comp.id),   // check admin status for THIS comp
-    ])
-  }, [checkCompAdmin])
+    // No async admin check needed — isCompAdmin is derived from adminCompIds Set
+    await fetch('/api/user-preferences', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id }),
+    })
+  }, [])
 
   const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null
   const selectedComp  = tournsComps.find(c => c.id === selectedCompId) ?? null
+  // Derived synchronously — true whenever the selected comp is one the user admins
+  const isCompAdmin   = selectedCompId != null && adminCompIds.has(selectedCompId)
 
   return (
     <UserPrefsContext.Provider value={{

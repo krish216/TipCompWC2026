@@ -342,27 +342,15 @@ export function CompAdminMenu({ adminComps }: { adminComps?: Comp[] }) {
   const [selectedComp, setSelectedComp] = useState<Comp | null>(adminComps?.[0] ?? null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
-  // If no comps passed as props, fetch from API as fallback
+  // Sync when adminComps prop changes (context updates after load)
   useEffect(() => {
     if (adminComps?.length) {
       setMyComps(adminComps)
-      setSelectedComp(adminComps[0] ?? null)
-      return
+      setSelectedComp(c => c ?? adminComps[0] ?? null)
     }
-    if (!session) return
-    fetch('/api/comp-admins')
-      .then(r => r.json())
-      .then(data => {
-        if (data.is_comp_admin && data.comps?.length) {
-          setMyComps(data.comps)
-          setSelectedComp(data.comps[0] ?? null)
-        }
-      })
-      .catch(() => {})
-  }, [session, adminComps])
+  }, [adminComps])
 
-  // Always render if shown — Navbar gates visibility via isCompAdmin from context
-  if (!myComps.length) return null
+  // Rendered conditionally by Navbar only when isCompAdmin=true — no internal gate needed
 
   const comp = selectedComp
 

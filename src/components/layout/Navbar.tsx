@@ -21,8 +21,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin: ctxCompAdmin, adminComps } = useUserPrefs()
-  const showCompAdmin = ctxCompAdmin || isCompAdmin
+  const { isCompAdmin, adminComps } = useUserPrefs()
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -67,7 +66,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {session && showCompAdmin && <CompAdminMenu adminComps={adminComps} />}
+              {session && isCompAdmin && <CompAdminMenu adminComps={adminComps} />}
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
