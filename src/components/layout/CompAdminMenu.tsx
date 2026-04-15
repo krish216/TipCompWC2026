@@ -345,10 +345,9 @@ export function CompAdminMenu() {
   useEffect(() => {
     if (!session) return
     ;(async () => {
-      // Check if user is a comp admin for any comp
-      const { data: adminRows } = await supabase
+      const { data: adminRows, error } = await supabase
         .from('comp_admins').select('comp_id').eq('user_id', session.user.id)
-      if (!adminRows?.length) return
+      if (error || !adminRows?.length) { setIsAdmin(false); return }
       setIsAdmin(true)
       const compIds = adminRows.map((r: any) => r.comp_id)
       const { data: comps } = await supabase

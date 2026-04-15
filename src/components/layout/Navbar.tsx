@@ -63,7 +63,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {isCompAdmin && <CompAdminMenu />}
+              {session && <CompAdminMenu />}
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
