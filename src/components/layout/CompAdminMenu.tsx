@@ -339,7 +339,7 @@ export function CompAdminMenu() {
   const [activePanel, setActivePanel] = useState<MenuItem | null>(null)
   const [myComps,   setMyComps]   = useState<Comp[]>([])
   const [selectedComp, setSelectedComp] = useState<Comp | null>(null)
-  const [isAdmin,   setIsAdmin]   = useState(false)
+  const [isAdmin,   setIsAdmin]   = useState<boolean | null>(null)  // null = still checking
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -358,7 +358,7 @@ export function CompAdminMenu() {
     })()
   }, [session])
 
-  if (!isAdmin) return null
+  if (isAdmin === null || !isAdmin) return null  // null = loading, false = not admin
 
   const comp = selectedComp
 

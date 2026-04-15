@@ -27,17 +27,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let isAdmin    = false
   let isCompAdmin = false
   if (session?.user?.id) {
+    const adminClient = createAdminClient()
+
     try {
-      const adminClient = createAdminClient()
-      const [{ data: adminRow }, { data: orgAdminRow }] = await Promise.all([
-        adminClient.from('admin_users').select('user_id').eq('user_id', session.user.id).single(),
-        (adminClient.from('comp_admins') as any).select('user_id').eq('user_id', session.user.id).single(),
-      ])
-      isAdmin    = !!adminRow
-      isCompAdmin = !!orgAdminRow
-    } catch {
-      isAdmin = false; isOrgAdmin = false
-    }
+      const { data: adminRow } = await adminClient
+        .from('admin_users').select('user_id').eq('user_id', session.user.id).maybeSingle()
+      isAdmin = !!adminRow
+    } catch { isAdmin = false }
+
+    try {
+      const { data: compAdminRows } = await (adminClient.from('comp_admins') as any)
+        .select('user_id').eq('user_id', session.user.id).limit(1)
+      isCompAdmin = !!(compAdminRows && compAdminRows.length > 0)
+    } catch { isCompAdmin = false }
   }
 
   return (
