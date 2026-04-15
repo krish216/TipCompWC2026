@@ -673,7 +673,15 @@ function NoTribePanel({
     setInitLoading(false)
   }
 
-  useEffect(() => { loadMyComps() }, [session, effectiveTournId])
+  // Run immediately when effectiveTournId is known — don't wait on session separately
+  useEffect(() => {
+    if (effectiveTournId) {
+      loadMyComps()
+    } else if (session) {
+      // No tournament selected yet — still load comps without tournament filter
+      loadMyComps()
+    }
+  }, [session, effectiveTournId])
 
   const lookupComp = async () => {
     setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
@@ -973,50 +981,56 @@ export default function TribePage() {
 
   const loadTribe = async () => {
     setLoading(true)
-    const { data: userRow } = await supabase
-      .from('user_preferences').select('tournament_id').eq('user_id', session!.user.id).single()
-    const tid = (userRow as any)?.tournament_id ?? null
-    setActiveTournamentId(tid)
+    try {
+      const { data: userRow } = await supabase
+        .from('user_preferences').select('tournament_id').eq('user_id', session!.user.id).single()
+      const tid = (userRow as any)?.tournament_id ?? null
+      setActiveTournamentId(tid)
 
-    const [tribeRes, fxRes] = await Promise.all([
-      fetch('/api/tribes'),
-      fetch(`/api/fixtures${tid ? `?tournament_id=${tid}` : ''}`),
-    ])
-    const [tribeData, fxData] = await Promise.all([tribeRes.json(), fxRes.json()])
+      const tribeRes = await fetch('/api/tribes')
+      const tribeData = await tribeRes.json()
 
-    if (tribeData.data) {
-      const raw = tribeData.data
-      if (tid && raw.tournament_id && raw.tournament_id !== tid) {
-        setTribe(null)
-      } else {
-        if (raw.comp_id) {
-          const { data: compRow } = await supabase
-            .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
-          if (compRow) raw._org = compRow
-        }
-        const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
-          const u = tm.users ?? tm.user ?? {}
-          return {
-            user_id:       u.id ?? '',
-            display_name:  u.display_name ?? 'Unknown',
-            avatar_url:    u.avatar_url ?? null,
-            total_points:  u.total_points ?? 0,
-            exact_count:   u.exact_count  ?? 0,
-            correct_count: u.correct_count ?? 0,
-            joined_at:     tm.joined_at ?? '',
+      // Fetch fixtures in background — don't block tribe display on failure
+      fetch(`/api/fixtures${tid ? `?tournament_id=${tid}` : ''}`)
+        .then(r => r.json())
+        .then(fxData => setFixtures((fxData.data ?? []).map((f: any) => ({
+          id: f.id, round: f.round, group: f.group, home: f.home, away: f.away,
+          kickoff_utc: f.kickoff_utc, venue: f.venue, result: f.result ?? null,
+        })))).catch(() => {})
+
+      if (tribeData.data) {
+        const raw = tribeData.data
+        if (tid && raw.tournament_id && raw.tournament_id !== tid) {
+          setTribe(null)
+        } else {
+          if (raw.comp_id) {
+            const { data: compRow } = await supabase
+              .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
+            if (compRow) raw._org = compRow
           }
-        })
-        setTribe({ ...raw, members })
+          const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
+            const u = tm.users ?? tm.user ?? {}
+            return {
+              user_id:       u.id ?? '',
+              display_name:  u.display_name ?? 'Unknown',
+              avatar_url:    u.avatar_url ?? null,
+              total_points:  u.total_points ?? 0,
+              exact_count:   u.exact_count  ?? 0,
+              correct_count: u.correct_count ?? 0,
+              joined_at:     tm.joined_at ?? '',
+            }
+          })
+          setTribe({ ...raw, members })
+        }
+      } else {
+        setTribe(null)
       }
-    } else {
+    } catch (e) {
+      console.error('[loadTribe] error:', e)
       setTribe(null)
+    } finally {
+      setLoading(false)
     }
-
-    setFixtures((fxData.data ?? []).map((f: any) => ({
-      id: f.id, round: f.round, group: f.group, home: f.home, away: f.away,
-      kickoff_utc: f.kickoff_utc, venue: f.venue, result: f.result ?? null,
-    })))
-    setLoading(false)
   }
 
   useEffect(() => { if (session) loadTribe() }, [session])
