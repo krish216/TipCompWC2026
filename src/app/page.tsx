@@ -112,6 +112,28 @@ export default function HomePage() {
     setActiveTournamentId(tid)
     setActiveTournament(userTournaments.find((ut: any) => ut.tournament_id === tid)?.tournaments ?? { name: tname, slug: '' })
     await supabase.from('users').update({ active_tournament_id: tid }).eq('id', session!.user.id)
+
+    // Reload comps for the newly selected tournament
+    try {
+      const ucRes  = await fetch('/api/user-comps')
+      const ucData = await ucRes.json()
+      if (!ucData.error && Array.isArray(ucData.data)) {
+        const comps = (ucData.data as any[])
+          .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
+          .filter((c: any) => c && c.tournament_id === tid)
+        setUserComps(comps)
+        const { data: me } = await supabase.from('users').select('comp_id').eq('id', session!.user.id).single()
+        const cid = (me as any)?.comp_id ?? null
+        const primary = comps.find((c: any) => c.id === cid) ?? comps[0] ?? null
+        if (primary) {
+          setSelectedCompId(primary.id)
+          setOrgData({ name: primary.name, logo_url: primary.logo_url ?? null, app_name: primary.app_name ?? null })
+        } else {
+          setSelectedCompId(null)
+          setOrgData(null)
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   const switchComp = async (comp: {id:string;name:string;app_name?:string|null;logo_url?:string|null}) => {
@@ -124,95 +146,125 @@ export default function HomePage() {
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
 
-      <div className="mb-8 text-center">
-        {/* Show org logo if user belongs to a non-PUBLIC org, otherwise WC26 logo */}
-        {session && compData?.logo_url && compData.name !== 'PUBLIC' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={compData.logo_url} alt={compData.name}
-            className="w-20 h-20 mx-auto mb-3 rounded-xl object-cover border border-gray-200 drop-shadow-md" />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
-            width={80} height={120}
-            className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
-        )}
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {session && compData?.app_name
-            ? compData.app_name
-            : session && compData?.name && compData.name !== 'PUBLIC'
-              ? `${compData.name} Tipping Comp`
-              : 'World Cup 2026 Tipping Comp'}
-        </h1>
-        <p className="text-sm text-gray-500">
-          {activeTournament
-            ? <>Predict every match of <strong>{activeTournament.name}</strong>. Compete with your tribe.</>
-            : 'Predict every match. Compete with your tribe.'
-          }
-        </p>
+      {/* ── Context selector — tournament then comp ── */}
+      {session && (
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Tournament switcher */}
-        {session && userTournaments.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-            {userTournaments.map((ut: any) => {
-              const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
-              if (!t) return null
-              const isActive = activeTournamentId === ut.tournament_id
-              return (
-                <button key={ut.tournament_id}
-                  onClick={() => switchTournament(ut.tournament_id, t.name)}
-                  disabled={isActive}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-full border-2 transition-all ${
-                    isActive
-                      ? 'bg-green-600 border-green-600 text-white shadow-md scale-[1.03] cursor-default'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-700 hover:shadow-sm'
-                  }`}>
-                  <span>⚽</span>
-                  <span>{t.name}</span>
-                  {isActive && (
-                    <span className="flex items-center gap-0.5 ml-0.5 text-green-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
-                      Current
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Comp switcher — shown when user has comps for this tournament */}
-        {session && userComps.length > 0 && (
-          <div className="mt-3">
-            {userComps.length === 1 ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-xs font-medium text-blue-700">
-                {userComps[0].logo_url && (
-                  <img src={userComps[0].logo_url} alt="" className="w-4 h-4 rounded object-cover" />
-                )}
-                🏢 {userComps[0].app_name || userComps[0].name}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5 justify-center">
-                <p className="w-full text-center text-[11px] text-gray-400 mb-1">Your comp</p>
-                {userComps.map(c => {
-                  const isActive = selectedCompId === c.id
+          {/* Tournament row */}
+          {userTournaments.length > 0 && (
+            <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Tournament
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {userTournaments.map((ut: any) => {
+                  const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
+                  if (!t) return null
+                  const isActive = activeTournamentId === ut.tournament_id
                   return (
-                    <button key={c.id} onClick={() => switchComp(c)} disabled={isActive}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border-2 transition-all ${
-                        isActive
-                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm cursor-default'
-                          : 'bg-white border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-700'
-                      }`}>
-                      {c.logo_url && <img src={c.logo_url} alt="" className="w-4 h-4 rounded object-cover" />}
-                      <span>🏢 {c.app_name || c.name}</span>
-                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-blue-300 animate-pulse ml-0.5"/>}
+                    <button key={ut.tournament_id}
+                      onClick={() => switchTournament(ut.tournament_id, t.name)}
+                      disabled={isActive}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 14px',
+                        borderRadius: 'var(--border-radius-lg)',
+                        border: isActive ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
+                        background: isActive ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+                        color: isActive ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                        fontSize: 13, fontWeight: isActive ? 600 : 400,
+                        cursor: isActive ? 'default' : 'pointer',
+                        transition: 'all 0.15s',
+                      }}>
+                      <span style={{ fontSize: 14 }}>⚽</span>
+                      <span>{t.name}</span>
+                      {isActive && (
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-success)', opacity: 0.7, marginLeft: 2 }} />
+                      )}
                     </button>
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Comp row — only shown after a tournament is selected */}
+          {activeTournamentId && (
+            <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Active comp
+              </p>
+              {userComps.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>No comp joined for this tournament</p>
+                  <a href="/tribe" style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-info)', textDecoration: 'none' }}>Join one →</a>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {userComps.map(c => {
+                    const isActive = selectedCompId === c.id
+                    return (
+                      <button key={c.id} onClick={() => !isActive && switchComp(c)} disabled={isActive}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '8px 14px',
+                          borderRadius: 'var(--border-radius-lg)',
+                          border: isActive ? '2px solid var(--color-border-info)' : '1.5px solid var(--color-border-tertiary)',
+                          background: isActive ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
+                          color: isActive ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
+                          fontSize: 13, fontWeight: isActive ? 600 : 400,
+                          cursor: isActive ? 'default' : 'pointer',
+                          transition: 'all 0.15s',
+                        }}>
+                        {c.logo_url && (
+                          <img src={c.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
+                        )}
+                        <span>{c.app_name || c.name}</span>
+                        {isActive && (
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-info)', opacity: 0.7, marginLeft: 2 }} />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Active context summary — logo + title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)' }}>
+            {compData?.logo_url && compData.name !== 'PUBLIC' ? (
+              <img src={compData.logo_url} alt={compData.name}
+                style={{ width: 48, height: 48, borderRadius: 'var(--border-radius-md)', objectFit: 'cover', flexShrink: 0, border: '0.5px solid var(--color-border-tertiary)' }} />
+            ) : (
+              <img src="/wc2026-logo.png" alt="WC2026"
+                style={{ width: 40, height: 'auto', flexShrink: 0, objectFit: 'contain' }} />
             )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {compData?.app_name
+                  ? compData.app_name
+                  : compData?.name && compData.name !== 'PUBLIC'
+                    ? compData.name
+                    : 'World Cup 2026'}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                {activeTournament ? activeTournament.name : 'Tipping Competition'}
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Non-logged-in hero */}
+      {!session && (
+        <div className="mb-8 text-center">
+          <img src="/wc2026-logo.png" alt="FIFA World Cup 2026" width={80} height={120}
+            className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">World Cup 2026 Tipping Comp</h1>
+          <p className="text-sm text-gray-500">Predict every match. Compete with your tribe.</p>
+        </div>
+      )}
 
       {session && !loading && (
         <div className="mb-6">

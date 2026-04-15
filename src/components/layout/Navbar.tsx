@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui'
 import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 const NAV = [
+  { href: '/',            label: 'My Comp' },
   { href: '/predict',     label: 'Predict' },
   { href: '/leaderboard', label: 'ScoreBoard' },
   { href: '/tribe',       label: 'Join tribe' },
@@ -41,7 +42,10 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
               {NAV.map(item => (
                 <Link key={item.href} href={item.href}
                   className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
-                    pathname.startsWith(item.href) ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50')}>
+                    (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))
+                      ? 'bg-green-50 text-green-700'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  )}>
                   {item.label}
                 </Link>
               ))}
