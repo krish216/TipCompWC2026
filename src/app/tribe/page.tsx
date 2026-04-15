@@ -608,7 +608,7 @@ function NoTribePanel({
 }: {
   onJoined:             () => void
   activeTournamentId:   string | null
-  selectedComp:         { id:string; name:string; app_name?:string|null; logo_url?:string|null } | null
+  selectedComp:         { id:string; name:string; logo_url?:string|null } | null
   selectedTourn:        { id:string; name:string } | null
 }) {
   const { session, supabase } = useSupabase()
@@ -655,7 +655,7 @@ function NoTribePanel({
         const cid = (ur as any)?.comp_id
         if (cid) {
           const { data: cr } = await supabase.from('comps')
-            .select('id, name, app_name, slug, logo_url, tournament_id').eq('id', cid).single()
+            .select('id, name, slug, logo_url, tournament_id').eq('id', cid).single()
           if (cr && (!effectiveTournId || (cr as any).tournament_id === effectiveTournId)) comps = [cr]
         }
       }
@@ -852,7 +852,7 @@ function NoTribePanel({
               }
               <div>
                 <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
-                  {selectedComp.app_name || selectedComp.name}
+                  {selectedComp.name}
                 </p>
                 {selectedTourn && <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{selectedTourn.name}</p>}
               </div>
@@ -887,7 +887,7 @@ function NoTribePanel({
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {comp.app_name || comp.name}
+                  {comp?.name}
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
                   {tribes.length === 0 ? 'No tribes yet' : `${tribes.length} tribe${tribes.length !== 1 ? 's' : ''} available`}
@@ -1070,7 +1070,7 @@ export default function TribePage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {selectedComp && (
             <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-              {selectedComp.app_name || selectedComp.name}
+              {selectedComp.name}
             </span>
           )}
           {selectedTourn && (
@@ -1134,7 +1134,7 @@ export default function TribePage() {
                   <>
                     {org.logo_url && <img src={org.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover' }} />}
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
-                      {org.app_name || org.name}
+                      {org.name}
                     </span>
                   </>
                 )

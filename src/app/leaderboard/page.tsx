@@ -161,7 +161,7 @@ export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
 
   const [mainTab,    setMainTab]    = useState<MainTab>('leaderboard')
-  const [userComps,  setUserComps]  = useState<{id:string;name:string;app_name?:string|null}[]>([])
+  const [userComps,  setUserComps]  = useState<{id:string;name:string}[]>([])
   const [selectedComp, setSelectedComp] = useState<string | null>(null)
   const [scope,     setScope]     = useState<Scope>('comp')
   const [roundView, setRoundView] = useState<RoundView>('all')
@@ -204,11 +204,11 @@ export default function LeaderboardPage() {
       const enrolledTournIds = new Set((utData.data ?? []).map((ut: any) => ut.tournament_id))
 
       // Get comps for the active tournament that the user is a member of
-      const compSet: {id:string;name:string;app_name?:string|null}[] = []
+      const compSet: {id:string;name:string}[] = []
       if (cid) {
         // Primary comp — fetch details
         const { data: myCompRow } = await supabase
-          .from('comps').select('id, name, app_name').eq('id', cid).single()
+          .from('comps').select('id, name').eq('id', cid).single()
         if (myCompRow) compSet.push(myCompRow as any)
       }
       // If enrolled in multiple tournaments, check for comps in each
@@ -282,7 +282,7 @@ export default function LeaderboardPage() {
               <span className="text-xl">🏢</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Viewing comp</p>
-                <p className="text-sm font-bold text-gray-900 truncate">{userComps[0].app_name || userComps[0].name}</p>
+                <p className="text-sm font-bold text-gray-900 truncate">{userComps[0].name}</p>
               </div>
             </div>
           ) : (
@@ -303,7 +303,7 @@ export default function LeaderboardPage() {
                         : 'bg-white border-gray-200 text-gray-700 hover:border-green-400 hover:shadow-sm'
                     )}>
                     <span>🏢</span>
-                    <span>{c.app_name || c.name}</span>
+                    <span>{c.name}</span>
                     {selectedComp === c.id && (
                       <span className="flex items-center gap-0.5 text-green-200 text-[10px]">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"/>
