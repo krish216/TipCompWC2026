@@ -23,7 +23,6 @@ export interface Tournament {
 export interface Comp {
   id:        string
   name:      string
-  app_name?: string | null
   logo_url?: string | null
 }
 
@@ -58,45 +57,27 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [loading,           setLoading]           = useState(true)
   const [isCompAdmin,       setIsCompAdmin]       = useState(false)
 
-  // Load comps for a given tournament id
-  // userId passed explicitly to avoid stale closure on session
+  // Load comps for a given tournament — filtered server-side via ?tournament_id=
   const loadComps = useCallback(async (
     tournId:    string,
     userId:     string,
     prefCompId: string | null = null
   ): Promise<Comp[]> => {
     try {
-      const res  = await fetch('/api/user-comps')
+      // Pass tournament_id to API — filtering done server-side with admin client
+      const res  = await fetch(`/api/user-comps?tournament_id=${tournId}`)
       const data = await res.json()
 
-      let comps: Comp[] = []
-
-      if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
-        comps = (data.data as any[])
-          .map((uc: any) => {
-            const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
-            return c ?? null
-          })
-          .filter((c: any): c is Comp => !!c && c.tournament_id === tournId)
-      } else {
-      }
-
-      // Fallback: query users.comp_id then fetch comp separately (avoids ambiguous FK embed)
-      if (comps.length === 0) {
-        const { data: userRow, error: userErr } = await supabase
-          .from('users').select('comp_id').eq('id', userId).single()
-        const compId = (userRow as any)?.comp_id ?? null
-        if (compId) {
-          const { data: compRow, error: compErr } = await supabase
-            .from('comps')
-            .select('id, name, app_name, slug, logo_url, tournament_id')
-            .eq('id', compId).single()
-          if (compRow && (compRow as any).tournament_id === tournId) comps = [compRow as Comp]
-        }
-      }
+      const comps: Comp[] = data.error ? [] : (data.data as any[])
+        .map((uc: any) => {
+          const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
+          return c ?? null
+        })
+        .filter((c: any): c is Comp => !!c)
 
       setTournsComps(comps)
 
+      // Auto-select: stored pref if still in list, else first
       const startComp = (prefCompId && comps.some((c: any) => c.id === prefCompId))
         ? prefCompId
         : comps[0]?.id ?? null
@@ -106,7 +87,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       console.error('[loadComps] error:', e)
       return []
     }
-  }, [supabase])
+  }, [])
 
   // Initial load
   useEffect(() => {
