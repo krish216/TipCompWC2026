@@ -11,15 +11,17 @@ const PredictionSchema = z.object({
 })
 const BulkSchema = z.object({ predictions: z.array(PredictionSchema).min(1).max(20) })
 
-// Helper: get user's active tournament id
+// Helper: get user's active tournament from preferences
 async function getActiveTournamentId(supabase: any, userId: string): Promise<string | null> {
-  const { data: userRow } = await supabase
-    .from('users').select('active_tournament_id').eq('id', userId).single()
-  if ((userRow as any)?.active_tournament_id) return (userRow as any).active_tournament_id
+  const { data: prefs } = await supabase
+    .from('user_preferences').select('tournament_id').eq('user_id', userId).single()
+  if ((prefs as any)?.tournament_id) return (prefs as any).tournament_id
 
-  const { data: setting } = await supabase
-    .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
-  return (setting as any)?.value ?? null
+  // Fall back to first active tournament
+  const { data: active } = await supabase
+    .from('tournaments').select('id').eq('status', 'active')
+    .order('start_date', { ascending: true }).limit(1)
+  return (active as any)?.[0]?.id ?? null
 }
 
 export async function GET(request: NextRequest) {

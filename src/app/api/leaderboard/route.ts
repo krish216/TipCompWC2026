@@ -18,14 +18,20 @@ export async function GET(request: NextRequest) {
 
     // Resolve active tournament for this user
     const { data: userRow } = await supabase
-      .from('users').select('tribe_id, comp_id, active_tournament_id').eq('id', user.id).single()
+      .from('users').select('tribe_id, comp_id').eq('id', user.id).single()
     const tribeId = (userRow as any)?.tribe_id ?? null
-    const compId   = (userRow as any)?.comp_id   ?? null
-    let tournamentId = searchParams.get('tournament_id') ?? (userRow as any)?.active_tournament_id ?? null
+    const compId  = (userRow as any)?.comp_id  ?? null
+    let tournamentId = searchParams.get('tournament_id') ?? null
     if (!tournamentId) {
-      const { data: setting } = await adminClient
-        .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
-      tournamentId = (setting as any)?.value ?? null
+      const { data: prefs } = await supabase
+        .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
+      tournamentId = (prefs as any)?.tournament_id ?? null
+    }
+    if (!tournamentId) {
+      const { data: active } = await supabase
+        .from('tournaments').select('id').eq('status', 'active')
+        .order('start_date', { ascending: true }).limit(1)
+      tournamentId = (active as any)?.[0]?.id ?? null
     }
 
     if (scope === 'tribe' && !tribeId) {

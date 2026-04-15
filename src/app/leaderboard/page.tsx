@@ -193,8 +193,8 @@ export default function LeaderboardPage() {
     if (!session) return
     ;(async () => {
       const { data: userRow } = await supabase
-        .from('users').select('active_tournament_id, comp_id').eq('id', session.user.id).single()
-      const tid   = (userRow as any)?.active_tournament_id ?? null
+        .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).single()
+      const tid   = (userRow as any)?.tournament_id ?? null
       const cid   = (userRow as any)?.comp_id ?? null
       setActiveTournamentId(tid)
 

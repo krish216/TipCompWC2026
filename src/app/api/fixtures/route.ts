@@ -14,26 +14,20 @@ export async function GET(request: NextRequest) {
   let activeTournamentId = tournament_id
 
   if (!activeTournamentId) {
-    // Try to get from the logged-in user's preference
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: userRow } = await supabase
-        .from('users')
-        .select('active_tournament_id')
-        .eq('id', user.id)
-        .single()
-      activeTournamentId = (userRow as any)?.active_tournament_id ?? null
+      const { data: prefs } = await supabase
+        .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
+      activeTournamentId = (prefs as any)?.tournament_id ?? null
     }
   }
 
-  // Fall back to app-wide active tournament
+  // Fall back to first active tournament
   if (!activeTournamentId) {
-    const { data: setting } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'active_tournament_id')
-      .single()
-    activeTournamentId = (setting as any)?.value ?? null
+    const { data: active } = await supabase
+      .from('tournaments').select('id').eq('status', 'active')
+      .order('start_date', { ascending: true }).limit(1)
+    activeTournamentId = (active as any)?.[0]?.id ?? null
   }
 
   let query = supabase

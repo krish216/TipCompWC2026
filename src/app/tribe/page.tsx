@@ -871,8 +871,8 @@ export default function TribePage() {
     setLoading(true)
     // Resolve active tournament for the current user
     const { data: userRow } = await supabase
-      .from('users').select('active_tournament_id').eq('id', session!.user.id).single()
-    const tid = (userRow as any)?.active_tournament_id ?? null
+      .from('user_preferences').select('tournament_id').eq('user_id', session!.user.id).single()
+    const tid = (userRow as any)?.tournament_id ?? null
     setActiveTournamentId(tid)
 
     const [tribeRes, fxRes] = await Promise.all([

@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
 
   const { data: userRows } = await supabase
     .from('users').select('id, display_name, avatar_url').in('id', memberIds)
-  // Get active tournament from user to scope leaderboard
-  const { data: userTournRow } = await supabase
-    .from('users').select('active_tournament_id').eq('id', user.id).single()
-  const activeTid = (userTournRow as any)?.active_tournament_id ?? null
+  // Get active tournament from user_preferences
+  const { data: userPrefs } = await supabase
+    .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
+  const activeTid = (userPrefs as any)?.tournament_id ?? null
 
   let lbQ = supabase
     .from('leaderboard').select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
