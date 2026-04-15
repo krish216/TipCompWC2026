@@ -1,19 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-const KICKOFF = new Date('2026-06-11T19:00:00Z')
+// WC2026 fallback constants
+const WC2026_KICKOFF   = new Date('2026-06-11T19:00:00Z')
+const WC2026_FIRST_MATCH = 'Mexico vs South Africa · Estadio Azteca · Jun 11'
+const WC2026_TOTAL     = '104 matches'
+const WC2026_NAME      = 'FIFA World Cup 2026'
 
 interface TimeLeft {
-  days: number
-  hours: number
-  minutes: number
-  seconds: number
-  started: boolean
+  days: number; hours: number; minutes: number; seconds: number; started: boolean
 }
 
-function calcTimeLeft(): TimeLeft {
-  const diff = KICKOFF.getTime() - Date.now()
+function calcTimeLeft(kickoff: Date): TimeLeft {
+  const diff = kickoff.getTime() - Date.now()
   if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, started: true }
   return {
     days:    Math.floor(diff / 86_400_000),
@@ -36,25 +37,48 @@ function Digit({ value, label }: { value: number; label: string }) {
 }
 
 export function CountdownBanner() {
-  const [t, setT] = useState<TimeLeft>(calcTimeLeft)
+  // Read selected tournament from context
+  let selectedTourn: any = null
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const prefs = useUserPrefs()
+    selectedTourn = prefs.selectedTourn
+  } catch {
+    // Context not available (e.g. not logged in) — use WC2026 defaults
+  }
 
+  // Derive kickoff from selected tournament start_date, or WC2026 fallback
+  const kickoff = selectedTourn?.start_date
+    ? new Date(selectedTourn.start_date + 'T00:00:00Z')
+    : WC2026_KICKOFF
+
+  const tournName = selectedTourn?.name ?? WC2026_NAME
+
+  const [t, setT] = useState<TimeLeft>(() => calcTimeLeft(kickoff))
+
+  // Recalc when kickoff changes (tournament switch)
   useEffect(() => {
-    const id = setInterval(() => setT(calcTimeLeft()), 1_000)
+    setT(calcTimeLeft(kickoff))
+    const id = setInterval(() => setT(calcTimeLeft(kickoff)), 1_000)
     return () => clearInterval(id)
-  }, [])
+  }, [kickoff.getTime()])
 
   return (
     <div className="bg-green-900 rounded-xl px-4 py-3 mb-4 flex items-center justify-between flex-wrap gap-3">
       <div className="flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/wc2026-logo.png" alt="FIFA World Cup 2026"
+        <img src="/wc2026-logo.png" alt={tournName}
           className="w-8 h-auto flex-shrink-0 drop-shadow object-contain" />
         <div>
-          <p className="text-sm font-semibold text-white">FIFA World Cup 2026</p>
+          <p className="text-sm font-semibold text-white">{tournName}</p>
           <p className="text-[11px] text-green-300">
             {t.started
-              ? 'Tournament is underway · 104 matches'
-              : 'Mexico vs South Africa · Estadio Azteca · Jun 11'}
+              ? `Tournament is underway · ${WC2026_TOTAL}`
+              : (selectedTourn?.start_date
+                  ? `Starts ${new Date(selectedTourn.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : WC2026_FIRST_MATCH
+                )
+            }
           </p>
         </div>
       </div>

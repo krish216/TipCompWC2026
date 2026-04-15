@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
+import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </div>
           </footer>
+        </UserPrefsProvider>
         </SupabaseProvider>
       </body>
     </html>

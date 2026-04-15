@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const KICKOFF = new Date('2026-06-11T19:00:00Z')
 
@@ -18,23 +19,16 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
 
-  // All active tournaments (from DB — multiple can be active)
-  const [activeTournaments, setActiveTournaments] = useState<{id:string;name:string;status:string;start_date?:string}[]>([])
-
-  // Selected tournament (from user_preferences, falls back to first active)
-  const [selectedTournId,   setSelectedTournId]   = useState<string | null>(null)
-
-  // Comps for selected tournament
-  const [tournsComps,       setTournsComps]        = useState<{id:string;name:string;app_name?:string|null;logo_url?:string|null}[]>([])
-
-  // Selected comp (from user_preferences)
-  const [selectedCompId,    setSelectedCompId]     = useState<string | null>(null)
+  // Tournament + comp selection comes from shared context
+  const {
+    activeTournaments, tournsComps,
+    selectedTournId, selectedCompId,
+    selectedTourn, selectedComp,
+    pickTournament, pickComp,
+    loading: contextLoading,
+  } = useUserPrefs()
 
   const started = Date.now() >= KICKOFF.getTime()
-
-  // Derived display values
-  const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null
-  const selectedComp  = tournsComps.find(c => c.id === selectedCompId) ?? null
 
   // ── Load on session ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -56,56 +50,8 @@ export default function HomePage() {
       const adminData = await adminRes.json()
       setIsAdmin(adminData.is_admin === true)
 
-      // 2. Tournaments the user has joined + any DB-flagged active ones
-      const [enrolledRes, activeRes] = await Promise.all([
-        fetch('/api/user-tournaments'),
-        supabase.from('tournaments').select('id, name, status, start_date')
-          .eq('is_active', true).order('start_date', { ascending: true }),
-      ])
-      const enrolledData  = await enrolledRes.json()
-      const enrolledIds   = new Set<string>()
-      const enrolledTourns: any[] = []
-      ;(enrolledData.data ?? []).forEach((ut: any) => {
-        const t = Array.isArray(ut.tournaments) ? ut.tournaments[0] : ut.tournaments
-        if (t && !enrolledIds.has(t.id)) { enrolledIds.add(t.id); enrolledTourns.push(t) }
-      })
-      // Merge with DB-active tournaments (may not be in user_tournaments)
-      const activeTourns = [...enrolledTourns]
-      ;(activeRes.data ?? []).forEach((t: any) => {
-        if (!enrolledIds.has(t.id)) activeTourns.push(t)
-      })
-      // Sort by start_date
-      activeTourns.sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
-      setActiveTournaments(activeTourns)
-
-      // 3. User preferences (last selected tournament + comp)
-      const { data: prefs } = await supabase
-        .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).single()
-      const prefTournId = (prefs as any)?.tournament_id ?? null
-      const prefCompId  = (prefs as any)?.comp_id ?? null
-
-      // Resolve starting tournament: stored pref → first active
-      const startTournId = prefTournId && activeTourns.some(t => t.id === prefTournId)
-        ? prefTournId
-        : activeTourns[0]?.id ?? null
-      setSelectedTournId(startTournId)
-
-      // 4. Load comps for starting tournament
-      if (startTournId) {
-        const ucRes  = await fetch('/api/user-comps')
-        const ucData = await ucRes.json()
-        const comps  = ((ucData.data ?? []) as any[])
-          .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-          .filter((c: any) => c && c.tournament_id === startTournId)
-        setTournsComps(comps)
-
-        // Resolve starting comp: stored pref → first comp in list
-        const startCompId = prefCompId && comps.some((c: any) => c.id === prefCompId)
-          ? prefCompId
-          : comps[0]?.id ?? null
-        setSelectedCompId(startCompId)
-      }
-
+      // Tournaments + comps are managed by UserPrefsContext
+      // Just set loading false once profile is done
       setLoading(false)
     }
     load()
@@ -123,33 +69,7 @@ export default function HomePage() {
     </Link>
   )
 
-  const pickTournament = async (tid: string) => {
-    setSelectedTournId(tid)
-    setSelectedCompId(null)
-
-    // Load comps for newly selected tournament
-    const ucRes  = await fetch('/api/user-comps')
-    const ucData = await ucRes.json()
-    const comps  = ((ucData.data ?? []) as any[])
-      .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-      .filter((c: any) => c && c.tournament_id === tid)
-    setTournsComps(comps)
-
-    // Persist tournament selection; clear comp
-    await fetch('/api/user-preferences', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: tid, comp_id: null }),
-    })
-  }
-
-  const pickComp = async (comp: { id:string; name:string; app_name?:string|null; logo_url?:string|null }) => {
-    setSelectedCompId(comp.id)
-    // Persist comp selection
-    await fetch('/api/user-preferences', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id }),
-    })
-  }
+  // pickTournament and pickComp come from useUserPrefs()
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -174,7 +94,7 @@ export default function HomePage() {
             <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
               {activeTournaments.length > 1 ? 'Select tournament' : 'Tournament'}
             </p>
-            {loading ? (
+            {(loading || contextLoading) ? (
               <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
                 <Spinner className="w-5 h-5" />
               </div>
