@@ -283,7 +283,7 @@ function AppNamePanel({ compId, currentName, onSaved, userId }: {
     const res = await fetch('/api/comps/create', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, app_name: name.trim() || null, user_id: userId }),
+      body: JSON.stringify({ comp_id: compId: name.trim() || null, user_id: userId }),
     })
     const { success, error } = await res.json()
     setSaving(false)
@@ -890,7 +890,7 @@ export default function OrgAdminPage() {
   const { session } = useSupabase()
 
   const [loading,    setLoading]    = useState(true)
-  const [isCompAdmin, setIsOrgAdmin] = useState<boolean | null>(null)
+  const [isCompAdmin, setIsCompAdmin] = useState<boolean | null>(null)
   const [org,        setOrg]        = useState<Org | null>(null)
   const [tribes,     setTribes]     = useState<Tribe[]>([])
   const [members,    setMembers]    = useState<Member[]>([])
@@ -903,27 +903,30 @@ export default function OrgAdminPage() {
   useEffect(() => {
     if (!session) return
     const load = async () => {
+      // comp-admins returns { is_comp_admin, comps[] } — use first comp
       const adminRes  = await fetch('/api/comp-admins')
       const adminData = await adminRes.json()
 
-      if (!adminData.is_org_admin) { setIsOrgAdmin(false); setLoading(false); return }
+      if (!adminData.is_comp_admin) { setIsCompAdmin(false); setLoading(false); return }
 
-      setIsOrgAdmin(true)
-      setOrg(adminData.org)
-      setOrgLogo(adminData.org?.logo_url ?? null)
-      setOrgAppName(adminData.org?.app_name ?? '')
-      setOrgMinAge(adminData.org?.min_age ?? null)
+      const firstComp = adminData.comps?.[0] ?? null
+      if (!firstComp) { setIsCompAdmin(false); setLoading(false); return }
+
+      setIsCompAdmin(true)
+      setOrg(firstComp)
+      setOrgLogo(firstComp?.logo_url ?? null)
+      setOrgMinAge(firstComp?.min_age ?? null)
       // Fetch subscription tier
-      if (adminData.comp_id) {
+      const compId = firstComp.id
+      if (compId) {
         const [subRes, domainRes] = await Promise.all([
-          fetch(`/api/comp-subscriptions?comp_id=${adminData.comp_id}`),
-          fetch(`/api/comps/domain?comp_id=${adminData.comp_id}`),
+          fetch(`/api/comp-subscriptions?comp_id=${compId}`),
+          fetch(`/api/comps/domain?comp_id=${compId}`),
         ])
         const [subData, domainData] = await Promise.all([subRes.json(), domainRes.json()])
         setOrgTier(subData.data?.tier ?? 'trial')
         setOrgDomain(domainData.email_domain ?? null)
       }
-      const compId = adminData.comp_id
 
       const [tribesRes, membersRes] = await Promise.all([
         fetch(`/api/tribes/list?comp_id=${compId}`),

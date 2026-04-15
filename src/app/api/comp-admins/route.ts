@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     const compIds = rows.map((r: any) => r.comp_id)
     const { data: comps } = await (adminClient.from('comps') as any)
-      .select('id, name, logo_url, invite_code').in('id', compIds)
+      .select('id, name, logo_url, invite_code, min_age, tournament_id').in('id', compIds)
 
     return NextResponse.json({ is_comp_admin: true, comps: comps ?? [] })
   } catch {
