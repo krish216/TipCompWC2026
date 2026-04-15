@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Spinner, Card, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 
 interface Tribe  { id: string; name: string; description?: string | null; invite_code: string; member_count?: number }
@@ -885,70 +886,68 @@ function ChallengesPanel({ compId }: { compId: string }) {
   )
 }
 
-// ── Main org admin page ───────────────────────────────────────────────────────
+// ── Main comp admin page ─────────────────────────────────────────────────────
 export default function OrgAdminPage() {
   const { session } = useSupabase()
+  const { selectedComp, isCompAdmin, loading: ctxLoading } = useUserPrefs()
 
-  const [loading,    setLoading]    = useState(true)
-  const [isCompAdmin, setIsCompAdmin] = useState<boolean | null>(null)
-  const [org,        setOrg]        = useState<Org | null>(null)
-  const [tribes,     setTribes]     = useState<Tribe[]>([])
-  const [members,    setMembers]    = useState<Member[]>([])
-  const [orgLogo,    setOrgLogo]    = useState<string | null>(null)
-  const [compTier,    setOrgTier]    = useState<string>('trial')
-  const [compDomain,  setOrgDomain]  = useState<string | null>(null)
-  const [compAppName, setOrgAppName] = useState<string>('')
-  const [compMinAge,  setOrgMinAge]  = useState<number | null>(null)
+  const [loading,     setLoading]  = useState(true)
+  const [tribes,      setTribes]   = useState<Tribe[]>([])
+  const [members,     setMembers]  = useState<Member[]>([])
+  const [compTier,    setOrgTier]  = useState<string>('trial')
+  const [compDomain,  setOrgDomain] = useState<string | null>(null)
+  const [compMinAge,  setOrgMinAge] = useState<number | null>(null)
+
+  // org is the selectedComp from context — the comp the user chose on the home page
+  const org = selectedComp as (typeof selectedComp & { invite_code?: string; min_age?: number | null }) | null
 
   useEffect(() => {
-    if (!session) return
-    const load = async () => {
-      // comp-admins returns { is_comp_admin, comps[] } — use first comp
-      const adminRes  = await fetch('/api/comp-admins')
-      const adminData = await adminRes.json()
-
-      if (!adminData.is_comp_admin) { setIsCompAdmin(false); setLoading(false); return }
-
-      const firstComp = adminData.comps?.[0] ?? null
-      if (!firstComp) { setIsCompAdmin(false); setLoading(false); return }
-
-      setIsCompAdmin(true)
-      setOrg(firstComp)
-      setOrgLogo(firstComp?.logo_url ?? null)
-      setOrgMinAge(firstComp?.min_age ?? null)
-      // Fetch subscription tier
-      const compId = firstComp.id
-      if (compId) {
-        const [subRes, domainRes] = await Promise.all([
-          fetch(`/api/comp-subscriptions?comp_id=${compId}`),
-          fetch(`/api/comps/domain?comp_id=${compId}`),
-        ])
-        const [subData, domainData] = await Promise.all([subRes.json(), domainRes.json()])
-        setOrgTier(subData.data?.tier ?? 'trial')
-        setOrgDomain(domainData.email_domain ?? null)
-      }
-
-      const [tribesRes, membersRes] = await Promise.all([
-        fetch(`/api/tribes/list?comp_id=${compId}`),
-        fetch(`/api/comp-admins/members?comp_id=${compId}`),
+    if (!session || !selectedComp?.id) return
+    const compId = selectedComp.id
+    setLoading(true)
+    Promise.all([
+      fetch(`/api/comp-subscriptions?comp_id=${compId}`),
+      fetch(`/api/comps/domain?comp_id=${compId}`),
+      fetch(`/api/tribes/list?comp_id=${compId}`),
+      fetch(`/api/comp-admins/members?comp_id=${compId}`),
+    ]).then(async ([subRes, domainRes, tribesRes, membersRes]) => {
+      const [subData, domainData, tribesData, membersData] = await Promise.all([
+        subRes.json(), domainRes.json(), tribesRes.json(), membersRes.json(),
       ])
-      if (tribesRes.ok)  { const d = await tribesRes.json();  setTribes((d.data ?? []) as any[]) }
-      if (membersRes.ok) { const d = await membersRes.json(); setMembers(d.data ?? []) }
+      setOrgTier(subData.data?.tier ?? 'trial')
+      setOrgDomain(domainData.email_domain ?? null)
+      setTribes(tribesData.data ?? [])
+      setMembers(membersData.data ?? [])
       setLoading(false)
-    }
-    load()
-  }, [session])
+    }).catch(() => setLoading(false))
+  }, [session, selectedComp?.id])
+
+  // Wait for context to finish loading
+  if (ctxLoading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
+
+  // Not a comp admin for the selected comp — prompt to go home and pick one
+  if (!isCompAdmin || !selectedComp) return (
+    <div className="max-w-md mx-auto px-4 py-20 text-center">
+      <div className="text-5xl mb-4">🔒</div>
+      <h1 className="text-lg font-semibold text-gray-900 mb-2">
+        {selectedComp ? 'Not a comp admin' : 'No comp selected'}
+      </h1>
+      <p className="text-sm text-gray-500 mb-6">
+        {selectedComp
+          ? `You are not an admin for ${selectedComp.name}. Select a comp you manage on the home page.`
+          : 'Go to the home page, select a tournament and a comp you manage, then return here.'
+        }
+      </p>
+      <a href="/" className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
+        Go to home page
+      </a>
+    </div>
+  )
 
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
-  if (!isCompAdmin) return (
-    <div className="max-w-md mx-auto px-4 py-20 text-center">
-      <div className="text-5xl mb-4">🔒</div>
-      <h1 className="text-lg font-semibold text-gray-900 mb-2">Access denied</h1>
-      <p className="text-sm text-gray-500 mb-6">Contact your tournament administrator to be granted org admin access.</p>
-      <a href="/" className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">Back to home</a>
-    </div>
-  )
+  // Alias for panel components
+  const comp = org!
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4">
@@ -1029,7 +1028,7 @@ export default function OrgAdminPage() {
       {org && <SubscriptionCard compId={comp.id} />}
 
       {/* Custom app name */}
-      {org && <AppNamePanel compId={comp.id} currentName={compAppName} onSaved={setOrgAppName} userId={session?.user.id ?? ''} />}
+      {org && <AppNamePanel compId={comp.id} currentName={org.name} onSaved={() => {}} userId={session?.user.id ?? ''} />}
 
       {/* Age restriction */}
       {org && <AgeRestrictionPanel compId={comp.id} currentMinAge={compMinAge} onSaved={setOrgMinAge} userId={session?.user.id ?? ''} />}

@@ -6,7 +6,6 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
-import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 const NAV = [
   { href: '/',            label: 'My Comp' },
@@ -21,7 +20,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin, adminComps } = useUserPrefs()
+  const { isCompAdmin } = useUserPrefs()
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -52,21 +51,27 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                   {item.label}
                 </Link>
               ))}
+              {isCompAdmin && (
+                <Link href="/comp-admin"
+                  className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    pathname.startsWith('/comp-admin') ? 'bg-blue-50 text-blue-700' : 'text-blue-500 hover:text-blue-700 hover:bg-blue-50')}>
+                  Comp Admin
+                </Link>
+              )}
               {isAdmin && (
                 <Link href="/admin"
                   className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                    pathname.startsWith('/admin') && !pathname.startsWith('/org-admin') ? 'bg-red-50 text-red-700' : 'text-red-400 hover:text-red-600 hover:bg-red-50')}>
+                    pathname.startsWith('/admin') && !pathname.startsWith('/comp-admin') ? 'bg-red-50 text-red-700' : 'text-red-400 hover:text-red-600 hover:bg-red-50')}>
                   Tournament
                 </Link>
               )}
-
             </div>
           )}
 
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {session && isCompAdmin && <CompAdminMenu adminComps={adminComps} />}
+
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
