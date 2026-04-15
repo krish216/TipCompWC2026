@@ -13,7 +13,10 @@ export default function HomePage() {
   const { session, supabase } = useSupabase()
 
   // User profile
-  const [displayName, setDisplayName] = useState<string | null>(null)
+  // Initialise from session metadata immediately — updated from DB below
+  const [displayName, setDisplayName] = useState<string | null>(
+    null  // set in useEffect once session is available
+  )
   const [totalPts,    setTotalPts]    = useState<number | null>(null)
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
@@ -33,6 +36,13 @@ export default function HomePage() {
   // ── Load on session ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!session) { setLoading(false); return }
+    // Set name immediately from session metadata — no DB round-trip needed
+    setDisplayName(
+      session.user.user_metadata?.display_name ??
+      session.user.email?.split('@')[0] ??
+      null
+    )
+
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
@@ -41,7 +51,8 @@ export default function HomePage() {
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
-      setDisplayName(ud?.display_name ?? null)
+      // Override with DB value (source of truth)
+      if (ud?.display_name) setDisplayName(ud.display_name)
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)

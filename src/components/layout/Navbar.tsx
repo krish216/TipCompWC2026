@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 const NAV = [
@@ -19,6 +20,10 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()
+
+  const { isCompAdmin: ctxCompAdmin } = useUserPrefs()
+  // Use context value (live) over SSR prop (stale)
+  const showCompAdmin = ctxCompAdmin || isCompAdmin
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -63,7 +68,7 @@ export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boo
           {/* User section */}
           {session ? (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {session && <CompAdminMenu />}
+              {session && showCompAdmin && <CompAdminMenu />}
               <Link href="/settings">
                 <Avatar
                   name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}

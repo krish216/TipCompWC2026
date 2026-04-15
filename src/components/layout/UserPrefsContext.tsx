@@ -28,16 +28,13 @@ export interface Comp {
 }
 
 interface UserPrefsCtx {
-  // Loaded data
   activeTournaments:  Tournament[]
   tournsComps:        Comp[]
-  // Current selections
   selectedTournId:    string | null
   selectedCompId:     string | null
-  // Derived
   selectedTourn:      Tournament | null
   selectedComp:       Comp | null
-  // Actions
+  isCompAdmin:        boolean
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
   loading:            boolean
@@ -59,6 +56,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [selectedTournId,   setSelectedTournId]   = useState<string | null>(null)
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
+  const [isCompAdmin,       setIsCompAdmin]       = useState(false)
 
   // Load comps for a given tournament id
   // userId passed explicitly to avoid stale closure on session
@@ -147,7 +145,6 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       // 3. Load comps for starting tournament
       if (startTournId) {
         const resolvedComps = await loadComps(startTournId, session.user.id, prefCompId)
-        // If user_preferences had no comp_id but we resolved one, persist it
         if (!prefCompId && resolvedComps.length > 0) {
           await fetch('/api/user-preferences', {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -155,6 +152,13 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           })
         }
       }
+
+      // Check comp admin status on load
+      try {
+        const adminRes  = await fetch('/api/comp-admins')
+        const adminData = await adminRes.json()
+        setIsCompAdmin(adminData.is_comp_admin === true)
+      } catch { setIsCompAdmin(false) }
 
       setLoading(false)
     })()
@@ -171,13 +175,24 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     })
   }, [loadComps])
 
+  const checkCompAdmin = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/comp-admins')
+      const data = await res.json()
+      setIsCompAdmin(data.is_comp_admin === true)
+    } catch { setIsCompAdmin(false) }
+  }, [])
+
   const pickComp = useCallback(async (comp: Comp) => {
     setSelectedCompId(comp.id)
-    await fetch('/api/user-preferences', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id }),
-    })
-  }, [])
+    await Promise.all([
+      fetch('/api/user-preferences', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id }),
+      }),
+      checkCompAdmin(),
+    ])
+  }, [checkCompAdmin])
 
   const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null
   const selectedComp  = tournsComps.find(c => c.id === selectedCompId) ?? null
@@ -187,6 +202,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       activeTournaments, tournsComps,
       selectedTournId, selectedCompId,
       selectedTourn, selectedComp,
+      isCompAdmin,
       pickTournament, pickComp,
       loading,
     }}>
