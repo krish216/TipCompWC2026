@@ -16,7 +16,7 @@ const NAV = [
   { href: '/rules',       label: 'Rules' },
 ]
 
-export function Navbar({ isAdmin = false, isCompAdmin = false }: { isAdmin?: boolean; isCompAdmin?: boolean }) {
+export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()

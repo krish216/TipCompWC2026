@@ -25,7 +25,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // Check both admin roles using service-role client (bypasses RLS)
   let isAdmin    = false
-  let isCompAdmin = false
   if (session?.user?.id) {
     const adminClient = createAdminClient()
 
@@ -35,11 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       isAdmin = !!adminRow
     } catch { isAdmin = false }
 
-    try {
-      const { data: compAdminRows } = await (adminClient.from('comp_admins') as any)
-        .select('user_id').eq('user_id', session.user.id).limit(1)
-      isCompAdmin = !!(compAdminRows && compAdminRows.length > 0)
-    } catch { isCompAdmin = false }
+
   }
 
   return (
@@ -47,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={inter.className}>
         <SupabaseProvider initialSession={session}>
           <UserPrefsProvider>
-            <Navbar isAdmin={isAdmin} isCompAdmin={isCompAdmin} />
+            <Navbar isAdmin={isAdmin} />
             <main className="min-h-screen bg-gray-50">
               {children}
             </main>
