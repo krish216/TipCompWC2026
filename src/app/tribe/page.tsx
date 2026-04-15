@@ -537,6 +537,9 @@ function NoTribePanel({
   const { session, supabase } = useSupabase()
   const MAX_COMPS = 3
 
+  // Use selectedTourn from context (always ready) instead of waiting for effectiveTournId prop
+  const effectiveTournId = selectedTourn?.id ?? activeTournamentId
+
   type View = 'main' | 'join-comp' | 'create-comp'
   const [view,          setView]          = useState<View>('main')
   const [myComps,       setMyComps]       = useState<any[]>([])
@@ -568,7 +571,7 @@ function NoTribePanel({
       if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
         comps = data.data
           .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-          .filter((c: any) => c && (!activeTournamentId || c.tournament_id === activeTournamentId))
+          .filter((c: any) => c && (!effectiveTournId || c.tournament_id === effectiveTournId))
       }
       if (comps.length === 0) {
         const { data: ur } = await supabase.from('users').select('comp_id').eq('id', session.user.id).single()
@@ -576,7 +579,7 @@ function NoTribePanel({
         if (cid) {
           const { data: cr } = await supabase.from('comps')
             .select('id, name, app_name, slug, logo_url, tournament_id').eq('id', cid).single()
-          if (cr && (!activeTournamentId || (cr as any).tournament_id === activeTournamentId)) comps = [cr]
+          if (cr && (!effectiveTournId || (cr as any).tournament_id === effectiveTournId)) comps = [cr]
         }
       }
       setMyComps(comps)
@@ -593,14 +596,14 @@ function NoTribePanel({
     setInitLoading(false)
   }
 
-  useEffect(() => { loadMyComps() }, [session, activeTournamentId])
+  useEffect(() => { loadMyComps() }, [session, effectiveTournId])
 
   const lookupComp = async () => {
     setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
     const { data, error } = await fetch(`/api/comps?code=${compCode.toUpperCase()}`).then(r=>r.json())
     setLookingUp(false)
     if (error || !data) { setCompCodeErr('Code not found — check with your comp admin'); return }
-    if (activeTournamentId && data.tournament_id && data.tournament_id !== activeTournamentId)
+    if (effectiveTournId && data.tournament_id && data.tournament_id !== effectiveTournId)
       { setCompCodeErr('This comp is not for your current tournament'); return }
     if (myComps.some(c => c.id === data.id))
       { setCompCodeErr('You already joined this comp'); return }
@@ -628,7 +631,7 @@ function NoTribePanel({
         name: newCompName.trim(), owner_phone: ownerPhone.trim(),
         owner_email: ownerEmail.trim(), owner_name: '',
         user_id: session!.user.id, email: session!.user.email,
-        tournament_id: activeTournamentId,
+        tournament_id: effectiveTournId,
       }),
     }).then(r=>r.json())
     if (orgErr || !org) { setError(orgErr ?? 'Failed to create comp'); setLoading(false); return }
