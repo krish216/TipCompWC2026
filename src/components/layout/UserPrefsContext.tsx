@@ -68,10 +68,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     prefCompId: string | null = null
   ): Promise<Comp[]> => {
     try {
-      console.log('[loadComps] called tournId=', tournId, 'userId=', userId)
       const res  = await fetch('/api/user-comps')
       const data = await res.json()
-      console.log('[loadComps] /api/user-comps raw:', JSON.stringify(data).slice(0, 500))
 
       let comps: Comp[] = []
 
@@ -82,35 +80,28 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
             return c ?? null
           })
           .filter((c: any): c is Comp => !!c && c.tournament_id === tournId)
-        console.log('[loadComps] after filter for tournId:', comps.length, 'comps')
       } else {
-        console.log('[loadComps] user-comps empty/error:', data.error)
       }
 
       // Fallback: query users.comp_id then fetch comp separately (avoids ambiguous FK embed)
       if (comps.length === 0) {
-        console.log('[loadComps] falling back to users.comp_id for userId=', userId)
         const { data: userRow, error: userErr } = await supabase
           .from('users').select('comp_id').eq('id', userId).single()
-        console.log('[loadComps] userRow comp_id:', (userRow as any)?.comp_id, 'err:', userErr?.message)
         const compId = (userRow as any)?.comp_id ?? null
         if (compId) {
           const { data: compRow, error: compErr } = await supabase
             .from('comps')
             .select('id, name, app_name, slug, logo_url, tournament_id')
             .eq('id', compId).single()
-          console.log('[loadComps] fallback compRow:', JSON.stringify(compRow), 'err:', compErr?.message, 'tournId match:', (compRow as any)?.tournament_id === tournId)
           if (compRow && (compRow as any).tournament_id === tournId) comps = [compRow as Comp]
         }
       }
 
-      console.log('[loadComps] final comps:', comps.length)
       setTournsComps(comps)
 
       const startComp = (prefCompId && comps.some((c: any) => c.id === prefCompId))
         ? prefCompId
         : comps[0]?.id ?? null
-      console.log('[loadComps] startComp:', startComp)
       setSelectedCompId(startComp)
       return comps
     } catch (e) {
@@ -148,8 +139,6 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const prefCompId  = (prefs as any)?.comp_id ?? null
 
       // Resolve starting tournament
-      console.log('[ctx init] merged tournaments:', merged.map(t => t.id + '/' + t.name))
-      console.log('[ctx init] prefTournId:', prefTournId, 'prefCompId:', prefCompId)
       const startTournId = prefTournId && merged.some(t => t.id === prefTournId)
         ? prefTournId
         : merged[0]?.id ?? null

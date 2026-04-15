@@ -526,6 +526,83 @@ function TribeDropdown({ tribes, onJoin, loading }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // NoTribePanel — join comps, create comps, join/switch tribes
 // ─────────────────────────────────────────────────────────────────────────────
+// ── SwitchTribePanel — shown when user already has a tribe ───────────────────
+function SwitchTribePanel({
+  currentTribeId, compId, onSwitch,
+}: { currentTribeId: string; compId: string | null; onSwitch: () => void }) {
+  const [tribes,    setTribes]    = useState<any[]>([])
+  const [expanded,  setExpanded]  = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [selected,  setSelected]  = useState('')
+  const { session } = useSupabase()
+
+  useEffect(() => {
+    if (!compId) return
+    fetch(`/api/tribes/list?comp_id=${compId}`)
+      .then(r => r.json())
+      .then(d => setTribes((d.data ?? []).filter((t: any) => t.id !== currentTribeId)))
+  }, [compId, currentTribeId])
+
+  const switchTribe = async () => {
+    if (!selected) return
+    setLoading(true)
+    // Leave current tribe then join new one
+    await fetch('/api/tribes', { method: 'DELETE' })
+    const { error } = await fetch('/api/tribes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invite_code: selected }),
+    }).then(r => r.json())
+    setLoading(false)
+    if (error) { toast.error(error); return }
+    toast.success('Switched tribe!')
+    onSwitch()
+  }
+
+  if (tribes.length === 0) return null
+
+  return (
+    <div style={{
+      background: 'var(--color-background-primary)',
+      border: '0.5px solid var(--color-border-tertiary)',
+      borderRadius: 'var(--border-radius-xl)',
+      marginBottom: 12, overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', padding: '12px 16px',
+          background: 'transparent', border: 'none', cursor: 'pointer',
+        }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+          Switch tribe ({tribes.length} other{tribes.length !== 1 ? 's' : ''} in this comp)
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▼</span>
+      </button>
+
+      {expanded && (
+        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code) }} loading={false} />
+          {selected && (
+            <button onClick={switchTribe} disabled={loading}
+              style={{
+                padding: '11px 0', border: 'none', borderRadius: 'var(--border-radius-lg)',
+                background: 'var(--color-text-primary)', color: 'var(--color-background-primary)',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                opacity: loading ? 0.5 : 1,
+              }}>
+              {loading && <Spinner className="w-4 h-4" />}
+              Switch to {tribes.find(t => t.invite_code === selected)?.name}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function NoTribePanel({
   onJoined, activeTournamentId, selectedComp, selectedTourn,
 }: {
@@ -1107,6 +1184,13 @@ export default function TribePage() {
           })}
         </div>
       </div>
+
+      {/* Switch tribe — shows other tribes in the same comp */}
+      <SwitchTribePanel
+        currentTribeId={tribe.id}
+        compId={(tribe as any).comp_id}
+        onSwitch={() => { setTribe(null); setTribePicksData(null); loadTribe() }}
+      />
 
       {/* Prizes */}
       {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
