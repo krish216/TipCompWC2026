@@ -65,19 +65,46 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     try {
       const res  = await fetch('/api/user-comps')
       const data = await res.json()
-      const comps = ((data.data ?? []) as any[])
-        .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-        .filter((c: any) => c && c.tournament_id === tournId)
+
+      let comps: Comp[] = []
+
+      if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
+        comps = (data.data as any[])
+          .map((uc: any) => {
+            // Supabase returns nested relation as object or single-element array
+            const c = Array.isArray(uc.comps) ? uc.comps[0] : uc.comps
+            return c ?? null
+          })
+          .filter((c: any): c is Comp => !!c && c.tournament_id === tournId)
+      }
+
+      // If user_comps returned nothing (table missing or not backfilled),
+      // fall back to reading users.comp_id directly
+      if (comps.length === 0 && session) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('comp_id, comps(id, name, app_name, slug, logo_url, tournament_id)')
+          .eq('id', session.user.id)
+          .single()
+        const c = userRow && (userRow as any).comp_id
+          ? (Array.isArray((userRow as any).comps) ? (userRow as any).comps[0] : (userRow as any).comps)
+          : null
+        if (c && c.tournament_id === tournId) comps = [c]
+      }
+
       setTournsComps(comps)
 
-      // Resolve starting comp
+      // Resolve starting comp: prefer stored pref, else first
       const startComp = prefCompId && comps.some((c: any) => c.id === prefCompId)
         ? prefCompId
         : comps[0]?.id ?? null
       setSelectedCompId(startComp)
       return comps
-    } catch { return [] }
-  }, [])
+    } catch (e) {
+      console.error('loadComps error:', e)
+      return []
+    }
+  }, [session, supabase])
 
   // Initial load
   useEffect(() => {
