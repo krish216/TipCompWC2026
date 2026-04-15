@@ -114,9 +114,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const prefCompId  = (prefs as any)?.comp_id ?? null
 
       // Resolve starting tournament
-      const startTournId = prefTournId && merged.some(t => t.id === prefTournId)
+      const startTournId = prefTournId && activeTourns.some(t => t.id === prefTournId)
         ? prefTournId
-        : merged[0]?.id ?? null
+        : activeTourns[0]?.id ?? null
       setSelectedTournId(startTournId)
 
       // 3. Load comps for starting tournament
