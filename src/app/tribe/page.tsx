@@ -797,75 +797,343 @@ function NoTribePanel({
   )
 
   // ── View: Join comp ──────────────────────────────────────────────────────────
+  // ── View: Join comp ─────────────────────────────────────────────────────────
   if (view === 'join-comp') return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button onClick={() => { setView('main'); setCompCode(''); setCompLookup(null); setCompCodeErr(null) }}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)', alignSelf: 'flex-start', padding: '4px 0' }}>
-        ← Back
-      </button>
-      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ paddingBottom: 40 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingTop: 4 }}>
+        <button onClick={() => { setView('main'); setCompCode(''); setCompLookup(null); setCompCodeErr(null) }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36,
+            borderRadius: '50%', border: '1px solid var(--color-border-tertiary)',
+            background: 'var(--color-background-primary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
+          ←
+        </button>
         <div>
-          <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Join a comp</p>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Enter the invite code from your comp admin</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px' }}>
+            Join a comp
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+            {selectedTourn ? `For ${selectedTourn.name}` : 'Enter an invite code from your comp admin'}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input type="text" value={compCode}
-            onChange={e => { setCompCode(e.target.value.toUpperCase()); setCompLookup(null); setCompCodeErr(null) }}
-            placeholder="INVITE CODE" maxLength={10}
-            style={{ flex: 1, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-          <button onClick={lookupComp} disabled={lookingUp || compCode.length < 4}
-            style={{ padding: '0 16px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', opacity: (lookingUp || compCode.length < 4) ? 0.4 : 1 }}>
-            {lookingUp ? <Spinner className="w-4 h-4" /> : 'Find'}
-          </button>
+      </div>
+
+      {/* Code entry card */}
+      <div style={{
+        background: 'var(--color-background-primary)',
+        border: '1px solid var(--color-border-tertiary)',
+        borderRadius: 20, padding: '24px 20px',
+        boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+      }}>
+        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)',
+          textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+          Invite code
+        </label>
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={compCode}
+            onChange={e => {
+              const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+              setCompCode(v)
+              setCompLookup(null)
+              setCompCodeErr(null)
+              if (v.length >= 6) {
+                setLookingUp(true)
+                fetch(`/api/comps?code=${v}`)
+                  .then(r => r.json())
+                  .then(({ data, error }) => {
+                    setLookingUp(false)
+                    if (error || !data) { setCompCodeErr('No comp found with this code'); return }
+                    if (effectiveTournId && data.tournament_id && data.tournament_id !== effectiveTournId)
+                      { setCompCodeErr('This comp is for a different tournament'); return }
+                    if (myComps.some(c => c.id === data.id))
+                      { setCompCodeErr('You already joined this comp'); return }
+                    setCompLookup(data)
+                  })
+                  .catch(() => { setLookingUp(false); setCompCodeErr('Something went wrong') })
+              }
+            }}
+            placeholder="e.g. 1VMPT0RA"
+            maxLength={10}
+            autoFocus
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '14px 48px 14px 16px',
+              fontSize: 22, fontFamily: 'monospace', fontWeight: 700,
+              letterSpacing: '0.18em', textTransform: 'uppercase',
+              border: compCodeErr ? '2px solid var(--color-border-danger)'
+                : compLookup ? '2px solid var(--color-border-success)'
+                : '2px solid var(--color-border-secondary)',
+              borderRadius: 14, outline: 'none',
+              background: compLookup ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+              color: compLookup ? 'var(--color-text-success)' : 'var(--color-text-primary)',
+              transition: 'border-color 0.2s, background 0.2s',
+            }}
+          />
+          <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)' }}>
+            {lookingUp ? <Spinner className="w-5 h-5" />
+              : compLookup ? <span style={{ fontSize: 18 }}>✓</span>
+              : compCode.length >= 6 ? <span style={{ fontSize: 16, opacity: 0.3 }}>?</span>
+              : null}
+          </div>
         </div>
-        {compCodeErr && <p style={{ margin: 0, fontSize: 12, padding: '8px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)' }}>{compCodeErr}</p>}
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+          Type your code — comp will appear automatically
+        </p>
+
+        {/* Error state */}
+        {compCodeErr && (
+          <div style={{
+            marginTop: 16, padding: '12px 16px',
+            background: 'var(--color-background-danger)',
+            border: '1px solid var(--color-border-danger)',
+            borderRadius: 12,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-danger)' }}>{compCodeErr}</p>
+          </div>
+        )}
+
+        {/* Comp preview card — appears when code resolves */}
         {compLookup && (
-          <div style={{ padding: '14px', borderRadius: 'var(--border-radius-lg)', border: '1.5px solid var(--color-border-success)', background: 'var(--color-background-success)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--color-text-success)' }}>🏢 {compLookup.name}</p>
-            <button onClick={joinComp} disabled={loading}
-              style={{ padding: '10px 0', border: 'none', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-success)', color: 'var(--color-text-success)', fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-              {loading && <Spinner className="w-4 h-4" />} Join {compLookup.name}
+          <div style={{
+            marginTop: 20,
+            border: '1.5px solid var(--color-border-success)',
+            borderRadius: 16, overflow: 'hidden',
+            animation: 'fadeSlideIn 0.2s ease',
+          }}>
+            <style>{`@keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }`}</style>
+            {/* Comp identity */}
+            <div style={{
+              padding: '16px 18px',
+              background: 'var(--color-background-success)',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              {compLookup.logo_url
+                ? <img src={compLookup.logo_url} alt="" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🏆</div>
+              }
+              <div>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>
+                  {compLookup.name}
+                </p>
+                {selectedTourn && (
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--color-text-success)', opacity: 0.7 }}>
+                    {selectedTourn.name}
+                  </p>
+                )}
+              </div>
+            </div>
+            {/* Confirm join */}
+            <button onClick={joinComp} disabled={loading} style={{
+              width: '100%', padding: '14px 0', border: 'none', cursor: 'pointer',
+              background: loading ? 'var(--color-background-success)' : '#16a34a',
+              color: '#ffffff', fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              transition: 'background 0.15s', opacity: loading ? 0.7 : 1,
+            }}>
+              {loading ? <><Spinner className="w-5 h-5" /> Joining…</> : <>Join {compLookup.name} →</>}
             </button>
           </div>
         )}
-        {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>}
+
+        {error && !compCodeErr && (
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>
+        )}
       </div>
+
+      {/* Help text */}
+      <p style={{ margin: '20px 0 0', fontSize: 13, color: 'var(--color-text-tertiary)', textAlign: 'center', lineHeight: 1.6 }}>
+        Don't have a code? Ask your comp admin to share it, or{' '}
+        <button onClick={() => setView('create-comp')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-info)', fontWeight: 500, padding: 0 }}>
+          create your own comp
+        </button>.
+      </p>
     </div>
   )
 
   // ── View: Create comp ────────────────────────────────────────────────────────
   if (view === 'create-comp') return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button onClick={() => { setView('main'); setNewCompName('') }}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)', alignSelf: 'flex-start', padding: '4px 0' }}>
-        ← Back
-      </button>
-      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ paddingBottom: 40 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingTop: 4 }}>
+        <button onClick={() => { setView('main'); setNewCompName('') }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36,
+            borderRadius: '50%', border: '1px solid var(--color-border-tertiary)',
+            background: 'var(--color-background-primary)', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>
+          ←
+        </button>
         <div>
-          <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Create a comp</p>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Set up a competition for your team or group</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px' }}>
+            Create a comp
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+            Set up a private competition for your group
+          </p>
         </div>
-        <input type="text" value={newCompName} onChange={e => setNewCompName(e.target.value)} placeholder="Comp name *" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)} placeholder="Phone (optional)" />
-          <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="Email (optional)" />
+      </div>
+
+      {/* Form card */}
+      <div style={{
+        background: 'var(--color-background-primary)',
+        border: '1px solid var(--color-border-tertiary)',
+        borderRadius: 20, overflow: 'hidden',
+        boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+      }}>
+        {/* Name — primary field, full width, large */}
+        <div style={{ padding: '22px 20px 18px', borderBottom: '1px solid var(--color-border-tertiary)' }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)',
+            textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Comp name *
+          </label>
+          <input
+            type="text"
+            value={newCompName}
+            onChange={e => setNewCompName(e.target.value)}
+            placeholder="e.g. The Friday Five · Office Legends"
+            autoFocus
+            maxLength={60}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '12px 14px', fontSize: 16, fontWeight: 500,
+              border: '2px solid var(--color-border-secondary)',
+              borderRadius: 12, outline: 'none',
+              background: 'var(--color-background-secondary)',
+              color: 'var(--color-text-primary)',
+              transition: 'border-color 0.15s',
+            }}
+            onFocus={e => e.target.style.borderColor = '#16a34a'}
+            onBlur={e => e.target.style.borderColor = 'var(--color-border-secondary)'}
+          />
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'right' }}>
+            {newCompName.length}/60
+          </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div onClick={() => fileRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', overflow: 'hidden', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-secondary)', fontSize: 20 }}>
-            {logoPreview ? <img src={logoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : '🏢'}
+
+        {/* Logo upload */}
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--color-border-tertiary)',
+          display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div
+            onClick={() => fileRef.current?.click()}
+            style={{
+              width: 56, height: 56, borderRadius: 14, flexShrink: 0, cursor: 'pointer',
+              border: '2px dashed var(--color-border-secondary)',
+              overflow: 'hidden',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: logoPreview ? 'transparent' : 'var(--color-background-secondary)',
+              transition: 'border-color 0.15s',
+            }}>
+            {logoPreview
+              ? <img src={logoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+              : <span style={{ fontSize: 24 }}>🏢</span>
+            }
           </div>
-          <button type="button" onClick={() => fileRef.current?.click()}
-            style={{ fontSize: 12, fontWeight: 500, padding: '5px 12px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)' }}>
-            {logoFile ? 'Change logo' : 'Upload logo'}
-          </button>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+              {logoFile ? logoFile.name : 'Add a logo'}
+            </p>
+            <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+              PNG or JPG · max 2MB · optional
+            </p>
+            <button type="button" onClick={() => fileRef.current?.click()} style={{
+              fontSize: 12, fontWeight: 600, padding: '5px 14px',
+              border: '1px solid var(--color-border-secondary)',
+              borderRadius: 99, background: 'transparent', cursor: 'pointer',
+              color: 'var(--color-text-primary)',
+            }}>
+              {logoFile ? 'Change' : 'Upload'}
+            </button>
+          </div>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
         </div>
-        {error && <p style={{ margin: 0, fontSize: 12, padding: '8px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)' }}>{error}</p>}
-        <button onClick={createComp} disabled={loading || !newCompName.trim()}
-          style={{ marginTop: 4, padding: '11px 0', border: 'none', borderRadius: 'var(--border-radius-lg)', background: 'var(--color-text-primary)', color: 'var(--color-background-primary)', fontSize: 14, fontWeight: 500, cursor: 'pointer', opacity: (loading || !newCompName.trim()) ? 0.35 : 1 }}>
-          {loading && <Spinner className="w-4 h-4" />} Create comp
+
+        {/* Optional contact details — collapsed until name is entered */}
+        {newCompName.trim().length > 0 && (
+          <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--color-border-tertiary)', animation: 'fadeSlideIn 0.2s ease' }}>
+            <style>{`@keyframes fadeSlideIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }`}</style>
+            <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
+              textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Optional contact details
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 6 }}>Phone</label>
+                <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)}
+                  placeholder="+61 4xx xxx xxx"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 13,
+                    border: '1.5px solid var(--color-border-secondary)', borderRadius: 10, outline: 'none',
+                    background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 6 }}>Email</label>
+                <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 13,
+                    border: '1.5px solid var(--color-border-secondary)', borderRadius: 10, outline: 'none',
+                    background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div style={{ padding: '12px 20px', background: 'var(--color-background-danger)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-danger)' }}>{error}</p>
+          </div>
+        )}
+
+        {/* What you get — shown when name is entered */}
+        {newCompName.trim().length > 0 && (
+          <div style={{ padding: '16px 20px', background: 'var(--color-background-secondary)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              'An invite code to share with your players',
+              'A leaderboard scoped to your comp',
+              'Tribe management for your comp admin panel',
+            ].map(benefit => (
+              <div key={benefit} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: '#16a34a', fontSize: 14, flexShrink: 0 }}>✓</span>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-secondary)' }}>{benefit}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create button */}
+        <button
+          onClick={createComp}
+          disabled={loading || !newCompName.trim()}
+          style={{
+            width: '100%', padding: '16px 0', border: 'none', cursor: 'pointer',
+            background: !newCompName.trim() ? 'var(--color-background-secondary)'
+              : loading ? '#15803d'
+              : '#16a34a',
+            color: !newCompName.trim() ? 'var(--color-text-tertiary)' : '#ffffff',
+            fontSize: 15, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            transition: 'background 0.15s, color 0.15s',
+          }}>
+          {loading
+            ? <><Spinner className="w-5 h-5" /> Creating your comp…</>
+            : !newCompName.trim()
+              ? 'Enter a comp name to continue'
+              : `Create ${newCompName} →`
+          }
         </button>
       </div>
+
+      {/* Already have a code? */}
+      <p style={{ margin: '20px 0 0', fontSize: 13, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+        Got an invite code?{' '}
+        <button onClick={() => { setView('join-comp'); setNewCompName('') }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-info)', fontWeight: 500, padding: 0 }}>
+          Join an existing comp
+        </button>
+      </p>
     </div>
   )
 
@@ -963,20 +1231,37 @@ function NoTribePanel({
         </div>
       )}
 
-      {/* Action bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: myComps.length < MAX_COMPS ? '1fr 1fr' : '1fr', gap: 10 }}>
-        <button onClick={() => setView('join-comp')}
-          style={{ padding: '12px 0', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', background: 'transparent', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          🔑 Join comp
+      {/* ── Entry point cards ──────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: myComps.length < MAX_COMPS ? '1fr 1fr' : '1fr', gap: 12, marginTop: 4 }}>
+        <button onClick={() => setView('join-comp')} style={{
+          padding: '18px 12px', border: '1.5px solid var(--color-border-secondary)',
+          borderRadius: 16, background: 'var(--color-background-primary)',
+          cursor: 'pointer', textAlign: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+          transition: 'box-shadow 0.15s',
+        }}>
+          <span style={{ fontSize: 26 }}>🔑</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>Join a comp</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>I have an invite code</span>
         </button>
         {myComps.length < MAX_COMPS ? (
-          <button onClick={() => setView('create-comp')}
-            style={{ padding: '12px 0', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', background: 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            + Create comp
+          <button onClick={() => setView('create-comp')} style={{
+            padding: '18px 12px',
+            border: '1.5px solid rgba(22,163,74,0.4)',
+            borderRadius: 16,
+            background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 100%)',
+            cursor: 'pointer', textAlign: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+            transition: 'opacity 0.15s',
+          }}>
+            <span style={{ fontSize: 26 }}>🏆</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Create a comp</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>For my group</span>
           </button>
         ) : (
-          <div style={{ padding: '12px 0', border: '0.5px dashed var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', textAlign: 'center', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-            Max {MAX_COMPS} comps reached
+          <div style={{ padding: '18px 12px', border: '1.5px dashed var(--color-border-tertiary)', borderRadius: 16, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+            <span style={{ fontSize: 26 }}>🏆</span>
+            <span style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }}>Max {MAX_COMPS} comps</span>
           </div>
         )}
       </div>
