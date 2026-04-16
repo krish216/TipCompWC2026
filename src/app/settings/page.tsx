@@ -63,8 +63,6 @@ export default function SettingsPage() {
   const [savedCountry,  setSavedCountry]  = useState('')
   const [savedTimezone, setSavedTimezone] = useState('UTC')
   const [savingProfile, setSavingProfile] = useState(false)
-  const [favTeam,       setFavTeam]       = useState('')
-  const [savedFavTeam,  setSavedFavTeam]  = useState('')   // track the saved value separately
   const [prefs,         setPrefs]         = useState<NotifPrefs>({ push_enabled: true, email_enabled: true, tribe_nudges: false })
   const [loading,       setLoading]       = useState(true)
   const [savingName,    setSavingName]    = useState(false)
@@ -72,7 +70,6 @@ export default function SettingsPage() {
   const [savingDob,     setSavingDob]     = useState(false)
   const [avatar,        setAvatar]        = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [savingFav,     setSavingFav]     = useState(false)
   const [savingPrefs,   setSavingPrefs]   = useState(false)
 
   const tournamentStarted = isTournamentStarted()
@@ -88,7 +85,6 @@ export default function SettingsPage() {
         setDisplayName((userRes.data as any).display_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
         setDob((userRes.data as any).date_of_birth ?? '')
-        setFavTeam(ft); setSavedFavTeam(ft)
         const ct = (userRes.data as any).country ?? ''
         const tz = (userRes.data as any).timezone ?? 'UTC'
         setCountry(ct); setSavedCountry(ct)
@@ -131,21 +127,6 @@ export default function SettingsPage() {
     }
   }
 
-  const saveFavouriteTeam = async () => {
-    if (!session || tournamentStarted) return
-    setSavingFav(true)
-    const { error } = await supabase
-      .from('users')
-      .update({ display_name: displayName || null })
-      .eq('id', session.user.id)
-    setSavingFav(false)
-    if (error) {
-      toast.error('Failed to save favourite team')
-    } else {
-      setSavedFavTeam(favTeam)
-      toast.success(favTeam ? `Favourite team set to ${favTeam} ⭐` : 'Favourite team cleared')
-    }
-  }
 
   const updatePref = async (key: keyof NotifPrefs, value: boolean) => {
     const updated = { ...prefs, [key]: value }
@@ -298,84 +279,6 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      {/* Favourite team */}
-      <section className="mb-6">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Favourite team</h2>
-        <Card>
-          <p className="text-xs text-gray-500 mb-3">
-            Earn <strong className="text-purple-700">2× points</strong> whenever you correctly predict
-            the result of a match involving your favourite team.
-          </p>
-
-          {tournamentStarted ? (
-            /* ── Tournament has started — show locked state ── */
-            <div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <span className="text-xl">🔒</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700">
-                    {savedFavTeam
-                      ? <><span className="text-purple-700">⭐ {savedFavTeam}</span> — double points active</>
-                      : 'No favourite team selected'
-                    }
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Favourite team locked — the tournament has started
-                  </p>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-2">
-                Favourite team selection closes at tournament kickoff (Jun 11, 2026 · 7:00 PM UTC).
-              </p>
-            </div>
-          ) : (
-            /* ── Tournament hasn't started — allow changes ── */
-            <div>
-              <div className="flex gap-2 items-end mb-2">
-                <div className="flex-1">
-                  <select
-                    value={favTeam}
-                    onChange={e => setFavTeam(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-                  >
-                    <option value="">No favourite team</option>
-                    {ALL_TEAMS.map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={saveFavouriteTeam}
-                  disabled={savingFav || favTeam === savedFavTeam}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center gap-1.5"
-                >
-                  {savingFav && <Spinner className="w-3 h-3 text-white" />}
-                  Save
-                </button>
-              </div>
-
-              {favTeam && favTeam !== savedFavTeam && (
-                <p className="text-[11px] text-amber-600 mt-1.5">
-                  Unsaved — click Save to confirm {favTeam} as your favourite team
-                </p>
-              )}
-              {savedFavTeam && favTeam === savedFavTeam && (
-                <p className="text-[11px] text-purple-600 mt-1.5 flex items-center gap-1">
-                  ⭐ Double points active for <strong>{savedFavTeam}</strong> matches
-                </p>
-              )}
-
-              <div className="mt-3 flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                <span className="text-sm flex-shrink-0">⚠️</span>
-                <p className="text-[11px] text-amber-700">
-                  Locks at tournament kickoff — <strong>Jun 11, 2026</strong>. You won't be able to change this once the tournament begins.
-                </p>
-              </div>
-            </div>
-          )}
-        </Card>
-      </section>
-
       {/* Notifications */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-2">
@@ -503,9 +406,8 @@ export default function SettingsPage() {
 function TournamentEnrollments() {
   const { supabase, session } = useSupabase()
   const [allTourns,     setAllTourns]     = useState<any[]>([])
-  const [enrolled,      setEnrolled]      = useState<Record<string, string>>({}) // tid -> fav_team
+  const [enrolled,      setEnrolled]      = useState<Set<string>>(new Set())
   const [saving,        setSaving]        = useState<string | null>(null)
-  const [favDraft,      setFavDraft]      = useState<Record<string, string>>({})
   const [loading,       setLoading]       = useState(true)
 
   useEffect(() => {
@@ -515,15 +417,9 @@ function TournamentEnrollments() {
       fetch('/api/user-tournaments').then(r => r.json()),
     ]).then(([all, mine]) => {
       setAllTourns((all.data ?? []).filter((t: any) => t.status !== 'completed'))
-      const map: Record<string, string> = {}
-      const draft: Record<string, string> = {}
-      ;(mine.data ?? []).forEach((e: any) => {
-        const tid = e.tournament_id
-        map[tid]   = e.favourite_team ?? ''
-        draft[tid] = e.favourite_team ?? ''
-      })
+      const map = new Set<string>()
+      ;(mine.data ?? []).forEach((e: any) => { map.add(e.tournament_id) })
       setEnrolled(map)
-      setFavDraft(draft)
       setLoading(false)
     })
   }, [session])
@@ -532,9 +428,9 @@ function TournamentEnrollments() {
     setSaving(tid)
     await fetch('/api/user-tournaments', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: tid, favourite_team: favDraft[tid] || null }),
+      body: JSON.stringify({ tournament_id: tid }),
     })
-    setEnrolled(prev => ({ ...prev, [tid]: favDraft[tid] ?? '' }))
+    setEnrolled(prev => new Set([...prev, tid]))
     setSaving(null)
     toast.success('Enrolled!')
   }
@@ -543,21 +439,11 @@ function TournamentEnrollments() {
     if (!confirm(`Leave ${name}? Your predictions will be kept but you won't appear on the leaderboard.`)) return
     setSaving(tid)
     await fetch(`/api/user-tournaments?tournament_id=${tid}`, { method: 'DELETE' })
-    setEnrolled(prev => { const n = { ...prev }; delete n[tid]; return n })
+    setEnrolled(prev => { const n = new Set(prev); n.delete(tid); return n })
     setSaving(null)
     toast.success('Left tournament')
   }
 
-  const saveFav = async (tid: string) => {
-    setSaving(tid)
-    await fetch('/api/user-tournaments', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: tid, favourite_team: favDraft[tid] || null }),
-    })
-    setEnrolled(prev => ({ ...prev, [tid]: favDraft[tid] ?? '' }))
-    setSaving(null)
-    toast.success('Favourite team updated')
-  }
 
   if (loading) return <div className="py-4 text-sm text-gray-400">Loading…</div>
 
@@ -570,7 +456,7 @@ function TournamentEnrollments() {
   return (
     <div className="space-y-3">
       {allTourns.map(t => {
-        const isEnrolled = t.id in enrolled
+        const isEnrolled = enrolled.has(t.id)
         const isSaving   = saving === t.id
         return (
           <Card key={t.id} className={isEnrolled ? 'border-green-300 bg-green-50/40' : ''}>
@@ -602,31 +488,7 @@ function TournamentEnrollments() {
               )}
             </div>
 
-            {/* Enrolled: show favourite team picker */}
-            {isEnrolled && (
-              <div className="mt-2 pt-2 border-t border-green-100">
-                <label className="block text-[11px] font-medium text-gray-500 mb-1">Favourite team</label>
-                <div className="flex gap-2">
-                  <select value={favDraft[t.id] ?? ''}
-                    onChange={e => setFavDraft(prev => ({ ...prev, [t.id]: e.target.value }))}
-                    className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
-                    <option value="">No favourite team</option>
-                    {(t.teams?.length ? [...t.teams].sort() : []).map((team: string) => (
-                      <option key={team} value={team}>{team}</option>
-                    ))}
-                  </select>
-                  {favDraft[t.id] !== (enrolled[t.id] ?? '') && (
-                    <button onClick={() => saveFav(t.id)} disabled={isSaving}
-                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg flex items-center gap-1">
-                      {isSaving ? <Spinner className="w-3 h-3 text-white" /> : 'Save'}
-                    </button>
-                  )}
-                </div>
-                {(enrolled[t.id]) && (
-                  <p className="text-[11px] text-purple-600 mt-1">⭐ Double points on {enrolled[t.id]} matches in Group Stage &amp; Rd of 32</p>
-                )}
-              </div>
-            )}
+
           </Card>
         )
       })}
