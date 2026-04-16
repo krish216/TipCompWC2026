@@ -32,6 +32,14 @@ export default function LoginPage() {
   const tabParam = params.get('tab') as Mode | null
 
   const [mode,     setMode]     = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
+
+  // Sync tab from URL param — handles Navbar links pressing Register or Sign in
+  // while the page is already mounted
+  useEffect(() => {
+    if (tabParam === 'register' && mode !== 'register') setMode('register')
+    else if ((tabParam === 'login' || !tabParam) && mode !== 'login' && !tabParam) {/* no-op on null */}
+    else if (tabParam === 'login') setMode('login')
+  }, [tabParam])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
 
@@ -81,7 +89,7 @@ export default function LoginPage() {
     fetch('/api/tournaments')
       .then(r => r.json())
       .then(({ data }) => {
-        const active = (data ?? []).filter((t: any) => t.status !== 'completed')
+        const active = (data ?? []).filter((t: any) => t.is_active === true)
         setTournaments(active)
         // Pre-select the only tournament if there's just one
         if (active.length === 1) setSelectedTourn(active[0].id)
@@ -605,13 +613,21 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Year of birth <span className="text-gray-400 font-normal">(required for age-restricted comps)</span>
                 </label>
-                <select value={birthYear} onChange={e => setBirthYear(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                  <option value="">Select year</option>
-                  {Array.from({ length: new Date().getFullYear() - 1919 }, (_, i) => new Date().getFullYear() - 5 - i).map(y => (
-                    <option key={y} value={y}>{y}</option>
+                <input
+                  type="number"
+                  list="birth-year-list"
+                  value={birthYear}
+                  onChange={e => setBirthYear(e.target.value)}
+                  placeholder="e.g. 1990"
+                  min={1920}
+                  max={new Date().getFullYear() - 5}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                />
+                <datalist id="birth-year-list">
+                  {Array.from({ length: new Date().getFullYear() - 5 - 1919 }, (_, i) => new Date().getFullYear() - 5 - i).map(y => (
+                    <option key={y} value={y} />
                   ))}
-                </select>
+                </datalist>
               </div>
             </>
           )}
