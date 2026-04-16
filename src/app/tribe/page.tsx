@@ -489,30 +489,20 @@ function TribeCard({ tribe, selected, onSelect }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // TribeDropdown
 // ─────────────────────────────────────────────────────────────────────────────
-function TribeDropdown({ tribes, onJoin, loading }: {
-  tribes: {id:string; name:string; description?:string|null; invite_code:string; member_count?:number; member_ids?:string[]}[]
-  onJoin: (code:string) => void
-  loading: boolean
+function TribeDropdown({ tribes, onJoin, onExpand, loading, membersMap }: {
+  tribes:     {id:string; name:string; description?:string|null; invite_code:string; member_count?:number; member_ids?:string[]}[]
+  onJoin:     (code:string) => void
+  onExpand:   (tribe: {id:string; member_ids?:string[]}) => void
+  loading:    boolean
+  membersMap: Record<string, any[]>
 }) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [joining,  setJoining]  = useState<string | null>(null)
-  const [members,  setMembers]  = useState<Record<string, any[]>>({})
-  const [loadingMembers, setLoadingMembers] = useState<string | null>(null)
 
-  const toggleExpand = async (tribe: typeof tribes[number]) => {
-    if (expanded === tribe.id) { setExpanded(null); return }
-    setExpanded(tribe.id)
-    // Load member display names if not already loaded
-    if (!members[tribe.id] && tribe.member_ids?.length) {
-      setLoadingMembers(tribe.id)
-      try {
-        const { createClient } = await import('@/lib/supabase')
-        const sb = createClient()
-        const { data } = await sb.from('users')
-          .select('id, display_name').in('id', tribe.member_ids)
-        setMembers(prev => ({ ...prev, [tribe.id]: data ?? [] }))
-      } catch { /* silent */ } finally { setLoadingMembers(null) }
-    }
+  const toggleExpand = (tribe: typeof tribes[number]) => {
+    const next = expanded === tribe.id ? null : tribe.id
+    setExpanded(next)
+    if (next) onExpand(tribe)   // parent fetches members
   }
 
   const handleJoin = (code: string, tribeId: string) => {
@@ -526,7 +516,7 @@ function TribeDropdown({ tribes, onJoin, loading }: {
         const isExpanded = expanded === t.id
         const isJoining  = joining === t.id && loading
         const count      = t.member_count ?? t.member_ids?.length ?? 0
-        const tribeMembers = members[t.id] ?? []
+        const tribeMembers = membersMap[t.id] ?? []
 
         return (
           <div key={t.id} style={{
@@ -587,7 +577,7 @@ function TribeDropdown({ tribes, onJoin, loading }: {
                   <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     Members
                   </p>
-                  {loadingMembers === t.id ? (
+                  {!membersMap[t.id] && (t.member_ids?.length ?? 0) > 0 ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
                       <Spinner className="w-5 h-5" />
                     </div>
@@ -722,7 +712,7 @@ function SwitchTribePanel({
 
       {expanded && (
         <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code); }} loading={loading} />
+          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code); }} onExpand={() => {}} loading={loading} membersMap={{}} />
           {selected && (
             <button onClick={switchTribe} disabled={loading}
               style={{
@@ -764,6 +754,18 @@ function NoTribePanel({
   const [initLoading,   setInitLoading]   = useState(true)
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState<string|null>(null)
+
+  // Tribe member names (fetched on expand)
+  const [tribeMembersMap, setTribeMembersMap] = useState<Record<string, any[]>>({})
+
+  const fetchTribeMembers = async (tribe: {id:string; member_ids?:string[]}) => {
+    if (tribeMembersMap[tribe.id] || !tribe.member_ids?.length) return
+    try {
+      const { data } = await supabase
+        .from('users').select('id, display_name').in('id', tribe.member_ids)
+      setTribeMembersMap(prev => ({ ...prev, [tribe.id]: data ?? [] }))
+    } catch { /* silent */ }
+  }
 
   // Join comp
   const [compCode,      setCompCode]      = useState('')
@@ -1313,7 +1315,7 @@ function NoTribePanel({
                   <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ask your comp admin to create one.</p>
                 </div>
               ) : (
-                <TribeDropdown tribes={tribes} onJoin={joinTribe} loading={loading} />
+                <TribeDropdown tribes={tribes} onJoin={joinTribe} onExpand={fetchTribeMembers} loading={loading} membersMap={tribeMembersMap} />
               )}
             </div>
             {error && (
