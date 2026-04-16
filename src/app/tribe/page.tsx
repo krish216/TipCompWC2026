@@ -1100,153 +1100,287 @@ export default function TribePage() {
     </div>
   )
 
+  // ── Tab definitions ─────────────────────────────────────────────────────────
+  type ExtendedTab = MainTab | 'manage'
+  const [extTab, setExtTab] = useState<ExtendedTab>('leaderboard')
+  // sync extTab → tab for existing components
+  const activeMainTab = extTab === 'manage' ? tab : extTab as MainTab
+
+  const TAB_ITEMS: { id: ExtendedTab; label: string; icon: string }[] = [
+    { id: 'leaderboard', label: 'Standings', icon: '🏅' },
+    { id: 'picks',       label: 'Picks',     icon: '⚽' },
+    { id: 'chat',        label: 'Chat',      icon: '💬' },
+    { id: 'manage',      label: 'Manage',    icon: '⚙️' },
+  ]
+
+  const org = selectedComp || (tribe as any)._org
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-4">
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 16px 40px' }}>
 
-      {/* ── Hero header ── */}
+      {/* ── Hero ─────────────────────────────────────────────────── */}
       <div style={{
-        borderRadius: 'var(--border-radius-xl)',
-        overflow: 'hidden',
-        marginBottom: 16,
-        border: '0.5px solid var(--color-border-tertiary)',
+        background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
+        borderRadius: 20, overflow: 'hidden', marginBottom: 4,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        position: 'relative',
       }}>
-        {/* Dark banner strip */}
+        {/* Subtle texture */}
         <div style={{
-          background: 'linear-gradient(135deg, #0d3d2a 0%, #1a5c3e 60%, #0f4d34 100%)',
-          padding: '18px 20px 14px',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
-        }}>
-          <div>
-            {/* Comp + tournament context */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              {(selectedComp || (tribe as any)._org) && (() => {
-                const org = selectedComp || (tribe as any)._org
-                return (
-                  <>
-                    {org.logo_url && <img src={org.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover' }} />}
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
-                      {org.name}
-                    </span>
-                  </>
-                )
-              })()}
-              {selectedTourn && (
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 2 }}>
-                  · {selectedTourn.name}
-                </span>
-              )}
-            </div>
-            {/* Tribe name */}
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.3px' }}>
-              {tribe.name}
-            </h1>
-            {/* Member count + invite code */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                {tribe.members.length} member{tribe.members.length !== 1 ? 's' : ''}
-              </span>
-              <button onClick={copyCode} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                background: copied ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.1)',
-                border: copied ? '1px solid rgba(74,222,128,0.4)' : '1px solid rgba(255,255,255,0.2)',
-                color: copied ? '#4ade80' : 'rgba(255,255,255,0.7)',
-                transition: 'all 0.15s', letterSpacing: '0.05em',
-              }}>
-                <span style={{ fontFamily: 'monospace' }}>{tribe.invite_code}</span>
-                <span style={{ fontSize: 10 }}>{copied ? '✓ copied' : 'copy'}</span>
-              </button>
-            </div>
-          </div>
-          <button onClick={leaveTribe} style={{
-            padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
-            border: '1px solid rgba(255,100,100,0.4)', borderRadius: 'var(--border-radius-md)',
-            background: 'rgba(255,100,100,0.1)', color: 'rgba(255,150,150,0.9)',
-          }}>
-            Leave
-          </button>
-        </div>
+          position: 'absolute', inset: 0, opacity: 0.04,
+          backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)',
+          backgroundSize: '12px 12px',
+        }} />
 
-        {/* Tab bar — sits inside the card, below the header */}
-        <div style={{
-          display: 'flex', background: 'var(--color-background-primary)',
-          borderTop: '0.5px solid var(--color-border-tertiary)',
-        }}>
-          {(['leaderboard','picks','chat'] as MainTab[]).map(t => {
-            const labels: Record<MainTab,string> = { leaderboard: 'Standings', picks: 'Picks', chat: 'Chat' }
-            const isActive = tab === t
-            return (
-              <button key={t} onClick={() => setTab(t)} style={{
-                flex: 1, padding: '11px 0', fontSize: 13, fontWeight: isActive ? 600 : 400,
-                border: 'none', cursor: 'pointer', background: 'transparent',
-                color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                borderBottom: isActive ? '2px solid #1a5c3e' : '2px solid transparent',
-                transition: 'all 0.15s',
+        <div style={{ position: 'relative', padding: '22px 22px 0' }}>
+          {/* Comp breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            {org?.logo_url && (
+              <img src={org.logo_url} alt="" style={{ width: 20, height: 20, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+            )}
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.02em' }}>
+              {org?.name}
+            </span>
+            {selectedTourn && (
+              <>
+                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>·</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{selectedTourn.name}</span>
+              </>
+            )}
+          </div>
+
+          {/* Tribe identity row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1 style={{
+                margin: 0, fontSize: 28, fontWeight: 800, color: '#ffffff',
+                letterSpacing: '-0.5px', lineHeight: 1.1,
               }}>
-                {labels[t]}
-              </button>
-            )
-          })}
+                {tribe.name}
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                {/* Member count */}
+                <span style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 13, color: 'rgba(255,255,255,0.55)',
+                }}>
+                  <span style={{ fontSize: 14 }}>👥</span>
+                  {tribe.members.length} member{tribe.members.length !== 1 ? 's' : ''}
+                </span>
+
+                {/* Invite code pill */}
+                <button onClick={copyCode} style={{
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
+                  background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.08)',
+                  border: copied ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.15)',
+                  color: copied ? '#4ade80' : 'rgba(255,255,255,0.6)',
+                  fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
+                  transition: 'all 0.15s', fontFamily: 'monospace',
+                }}>
+                  {tribe.invite_code}
+                  <span style={{ fontSize: 10, fontFamily: 'sans-serif', fontWeight: 400, opacity: 0.7 }}>
+                    {copied ? '✓' : 'copy'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Rank badge — top member in this tribe */}
+            {sortedMembers[0] && (
+              <div style={{
+                textAlign: 'center', flexShrink: 0,
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 14, padding: '10px 14px',
+              }}>
+                <div style={{ fontSize: 20, marginBottom: 2 }}>🥇</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                  {sortedMembers[0].display_name.split(' ')[0]}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>
+                  {sortedMembers[0].total_points}pts
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tab bar — integrated into hero bottom */}
+          <div style={{ display: 'flex', marginTop: 4 }}>
+            {TAB_ITEMS.map(item => {
+              const isActive = extTab === item.id
+              return (
+                <button key={item.id}
+                  onClick={() => {
+                    setExtTab(item.id)
+                    if (item.id !== 'manage') setTab(item.id as MainTab)
+                    if (item.id === 'picks' && tribe && !tribePicksData) loadPicks()
+                  }}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 5, padding: '12px 4px', border: 'none', cursor: 'pointer',
+                    background: 'transparent',
+                    color: isActive ? '#ffffff' : 'rgba(255,255,255,0.4)',
+                    fontSize: 12, fontWeight: isActive ? 600 : 400,
+                    borderBottom: isActive ? '2px solid #4ade80' : '2px solid transparent',
+                    transition: 'all 0.15s',
+                  }}>
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Switch tribe — shows other tribes in the same comp */}
-      <SwitchTribePanel
-        currentTribeId={tribe.id}
-        compId={(tribe as any).comp_id}
-        onSwitch={() => { setTribe(null); setTribePicksData(null); loadTribe() }}
-      />
+      {/* ── Tab content ──────────────────────────────────────────── */}
+      <div style={{ marginTop: 12 }}>
 
-      {/* Prizes */}
-      {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
+        {/* Standings */}
+        {extTab === 'leaderboard' && (
+          <TribeStandingsView
+            members={sortedMembers}
+            myId={myId}
+            tribePicksData={tribePicksData}
+            onLoadPicks={loadPicks}
+            picksLoading={picksLoading}
+          />
+        )}
 
-      {/* ── Standings tab — cross-tab by round ── */}
-      {tab === 'leaderboard' && (
-        <TribeStandingsView
-          members={sortedMembers}
-          myId={myId}
-          tribePicksData={tribePicksData}
-          onLoadPicks={loadPicks}
-          picksLoading={picksLoading}
-        />
-      )}
+        {/* Picks */}
+        {extTab === 'picks' && (
+          <TribePicksView
+            tribePicksData={tribePicksData}
+            loading={picksLoading}
+            myId={myId}
+            onRefresh={loadPicks}
+            timezone={timezone}
+          />
+        )}
 
-      {/* ── Picks tab ── */}
-      {tab === 'picks' && (
-        <TribePicksView
-          tribePicksData={tribePicksData}
-          loading={picksLoading}
-          myId={myId}
-          onRefresh={loadPicks}
-          timezone={timezone}
-        />
-      )}
-
-      {/* ── Chat tab — two column layout ── */}
-      {tab === 'chat' && (
-        <div className="flex gap-3" style={{ height: 'calc(100vh - 220px)', minHeight: '500px' }}>
-          {/* Left: topic selector */}
-          <div className="w-64 flex-shrink-0 overflow-y-auto">
-            <MatchTopicList
-              fixtures={fixtures}
-              activeTopic={chatTopic}
-              onSelect={setChatTopic}
-              timezone={timezone}
-            />
+        {/* Chat */}
+        {extTab === 'chat' && (
+          <div className="flex gap-3" style={{ height: 'calc(100vh - 260px)', minHeight: 480 }}>
+            <div className="w-56 flex-shrink-0 overflow-y-auto">
+              <MatchTopicList
+                fixtures={fixtures}
+                activeTopic={chatTopic}
+                onSelect={setChatTopic}
+                timezone={timezone}
+              />
+            </div>
+            <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+              <ChatPanel
+                tribeId={tribe.id}
+                topic={chatTopic}
+                myId={myId}
+                fixtures={fixtures}
+                timezone={timezone}
+              />
+            </div>
           </div>
+        )}
 
-          {/* Right: chat panel */}
-          <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-            <ChatPanel
-              tribeId={tribe.id}
-              topic={chatTopic}
-              myId={myId}
-              fixtures={fixtures}
-              timezone={timezone}
+        {/* Manage */}
+        {extTab === 'manage' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Members list */}
+            <div style={{
+              background: 'var(--color-background-primary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 16, overflow: 'hidden',
+            }}>
+              <div style={{
+                padding: '14px 16px',
+                borderBottom: '0.5px solid var(--color-border-tertiary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  Members · {tribe.members.length}
+                </p>
+                {/* Share invite code */}
+                <button onClick={copyCode} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
+                  background: copied ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+                  border: '0.5px solid var(--color-border-secondary)',
+                  color: copied ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                  fontSize: 12, fontWeight: 500, transition: 'all 0.15s',
+                }}>
+                  <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}>{tribe.invite_code}</span>
+                  <span>{copied ? '✓ Copied' : 'Copy invite code'}</span>
+                </button>
+              </div>
+              <div>
+                {sortedMembers.map((m, i) => (
+                  <div key={m.user_id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 16px',
+                    borderBottom: i < sortedMembers.length - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none',
+                    background: m.user_id === myId ? 'var(--color-background-secondary)' : 'transparent',
+                  }}>
+                    <span style={{
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700,
+                      background: i === 0 ? '#fef08a' : i === 1 ? '#e2e8f0' : i === 2 ? '#fed7aa' : 'var(--color-background-tertiary)',
+                      color: i < 3 ? '#1a1a1a' : 'var(--color-text-tertiary)',
+                    }}>
+                      {i + 1}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: m.user_id === myId ? 600 : 400, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.display_name} {m.user_id === myId && <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 400 }}>· you</span>}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                        {m.correct_count} correct · {m.exact_count} exact
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+                      {m.total_points}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>pts</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Switch tribe */}
+            <SwitchTribePanel
+              currentTribeId={tribe.id}
+              compId={(tribe as any).comp_id}
+              onSwitch={() => { setTribe(null); setTribePicksData(null); loadTribe() }}
             />
+
+            {/* Prizes */}
+            {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
+
+            {/* Leave tribe */}
+            <div style={{
+              background: 'var(--color-background-primary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 16, padding: '16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+            }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>Leave tribe</p>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                  Your predictions and points are kept
+                </p>
+              </div>
+              <button onClick={leaveTribe} style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+                border: '1px solid var(--color-border-danger)',
+                borderRadius: 10, background: 'transparent', color: 'var(--color-text-danger)',
+                transition: 'all 0.15s',
+              }}>
+                Leave
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
