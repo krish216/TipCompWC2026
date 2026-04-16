@@ -494,28 +494,74 @@ function TribeDropdown({ tribes, onJoin, loading }: {
   onJoin: (code:string) => void
   loading: boolean
 }) {
-  const [selected, setSelected] = useState('')
-  const sel = tribes.find(t => t.invite_code === selected)
+  const [joining, setJoining] = useState<string | null>(null)
+
+  const handleJoin = (code: string) => {
+    setJoining(code)
+    onJoin(code)
+  }
 
   return (
-    <div style={{display:'flex', flexDirection:'column', gap:8}}>
-      {tribes.map(t => (
-        <TribeCard key={t.id} tribe={t} selected={selected === t.invite_code}
-          onSelect={() => setSelected(selected === t.invite_code ? '' : t.invite_code)}/>
-      ))}
-      {sel && (
-        <button onClick={() => onJoin(sel.invite_code)} disabled={loading} style={{
-          marginTop:4, padding:'11px 0', width:'100%', border:'none',
-          borderRadius:'var(--border-radius-lg)',
-          background:'var(--color-background-success)', color:'var(--color-text-success)',
-          fontSize:14, fontWeight:500, cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-          opacity: loading ? 0.6 : 1,
-        }}>
-          {loading && <Spinner className="w-4 h-4"/>}
-          Join {sel.name}
-        </button>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {tribes.map(t => {
+        const isJoining = joining === t.invite_code && loading
+        const count = t.member_count ?? 0
+        return (
+          <div key={t.id} style={{
+            borderRadius: 14,
+            border: '1.5px solid var(--color-border-tertiary)',
+            background: 'var(--color-background-primary)',
+            overflow: 'hidden',
+            transition: 'border-color 0.15s, box-shadow 0.15s',
+          }}>
+            {/* Tribe info row */}
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Avatar */}
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: 'linear-gradient(135deg, #153d26, #1a5c3e)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18,
+              }}>
+                🏕️
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.name}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                  {t.description || `${count} member${count !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              <div style={{
+                flexShrink: 0, fontSize: 11, fontWeight: 600,
+                padding: '4px 10px', borderRadius: 99,
+                background: 'var(--color-background-secondary)',
+                color: 'var(--color-text-secondary)',
+                border: '0.5px solid var(--color-border-tertiary)',
+              }}>
+                {count} {count === 1 ? 'member' : 'members'}
+              </div>
+            </div>
+            {/* Join button */}
+            <button
+              onClick={() => handleJoin(t.invite_code)}
+              disabled={loading}
+              style={{
+                width: '100%', padding: '11px 0', border: 'none',
+                borderTop: '0.5px solid var(--color-border-tertiary)',
+                background: isJoining ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+                color: isJoining ? 'var(--color-text-success)' : 'var(--color-text-primary)',
+                fontSize: 13, fontWeight: 600, cursor: loading ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'background 0.15s, color 0.15s',
+                opacity: loading && !isJoining ? 0.5 : 1,
+              }}>
+              {isJoining ? <><Spinner className="w-4 h-4" /> Joining…</> : '→ Join this tribe'}
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -582,13 +628,13 @@ function SwitchTribePanel({
 
       {expanded && (
         <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code) }} loading={false} />
+          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code); }} loading={loading} />
           {selected && (
             <button onClick={switchTribe} disabled={loading}
               style={{
-                padding: '11px 0', border: 'none', borderRadius: 'var(--border-radius-lg)',
-                background: 'var(--color-text-primary)', color: 'var(--color-background-primary)',
-                fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                marginTop: 4, padding: '11px 0', border: 'none', borderRadius: 'var(--border-radius-lg)',
+                background: 'var(--color-background-success)', color: 'var(--color-text-success)',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer', width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 opacity: loading ? 0.5 : 1,
               }}>
@@ -1080,17 +1126,15 @@ export default function TribePage() {
   }
 
   if (loading) return (
-    <div className="max-w-2xl mx-auto px-4 py-4">
-      <ContextBar />
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
         <Spinner className="w-8 h-8" />
       </div>
     </div>
   )
 
   if (!tribe) return (
-    <div className="max-w-2xl mx-auto px-4 py-4">
-      <ContextBar />
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 16px 40px' }}>
       <NoTribePanel
         onJoined={loadTribe}
         activeTournamentId={activeTournamentId}
