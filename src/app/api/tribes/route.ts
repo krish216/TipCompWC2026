@@ -45,29 +45,34 @@ export async function GET(request: NextRequest) {
 
   if (!tribeId) return NextResponse.json({ data: null })
 
-  const { data: tribe, error } = await supabase
-    .from('tribes').select('id, name, invite_code, created_at, comp_id, tournament_id').eq('id', tribeId).single()
+  // Use adminClient for tribe/member reads — RLS only allows users to see their own rows
+  const adminClientGet = createAdminClient()
+
+  const { data: tribe, error } = await (adminClientGet.from('tribes') as any)
+    .select('id, name, invite_code, created_at, comp_id, tournament_id').eq('id', tribeId).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: memberRows } = await supabase
-    .from('tribe_members').select('user_id, joined_at').eq('tribe_id', tribeId)
+  // Fetch ALL members of this tribe (bypasses RLS which would only return current user's row)
+  const { data: memberRows } = await (adminClientGet.from('tribe_members') as any)
+    .select('user_id, joined_at').eq('tribe_id', tribeId)
   const memberIds = (memberRows ?? []).map((m: any) => m.user_id)
 
-  const { data: userRows } = await supabase
-    .from('users').select('id, display_name, avatar_url').in('id', memberIds)
-  // Get active tournament from user_preferences, then app_settings
+  const { data: userRows } = await (adminClientGet.from('users') as any)
+    .select('id, display_name, avatar_url').in('id', memberIds)
+
+  // Get active tournament from user_preferences
   const { data: userPrefs } = await supabase
     .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
   let activeTid = (userPrefs as any)?.tournament_id ?? null
   if (!activeTid) {
-    const { data: setting } = await supabase
-      .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+    const { data: setting } = await (adminClientGet.from('app_settings') as any)
+      .select('value').eq('key', 'active_tournament_id').single()
     activeTid = (setting as any)?.value ?? null
   }
 
-  let lbQ = supabase
-    .from('leaderboard').select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
-  if (activeTid) lbQ = (lbQ as any).eq('tournament_id', activeTid)
+  let lbQ = (adminClientGet.from('leaderboard') as any)
+    .select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
+  if (activeTid) lbQ = lbQ.eq('tournament_id', activeTid)
   const { data: lbRows } = await lbQ
 
   const userMap: Record<string, any> = {}
