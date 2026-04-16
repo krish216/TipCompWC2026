@@ -16,16 +16,27 @@ export async function GET(request: NextRequest) {
     const scope = searchParams.get('scope') ?? 'comp'
     const limit = scope === 'tribe' ? 25 : 50
 
-    // Resolve active tournament for this user
-    const { data: userRow } = await supabase
-      .from('users').select('tribe_id, comp_id').eq('id', user.id).single()
-    const tribeId = (userRow as any)?.tribe_id ?? null
-    const compId  = (userRow as any)?.comp_id  ?? null
-    let tournamentId = searchParams.get('tournament_id') ?? null
-    if (!tournamentId) {
-      const { data: prefs } = await supabase
-        .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
-      tournamentId = (prefs as any)?.tournament_id ?? null
+    // Resolve comp + tournament from user_preferences
+    const { data: prefs } = await supabase
+      .from('user_preferences').select('comp_id, tournament_id').eq('user_id', user.id).single()
+    const compId = (prefs as any)?.comp_id ?? null
+    let tournamentId = searchParams.get('tournament_id') ?? (prefs as any)?.tournament_id ?? null
+
+    // Resolve tribe scoped to the user's selected comp
+    // Use adminClient — user-scoped client with .single() can silently fail on RLS edge cases
+    let tribeId: string | null = null
+    if (compId) {
+      const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
+        .select('tribe_id, tribes!inner(comp_id)')
+        .eq('user_id', user.id)
+        .eq('tribes.comp_id', compId)
+        .limit(1)
+      tribeId = (tribeRows?.[0] as any)?.tribe_id ?? null
+    } else {
+      // Fallback: any tribe this user is in
+      const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
+        .select('tribe_id').eq('user_id', user.id).limit(1)
+      tribeId = (tribeRows?.[0] as any)?.tribe_id ?? null
     }
     if (!tournamentId) {
       const { data: active } = await supabase
@@ -55,9 +66,9 @@ export async function GET(request: NextRequest) {
       const explicitCompId = searchParams.get('comp_id')
       const effectiveCompId = explicitCompId ?? compId
       if (effectiveCompId) {
-        const { data: members } = await adminClient
-          .from('users').select('id').eq('comp_id', effectiveCompId)
-        scopeUserIds = (members ?? []).map((m: any) => m.id)
+        const { data: members } = await (adminClient.from('user_comps') as any)
+          .select('user_id').eq('comp_id', effectiveCompId)
+        scopeUserIds = (members ?? []).map((m: any) => m.user_id)
         if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
       }
     }
