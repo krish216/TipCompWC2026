@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
@@ -111,53 +112,63 @@ function CompModal({
     const r = new FileReader(); r.onloadend = () => setLogoPreview(r.result as string); r.readAsDataURL(f)
   }
 
-  return (
-    /* Backdrop */
+  const content = (
+    /* Backdrop — covers full viewport via portal */
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
-        position: 'fixed', inset: 0, zIndex: 500,
-        background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'flex-end',
-        justifyContent: 'center', padding: '0 0 0 0',
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
       }}>
 
-      {/* Sheet */}
+      {/* Dialogue card — centred on screen */}
       <div style={{
-        width: '100%', maxWidth: 520,
+        width: '100%', maxWidth: 460,
         background: 'var(--color-background-primary)',
-        borderRadius: '24px 24px 0 0',
+        borderRadius: 24,
         overflow: 'hidden',
-        boxShadow: '0 -8px 40px rgba(0,0,0,0.2)',
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.15)',
+        maxHeight: 'calc(100vh - 32px)',
+        display: 'flex', flexDirection: 'column',
       }}>
 
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--color-border-secondary)' }} />
-        </div>
-
-        {/* Mode switcher */}
-        <div style={{ padding: '8px 20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', gap: 0, background: 'var(--color-background-secondary)', borderRadius: 12, padding: 4 }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '18px 20px 14px',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+        }}>
+          <div style={{ display: 'flex', gap: 0, background: 'var(--color-background-secondary)', borderRadius: 10, padding: 3 }}>
             {(['join', 'create'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError(null) }}
+              <button key={m} onClick={() => { setMode(m); setError(null); setCodeErr(null) }}
                 style={{
-                  flex: 1, padding: '9px 0', border: 'none', cursor: 'pointer', borderRadius: 9,
+                  padding: '7px 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
                   fontSize: 13, fontWeight: 600,
                   background: mode === m ? 'var(--color-background-primary)' : 'transparent',
                   color: mode === m ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
                   boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.15s',
+                  transition: 'all 0.15s', whiteSpace: 'nowrap',
                 }}>
                 {m === 'join' ? '🔑 Join a comp' : '🏆 Create a comp'}
               </button>
             ))}
           </div>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: 'var(--color-background-secondary)',
+            color: 'var(--color-text-secondary)', fontSize: 16, fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, marginLeft: 12,
+          }}>✕</button>
+        </div>
 
+        {/* Body */}
+        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* ── JOIN ── */}
           {mode === 'join' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
                   Invite code
@@ -230,7 +241,7 @@ function CompModal({
 
           {/* ── CREATE ── */}
           {mode === 'create' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto', borderRadius: 16, border: '1px solid var(--color-border-tertiary)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 16, border: '1px solid var(--color-border-tertiary)', overflow: 'hidden' }}>
 
               {/* Name */}
               <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--color-border-tertiary)' }}>
@@ -319,15 +330,16 @@ function CompModal({
           )}
 
           {error && mode === 'join' && (
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>
           )}
         </div>
-
-        {/* Safe area spacer */}
-        <div style={{ height: 'env(safe-area-inset-bottom, 16px)' }} />
       </div>
     </div>
   )
+
+  // Render via portal so fixed positioning is relative to viewport, not any container
+  if (typeof document === 'undefined') return null
+  return createPortal(content, document.body)
 }
 
 export default function HomePage() {
