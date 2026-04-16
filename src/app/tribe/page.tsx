@@ -988,8 +988,6 @@ export default function TribePage() {
   const { timezone } = useTimezone()
   const { selectedComp, selectedTourn } = useUserPrefs()
 
-  type ExtendedTab = MainTab | 'manage'
-
   const [tribe,          setTribe]          = useState<TribeData | null>(null)
   const [tribePicksData, setTribePicksData] = useState<any | null>(null)
   const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
@@ -997,12 +995,9 @@ export default function TribePage() {
   const [fixtures,       setFixtures]       = useState<Fixture[]>([])
   const [loading,        setLoading]        = useState(true)
   const [tab,            setTab]            = useState<MainTab>('leaderboard')
-  const [extTab,         setExtTab]         = useState<ExtendedTab>('leaderboard')
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
   const myId = session?.user.id ?? ''
-
-  const activeMainTab = extTab === 'manage' ? tab : extTab as MainTab
 
   const loadPicks = async () => {
     if (!tribe) return
@@ -1148,11 +1143,10 @@ export default function TribePage() {
     </div>
   )
 
-  const TAB_ITEMS: { id: ExtendedTab; label: string; icon: string }[] = [
+  const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = [
     { id: 'leaderboard', label: 'Standings', icon: '🏅' },
     { id: 'picks',       label: 'Picks',     icon: '⚽' },
     { id: 'chat',        label: 'Chat',      icon: '💬' },
-    { id: 'manage',      label: 'Manage',    icon: '⚙️' },
   ]
 
   const org = selectedComp || (tribe as any)._org
@@ -1192,70 +1186,76 @@ export default function TribePage() {
           </div>
 
           {/* Tribe identity row */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <h1 style={{
-                margin: 0, fontSize: 28, fontWeight: 800, color: '#ffffff',
-                letterSpacing: '-0.5px', lineHeight: 1.1,
+                margin: 0, fontSize: 26, fontWeight: 800, color: '#ffffff',
+                letterSpacing: '-0.5px', lineHeight: 1.15,
               }}>
                 {tribe.name}
               </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
                 {/* Member count */}
                 <span style={{
                   display: 'flex', alignItems: 'center', gap: 5,
-                  fontSize: 13, color: 'rgba(255,255,255,0.55)',
+                  fontSize: 12, color: 'rgba(255,255,255,0.5)',
                 }}>
-                  <span style={{ fontSize: 14 }}>👥</span>
+                  <span style={{ fontSize: 13 }}>👥</span>
                   {tribe.members.length} member{tribe.members.length !== 1 ? 's' : ''}
                 </span>
 
                 {/* Invite code pill */}
                 <button onClick={copyCode} style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
-                  background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.08)',
-                  border: copied ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.15)',
-                  color: copied ? '#4ade80' : 'rgba(255,255,255,0.6)',
-                  fontSize: 12, fontWeight: 600, letterSpacing: '0.08em',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
+                  background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.07)',
+                  border: copied ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.12)',
+                  color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)',
+                  fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
                   transition: 'all 0.15s', fontFamily: 'monospace',
                 }}>
                   {tribe.invite_code}
-                  <span style={{ fontSize: 10, fontFamily: 'sans-serif', fontWeight: 400, opacity: 0.7 }}>
+                  <span style={{ fontSize: 9, fontFamily: 'sans-serif', fontWeight: 400, opacity: 0.7 }}>
                     {copied ? '✓' : 'copy'}
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Rank badge — top member in this tribe */}
-            {sortedMembers[0] && (
-              <div style={{
-                textAlign: 'center', flexShrink: 0,
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 14, padding: '10px 14px',
-              }}>
-                <div style={{ fontSize: 20, marginBottom: 2 }}>🥇</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-                  {sortedMembers[0].display_name.split(' ')[0]}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>
-                  {sortedMembers[0].total_points}pts
-                </div>
-              </div>
-            )}
+            {/* Leave tribe — top right of hero, subtle destructive */}
+            <button
+              onClick={leaveTribe}
+              style={{
+                flexShrink: 0, marginTop: 2,
+                padding: '6px 14px', borderRadius: 99,
+                border: '1px solid rgba(255,100,100,0.35)',
+                background: 'rgba(255,80,80,0.08)',
+                color: 'rgba(255,160,160,0.9)',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.15s',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={e => {
+                (e.target as HTMLButtonElement).style.background = 'rgba(255,80,80,0.18)'
+                ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,100,100,0.6)'
+              }}
+              onMouseLeave={e => {
+                (e.target as HTMLButtonElement).style.background = 'rgba(255,80,80,0.08)'
+                ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,100,100,0.35)'
+              }}
+            >
+              Leave
+            </button>
           </div>
 
-          {/* Tab bar — integrated into hero bottom */}
+          {/* Tab bar */}
           <div style={{ display: 'flex', marginTop: 4 }}>
             {TAB_ITEMS.map(item => {
-              const isActive = extTab === item.id
+              const isActive = tab === item.id
               return (
                 <button key={item.id}
                   onClick={() => {
-                    setExtTab(item.id)
-                    if (item.id !== 'manage') setTab(item.id as MainTab)
+                    setTab(item.id)
                     if (item.id === 'picks' && tribe && !tribePicksData) loadPicks()
                   }}
                   style={{
@@ -1280,18 +1280,29 @@ export default function TribePage() {
       <div style={{ marginTop: 12 }}>
 
         {/* Standings */}
-        {extTab === 'leaderboard' && (
-          <TribeStandingsView
-            members={sortedMembers}
-            myId={myId}
-            tribePicksData={tribePicksData}
-            onLoadPicks={loadPicks}
-            picksLoading={picksLoading}
-          />
+        {tab === 'leaderboard' && (
+          <>
+            <TribeStandingsView
+              members={sortedMembers}
+              myId={myId}
+              tribePicksData={tribePicksData}
+              onLoadPicks={loadPicks}
+              picksLoading={picksLoading}
+            />
+            {/* Switch tribe + prizes sit below standings */}
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SwitchTribePanel
+                currentTribeId={tribe.id}
+                compId={(tribe as any).comp_id}
+                onSwitch={() => { setTribe(null); setTribePicksData(null); loadTribe() }}
+              />
+              {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
+            </div>
+          </>
         )}
 
         {/* Picks */}
-        {extTab === 'picks' && (
+        {tab === 'picks' && (
           <TribePicksView
             tribePicksData={tribePicksData}
             loading={picksLoading}
@@ -1302,7 +1313,7 @@ export default function TribePage() {
         )}
 
         {/* Chat */}
-        {extTab === 'chat' && (
+        {tab === 'chat' && (
           <div className="flex gap-3" style={{ height: 'calc(100vh - 260px)', minHeight: 480 }}>
             <div className="w-56 flex-shrink-0 overflow-y-auto">
               <MatchTopicList
@@ -1320,105 +1331,6 @@ export default function TribePage() {
                 fixtures={fixtures}
                 timezone={timezone}
               />
-            </div>
-          </div>
-        )}
-
-        {/* Manage */}
-        {extTab === 'manage' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-            {/* Members list */}
-            <div style={{
-              background: 'var(--color-background-primary)',
-              border: '0.5px solid var(--color-border-tertiary)',
-              borderRadius: 16, overflow: 'hidden',
-            }}>
-              <div style={{
-                padding: '14px 16px',
-                borderBottom: '0.5px solid var(--color-border-tertiary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                  Members · {tribe.members.length}
-                </p>
-                {/* Share invite code */}
-                <button onClick={copyCode} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
-                  background: copied ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                  border: '0.5px solid var(--color-border-secondary)',
-                  color: copied ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                  fontSize: 12, fontWeight: 500, transition: 'all 0.15s',
-                }}>
-                  <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}>{tribe.invite_code}</span>
-                  <span>{copied ? '✓ Copied' : 'Copy invite code'}</span>
-                </button>
-              </div>
-              <div>
-                {sortedMembers.map((m, i) => (
-                  <div key={m.user_id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 16px',
-                    borderBottom: i < sortedMembers.length - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none',
-                    background: m.user_id === myId ? 'var(--color-background-secondary)' : 'transparent',
-                  }}>
-                    <span style={{
-                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700,
-                      background: i === 0 ? '#fef08a' : i === 1 ? '#e2e8f0' : i === 2 ? '#fed7aa' : 'var(--color-background-tertiary)',
-                      color: i < 3 ? '#1a1a1a' : 'var(--color-text-tertiary)',
-                    }}>
-                      {i + 1}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: m.user_id === myId ? 600 : 400, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.display_name} {m.user_id === myId && <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 400 }}>· you</span>}
-                      </p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                        {m.correct_count} correct · {m.exact_count} exact
-                      </p>
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
-                      {m.total_points}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>pts</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Switch tribe */}
-            <SwitchTribePanel
-              currentTribeId={tribe.id}
-              compId={(tribe as any).comp_id}
-              onSwitch={() => { setTribe(null); setTribePicksData(null); loadTribe() }}
-            />
-
-            {/* Prizes */}
-            {(tribe as any).comp_id && <PrizesDisplay compId={(tribe as any).comp_id} />}
-
-            {/* Leave tribe */}
-            <div style={{
-              background: 'var(--color-background-primary)',
-              border: '0.5px solid var(--color-border-tertiary)',
-              borderRadius: 16, padding: '16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-            }}>
-              <div>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>Leave tribe</p>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-                  Your predictions and points are kept
-                </p>
-              </div>
-              <button onClick={leaveTribe} style={{
-                padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
-                border: '1px solid var(--color-border-danger)',
-                borderRadius: 10, background: 'transparent', color: 'var(--color-text-danger)',
-                transition: 'all 0.15s',
-              }}>
-                Leave
-              </button>
             </div>
           </div>
         )}
