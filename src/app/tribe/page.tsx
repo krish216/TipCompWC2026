@@ -490,75 +490,168 @@ function TribeCard({ tribe, selected, onSelect }: {
 // TribeDropdown
 // ─────────────────────────────────────────────────────────────────────────────
 function TribeDropdown({ tribes, onJoin, loading }: {
-  tribes: {id:string; name:string; description?:string|null; invite_code:string; member_count?:number}[]
+  tribes: {id:string; name:string; description?:string|null; invite_code:string; member_count?:number; member_ids?:string[]}[]
   onJoin: (code:string) => void
   loading: boolean
 }) {
-  const [joining, setJoining] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [joining,  setJoining]  = useState<string | null>(null)
+  const [members,  setMembers]  = useState<Record<string, any[]>>({})
+  const [loadingMembers, setLoadingMembers] = useState<string | null>(null)
 
-  const handleJoin = (code: string) => {
-    setJoining(code)
+  const toggleExpand = async (tribe: typeof tribes[number]) => {
+    if (expanded === tribe.id) { setExpanded(null); return }
+    setExpanded(tribe.id)
+    // Load member display names if not already loaded
+    if (!members[tribe.id] && tribe.member_ids?.length) {
+      setLoadingMembers(tribe.id)
+      try {
+        const { createClient } = await import('@/lib/supabase')
+        const sb = createClient()
+        const { data } = await sb.from('users')
+          .select('id, display_name').in('id', tribe.member_ids)
+        setMembers(prev => ({ ...prev, [tribe.id]: data ?? [] }))
+      } catch { /* silent */ } finally { setLoadingMembers(null) }
+    }
+  }
+
+  const handleJoin = (code: string, tribeId: string) => {
+    setJoining(tribeId)
     onJoin(code)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {tribes.map(t => {
-        const isJoining = joining === t.invite_code && loading
-        const count = t.member_count ?? 0
+        const isExpanded = expanded === t.id
+        const isJoining  = joining === t.id && loading
+        const count      = t.member_count ?? t.member_ids?.length ?? 0
+        const tribeMembers = members[t.id] ?? []
+
         return (
           <div key={t.id} style={{
-            borderRadius: 14,
-            border: '1.5px solid var(--color-border-tertiary)',
+            borderRadius: 16,
+            border: isExpanded ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
             background: 'var(--color-background-primary)',
             overflow: 'hidden',
-            transition: 'border-color 0.15s, box-shadow 0.15s',
+            transition: 'border-color 0.2s',
+            boxShadow: isExpanded ? '0 4px 20px rgba(0,0,0,0.08)' : 'none',
           }}>
-            {/* Tribe info row */}
-            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* Avatar */}
+
+            {/* Tribe summary row — tap to expand */}
+            <button onClick={() => toggleExpand(t)} style={{
+              width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+            }}>
               <div style={{
-                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                background: 'linear-gradient(135deg, #153d26, #1a5c3e)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
+                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                background: isExpanded
+                  ? 'linear-gradient(135deg, #14532d, #16a34a)'
+                  : 'linear-gradient(135deg, #153d26, #1a5c3e)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                transition: 'background 0.2s',
               }}>
                 🏕️
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {t.name}
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-                  {t.description || `${count} member${count !== 1 ? 's' : ''}`}
+                  {t.description ? t.description : `${count} member${count !== 1 ? 's' : ''}`}
                 </p>
               </div>
-              <div style={{
-                flexShrink: 0, fontSize: 11, fontWeight: 600,
-                padding: '4px 10px', borderRadius: 99,
-                background: 'var(--color-background-secondary)',
-                color: 'var(--color-text-secondary)',
-                border: '0.5px solid var(--color-border-tertiary)',
-              }}>
-                {count} {count === 1 ? 'member' : 'members'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                  background: 'var(--color-background-secondary)',
+                  color: 'var(--color-text-secondary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                }}>
+                  {count} {count === 1 ? 'member' : 'members'}
+                </span>
+                <span style={{
+                  fontSize: 12, color: 'var(--color-text-tertiary)',
+                  transform: isExpanded ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s', display: 'block',
+                }}>▼</span>
               </div>
-            </div>
-            {/* Join button */}
-            <button
-              onClick={() => handleJoin(t.invite_code)}
-              disabled={loading}
-              style={{
-                width: '100%', padding: '11px 0', border: 'none',
-                borderTop: '0.5px solid var(--color-border-tertiary)',
-                background: isJoining ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                color: isJoining ? 'var(--color-text-success)' : 'var(--color-text-primary)',
-                fontSize: 13, fontWeight: 600, cursor: loading ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'background 0.15s, color 0.15s',
-                opacity: loading && !isJoining ? 0.5 : 1,
-              }}>
-              {isJoining ? <><Spinner className="w-4 h-4" /> Joining…</> : '→ Join this tribe'}
             </button>
+
+            {/* Expanded — member list + join button */}
+            {isExpanded && (
+              <div style={{ borderTop: '1px solid var(--color-border-tertiary)' }}>
+
+                {/* Member roster */}
+                <div style={{ padding: '12px 16px 0' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    Members
+                  </p>
+                  {loadingMembers === t.id ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+                      <Spinner className="w-5 h-5" />
+                    </div>
+                  ) : count === 0 ? (
+                    <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                      No members yet — be the first!
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                      {tribeMembers.length > 0
+                        ? tribeMembers.map((m: any) => (
+                            <div key={m.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 7,
+                              padding: '5px 10px',
+                              background: 'var(--color-background-secondary)',
+                              border: '0.5px solid var(--color-border-tertiary)',
+                              borderRadius: 99, fontSize: 12, fontWeight: 500,
+                              color: 'var(--color-text-secondary)',
+                            }}>
+                              <span style={{
+                                width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                                background: 'linear-gradient(135deg, #153d26, #1a5c3e)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 10, color: '#fff', fontWeight: 700,
+                              }}>
+                                {m.display_name?.charAt(0).toUpperCase()}
+                              </span>
+                              {m.display_name}
+                            </div>
+                          ))
+                        : Array.from({ length: count }).map((_, i) => (
+                            <div key={i} style={{
+                              padding: '5px 14px', borderRadius: 99, fontSize: 12,
+                              background: 'var(--color-background-secondary)',
+                              color: 'var(--color-text-tertiary)',
+                              border: '0.5px solid var(--color-border-tertiary)',
+                            }}>
+                              Member {i + 1}
+                            </div>
+                          ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Join CTA */}
+                <button
+                  onClick={() => handleJoin(t.invite_code, t.id)}
+                  disabled={loading}
+                  style={{
+                    width: '100%', padding: '14px 0', border: 'none', cursor: 'pointer',
+                    background: isJoining ? '#15803d' : '#16a34a',
+                    color: '#ffffff', fontSize: 14, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    transition: 'background 0.15s',
+                    opacity: loading && !isJoining ? 0.4 : 1,
+                  }}>
+                  {isJoining
+                    ? <><Spinner className="w-4 h-4" /> Joining {t.name}…</>
+                    : <>Join {t.name} →</>
+                  }
+                </button>
+              </div>
+            )}
           </div>
         )
       })}
@@ -715,9 +808,12 @@ function NoTribePanel({
     setInitLoading(false)
   }
 
+  // Run on mount and when the comp/tournament context changes
+  // Note: loadMyComps is NOT in deps to avoid re-render loops after joining
   useEffect(() => {
     if (session) loadMyComps()
-  }, [session, selectedComp?.id, effectiveTournId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id, selectedComp?.id, effectiveTournId])
 
   const lookupComp = async () => {
     setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
@@ -773,14 +869,21 @@ function NoTribePanel({
   }
 
   const joinTribe = async (inviteCode: string) => {
+    if (loading) return  // prevent double-submit
     setLoading(true); setError(null)
-    const { error } = await fetch('/api/tribes', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invite_code: inviteCode }),
-    }).then(r=>r.json())
-    setLoading(false)
-    if (error) { setError(error); return }
-    onJoined()
+    try {
+      const { error } = await fetch('/api/tribes', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_code: inviteCode }),
+      }).then(r => r.json())
+      if (error) { setError(error); setLoading(false); return }
+      // Call onJoined after clearing loading state to avoid render loop
+      setLoading(false)
+      onJoined()
+    } catch {
+      setLoading(false)
+      setError('Something went wrong — please try again')
+    }
   }
 
   const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1300,7 +1403,7 @@ export default function TribePage() {
     if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
   }, [tab, tribe])
 
-  const loadTribe = async () => {
+  const loadTribe = useCallback(async () => {
     setLoading(true)
     try {
       const { data: userRow } = await supabase
