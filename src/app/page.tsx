@@ -343,6 +343,8 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
   const [modal,       setModal]       = useState<'join' | 'create' | null>(null)
+  // Per-comp rank: { [compId]: { pts, rank } }
+  const [compRanks,   setCompRanks]   = useState<Record<string, { pts: number; rank: number }>>({})
 
   const {
     activeTournaments, tournsComps,
@@ -389,6 +391,21 @@ export default function HomePage() {
       // Tournaments + comps are managed by UserPrefsContext
       // Just set loading false once profile is done
       setLoading(false)
+    }
+    load()
+
+    // Fetch per-comp ranks when tournsComps changes
+    const loadCompRanks = async (comps: typeof tournsComps) => {
+      if (!session || comps.length === 0) return
+      const results: Record<string, { pts: number; rank: number }> = {}
+      await Promise.all(comps.map(async c => {
+        try {
+          const d = await fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&limit=200`).then(r => r.json())
+          const me = d.my_entry ?? (d.data ?? []).find((e: any) => e.user_id === session.user.id)
+          if (me) results[c.id] = { pts: me.total_points, rank: me.rank ?? 0 }
+        } catch { /* ignore */ }
+      }))
+      setCompRanks(results)
     }
     load()
   }, [session, supabase])
@@ -451,14 +468,14 @@ export default function HomePage() {
 
       {/* ── Logged in: tournament + comp selector ── */}
       {session && (
-        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* Card 1 — Tournament + favourite team (grouped together) */}
-          <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', overflow: 'hidden' }}>
+          {/* Single consolidated card — tournament, welcome, fav team, comps */}
+          <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 20, overflow: 'hidden' }}>
 
             {/* Tournament pills */}
-            <div style={{ padding: '14px 16px', borderBottom: selectedTournId && selectedTourn?.teams?.length ? '0.5px solid var(--color-border-tertiary)' : 'none' }}>
-              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 {activeTournaments.length > 1 ? 'Select tournament' : 'Tournament'}
               </p>
               {(loading || contextLoading) ? (
@@ -475,7 +492,7 @@ export default function HomePage() {
                       <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                          borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
+                          borderRadius: 99, cursor: isSel ? 'default' : 'pointer',
                           border: isSel ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
                           background: isSel ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
                           color: isSel ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
@@ -491,11 +508,52 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Favourite team — inside same card, only when tournament has teams */}
-            {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
-              <div style={{ padding: '12px 16px', background: 'var(--color-background-secondary)' }}>
+            {/* Welcome strip — sits under the tournament banner */}
+            {session && displayName && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px',
+                background: 'var(--color-background-secondary)',
+                borderBottom: '0.5px solid var(--color-border-tertiary)',
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #153d26, #16a34a)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 700, color: '#fff',
+                  }}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Welcome back, {displayName}! 👋
+                  </span>
+                </div>
+                {/* Global rank pill */}
+                {(totalPts !== null || myRank !== null) && (
+                  <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+                    {totalPts !== null && (
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#16a34a', lineHeight: 1 }}>{totalPts}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 10, color: 'var(--color-text-tertiary)' }}>pts</p>
+                      </div>
+                    )}
+                    {myRank !== null && (
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>#{myRank}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 10, color: 'var(--color-text-tertiary)' }}>global</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Favourite team */}
+            {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+              <div style={{ padding: '11px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
                     ⭐ Fav team
                   </span>
                   <select
@@ -505,8 +563,7 @@ export default function HomePage() {
                     style={{
                       flex: 1, padding: '6px 10px', fontSize: 13,
                       border: favTeam ? '1.5px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-                      borderRadius: 'var(--border-radius-md)',
-                      background: 'var(--color-background-primary)',
+                      borderRadius: 8, background: 'var(--color-background-primary)',
                       color: favTeam ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
                       cursor: 'pointer', outline: 'none', fontWeight: favTeam ? 500 : 400,
                     }}>
@@ -518,9 +575,8 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Card 2 — Comp picker */}
+          {/* Comp picker — inline in same card, only when tournament selected */}
           {selectedTournId && (
             <div style={{
               background: 'var(--color-background-primary)',
@@ -623,21 +679,37 @@ export default function HomePage() {
                           }
                         </div>
 
-                        {/* Name + context */}
+                        {/* Name + admin badge */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{
-                            margin: 0, fontSize: 14, fontWeight: isSel ? 700 : 500,
-                            color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {c.name}
-                          </p>
-                          {isAdmin && (
-                            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-success)', opacity: 0.8 }}>
-                              🛠 Comp manager
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <p style={{
+                              margin: 0, fontSize: 14, fontWeight: isSel ? 700 : 500,
+                              color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {c.name}
                             </p>
-                          )}
+                            {isAdmin && (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-warning)', background: 'var(--color-background-warning)', padding: '1px 6px', borderRadius: 99, flexShrink: 0 }}>
+                                🛠 admin
+                              </span>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Comp rank + pts inline */}
+                        {compRanks[c.id] && (
+                          <div style={{ display: 'flex', gap: 10, flexShrink: 0, alignItems: 'center' }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)', lineHeight: 1 }}>
+                                {compRanks[c.id].pts}<span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>pts</span>
+                              </p>
+                              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                                #{compRanks[c.id].rank} in comp
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Selection indicator */}
                         {isSel ? (
@@ -684,61 +756,7 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Context summary bar */}
-          {(selectedTourn || selectedComp) && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-lg)', border: '0.5px solid var(--color-border-tertiary)' }}>
-              {selectedComp?.logo_url
-                ? <img src={selectedComp.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 'var(--border-radius-md)', objectFit: 'cover', flexShrink: 0 }} />
-                : <img src="/wc2026-logo.png" alt="" style={{ width: 28, height: 'auto', flexShrink: 0 }} />
-              }
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedComp ? selectedComp.name : selectedTourn?.name}
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                  {selectedComp && selectedTourn && (
-                    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{selectedTourn.name}</span>
-                  )}
-                  {favTeam && (
-                    <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>· ⭐ {favTeam}</span>
-                  )}
-                </div>
-              </div>
-              {!selectedComp && (
-                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>No comp selected</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {session && !loading && (
-        <div className="mb-6">
-          {/* Welcome card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-3 flex-1 min-w-[140px]">
-              {!selectedComp?.logo_url && (
-                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
-                  {(displayName ?? session.user.email ?? 'P').charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-semibold text-gray-900">
-                  Welcome back, {displayName}! 👋
-                </p>
-                {selectedComp && (
-                  <p className="text-xs text-blue-600 mt-0.5">🏢 {selectedComp.name}</p>
-                )}
-                {selectedTourn && (
-                  <p className="text-xs text-gray-400 mt-0.5">⚽ {selectedTourn.name}</p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-4">
-              {totalPts !== null && <div className="text-center"><p className="text-xl font-bold text-green-700">{totalPts}</p><p className="text-[11px] text-gray-400">points</p></div>}
-              {myRank   !== null && <div className="text-center"><p className="text-xl font-bold text-gray-800">#{myRank}</p><p className="text-[11px] text-gray-400">rank</p></div>}
-            </div>
-          </div>
+          </div>  {/* ← close consolidated card */}
         </div>
       )}
 
