@@ -7,12 +7,11 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-const NAV = [
-  { href: '/',            label: 'My Comp' },
-  { href: '/predict',     label: 'Predict' },
+const NAV_BASE = [
+  { href: '/',            label: 'My Comp'    },
   { href: '/leaderboard', label: 'ScoreBoard' },
   { href: '/tribe',       label: 'Join tribe' },
-  { href: '/rules',       label: 'Rules' },
+  { href: '/rules',       label: 'Rules'      },
 ]
 
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -20,7 +19,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin } = useUserPrefs()
+  const { isCompAdmin, selectedCompId } = useUserPrefs()
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -41,7 +40,10 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
           {/* Nav links — only shown when logged in */}
           {session && (
             <div className="flex items-center gap-0.5 overflow-x-auto">
-              {NAV.map(item => (
+              {[
+                  ...(selectedCompId ? [{ href: '/predict', label: 'Predict' }] : []),
+                  ...NAV_BASE,
+                ].map(item => (
                 <Link key={item.href} href={item.href}
                   className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
                     (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))

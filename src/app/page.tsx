@@ -363,7 +363,7 @@ export default function HomePage() {
     selectedTournId, selectedCompId,
     selectedTourn, selectedComp,
     isCompAdmin,
-    pickTournament, pickComp,
+    pickTournament, pickComp, refreshComps,
     loading: contextLoading,
   } = useUserPrefs()
 
@@ -802,8 +802,10 @@ export default function HomePage() {
           onClose={() => setModal(null)}
           onSuccess={async (comp) => {
             setModal(null)
-            // Refresh context so the new comp appears selected in the card list
+            // Add to tournsComps list and select it
             await pickComp(comp as any)
+            // Re-fetch full comp list so any server-side data (invite code etc) is fresh
+            await refreshComps()
           }}
         />
       )}

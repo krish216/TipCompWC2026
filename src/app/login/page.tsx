@@ -195,19 +195,14 @@ export default function LoginPage() {
 
       const newUser = signUpData.user
       if (newUser) {
-        // Upsert user row — PUBLIC org by default, onboarding_complete = false
-        const { data: publicOrg } = await supabase
-          .from('comps').select('id').eq('slug', 'public').single()
+        // Upsert user row — no default comp, user will pick on homepage
         await supabase.from('users').upsert({
           id:                  newUser.id,
           email:               newUser.email!,
           display_name:        displayName,
-          favourite_team:      favTeamForTourn || null,
           country:             country || null,
           timezone:            timezone || 'UTC',
           date_of_birth:       birthYear ? `${birthYear}-01-01` : null,
-          tournament_id:       (selectedTourn || tournaments[0]?.id) ?? null,
-          comp_id:              (publicOrg as any)?.id ?? null,
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
@@ -384,10 +379,10 @@ export default function LoginPage() {
             <button onClick={() => completeOnboarding()}
               disabled={onboardingLoading}
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-gray-300 rounded-xl p-4 text-left transition-colors disabled:opacity-50">
-              <span className="text-2xl">🌍</span>
+              <span className="text-2xl">⏭️</span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Continue with Public</p>
-                <p className="text-xs text-gray-500 mt-0.5">Join the public competition — anyone can see your results</p>
+                <p className="text-sm font-semibold text-gray-900">Skip for now</p>
+                <p className="text-xs text-gray-500 mt-0.5">You can join or create a comp from the home page</p>
               </div>
               {onboardingLoading && <Spinner className="w-4 h-4 ml-auto" />}
             </button>

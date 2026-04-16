@@ -157,13 +157,27 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   }, [loadComps])
 
   const pickComp = useCallback(async (comp: Comp) => {
+    // Add to tournsComps if not already present (e.g. just joined via modal)
+    setTournsComps(prev => prev.find(c => c.id === comp.id) ? prev : [...prev, comp])
     setSelectedCompId(comp.id)
-    // No async admin check needed — isCompAdmin is derived from adminCompIds Set
+    // Update adminCompIds if user is admin for this comp
+    await fetch('/api/comp-admins').then(r => r.json()).then(d => {
+      if (d.is_comp_admin && d.comps?.length) {
+        setAdminCompIds(new Set((d.comps as any[]).map((c: any) => c.id)))
+        setAdminComps(d.comps)
+      }
+    }).catch(() => {})
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comp_id: comp.id }),
     })
   }, [])
+
+  // refreshComps — re-fetches comps for the current tournament (called after joining/creating)
+  const refreshComps = useCallback(async () => {
+    if (!session || !selectedTournId) return
+    await loadComps(selectedTournId, session.user.id, selectedCompId)
+  }, [session, selectedTournId, selectedCompId, loadComps])
 
   const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null
   const selectedComp  = tournsComps.find(c => c.id === selectedCompId) ?? null
@@ -176,7 +190,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       selectedTournId, selectedCompId,
       selectedTourn, selectedComp,
       isCompAdmin, adminComps,
-      pickTournament, pickComp,
+      pickTournament, pickComp, refreshComps,
       loading,
     }}>
       {children}
