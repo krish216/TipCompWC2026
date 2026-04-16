@@ -66,8 +66,8 @@ export default function SettingsPage() {
   const [prefs,         setPrefs]         = useState<NotifPrefs>({ push_enabled: true, email_enabled: true, tribe_nudges: false })
   const [loading,       setLoading]       = useState(true)
   const [savingName,    setSavingName]    = useState(false)
-  const [dob,           setDob]           = useState('')
-  const [savingDob,     setSavingDob]     = useState(false)
+  const [birthYear,     setBirthYear]     = useState('')
+  const [savingYear,    setSavingYear]    = useState(false)
   const [avatar,        setAvatar]        = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [savingPrefs,   setSavingPrefs]   = useState(false)
@@ -84,7 +84,9 @@ export default function SettingsPage() {
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
-        setDob((userRes.data as any).date_of_birth ?? '')
+        // Extract year from stored date_of_birth (stored as YYYY-01-01 from registration)
+        const dob = (userRes.data as any).date_of_birth ?? ''
+        setBirthYear(dob ? dob.split('-')[0] : '')
         const ct = (userRes.data as any).country ?? ''
         const tz = (userRes.data as any).timezone ?? 'UTC'
         setCountry(ct); setSavedCountry(ct)
@@ -139,12 +141,18 @@ export default function SettingsPage() {
     if (error) { toast.error('Failed to save preference'); setPrefs(prefs) }
   }
 
-  const saveDob = async () => {
-    if (!session || !dob) return
-    setSavingDob(true)
-    await supabase.from('users').update({ date_of_birth: dob }).eq('id', session.user.id)
-    setSavingDob(false)
-    toast.success('Date of birth saved')
+  const saveYear = async () => {
+    if (!session || !birthYear) return
+    const yr = parseInt(birthYear, 10)
+    const maxYr = new Date().getFullYear() - 5
+    if (isNaN(yr) || yr < 1920 || yr > maxYr) {
+      toast.error(`Year must be between 1920 and ${maxYr}`)
+      return
+    }
+    setSavingYear(true)
+    await supabase.from('users').update({ date_of_birth: `${birthYear}-01-01` }).eq('id', session.user.id)
+    setSavingYear(false)
+    toast.success('Year of birth saved')
   }
 
   const signOut = async () => {
@@ -313,25 +321,55 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      {/* Date of birth */}
+      {/* Year of birth */}
       <section className="mb-6">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date of birth</h2>
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Year of birth</h2>
         <Card>
           <p className="text-xs text-gray-500 mb-3">
             Required if you want to join an age-restricted comp. Not shown publicly.
           </p>
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <input type="date" value={dob} onChange={e => setDob(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-            </div>
-            <button onClick={saveDob} disabled={savingDob || !dob}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
-              {savingDob && <Spinner className="w-3 h-3 text-white" />}
-              Save
-            </button>
-          </div>
+          {(() => {
+            const yr         = birthYear ? parseInt(birthYear, 10) : NaN
+            const maxYr      = new Date().getFullYear() - 5
+            const yearInvalid = birthYear.length === 4 && (isNaN(yr) || yr < 1920 || yr > maxYr)
+            const yearValid   = birthYear.length === 4 && !yearInvalid
+            return (
+              <>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      list="settings-birth-year-list"
+                      value={birthYear}
+                      onChange={e => setBirthYear(e.target.value)}
+                      placeholder="e.g. 1990"
+                      min={1920}
+                      max={maxYr}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                        yearInvalid ? 'border-red-400 bg-red-50' : yearValid ? 'border-green-400' : 'border-gray-300'
+                      }`}
+                    />
+                    <datalist id="settings-birth-year-list">
+                      {Array.from({ length: maxYr - 1919 }, (_, i) => maxYr - i).map(y => (
+                        <option key={y} value={y} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <button onClick={saveYear} disabled={savingYear || !yearValid}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
+                    {savingYear && <Spinner className="w-3 h-3 text-white" />}
+                    Save
+                  </button>
+                </div>
+                {yearInvalid && (
+                  <p className="text-xs text-red-600 mt-1.5">Enter a year between 1920 and {maxYr}</p>
+                )}
+                {yearValid && (
+                  <p className="text-xs text-green-600 mt-1.5">✓ Valid year of birth</p>
+                )}
+              </>
+            )
+          })()}
         </Card>
       </section>
 

@@ -45,8 +45,9 @@ export default function LoginPage() {
 
   // Registration fields
   const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [name,     setName]     = useState('')
+  const [password,        setPassword]        = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [name,            setName]            = useState('')
   const [country,  setCountry]  = useState('')
   const [timezone, setTimezone] = useState('UTC')
   const [favTeam,      setFavTeam]      = useState('')
@@ -162,8 +163,35 @@ export default function LoginPage() {
     }
 
     if (mode === 'register') {
+      // ── Client-side validation ──────────────────────────────────────────
+      const displayName = name.trim()
+
+      if (!displayName) {
+        setError('Please enter a display name')
+        return
+      }
+      if (displayName.length < 3) {
+        setError('Display name must be at least 3 characters')
+        return
+      }
+
+      const currentYear = new Date().getFullYear()
+      const yearNum = birthYear ? parseInt(birthYear, 10) : NaN
+      if (birthYear && (isNaN(yearNum) || yearNum < 1920 || yearNum > currentYear - 5)) {
+        setError(`Year of birth must be between 1920 and ${currentYear - 5}`)
+        return
+      }
+
+      if (password !== confirmPassword) {
+        setError('Passwords do not match — please re-enter')
+        return
+      }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters')
+        return
+      }
+
       setLoading(true)
-      const displayName = name.trim() || email.split('@')[0]
 
       // Check display name uniqueness
       const { data: nameCheck } = await supabase
@@ -497,7 +525,7 @@ export default function LoginPage() {
         {/* Mode tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-6">
           {(['login','register','magic','reset'] as Mode[]).map(m => (
-            <button key={m} onClick={() => { setMode(m); setError(null) }}
+            <button key={m} onClick={() => { setMode(m); setError(null); setConfirmPassword('') }}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}>
@@ -510,10 +538,19 @@ export default function LoginPage() {
           {mode === 'register' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Display name</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Display name <span className="text-red-500">*</span>
+                </label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)}
-                  placeholder="GoalMaster99" maxLength={40}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                  placeholder="GoalMaster99" maxLength={40} required
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                    name.trim().length > 0 && name.trim().length < 3
+                      ? 'border-amber-400'
+                      : 'border-gray-300'
+                  }`} />
+                {name.trim().length > 0 && name.trim().length < 3 && (
+                  <p className="text-[11px] text-amber-600 mt-1">Minimum 3 characters</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Country</label>
@@ -613,21 +650,37 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Year of birth <span className="text-gray-400 font-normal">(required for age-restricted comps)</span>
                 </label>
-                <input
-                  type="number"
-                  list="birth-year-list"
-                  value={birthYear}
-                  onChange={e => setBirthYear(e.target.value)}
-                  placeholder="e.g. 1990"
-                  min={1920}
-                  max={new Date().getFullYear() - 5}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-                />
-                <datalist id="birth-year-list">
-                  {Array.from({ length: new Date().getFullYear() - 5 - 1919 }, (_, i) => new Date().getFullYear() - 5 - i).map(y => (
-                    <option key={y} value={y} />
-                  ))}
-                </datalist>
+                {(() => {
+                  const yr = birthYear ? parseInt(birthYear, 10) : NaN
+                  const maxYr = new Date().getFullYear() - 5
+                  const yearInvalid = birthYear.length === 4 && (isNaN(yr) || yr < 1920 || yr > maxYr)
+                  return (
+                    <>
+                      <input
+                        type="number"
+                        list="birth-year-list"
+                        value={birthYear}
+                        onChange={e => setBirthYear(e.target.value)}
+                        placeholder="e.g. 1990"
+                        min={1920}
+                        max={maxYr}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                          yearInvalid ? 'border-red-400' : 'border-gray-300'
+                        }`}
+                      />
+                      <datalist id="birth-year-list">
+                        {Array.from({ length: maxYr - 1919 }, (_, i) => maxYr - i).map(y => (
+                          <option key={y} value={y} />
+                        ))}
+                      </datalist>
+                      {yearInvalid && (
+                        <p className="text-[11px] text-red-600 mt-1">
+                          Enter a year between 1920 and {maxYr}
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </>
           )}
@@ -646,6 +699,27 @@ export default function LoginPage() {
                 value={password} onChange={e => setPassword(e.target.value)}
                 placeholder={mode === 'register' ? 'Min 8 characters' : '••••••••'}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            </div>
+          )}
+          {mode === 'register' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Confirm password</label>
+              <input type="password" required
+                value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                  confirmPassword && confirmPassword !== password
+                    ? 'border-red-400 bg-red-50'
+                    : confirmPassword && confirmPassword === password
+                    ? 'border-green-400'
+                    : 'border-gray-300'
+                }`} />
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-[11px] text-red-600 mt-1">Passwords do not match</p>
+              )}
+              {confirmPassword && confirmPassword === password && (
+                <p className="text-[11px] text-green-600 mt-1">✓ Passwords match</p>
+              )}
             </div>
           )}
 
