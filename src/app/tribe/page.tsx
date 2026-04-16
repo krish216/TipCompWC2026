@@ -549,7 +549,7 @@ function SwitchTribePanel({
     // Leave current tribe then join new one
     await fetch('/api/tribes', { method: 'DELETE' })
     const { error } = await fetch('/api/tribes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invite_code: selected }),
     }).then(r => r.json())
     setLoading(false)
@@ -642,27 +642,23 @@ function NoTribePanel({
   const loadMyComps = async () => {
     if (!session) return
     try {
-      const res  = await fetch('/api/user-comps')
-      const data = await res.json()
-      let comps: any[] = []
-      if (!data.error && Array.isArray(data.data) && data.data.length > 0) {
-        comps = data.data
-          .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
-          .filter((c: any) => c && (!effectiveTournId || c.tournament_id === effectiveTournId))
-      }
-      if (comps.length === 0) {
-        const { data: ur } = await supabase.from('users').select('comp_id').eq('id', session.user.id).single()
-        const cid = (ur as any)?.comp_id
-        if (cid) {
-          const { data: cr } = await supabase.from('comps')
-            .select('id, name, slug, logo_url, tournament_id').eq('id', cid).single()
-          if (cr && (!effectiveTournId || (cr as any).tournament_id === effectiveTournId)) comps = [cr]
-        }
-      }
-      setMyComps(comps)
-      if (comps.length > 0) {
+      // Only load tribes for the selected comp (from home page context)
+      // If no comp is selected, fall back to all comps for this tournament
+      const compsToLoad = selectedComp
+        ? [selectedComp]
+        : await (async () => {
+            const res  = await fetch(effectiveTournId ? `/api/user-comps?tournament_id=${effectiveTournId}` : '/api/user-comps')
+            const data = await res.json()
+            return (data.data ?? [])
+              .map((uc: any) => Array.isArray(uc.comps) ? uc.comps[0] : uc.comps)
+              .filter(Boolean)
+          })()
+
+      setMyComps(compsToLoad)
+
+      if (compsToLoad.length > 0) {
         const map: Record<string,any[]> = {}
-        await Promise.all(comps.map(async (c: any) => {
+        await Promise.all(compsToLoad.map(async (c: any) => {
           const r = await fetch(`/api/tribes/list?comp_id=${c.id}`)
           const d = await r.json()
           map[c.id] = d.data ?? []
@@ -673,15 +669,9 @@ function NoTribePanel({
     setInitLoading(false)
   }
 
-  // Run immediately when effectiveTournId is known — don't wait on session separately
   useEffect(() => {
-    if (effectiveTournId) {
-      loadMyComps()
-    } else if (session) {
-      // No tournament selected yet — still load comps without tournament filter
-      loadMyComps()
-    }
-  }, [session, effectiveTournId])
+    if (session) loadMyComps()
+  }, [session, selectedComp?.id, effectiveTournId])
 
   const lookupComp = async () => {
     setLookingUp(true); setCompCodeErr(null); setCompLookup(null)
@@ -739,7 +729,7 @@ function NoTribePanel({
   const joinTribe = async (inviteCode: string) => {
     setLoading(true); setError(null)
     const { error } = await fetch('/api/tribes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invite_code: inviteCode }),
     }).then(r=>r.json())
     setLoading(false)
@@ -987,7 +977,8 @@ export default function TribePage() {
       const tid = (userRow as any)?.tournament_id ?? null
       setActiveTournamentId(tid)
 
-      const tribeRes = await fetch('/api/tribes')
+      const compParam = selectedComp?.id ? `?comp_id=${selectedComp.id}` : ''
+      const tribeRes = await fetch(`/api/tribes${compParam}`)
       const tribeData = await tribeRes.json()
 
       // Fetch fixtures in background — don't block tribe display on failure

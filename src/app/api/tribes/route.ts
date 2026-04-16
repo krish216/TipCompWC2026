@@ -6,33 +6,44 @@ import { z } from 'zod'
 const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().optional(), tournament_id: z.string().uuid().optional() })
 const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCase() })
 
-// Helper — check if user is org admin
+// Helper — check if user is a comp admin (for any comp)
 async function getUserOrgInfo(userId: string) {
   const adminClient = createAdminClient()
-  const { data: user } = await adminClient
-    .from('users').select('comp_id').eq('id', userId).single()
-  const compId = (user as any)?.comp_id ?? null
-
   const { data: compAdmin } = await (adminClient.from('comp_admins') as any)
-    .select('comp_id').eq('user_id', userId).single()
-
+    .select('comp_id').eq('user_id', userId).limit(1).single()
   return {
-    comp_id:       compId,
+    comp_id:      (compAdmin as any)?.comp_id ?? null,
     is_org_admin: !!compAdmin,
   }
 }
 
-// GET /api/tribes — get current user's tribe + members
+// GET /api/tribes?comp_id= — get current user's tribe for the given comp
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: me } = await supabase
-    .from('users').select('tribe_id').eq('id', user.id).single()
-  if (!(me as any)?.tribe_id) return NextResponse.json({ data: null })
+  const compId = new URL(request.url).searchParams.get('comp_id')
 
-  const tribeId = (me as any).tribe_id
+  // Get tribe from tribe_members scoped to the selected comp
+  let tribeId: string | null = null
+  if (compId) {
+    // Find the tribe the user is in that belongs to this comp
+    const adminClient = createAdminClient()
+    const { data: rows } = await (adminClient.from('tribe_members') as any)
+      .select('tribe_id, tribes!inner(comp_id)')
+      .eq('user_id', user.id)
+      .eq('tribes.comp_id', compId)
+      .limit(1)
+    tribeId = (rows?.[0] as any)?.tribe_id ?? null
+  } else {
+    // Fallback: first tribe membership
+    const { data: membership } = await supabase
+      .from('tribe_members').select('tribe_id').eq('user_id', user.id).limit(1).single()
+    tribeId = (membership as any)?.tribe_id ?? null
+  }
+
+  if (!tribeId) return NextResponse.json({ data: null })
 
   const { data: tribe, error } = await supabase
     .from('tribes').select('id, name, invite_code, created_at, comp_id, tournament_id').eq('id', tribeId).single()
@@ -146,20 +157,23 @@ export async function PATCH(request: NextRequest) {
   const parsed = JoinTribeSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid invite code' }, { status: 422 })
 
-  const { data: me } = await supabase
-    .from('users').select('tribe_id, comp_id').eq('id', user.id).single()
-  if ((me as any)?.tribe_id) return NextResponse.json({ error: 'Already in a tribe' }, { status: 409 })
-
-  const userCompId = (me as any)?.comp_id ?? null
-
-  const { data: tribe } = await supabase
-    .from('tribes').select('id, name, comp_id').eq('invite_code', parsed.data.invite_code).single()
+  const { data: tribe } = await (adminClient.from('tribes') as any)
+    .select('id, name, comp_id').eq('invite_code', parsed.data.invite_code).single()
   if (!tribe) return NextResponse.json({ error: 'Tribe not found — check the invite code' }, { status: 404 })
 
-  // Enforce org membership
-  if (userCompId && (tribe as any).comp_id && userCompId !== (tribe as any).comp_id) {
-    return NextResponse.json({ error: 'This tribe belongs to a different comp' }, { status: 403 })
+  // Verify user belongs to this comp (via user_comps — source of truth)
+  if ((tribe as any).comp_id) {
+    const { data: compMembership } = await (adminClient.from('user_comps') as any)
+      .select('comp_id').eq('user_id', user.id).eq('comp_id', (tribe as any).comp_id).single()
+    if (!compMembership) {
+      return NextResponse.json({ error: 'You must join the comp before joining this tribe' }, { status: 403 })
+    }
   }
+
+  // Check not already in this specific tribe
+  const { data: alreadyIn } = await (adminClient.from('tribe_members') as any)
+    .select('tribe_id').eq('user_id', user.id).eq('tribe_id', (tribe as any).id).single()
+  if (alreadyIn) return NextResponse.json({ error: 'Already in this tribe' }, { status: 409 })
 
   // Enforce max tribe size of 25
   const { count: memberCount } = await supabase
@@ -170,7 +184,6 @@ export async function PATCH(request: NextRequest) {
 
   await Promise.all([
     supabase.from('tribe_members').insert({ user_id: user.id, tribe_id: (tribe as any).id }),
-    supabase.from('users').update({ tribe_id: (tribe as any).id }).eq('id', user.id),
   ])
 
   return NextResponse.json({ data: tribe })
@@ -182,14 +195,12 @@ export async function DELETE() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: me } = await supabase
-    .from('users').select('tribe_id').eq('id', user.id).single()
-  if (!(me as any)?.tribe_id) return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
+  // Get tribe from tribe_members
+  const { data: tmbr } = await supabase
+    .from('tribe_members').select('tribe_id').eq('user_id', user.id).limit(1).single()
+  if (!(tmbr as any)?.tribe_id) return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
 
-  await Promise.all([
-    supabase.from('tribe_members').delete().match({ user_id: user.id, tribe_id: (me as any).tribe_id }),
-    supabase.from('users').update({ tribe_id: null }).eq('id', user.id),
-  ])
+  await supabase.from('tribe_members').delete().match({ user_id: user.id, tribe_id: (tmbr as any).tribe_id })
 
   return NextResponse.json({ success: true })
 }
