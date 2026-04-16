@@ -1456,9 +1456,9 @@ export default function TribePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [session, supabase, selectedComp?.id])
 
-  useEffect(() => { if (session) loadTribe() }, [session])
+  useEffect(() => { if (session) loadTribe() }, [session, selectedComp?.id, loadTribe])
 
   const leaveTribe = async () => {
     if (!confirm('Leave this tribe? Your predictions and points history are kept.')) return
