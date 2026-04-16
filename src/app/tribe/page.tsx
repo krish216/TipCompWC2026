@@ -1376,6 +1376,40 @@ function NoTribePanel({
 }
 
 
+
+// ── Prizes display ────────────────────────────────────────────────────────────
+function PrizesDisplay({ compId }: { compId: string }) {
+  const [prizes, setPrizes] = useState<any[]>([])
+  useEffect(() => {
+    fetch(`/api/comp-prizes?comp_id=${compId}`)
+      .then(r => r.json())
+      .then(d => setPrizes(d.data ?? []))
+      .catch(() => {})
+  }, [compId])
+  if (prizes.length === 0) return null
+  return (
+    <div style={{
+      background: 'var(--color-background-primary)',
+      border: '0.5px solid var(--color-border-tertiary)',
+      borderRadius: 16, padding: '14px 16px', marginBottom: 12,
+    }}>
+      <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Prizes 🏆
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {prizes.map((p: any) => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-tertiary)', width: 28, flexShrink: 0 }}>
+              {p.place === 1 ? '🥇' : p.place === 2 ? '🥈' : p.place === 3 ? '🥉' : `#${p.place}`}
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{p.description}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function TribePage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
