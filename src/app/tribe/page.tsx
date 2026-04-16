@@ -1381,6 +1381,8 @@ export default function TribePage() {
   const { timezone } = useTimezone()
   const { selectedComp, selectedTourn } = useUserPrefs()
 
+  type ExtendedTab = MainTab | 'manage'
+
   const [tribe,          setTribe]          = useState<TribeData | null>(null)
   const [tribePicksData, setTribePicksData] = useState<any | null>(null)
   const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
@@ -1388,9 +1390,12 @@ export default function TribePage() {
   const [fixtures,       setFixtures]       = useState<Fixture[]>([])
   const [loading,        setLoading]        = useState(true)
   const [tab,            setTab]            = useState<MainTab>('leaderboard')
+  const [extTab,         setExtTab]         = useState<ExtendedTab>('leaderboard')
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
   const myId = session?.user.id ?? ''
+
+  const activeMainTab = extTab === 'manage' ? tab : extTab as MainTab
 
   const loadPicks = async () => {
     if (!tribe) return
@@ -1535,12 +1540,6 @@ export default function TribePage() {
       />
     </div>
   )
-
-  // ── Tab definitions ─────────────────────────────────────────────────────────
-  type ExtendedTab = MainTab | 'manage'
-  const [extTab, setExtTab] = useState<ExtendedTab>('leaderboard')
-  // sync extTab → tab for existing components
-  const activeMainTab = extTab === 'manage' ? tab : extTab as MainTab
 
   const TAB_ITEMS: { id: ExtendedTab; label: string; icon: string }[] = [
     { id: 'leaderboard', label: 'Standings', icon: '🏅' },
