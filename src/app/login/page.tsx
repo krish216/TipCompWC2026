@@ -28,7 +28,7 @@ export default function LoginPage() {
   const { supabase, session } = useSupabase()
   const router  = useRouter()
   const params  = useSearchParams()
-  const redirect = params.get('redirect') ?? '/predict'
+  const redirect = params.get('redirect') ?? '/'
   const tabParam = params.get('tab') as Mode | null
 
   const [mode,     setMode]     = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
