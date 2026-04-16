@@ -686,7 +686,8 @@ function SwitchTribePanel({
     if (!selected) return
     setLoading(true)
     // Leave current tribe then join new one
-    await fetch('/api/tribes', { method: 'DELETE' })
+    const cparam = compId ? `?comp_id=${compId}` : ''
+    await fetch(`/api/tribes${cparam}`, { method: 'DELETE' })
     const { error } = await fetch('/api/tribes', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invite_code: selected }),
@@ -1462,7 +1463,8 @@ export default function TribePage() {
 
   const leaveTribe = async () => {
     if (!confirm('Leave this tribe? Your predictions and points history are kept.')) return
-    const res = await fetch('/api/tribes', { method: 'DELETE' })
+    const compParam = (tribe as any).comp_id ? `?comp_id=${(tribe as any).comp_id}` : ''
+    const res = await fetch(`/api/tribes${compParam}`, { method: 'DELETE' })
     if (res.ok) { toast.success('Left tribe'); setTribe(null) }
     else toast.error('Failed to leave tribe')
   }

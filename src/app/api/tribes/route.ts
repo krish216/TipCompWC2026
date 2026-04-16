@@ -149,7 +149,8 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/tribes — join a tribe by invite code (must be same org)
 export async function PATCH(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
+  const supabase     = createServerSupabaseClient()
+  const adminClient  = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -190,17 +191,31 @@ export async function PATCH(request: NextRequest) {
 }
 
 // DELETE /api/tribes — leave current tribe
-export async function DELETE() {
-  const supabase = createServerSupabaseClient()
+export async function DELETE(request: NextRequest) {
+  const supabase    = createServerSupabaseClient()
+  const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get tribe from tribe_members
-  const { data: tmbr } = await supabase
-    .from('tribe_members').select('tribe_id').eq('user_id', user.id).limit(1).single()
-  if (!(tmbr as any)?.tribe_id) return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
+  // comp_id scopes which tribe to leave (a user can be in one tribe per comp)
+  const compId = new URL(request.url).searchParams.get('comp_id')
 
-  await supabase.from('tribe_members').delete().match({ user_id: user.id, tribe_id: (tmbr as any).tribe_id })
+  let tribeId: string | null = null
+  if (compId) {
+    const { data: rows } = await (adminClient.from('tribe_members') as any)
+      .select('tribe_id, tribes!inner(comp_id)')
+      .eq('user_id', user.id)
+      .eq('tribes.comp_id', compId)
+      .limit(1)
+    tribeId = (rows?.[0] as any)?.tribe_id ?? null
+  } else {
+    const { data: tmbr } = await (adminClient.from('tribe_members') as any)
+      .select('tribe_id').eq('user_id', user.id).limit(1).single()
+    tribeId = (tmbr as any)?.tribe_id ?? null
+  }
+  if (!tribeId) return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
+
+  await (adminClient.from('tribe_members') as any).delete().match({ user_id: user.id, tribe_id: tribeId })
 
   return NextResponse.json({ success: true })
 }
