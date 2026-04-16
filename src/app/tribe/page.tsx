@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -747,8 +748,15 @@ function NoTribePanel({
   // Use selectedTourn from context (always ready) instead of waiting for effectiveTournId prop
   const effectiveTournId = selectedTourn?.id ?? activeTournamentId
 
+  const searchParams = useSearchParams()
+  const actionParam = searchParams?.get('action') ?? null
+
   type View = 'main' | 'join-comp' | 'create-comp'
-  const [view,          setView]          = useState<View>('main')
+  const [view, setView] = useState<View>(() => {
+    if (actionParam === 'join-comp')   return 'join-comp'
+    if (actionParam === 'create-comp') return 'create-comp'
+    return 'main'
+  })
   const [myComps,       setMyComps]       = useState<any[]>([])
   const [compTribesMap, setCompTribesMap] = useState<Record<string,any[]>>({})
   const [initLoading,   setInitLoading]   = useState(true)

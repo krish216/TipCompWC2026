@@ -50,12 +50,11 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, comp_id').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
-      // Override with DB value (source of truth)
       if (ud?.display_name) setDisplayName(ud.display_name)
 
       const lbData = await lbRes.json()
@@ -199,53 +198,168 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Card 2 — Comp (only after tournament is selected) */}
+          {/* Card 2 — Comp picker */}
           {selectedTournId && (
-            <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-xl)', padding: '14px 16px' }}>
-              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                {tournsComps.length > 1 ? 'Select comp' : 'Comp'}
-              </p>
+            <div style={{
+              background: 'var(--color-background-primary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 20, overflow: 'hidden',
+            }}>
+              {/* Header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: tournsComps.length > 0 ? '0.5px solid var(--color-border-tertiary)' : 'none',
+              }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  My Comps
+                </p>
+                {/* Quick-action links */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <a href="/tribe?action=join-comp" style={{
+                    fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
+                    textDecoration: 'none', padding: '4px 10px',
+                    border: '1px solid var(--color-border-tertiary)',
+                    borderRadius: 99, transition: 'all 0.15s',
+                  }}>
+                    🔑 Join
+                  </a>
+                  <a href="/tribe?action=create-comp" style={{
+                    fontSize: 12, fontWeight: 600, color: '#ffffff',
+                    textDecoration: 'none', padding: '4px 10px',
+                    background: 'linear-gradient(135deg, #153d26, #16a34a)',
+                    borderRadius: 99, transition: 'all 0.15s',
+                  }}>
+                    + Create
+                  </a>
+                </div>
+              </div>
+
+              {/* Comp list */}
               {tournsComps.length === 0 ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)' }}>No comp joined for this tournament</p>
-                  <a href="/tribe" style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-success)', textDecoration: 'none', flexShrink: 0 }}>Join one →</a>
+                /* Empty state — welcoming, not a dead end */
+                <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🏆</div>
+                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      No comp yet for this tournament
+                    </p>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
+                      Join a friend's comp with an invite code, or create one for your group.
+                    </p>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <a href="/tribe?action=join-comp" style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      padding: '12px 8px', borderRadius: 14, textDecoration: 'none',
+                      border: '1.5px solid var(--color-border-secondary)',
+                      background: 'var(--color-background-secondary)',
+                    }}>
+                      <span style={{ fontSize: 20 }}>🔑</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>Join a comp</span>
+                      <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>Have an invite code</span>
+                    </a>
+                    <a href="/tribe?action=create-comp" style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      padding: '12px 8px', borderRadius: 14, textDecoration: 'none',
+                      border: '1.5px solid rgba(22,163,74,0.3)',
+                      background: 'linear-gradient(160deg, #0a2e1c, #153d26)',
+                    }}>
+                      <span style={{ fontSize: 20 }}>🏆</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>Create a comp</span>
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>For my group</span>
+                    </a>
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {tournsComps.map(c => {
-                      const isSel = selectedCompId === c.id
-                      return (
-                        <button key={c.id} onClick={() => !isSel && pickComp(c)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                            borderRadius: 'var(--border-radius-lg)', cursor: isSel ? 'default' : 'pointer',
-                            border: isSel ? '2px solid var(--color-border-info)' : '1.5px solid var(--color-border-tertiary)',
-                            background: isSel ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
-                            color: isSel ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
-                            fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
+                /* Comp cards */
+                <div>
+                  {tournsComps.map((c, idx) => {
+                    const isSel = selectedCompId === c.id
+                    const isAdmin = isCompAdmin && isSel
+                    return (
+                      <button key={c.id} onClick={() => pickComp(c)}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+                          padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                          background: isSel ? 'var(--color-background-success)' : 'transparent',
+                          borderBottom: idx < tournsComps.length - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none',
+                          transition: 'background 0.15s',
+                          position: 'relative',
+                        }}>
+                        {/* Logo or initial */}
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                          overflow: 'hidden', border: '1px solid var(--color-border-tertiary)',
+                          background: 'var(--color-background-secondary)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {c.logo_url
+                            ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-tertiary)' }}>
+                                {c.name.charAt(0).toUpperCase()}
+                              </span>
+                          }
+                        </div>
+
+                        {/* Name + context */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{
+                            margin: 0, fontSize: 14, fontWeight: isSel ? 700 : 500,
+                            color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
-                          {c.logo_url && <img src={c.logo_url} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />}
-                          <span>{c.name}</span>
-                          {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-info)', opacity: 0.7 }} />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {/* Comp admin badge */}
-                  {isCompAdmin && selectedComp && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '8px 12px', borderRadius: 'var(--border-radius-md)',
-                      background: 'var(--color-background-warning)',
-                      border: '1px solid var(--color-border-warning)',
+                            {c.name}
+                          </p>
+                          {isAdmin && (
+                            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-success)', opacity: 0.8 }}>
+                              🛠 Comp manager
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Selection indicator */}
+                        {isSel ? (
+                          <div style={{
+                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                            background: 'var(--color-text-success)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
+                          </div>
+                        ) : (
+                          <div style={{
+                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                            border: '1.5px solid var(--color-border-tertiary)',
+                          }} />
+                        )}
+                      </button>
+                    )
+                  })}
+
+                  {/* Add more comps footer */}
+                  <div style={{
+                    display: 'flex', gap: 0,
+                    borderTop: '0.5px solid var(--color-border-tertiary)',
+                  }}>
+                    <a href="/tribe?action=join-comp" style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: 6, padding: '10px 0', textDecoration: 'none',
+                      fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
+                      borderRight: '0.5px solid var(--color-border-tertiary)',
+                      transition: 'background 0.15s',
                     }}>
-                      <span style={{ fontSize: 14 }}>🛠</span>
-                      <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: 'var(--color-text-warning)' }}>
-                        You are the Comp Manager for <strong>{selectedComp.name}</strong>
-                      </p>
-                    </div>
-                  )}
+                      🔑 Join another
+                    </a>
+                    <a href="/tribe?action=create-comp" style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: 6, padding: '10px 0', textDecoration: 'none',
+                      fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
+                      transition: 'background 0.15s',
+                    }}>
+                      + Create new
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
