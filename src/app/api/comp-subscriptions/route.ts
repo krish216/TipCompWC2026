@@ -23,10 +23,10 @@ export async function GET(request: NextRequest) {
     .from('comp_subscriptions')
     .select('*')
     .eq('comp_id', compId)
-    .single()
+    .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data, tiers: TIERS })
+  return NextResponse.json({ data: data ?? { tier: 'trial' }, tiers: TIERS })
 }
 
 // POST /api/comp-subscriptions — upgrade tier (tournament admin or org admin)

@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
     .eq('comp_id', compId)
     .order('invited_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Gracefully handle missing table (migration 053 not yet run)
+  if (error) {
+    if (error.code === '42P01') return NextResponse.json({ data: [] })  // table doesn't exist yet
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({
     data: (data ?? []).map((row: any) => ({
