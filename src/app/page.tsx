@@ -12,8 +12,8 @@ const KICKOFF = new Date('2026-06-11T19:00:00Z')
 
 
 // ── CompModal ─────────────────────────────────────────────────────────────────
-// Self-contained popup for joining or creating a comp.
-// Opens from the homepage comp section; closes and triggers context refresh on success.
+// Step-based flow matching the login/onboarding page pattern.
+// Steps: choose → join | create
 function CompModal({
   mode: initialMode,
   tournamentId,
@@ -28,39 +28,36 @@ function CompModal({
   const { session, supabase } = useSupabase()
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const [mode,        setMode]        = useState<'join' | 'create'>(initialMode)
+  type Step = 'choose' | 'join' | 'create'
+  const [step,        setStep]        = useState<Step>(initialMode === 'create' ? 'create' : initialMode === 'join' ? 'join' : 'choose')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
 
-  // Join state
+  // Join
   const [code,        setCode]        = useState('')
   const [lookingUp,   setLookingUp]   = useState(false)
-  const [preview,     setPreview]     = useState<{ id: string; name: string; logo_url?: string | null; tournament_id?: string | null } | null>(null)
+  const [preview,     setPreview]     = useState<{ id:string; name:string; logo_url?:string|null } | null>(null)
   const [codeErr,     setCodeErr]     = useState<string | null>(null)
 
-  // Create state
+  // Create
   const [compName,    setCompName]    = useState('')
   const [phone,       setPhone]       = useState('')
   const [email,       setEmail]       = useState('')
   const [logoFile,    setLogoFile]    = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
-  // Auto-lookup when code reaches 6+ chars
-  useEffect(() => {
-    if (mode !== 'join' || code.length < 6) { setPreview(null); setCodeErr(null); return }
-    const t = setTimeout(async () => {
-      setLookingUp(true); setCodeErr(null); setPreview(null)
-      try {
-        const { data, error } = await fetch(`/api/comps?code=${code}`).then(r => r.json())
-        if (error || !data) { setCodeErr('No comp found with this code'); return }
-        if (tournamentId && data.tournament_id && data.tournament_id !== tournamentId)
-          { setCodeErr('This comp belongs to a different tournament'); return }
-        setPreview(data)
-      } catch { setCodeErr('Something went wrong') }
-      finally { setLookingUp(false) }
-    }, 350)
-    return () => clearTimeout(t)
-  }, [code, mode, tournamentId])
+  const lookupCode = async () => {
+    if (code.length < 6) return
+    setLookingUp(true); setCodeErr(null); setPreview(null)
+    try {
+      const { data, error } = await fetch(`/api/comps?code=${code}`).then(r => r.json())
+      if (error || !data) { setCodeErr('Code not found — check with your comp admin'); return }
+      if (tournamentId && data.tournament_id && data.tournament_id !== tournamentId)
+        { setCodeErr('This comp belongs to a different tournament'); return }
+      setPreview(data)
+    } catch { setCodeErr('Something went wrong') }
+    finally { setLookingUp(false) }
+  }
 
   const handleJoin = async () => {
     if (!preview) return
@@ -113,234 +110,161 @@ function CompModal({
   }
 
   const content = (
-    /* Backdrop — covers full viewport via portal */
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
+        background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px',
+        padding: 16,
       }}>
-
-      {/* Dialogue card — centred on screen */}
-      <div style={{
-        width: '100%', maxWidth: 460,
-        background: 'var(--color-background-primary)',
-        borderRadius: 24,
-        overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.15)',
-        maxHeight: 'calc(100vh - 32px)',
-        display: 'flex', flexDirection: 'column',
-      }}>
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 20px 14px',
-          borderBottom: '0.5px solid var(--color-border-tertiary)',
-        }}>
-          <div style={{ display: 'flex', gap: 0, background: 'var(--color-background-secondary)', borderRadius: 10, padding: 3 }}>
-            {(['join', 'create'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError(null); setCodeErr(null) }}
-                style={{
-                  padding: '7px 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
-                  fontSize: 13, fontWeight: 600,
-                  background: mode === m ? 'var(--color-background-primary)' : 'transparent',
-                  color: mode === m ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                  boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.15s', whiteSpace: 'nowrap',
-                }}>
-                {m === 'join' ? '🔑 Join a comp' : '🏆 Create a comp'}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-3">
+            {step !== 'choose' && (
+              <button onClick={() => { setStep('choose'); setError(null); setCodeErr(null) }}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+                ← Back
               </button>
-            ))}
+            )}
+            <div className="text-2xl">
+              {step === 'choose' ? '🏆' : step === 'join' ? '🔑' : '✨'}
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">
+                {step === 'choose' ? 'Join or create a comp'
+                  : step === 'join' ? 'Join a comp'
+                  : 'Create a comp'}
+              </h2>
+              <p className="text-xs text-gray-500">
+                {step === 'choose' ? 'Choose an option below'
+                  : step === 'join' ? 'Enter your invite code'
+                  : 'Set up your group competition'}
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} style={{
-            width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            background: 'var(--color-background-secondary)',
-            color: 'var(--color-text-secondary)', fontSize: 16, fontWeight: 600,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, marginLeft: 12,
-          }}>✕</button>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex-shrink-0">
+            ✕
+          </button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="px-5 pb-5 space-y-3">
+
+          {/* ── CHOOSE ── */}
+          {step === 'choose' && (
+            <>
+              <button onClick={() => setStep('join')}
+                className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
+                <span className="text-2xl flex-shrink-0">🔑</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Join a comp</p>
+                  <p className="text-xs text-gray-500 mt-0.5">I have an invite code</p>
+                </div>
+              </button>
+              <button onClick={() => setStep('create')}
+                className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
+                <span className="text-2xl flex-shrink-0">✨</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Create a comp</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Set up a new comp for my group</p>
+                </div>
+              </button>
+            </>
+          )}
+
           {/* ── JOIN ── */}
-          {mode === 'join' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {step === 'join' && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                  Invite code
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={code}
-                    onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                    placeholder="e.g. 1VMPT0RA"
-                    maxLength={10}
-                    autoFocus
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      padding: '14px 48px 14px 16px',
-                      fontSize: 22, fontFamily: 'monospace', fontWeight: 700,
-                      letterSpacing: '0.18em', textTransform: 'uppercase',
-                      border: codeErr ? '2px solid var(--color-border-danger)'
-                        : preview ? '2px solid var(--color-border-success)'
-                        : '2px solid var(--color-border-secondary)',
-                      borderRadius: 14, outline: 'none',
-                      background: preview ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                      color: preview ? 'var(--color-text-success)' : 'var(--color-text-primary)',
-                      transition: 'all 0.2s',
-                    }}
-                  />
-                  <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                    {lookingUp ? <Spinner className="w-5 h-5" />
-                      : preview ? <span style={{ fontSize: 18 }}>✓</span>
-                      : code.length >= 6 ? <span style={{ fontSize: 14, opacity: 0.3 }}>?</span>
-                      : null}
-                  </div>
-                </div>
-                <p style={{ margin: '7px 0 0', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-                  Comp will appear automatically as you type
-                </p>
-              </div>
-
-              {codeErr && (
-                <div style={{ display: 'flex', gap: 10, padding: '12px 14px', background: 'var(--color-background-danger)', border: '1px solid var(--color-border-danger)', borderRadius: 12 }}>
-                  <span>⚠️</span>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-danger)' }}>{codeErr}</p>
-                </div>
-              )}
-
-              {preview && (
-                <div style={{ border: '1.5px solid var(--color-border-success)', borderRadius: 16, overflow: 'hidden' }}>
-                  <div style={{ padding: '14px 16px', background: 'var(--color-background-success)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                    {preview.logo_url
-                      ? <img src={preview.logo_url} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-                      : <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>🏆</div>
-                    }
-                    <div>
-                      <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>{preview.name}</p>
-                    </div>
-                  </div>
-                  <button onClick={handleJoin} disabled={loading} style={{
-                    width: '100%', padding: '14px 0', border: 'none', cursor: 'pointer',
-                    background: loading ? '#15803d' : '#16a34a', color: '#fff',
-                    fontSize: 15, fontWeight: 700,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    opacity: loading ? 0.8 : 1,
-                  }}>
-                    {loading ? <><Spinner className="w-5 h-5" /> Joining…</> : <>Join {preview.name} →</>}
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp invite code</label>
+                <div className="flex gap-2">
+                  <input type="text" value={code}
+                    onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')); setPreview(null); setCodeErr(null) }}
+                    placeholder="e.g. 1VMPT0RA" maxLength={10} autoFocus
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                  <button type="button" onClick={lookupCode}
+                    disabled={lookingUp || code.length < 6}
+                    className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1">
+                    {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
                   </button>
                 </div>
-              )}
+                {preview && (
+                  <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    {preview.logo_url
+                      ? <img src={preview.logo_url} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
+                      : <span className="text-base flex-shrink-0">🏆</span>}
+                    <p className="text-xs text-green-800 font-medium">✓ {preview.name}</p>
+                  </div>
+                )}
+                {codeErr && <p className="text-xs text-red-600 mt-1.5">{codeErr}</p>}
+              </div>
+              {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+              <button onClick={handleJoin} disabled={loading || !preview}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
+                {loading && <Spinner className="w-4 h-4 text-white" />}
+                Join {preview?.name ?? 'comp'} →
+              </button>
             </div>
           )}
 
           {/* ── CREATE ── */}
-          {mode === 'create' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 16, border: '1px solid var(--color-border-tertiary)', overflow: 'hidden' }}>
-
-              {/* Name */}
-              <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--color-border-tertiary)' }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                  Comp name *
-                </label>
-                <input
-                  type="text" value={compName} onChange={e => setCompName(e.target.value)}
-                  placeholder="e.g. The Friday Five · Office Legends"
-                  autoFocus maxLength={60}
-                  style={{
-                    width: '100%', boxSizing: 'border-box', padding: '11px 13px',
-                    fontSize: 15, fontWeight: 500, border: '2px solid var(--color-border-secondary)',
-                    borderRadius: 11, outline: 'none', background: 'var(--color-background-secondary)',
-                    color: 'var(--color-text-primary)', transition: 'border-color 0.15s',
-                  }}
-                  onFocus={e => e.target.style.borderColor = '#16a34a'}
-                  onBlur={e  => e.target.style.borderColor = 'var(--color-border-secondary)'}
-                />
+          {step === 'create' && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name <span className="text-red-500">*</span></label>
+                <input type="text" value={compName} onChange={e => setCompName(e.target.value)}
+                  placeholder="e.g. The Friday Five" autoFocus maxLength={60}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
               </div>
-
-              {/* Logo */}
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div onClick={() => fileRef.current?.click()} style={{
-                  width: 52, height: 52, borderRadius: 12, flexShrink: 0, cursor: 'pointer',
-                  border: '2px dashed var(--color-border-secondary)', overflow: 'hidden',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: logoPreview ? 'transparent' : 'var(--color-background-secondary)',
-                }}>
-                  {logoPreview ? <img src={logoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <span style={{ fontSize: 22 }}>🏢</span>}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="+61 4xx"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 3px', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                    {logoFile ? logoFile.name : 'Add a logo'}
-                  </p>
-                  <p style={{ margin: '0 0 7px', fontSize: 11, color: 'var(--color-text-tertiary)' }}>PNG or JPG · max 2MB · optional</p>
-                  <button type="button" onClick={() => fileRef.current?.click()} style={{
-                    fontSize: 12, fontWeight: 600, padding: '4px 12px',
-                    border: '1px solid var(--color-border-secondary)', borderRadius: 99,
-                    background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)',
-                  }}>
-                    {logoFile ? 'Change' : 'Upload'}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Email <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Logo <span className="text-gray-400 font-normal">(optional, max 2MB)</span></label>
+                <div className="flex items-center gap-3">
+                  {logoPreview
+                    ? <img src={logoPreview} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                    : <div className="w-10 h-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-xl flex-shrink-0">🏢</div>
+                  }
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
+                    {logoFile ? 'Change logo' : 'Upload logo'}
                   </button>
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
                 </div>
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogo} />
               </div>
-
-              {/* Optional contact — progressive reveal */}
-              {compName.trim().length > 0 && (
-                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--color-border-tertiary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 5 }}>Phone (optional)</label>
-                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+61 4xx"
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', fontSize: 13, border: '1.5px solid var(--color-border-secondary)', borderRadius: 9, outline: 'none', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 5 }}>Email (optional)</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', fontSize: 13, border: '1.5px solid var(--color-border-secondary)', borderRadius: 9, outline: 'none', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }} />
-                  </div>
-                </div>
-              )}
-
-              {/* Error */}
-              {error && (
-                <div style={{ padding: '10px 18px', background: 'var(--color-background-danger)', display: 'flex', gap: 8 }}>
-                  <span>⚠️</span><p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-danger)' }}>{error}</p>
-                </div>
-              )}
-
-              {/* Create button */}
-              <button onClick={handleCreate} disabled={loading || !compName.trim()} style={{
-                width: '100%', padding: '15px 0', border: 'none', cursor: 'pointer',
-                background: !compName.trim() ? 'var(--color-background-secondary)'
-                  : loading ? '#15803d' : '#16a34a',
-                color: !compName.trim() ? 'var(--color-text-tertiary)' : '#fff',
-                fontSize: 14, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                transition: 'all 0.15s',
-              }}>
-                {loading ? <><Spinner className="w-5 h-5" /> Creating…</>
-                  : !compName.trim() ? 'Enter a name to continue'
-                  : `Create ${compName} →`}
+              {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+              <button onClick={handleCreate} disabled={loading || !compName.trim()}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
+                {loading && <Spinner className="w-4 h-4 text-white" />}
+                {!compName.trim() ? 'Enter a comp name to continue' : `Create ${compName} →`}
               </button>
             </div>
           )}
 
-          {error && mode === 'join' && (
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-danger)' }}>{error}</p>
-          )}
         </div>
       </div>
     </div>
   )
 
-  // Render via portal so fixed positioning is relative to viewport, not any container
   if (typeof document === 'undefined') return null
   return createPortal(content, document.body)
 }
+
 
 export default function HomePage() {
   const { session, supabase } = useSupabase()
