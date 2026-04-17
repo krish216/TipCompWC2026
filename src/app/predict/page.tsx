@@ -38,6 +38,8 @@ function getScoringForTab(tab: RoundTab, cfg?: TournamentScoringConfig) {
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
+  const { selectedTourn, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const scoringConfig = ctxScoringConfig  // alias for clarity
 
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
@@ -261,7 +263,7 @@ export default function PredictPage() {
   const globalStats = useMemo(() => {
     let totalPts = 0, exactCt = 0, correctCt = 0, notEnteredCt = 0
     for (const f of allFixtures) {
-      const sc      = (scoringConfig ?? getDefaultScoringConfig()).rounds[f.round]
+      const sc      = scoringConfig.rounds[f.round]
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
@@ -302,7 +304,7 @@ export default function PredictPage() {
 
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
-    const sc  = getScoringForTab(activeRound)
+    const sc  = getScoringForTab(activeRound, scoringConfig)
     const fs  = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
     let pts = 0, exactCt = 0, correctCt = 0, played = 0
     for (const f of fs) {
@@ -388,9 +390,6 @@ export default function PredictPage() {
       onPenWinner={onPenWinner}
     />
   )
-
-  // Tournament context
-  const { selectedTourn, scoringConfig } = useUserPrefs()
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
