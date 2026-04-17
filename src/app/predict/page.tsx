@@ -12,7 +12,7 @@ import { calcPoints, getDefaultScoringConfig, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
-type PredMap    = Record<number, { home: number; away: number }>
+type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type RoundTab   = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'

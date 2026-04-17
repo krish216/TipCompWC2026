@@ -153,7 +153,7 @@ export function MatchRow({
               ✗ No Tip Entered
             </span>
           )}
-          {pts !== null && <PointsBadge pts={pts} maxExact={sc.exact} />}
+          {pts !== null && <PointsBadge pts={pts} maxExact={sc?.exact_bonus} />}
         </div>
       </div>
 

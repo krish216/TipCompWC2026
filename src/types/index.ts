@@ -168,8 +168,9 @@ export function calcPoints(
     const resultOutcome = result.result_outcome ?? getOutcome(result.home, result.away)
     if (predOutcome !== resultOutcome) return 0
 
+    // Use resultOutcome (computed fallback), not raw result.result_outcome (may be null)
     const penCorrect = rc.pen_bonus > 0
-      && result.result_outcome === 'D'
+      && resultOutcome === 'D'
       && !!result.pen_winner
       && pred.pen_winner === result.pen_winner
     return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
