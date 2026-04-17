@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, DEFAULT_SCORING_CONFIG } from '@/types'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 export interface Tournament {
@@ -38,8 +39,11 @@ interface UserPrefsCtx {
   selectedComp:       Comp | null
   isCompAdmin:        boolean
   adminComps:         { id: string; name: string; logo_url?: string | null; invite_code?: string }[]
+  roundConfigs:       RoundConfig[]
+  scoringConfig:      TournamentScoringConfig
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
+  refreshComps:       () => Promise<void>
   loading:            boolean
 }
 
@@ -59,6 +63,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [selectedTournId,   setSelectedTournId]   = useState<string | null>(null)
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
+  const [roundConfigs,      setRoundConfigs]      = useState<RoundConfig[]>([])
+  const [scoringConfig,     setScoringConfig]     = useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG)
   // Admin comp IDs fetched once at load — isCompAdmin is derived from selectedCompId
   const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
   const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
@@ -121,7 +127,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         : activeTourns[0]?.id ?? null
       setSelectedTournId(startTournId)
 
-      // 3. Load comps for starting tournament
+      // 3. Load round configs for starting tournament
+      if (startTournId) {
+        try {
+          const rr = await fetch(`/api/tournament-rounds?tournament_id=${startTournId}`)
+          const rd = await rr.json()
+          const rows: RoundConfig[] = rd.data ?? []
+          setRoundConfigs(rows)
+          if (rows.length > 0) setScoringConfig(buildScoringConfig(rows))
+        } catch { /* use default */ }
+      }
+
+      // 4. Load comps for starting tournament
       if (startTournId) {
         const resolvedComps = await loadComps(startTournId, session.user.id, prefCompId)
         if (!prefCompId && resolvedComps.length > 0) {
@@ -149,6 +166,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setSelectedTournId(id)
     setSelectedCompId(null)
     setTournsComps([])
+    // Reload round configs for new tournament
+    try {
+      const rr = await fetch(`/api/tournament-rounds?tournament_id=${id}`)
+      const rd = await rr.json()
+      const rows: RoundConfig[] = rd.data ?? []
+      setRoundConfigs(rows)
+      if (rows.length > 0) setScoringConfig(buildScoringConfig(rows))
+    } catch { /* use default */ }
     if (session) await loadComps(id, session.user.id, null)
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -190,6 +215,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       selectedTournId, selectedCompId,
       selectedTourn, selectedComp,
       isCompAdmin, adminComps,
+      roundConfigs, scoringConfig,
       pickTournament, pickComp, refreshComps,
       loading,
     }}>

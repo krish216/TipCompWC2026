@@ -1,44 +1,85 @@
 // ─── Domain types ────────────────────────────────────────────────────────────
 
-export type RoundId = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
+export type RoundId  = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
-export const FINALS_ROUNDS:      RoundId[] = ['tp', 'f']
-export const KNOCKOUT_ROUNDS:    RoundId[] = ['r32','r16','qf','sf','tp','f']
-export const EXACT_SCORE_ROUNDS: RoundId[] = ['sf','tp','f']   // player predicts score
-export const OUTCOME_ROUNDS:     RoundId[] = ['gs','r32','r16','qf']  // player picks 1/X/2
-// Bonus rules
-export const PEN_BONUS_ROUNDS:   RoundId[] = ['r32','r16','qf','sf','tp','f'] // +5 for correct pen winner
-export const EXACT_BONUS_ROUNDS: RoundId[] = ['sf','tp','f']   // +5 bonus on top of result pts when exact
 
-export const PEN_BONUS_PTS   = 5
-export const EXACT_BONUS_PTS = 5
+// Static round groupings used for UI tabs and display logic
+export const FINALS_ROUNDS:   RoundId[] = ['tp', 'f']
+export const KNOCKOUT_ROUNDS: RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
 
-export interface ScoringRule {
-  result: number
-  exact: number  // kept for display/rules reference; calcPoints uses result + EXACT_BONUS_PTS
-  label: string
+// ─── Per-tournament round config (loaded from tournament_rounds DB table) ────
+
+export interface RoundConfig {
+  id:           string
+  tournament_id: string
+  round_code:   RoundId
+  round_name:   string
+  round_order:  number
+  predict_mode: 'outcome' | 'score'
+  result_pts:   number   // pts for correct outcome
+  exact_bonus:  number   // extra pts when exact score predicted (0 if N/A)
+  pen_bonus:    number   // extra pts when pen winner correct (0 if N/A)
+  fav_team_2x:  boolean  // whether 2× multiplier applies for fav team
 }
 
-export const SCORING: Record<RoundId, ScoringRule> = {
-  gs:  { result: 3,  exact: 5,  label: 'Group stage'    },
-  r32: { result: 5,  exact: 8,  label: 'Round of 32'    },
-  r16: { result: 7,  exact: 10, label: 'Round of 16'    },
-  qf:  { result: 10, exact: 14, label: 'Quarter-finals'  },
-  sf:  { result: 15, exact: 20, label: 'Semi-finals'     },
-  tp:  { result:  5, exact: 10, label: 'Finals weekend'  },
-  f:   { result: 25, exact: 30, label: 'Finals weekend'  },
+// Derived convenience arrays — computed from round configs at runtime
+export interface TournamentScoringConfig {
+  rounds:             Record<RoundId, RoundConfig>
+  exact_score_rounds: RoundId[]   // rounds where predict_mode === 'score'
+  pen_bonus_rounds:   RoundId[]   // rounds where pen_bonus > 0
+  fav_team_rounds:    RoundId[]   // rounds where fav_team_2x === true
+  outcome_rounds:     RoundId[]   // rounds where predict_mode === 'outcome'
 }
+
+/** Build a TournamentScoringConfig from an array of RoundConfig rows (from DB). */
+export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig {
+  const rounds = {} as Record<RoundId, RoundConfig>
+  rows.forEach(r => { rounds[r.round_code] = r })
+  return {
+    rounds,
+    exact_score_rounds: rows.filter(r => r.predict_mode === 'score').map(r => r.round_code),
+    pen_bonus_rounds:   rows.filter(r => r.pen_bonus   >  0).map(r => r.round_code),
+    fav_team_rounds:    rows.filter(r => r.fav_team_2x     ).map(r => r.round_code),
+    outcome_rounds:     rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
+  }
+}
+
+// ─── Hardcoded WC2026 fallback ────────────────────────────────────────────────
+// Used when tournament_rounds rows have not yet loaded (e.g. SSR, cold start).
+// Must match the seeded rows in migration 049.
+
+const WC2026_ROUNDS: Omit<RoundConfig, 'id' | 'tournament_id'>[] = [
+  { round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+  { round_code: 'r32', round_name: 'Round of 32',    round_order: 2, predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+  { round_code: 'r16', round_name: 'Round of 16',    round_order: 3, predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+  { round_code: 'qf',  round_name: 'Quarter-finals', round_order: 4, predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+  { round_code: 'sf',  round_name: 'Semi-finals',    round_order: 5, predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+  { round_code: 'tp',  round_name: '3rd Place',      round_order: 6, predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+  { round_code: 'f',   round_name: 'Final',          round_order: 7, predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+]
+
+export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = buildScoringConfig(
+  WC2026_ROUNDS.map(r => ({ ...r, id: r.round_code, tournament_id: 'default' }))
+)
+
+// Convenience accessors from the default config (for rules page, display only)
+export const EXACT_SCORE_ROUNDS: RoundId[] = DEFAULT_SCORING_CONFIG.exact_score_rounds
+export const PEN_BONUS_ROUNDS:   RoundId[] = DEFAULT_SCORING_CONFIG.pen_bonus_rounds
+export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = DEFAULT_SCORING_CONFIG.fav_team_rounds
+export const OUTCOME_ROUNDS:     RoundId[] = DEFAULT_SCORING_CONFIG.outcome_rounds
+
+// ─── Entity types ─────────────────────────────────────────────────────────────
 
 export interface Fixture {
-  id: number
-  round: RoundId
-  group?: string
-  home: string
-  away: string
-  date: string
+  id:          number
+  round:       RoundId
+  group?:      string
+  home:        string
+  away:        string
+  date:        string
   kickoff_utc: string
-  venue: string
-  result?: MatchScore
+  venue:       string
+  result?:     MatchScore
 }
 
 export interface MatchScore {
@@ -47,14 +88,14 @@ export interface MatchScore {
 }
 
 export interface Prediction {
-  fixture_id:    number
-  user_id:       string
-  home:          number
-  away:          number
-  outcome?:      'H' | 'D' | 'A' | null
-  pen_winner?:   string | null
-  created_at:    string
-  updated_at:    string
+  fixture_id:     number
+  user_id:        string
+  home:           number
+  away:           number
+  outcome?:       'H' | 'D' | 'A' | null
+  pen_winner?:    string | null
+  created_at:     string
+  updated_at:     string
   points_earned?: number
 }
 
@@ -76,7 +117,7 @@ export interface ChatMessage {
 }
 export interface LeaderboardEntry {
   user_id: string; display_name: string; tribe_name?: string
-  total_points: number; exact_count: number; correct_count: number
+  total_points: number; bonus_count: number; correct_count: number
   predictions_made: number; rank?: number
   round_breakdown?: Record<RoundId, number>
 }
@@ -91,52 +132,50 @@ export function getOutcome(h: number, a: number): 'H' | 'A' | 'D' {
   if (h > a) return 'H'; if (a > h) return 'A'; return 'D'
 }
 
-export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
-
+/**
+ * Calculate points for a prediction against a result.
+ * Uses TournamentScoringConfig loaded from the tournament_rounds table.
+ * Falls back to DEFAULT_SCORING_CONFIG if config is not provided.
+ */
 export function calcPoints(
   pred:   Pick<Prediction, 'home' | 'away' | 'pen_winner' | 'outcome'> | null | undefined,
   result: (MatchScore & { pen_winner?: string | null; result_outcome?: string | null }) | null | undefined,
   round:  RoundId,
-  isFavourite = false
+  isFavourite = false,
+  config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG
 ): number | null {
   if (!result) return null
   if (!pred)   return 0
 
-  const sc         = SCORING[round]
-  const multiplier = isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) ? 2 : 1
-  const isExact    = EXACT_SCORE_ROUNDS.includes(round)
+  const rc = config.rounds[round]
+  if (!rc)     return null
 
-  if (isExact) {
-    // sf, tp, f — predict exact score
-    // Points: result pts for correct outcome; result pts + 5 bonus for exact score
-    const resultOutcome   = getOutcome(result.home, result.away)
-    const predOutcome     = getOutcome(pred.home, pred.away)
-    const isExactScore    = pred.home === result.home && pred.away === result.away
-    const isCorrectResult = predOutcome === resultOutcome
+  const multiplier = isFavourite && rc.fav_team_2x ? 2 : 1
 
-    if (isExactScore) {
-      // Correct exact score = result points + 5 bonus (no separate "exact" tier)
-      return (sc.result + EXACT_BONUS_PTS) * multiplier
-    }
-    if (isCorrectResult) return sc.result * multiplier
-    return 0
+  if (rc.predict_mode === 'score') {
+    // ── Score-prediction round (sf / tp / f) ─────────────────────────────
+    const resultOutcome = getOutcome(result.home, result.away)
+    const predOutcome   = getOutcome(pred.home ?? 0, pred.away ?? 0)
+    const isExactScore  = pred.home === result.home && pred.away === result.away
+
+    if (isExactScore)             return (rc.result_pts + rc.exact_bonus) * multiplier
+    if (predOutcome !== resultOutcome) return 0
+
+    // Correct result, not exact — check pen winner bonus
+    const drewAndPens = result.home === result.away && !!result.pen_winner
+    const penCorrect  = drewAndPens && rc.pen_bonus > 0 && pred.pen_winner === result.pen_winner
+    return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
+
   } else {
-    // gs, r32, r16, qf — pick outcome only
+    // ── Outcome-only round (gs / r32 / r16 / qf) ─────────────────────────
     const predOutcome   = pred.outcome ?? getOutcome(pred.home ?? 0, pred.away ?? 0)
     const resultOutcome = result.result_outcome ?? getOutcome(result.home, result.away)
     if (predOutcome !== resultOutcome) return 0
 
-    // Correct outcome
-    let pts = sc.result
-    // Penalty bonus: +5 for correct pen winner (r32+)
-    if (
-      PEN_BONUS_ROUNDS.includes(round) &&
-      resultOutcome === 'D' &&
-      result.pen_winner &&
-      pred.pen_winner === result.pen_winner
-    ) {
-      pts += PEN_BONUS_PTS
-    }
-    return pts * multiplier
+    const penCorrect = rc.pen_bonus > 0
+      && result.result_outcome === 'D'
+      && !!result.pen_winner
+      && pred.pen_winner === result.pen_winner
+    return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
   }
 }

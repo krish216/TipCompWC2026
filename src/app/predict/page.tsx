@@ -8,7 +8,7 @@ import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { calcPoints, SCORING, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { calcPoints, DEFAULT_SCORING_CONFIG, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -30,8 +30,8 @@ const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
 }
 
 // Safe scoring lookup — 'finals' maps to 'f'
-function getScoringForTab(tab: RoundTab) {
-  return SCORING[tab === 'finals' ? 'f' : tab as RoundId]
+function getScoringForTab(tab: RoundTab, cfg = DEFAULT_SCORING_CONFIG) {
+  return cfg.rounds[tab === 'finals' ? 'f' : tab as RoundId]
 }
 
 export default function PredictPage() {
@@ -260,12 +260,12 @@ export default function PredictPage() {
   const globalStats = useMemo(() => {
     let totalPts = 0, exactCt = 0, correctCt = 0, notEnteredCt = 0
     for (const f of allFixtures) {
-      const sc      = SCORING[f.round]
+      const sc      = scoringConfig?.rounds[f.round]
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav) : null
+      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav, scoringConfig) : null
 
       if (r && pts !== null) {
         totalPts += pts
@@ -290,7 +290,7 @@ export default function PredictPage() {
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav) : null
+      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav, scoringConfig) : null
       if (pts !== null && r) {
         const tab = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round
         rp[tab]   = (rp[tab] ?? 0) + pts
@@ -311,7 +311,7 @@ export default function PredictPage() {
       const p       = predictions[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const v       = hasPred ? (calcPoints(p, r, f.round, isFav) ?? 0) : 0
+      const v       = hasPred ? (calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0) : 0
       pts += v
       if (v === sc.exact)                  exactCt++
       else if (v === sc.result && v > 0)   correctCt++
@@ -379,6 +379,7 @@ export default function PredictPage() {
       locked={isLocked(f)}
       saving={saving.has(f.id)}
       isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
+      scoringConfig={scoringConfig}
       timezone={timezone}
       challenge={challenges[f.id] ?? null}
       onPredict={onPredict}
@@ -388,7 +389,7 @@ export default function PredictPage() {
   )
 
   // Tournament context
-  const { selectedTourn } = useUserPrefs()
+  const { selectedTourn, scoringConfig } = useUserPrefs()
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">

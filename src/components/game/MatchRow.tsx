@@ -5,7 +5,7 @@ import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, SCORING, FAV_TEAM_DOUBLE_ROUNDS, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS } from '@/types'
+import { calcPoints, DEFAULT_SCORING_CONFIG, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -36,6 +36,7 @@ interface Props {
   isFavourite?: boolean
   challenge?:  { prize: string; sponsor?: string|null } | null
   timezone?:   string
+  scoringConfig?: TournamentScoringConfig
   onPredict:    (fixtureId: number, side: 'home'|'away', value: number) => void
   onOutcome?:   (fixtureId: number, outcome: 'H'|'D'|'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
@@ -44,7 +45,7 @@ interface Props {
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
-  timezone = 'UTC',
+  timezone = 'UTC', scoringConfig = DEFAULT_SCORING_CONFIG,
   onPredict, onOutcome, onPenWinner,
 }: Props) {
   const [localHome, setLocalHome] = useState<string>(
@@ -74,15 +75,15 @@ export function MatchRow({
     ? (sel != null && !awaitingPen)   // knockout draw without pen pick = not yet saved
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
-  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite) : result ? 0 : null
-  const sc  = SCORING[round] ?? SCORING['f']
+  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite, scoringConfig) : result ? 0 : null
+  const sc  = scoringConfig.rounds[round] ?? scoringConfig.rounds['f']
 
   const resultOutcome = result
     ? (result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D')
     : null
 
   const isCorrect = hasPred && !!result && (pts ?? 0) > 0
-  const isExact   = isCorrect && isExactRound && pts === sc.exact
+  const isExact   = isCorrect && isExactRound && !!sc && pts === (sc?.result_pts ?? 0_pts + sc.exact_bonus)
   const isWrong   = hasPred && !!result && pts === 0
 
   const handleChange = useCallback((side: 'home'|'away', raw: string) => {
@@ -130,7 +131,7 @@ export function MatchRow({
         </div>
 
         <div className="flex items-center gap-2 text-[11px]">
-          {isFavourite && FAV_TEAM_DOUBLE_ROUNDS.includes(round) && (
+          {isFavourite && scoringConfig.fav_team_rounds.includes(round) && (
             <span className="text-purple-600 font-semibold">⭐ 2×</span>
           )}
           {challenge && !result && (
