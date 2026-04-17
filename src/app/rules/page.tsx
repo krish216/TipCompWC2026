@@ -74,7 +74,7 @@ export default function RulesPage() {
                 <div className="text-right text-[11px] space-y-0.5">
                   {isExact    && <div className="text-purple-600 font-semibold">+5 bonus score</div>}
                   {hasPenBonus && <div className="text-amber-600 font-medium">+5 correct pens</div>}
-                  {!isBonus && !hasPenBonus && <span className="text-gray-300">—</span>}
+                  {!isExact && !hasPenBonus && <span className="text-gray-300">—</span>}
                 </div>
               </div>
             )
