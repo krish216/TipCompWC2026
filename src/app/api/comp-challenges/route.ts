@@ -2,56 +2,56 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// GET /api/org-challenges?org_id=  — get all challenges for an org
-// GET /api/org-challenges?fixture_id= — get challenge for a specific fixture (any org)
+// GET /api/comp-challenges?comp_id=  — get all challenges for an org
+// GET /api/comp-challenges?fixture_id= — get challenge for a specific fixture (any org)
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { searchParams } = new URL(request.url)
-  const orgId     = searchParams.get('org_id')
+  const compId     = searchParams.get('comp_id')
   const fixtureId = searchParams.get('fixture_id')
 
   if (fixtureId) {
     // Return challenges across all orgs for a given fixture (used on predict page)
     const { data, error } = await supabase
-      .from('org_challenges')
-      .select('id, org_id, fixture_id, prize, sponsor, challenge_date, settled, organisations(name, logo_url)')
+      .from('comp_challenges')
+      .select('id, comp_id, fixture_id, prize, sponsor, challenge_date, settled, comps(name, logo_url)')
       .eq('fixture_id', parseInt(fixtureId))
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ data: (data ?? []) as any[] })
   }
 
-  if (!orgId) return NextResponse.json({ error: 'org_id or fixture_id required' }, { status: 400 })
+  if (!compId) return NextResponse.json({ error: 'comp_id or fixture_id required' }, { status: 400 })
 
   const { data, error } = await supabase
-    .from('org_challenges')
+    .from('comp_challenges')
     .select(`
       id, fixture_id, prize, sponsor, challenge_date, settled,
       fixtures(id, home, away, kickoff_utc, round),
       challenge_winners(user_id, prediction, settled_at, users(display_name))
     `)
-    .eq('org_id', orgId)
+    .eq('comp_id', compId)
     .order('challenge_date', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: (data ?? []) as any[] })
 }
 
-// POST /api/org-challenges — create a challenge (org admin only)
+// POST /api/comp-challenges — create a challenge (org admin only)
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { org_id, fixture_id, prize, sponsor } = await request.json()
-  if (!org_id || !fixture_id || !prize?.trim()) {
-    return NextResponse.json({ error: 'org_id, fixture_id and prize required' }, { status: 400 })
+  const { comp_id, fixture_id, prize, sponsor } = await request.json()
+  if (!comp_id || !fixture_id || !prize?.trim()) {
+    return NextResponse.json({ error: 'comp_id, fixture_id and prize required' }, { status: 400 })
   }
 
   // Verify org admin
-  const { data: isOrgAdmin } = await (adminClient.from('org_admins') as any)
-    .select('user_id').eq('user_id', user.id).eq('org_id', org_id).single()
-  if (!isOrgAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { data: isCompAdmin } = await (adminClient.from('comp_admins') as any)
+    .select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
+  if (!isCompAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Get fixture kickoff date to derive challenge_date
   const { data: fixture } = await supabase
@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
 
   const challengeDate = (fixture as any).kickoff_utc.slice(0, 10) // YYYY-MM-DD
 
-  const { data, error } = await (adminClient.from('org_challenges') as any)
+  const { data, error } = await (adminClient.from('comp_challenges') as any)
     .insert({
-      org_id, fixture_id, prize: prize.trim(),
+      comp_id, fixture_id, prize: prize.trim(),
       sponsor:        sponsor?.trim() || null,
       challenge_date: challengeDate,
       created_by:     user.id,
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     if (error.code === '23505') {
-      return NextResponse.json({ error: 'A challenge already exists for this date in your organisation' }, { status: 409 })
+      return NextResponse.json({ error: 'A challenge already exists for this date in your comp' }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json({ data }, { status: 201 })
 }
 
-// DELETE /api/org-challenges?id= — delete unsettled challenge
+// DELETE /api/comp-challenges?id= — delete unsettled challenge
 export async function DELETE(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
@@ -92,11 +92,11 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   // Only delete if not settled
-  const { data: ch } = await (adminClient.from('org_challenges') as any)
-    .select('org_id, settled').eq('id', id).single()
+  const { data: ch } = await (adminClient.from('comp_challenges') as any)
+    .select('comp_id, settled').eq('id', id).single()
   if (!ch) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if ((ch as any).settled) return NextResponse.json({ error: 'Cannot delete a settled challenge' }, { status: 400 })
 
-  await (adminClient.from('org_challenges') as any).delete().eq('id', id)
+  await (adminClient.from('comp_challenges') as any).delete().eq('id', id)
   return NextResponse.json({ success: true })
 }
