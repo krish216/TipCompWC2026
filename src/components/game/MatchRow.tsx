@@ -86,6 +86,9 @@ export function MatchRow({
     ? { ...prediction, outcome: sel ?? (prediction as any).outcome ?? null }
     : prediction
   const pts = hasPred ? calcPoints(predForCalc, result ?? null, round, isFavourite, cfg) : result ? 0 : null
+  if (result && (result as any).pen_winner) {
+    console.log('[MR]', round, fixture.id, { sel, penWinner, hasPred, pts, pen_bonus: cfg?.rounds[round]?.pen_bonus, pred_pen: (predForCalc as any)?.pen_winner, res_pen: (result as any).pen_winner })
+  }
   const sc  = cfg.rounds[round] ?? cfg.rounds['f']
 
   const resultOutcome = result
