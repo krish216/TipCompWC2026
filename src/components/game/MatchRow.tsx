@@ -86,6 +86,8 @@ export function MatchRow({
   const isCorrect = hasPred && !!result && (pts ?? 0) > 0
   const isExact   = isCorrect && isExactRound && !!sc && pts === (sc.result_pts + sc.exact_bonus)
   const isWrong   = hasPred && !!result && pts === 0
+  // pen bonus earned: outcome round, draw result, correct pen winner, pts > base result_pts
+  const penBonusEarned = hasPred && !!result && !isExactRound && (pts ?? 0) > (sc?.result_pts ?? 0) && !!penWinner && penWinner === (result as any)?.pen_winner
 
   const handleChange = useCallback((side: 'home'|'away', raw: string) => {
     let v = raw
@@ -153,7 +155,7 @@ export function MatchRow({
               ✗ No Tip Entered
             </span>
           )}
-          {pts !== null && <PointsBadge pts={pts} maxExact={sc?.exact_bonus} />}
+          {pts !== null && <PointsBadge pts={pts} maxExact={sc?.exact_bonus} penBonus={penBonusEarned} />}
         </div>
       </div>
 

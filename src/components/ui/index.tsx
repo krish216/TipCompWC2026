@@ -130,11 +130,20 @@ export function SectionHeading({ children }: { children: ReactNode }) {
 }
 
 // ── PointsBadge ───────────────────────────────────────────────────────────────
-export function PointsBadge({ pts, maxExact }: { pts: number | null; maxExact: number }) {
+export function PointsBadge({ pts, maxExact, penBonus }: {
+  pts: number | null
+  maxExact?: number
+  penBonus?: boolean   // true when pen winner bonus contributed to pts
+}) {
   if (pts === null) return null
-  if (pts === maxExact) return <span className="badge-exact">★ {pts}pts</span>
-  if (pts > 0)         return <span className="badge-correct">✓ {pts}pts</span>
-  return                      <span className="badge-wrong">✗ 0pts</span>
+  if (maxExact != null && pts === maxExact && maxExact > 0)
+    return <span className="badge-exact">★ {pts}pts</span>
+  if (pts > 0) return (
+    <span className="badge-correct">
+      ✓ {pts}pts{penBonus && <span className="text-amber-600 ml-0.5">+pen</span>}
+    </span>
+  )
+  return <span className="badge-wrong">✗ 0pts</span>
 }
 
 // ── RoundScorePills ───────────────────────────────────────────────────────────
