@@ -9,10 +9,14 @@ import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tipster {
-  user_id:      string
-  display_name: string
-  email:        string
-  joined_at:    string | null
+  user_id:         string
+  display_name:    string
+  email:           string
+  joined_at:       string | null
+  fee_paid:        boolean
+  fee_paid_amount: number | null
+  fee_paid_at:     string | null
+  fee_notes:       string | null
 }
 interface Invitation {
   id:           string
@@ -26,7 +30,6 @@ interface Invitation {
 interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; member_count?: number }
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
-interface Payment   { user_id: string; display_name: string; email: string; paid: boolean; paid_at: string | null; notes: string | null }
 
 type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges'
 
@@ -309,122 +312,109 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
 }
 
 // ─── Tab: Payments ─────────────────────────────────────────────────────────────
-function PaymentsTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
-  const storageKey = `payments_${comp.id}`
-  const feeKey     = `fee_${comp.id}`
+// Payment status lives on user_comps (fee_paid, fee_paid_amount, fee_paid_at, fee_notes)
+// No separate table — PATCH /api/comp-members updates the row directly.
 
-  const loadPayments = (): Payment[] => {
-    const savedMap: Record<string, Partial<Payment>> = JSON.parse(localStorage.getItem(storageKey) ?? '{}')
-    return tipsters.map(t => ({
-      user_id: t.user_id, display_name: t.display_name, email: t.email,
-      paid: false, paid_at: null, notes: null,
-      ...savedMap[t.user_id],
-    }))
-  }
-
-  const [payments,    setPayments]    = useState<Payment[]>([])
-  const [fee,         setFee]         = useState(localStorage.getItem(feeKey) ?? '')
-  const [editingFee,  setEditingFee]  = useState(false)
-  const [filter,      setFilter]      = useState<'all'|'paid'|'unpaid'>('all')
-  const [editingNote, setEditingNote] = useState<string | null>(null)
+function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
+  comp:            any
+  tipsters:        Tipster[]
+  setTipsters:     React.Dispatch<React.SetStateAction<Tipster[]>>
+  entryFeeDefault: number | null
+}) {
+  const [saving,      setSaving]      = useState<string | null>(null)
+  const [filter,      setFilter]      = useState<'all' | 'paid' | 'unpaid'>('all')
   const [search,      setSearch]      = useState('')
+  const [editingNote, setEditingNote] = useState<string | null>(null)
+  const [editingAmt,  setEditingAmt]  = useState<string | null>(null)
+  const [amtDraft,    setAmtDraft]    = useState('')
 
-  useEffect(() => { setPayments(loadPayments()) }, [tipsters, comp.id])
-
-  const persist = (updated: Payment[]) => {
-    const map: Record<string, Partial<Payment>> = {}
-    updated.forEach(p => { map[p.user_id] = { paid: p.paid, paid_at: p.paid_at, notes: p.notes } })
-    localStorage.setItem(storageKey, JSON.stringify(map))
-    setPayments(updated)
+  const patch = async (userId: string, changes: Partial<Tipster>) => {
+    setSaving(userId)
+    const res = await fetch('/api/comp-members', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, user_id: userId, ...changes }),
+    })
+    const { data, error } = await res.json()
+    setSaving(null)
+    if (error) { toast.error(error); return null }
+    setTipsters(prev => prev.map(t => t.user_id === userId ? { ...t, ...data } : t))
+    return data
   }
 
-  const toggle = (userId: string) => {
-    persist(payments.map(p => p.user_id === userId
-      ? { ...p, paid: !p.paid, paid_at: !p.paid ? new Date().toISOString() : null }
-      : p))
+  const togglePaid = async (t: Tipster) => {
+    const next = !t.fee_paid
+    await patch(t.user_id, {
+      fee_paid:        next,
+      fee_paid_amount: next ? (t.fee_paid_amount ?? entryFeeDefault ?? undefined) : undefined,
+    })
+    toast.success(next ? 'Marked as paid ✓' : 'Marked as unpaid')
   }
 
-  const saveNote = (userId: string, note: string) => {
-    persist(payments.map(p => p.user_id === userId ? { ...p, notes: note || null } : p))
+  const saveNote = async (t: Tipster, note: string) => {
+    await patch(t.user_id, { fee_notes: note || null } as any)
     setEditingNote(null)
   }
 
-  const saveFee = () => {
-    localStorage.setItem(feeKey, fee)
-    setEditingFee(false)
-    toast.success('Entry fee saved')
+  const saveAmount = async (t: Tipster) => {
+    const amt = parseFloat(amtDraft)
+    await patch(t.user_id, { fee_paid_amount: isNaN(amt) ? null : amt } as any)
+    setEditingAmt(null)
+    setAmtDraft('')
   }
 
-  const feeNum      = parseFloat(fee) || 0
-  const paidCount   = payments.filter(p => p.paid).length
-  const unpaidCount = payments.filter(p => !p.paid).length
-
   const filtered = useMemo(() => {
-    let list = payments
-    if (filter === 'paid')   list = list.filter(p => p.paid)
-    if (filter === 'unpaid') list = list.filter(p => !p.paid)
+    let list = tipsters
+    if (filter === 'paid')   list = list.filter(t => t.fee_paid)
+    if (filter === 'unpaid') list = list.filter(t => !t.fee_paid)
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter(p => p.display_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q))
+      list = list.filter(t =>
+        t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
+      )
     }
     return list
-  }, [payments, filter, search])
+  }, [tipsters, filter, search])
+
+  const paidCount      = tipsters.filter(t => t.fee_paid).length
+  const unpaidCount    = tipsters.filter(t => !t.fee_paid).length
+  const totalCollected = tipsters.filter(t => t.fee_paid).reduce((s, t) => s + (t.fee_paid_amount ?? entryFeeDefault ?? 0), 0)
+  const totalExpected  = tipsters.length * (entryFeeDefault ?? 0)
+  const outstanding    = unpaidCount * (entryFeeDefault ?? 0)
 
   return (
     <div>
-      {/* Fee + summary */}
-      <Section title="Entry fee">
-        <div className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-              <span className="text-sm font-bold text-gray-500">$</span>
-              <input type="number" min="0" step="0.50" value={fee}
-                onChange={e => { setFee(e.target.value); setEditingFee(true) }}
-                placeholder="0.00"
-                className="w-20 bg-transparent text-sm font-bold focus:outline-none"
-              />
-            </div>
-            {editingFee && (
-              <button onClick={saveFee} className="px-3 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
-            )}
-            {fee && !editingFee && <span className="text-xs text-gray-400">per person</span>}
-          </div>
-          {feeNum > 0 && (
-            <div className="grid grid-cols-3 gap-3 mt-3">
-              {[
-                { label: 'Expected',    val: (payments.length * feeNum).toFixed(2), color: 'text-gray-700' },
-                { label: 'Collected',   val: (paidCount * feeNum).toFixed(2),       color: 'text-emerald-600' },
-                { label: 'Outstanding', val: (unpaidCount * feeNum).toFixed(2),     color: 'text-amber-600' },
-              ].map(s => (
-                <div key={s.label} className="text-center bg-gray-50 rounded-xl p-2.5 border border-gray-100">
-                  <p className={clsx('text-base font-black', s.color)}>${s.val}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center shadow-sm">
+          <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Collected</p>
+          {entryFeeDefault
+            ? <p className="text-2xl font-black text-emerald-700">${totalCollected.toFixed(2)}</p>
+            : <p className="text-2xl font-black text-emerald-700">{paidCount}</p>}
+          <p className="text-[11px] text-emerald-600 mt-1">{paidCount} of {tipsters.length} paid</p>
         </div>
-      </Section>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {[
-          { label: 'Tipsters', value: payments.length, color: 'text-gray-800' },
-          { label: 'Paid',     value: paidCount,       color: 'text-emerald-600' },
-          { label: 'Unpaid',   value: unpaidCount,     color: 'text-amber-600' },
-        ].map(s => (
-          <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-2.5 text-center shadow-sm">
-            <p className={clsx('text-xl font-black', s.color)}>{s.value}</p>
-            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mt-0.5">{s.label}</p>
-          </div>
-        ))}
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center shadow-sm">
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Outstanding</p>
+          {entryFeeDefault
+            ? <p className="text-2xl font-black text-amber-700">${outstanding.toFixed(2)}</p>
+            : <p className="text-2xl font-black text-amber-700">{unpaidCount}</p>}
+          <p className="text-[11px] text-amber-600 mt-1">{unpaidCount} still unpaid</p>
+        </div>
       </div>
+      {entryFeeDefault && (
+        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl mb-4 text-xs text-gray-500">
+          <span>Entry fee: <span className="font-bold text-gray-700">${entryFeeDefault.toFixed(2)}</span></span>
+          <span>Total expected: <span className="font-bold text-gray-700">${totalExpected.toFixed(2)}</span></span>
+        </div>
+      )}
 
-      {/* Tracker */}
-      <Section title="Payment tracker"
+      {/* List */}
+      <Section
+        title="Payment status"
+        sub="Saved to database on each change"
         right={
           <div className="flex gap-1">
-            {(['all','paid','unpaid'] as const).map(f => (
+            {(['all', 'paid', 'unpaid'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={clsx('px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-colors',
                   filter === f ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100')}>
@@ -433,57 +423,115 @@ function PaymentsTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
             ))}
           </div>
         }>
+
         <div className="px-4 pt-3 pb-2 border-b border-gray-100">
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search tipster…"
             className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
           />
         </div>
-        {payments.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-gray-400">No joined tipsters yet.</div>
+
+        {tipsters.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">No tipsters in this comp yet.</div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-6 text-center text-xs text-gray-400">No {filter} tipsters{search ? ` matching "${search}"` : ''}.</div>
-        ) : filtered.map((p, i) => (
-          <div key={p.user_id} className={clsx('px-4 py-3 border-b border-gray-50 last:border-0 group', i % 2 === 1 ? 'bg-gray-50/30' : '')}>
-            <div className="flex items-center gap-3">
-              <Avi name={p.display_name} />
+        ) : filtered.map((t, i) => (
+          <div key={t.user_id} className={clsx('border-b border-gray-50 last:border-0 group', i % 2 === 1 ? 'bg-gray-50/30' : '')}>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Avi name={t.display_name} />
+
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-gray-800 truncate">{p.display_name}</p>
-                <p className="text-[11px] text-gray-400 truncate">{p.email}</p>
-                {p.notes && editingNote !== p.user_id && (
-                  <p className="text-[11px] text-gray-500 italic mt-0.5 truncate">📝 {p.notes}</p>
+                <p className="text-xs font-bold text-gray-800 truncate">{t.display_name}</p>
+                <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+
+                {/* Note */}
+                {t.fee_notes && editingNote !== t.user_id && (
+                  <p className="text-[11px] text-gray-500 italic mt-0.5 truncate cursor-pointer hover:text-gray-700"
+                    onClick={() => setEditingNote(t.user_id)}>
+                    📝 {t.fee_notes}
+                  </p>
                 )}
-                {editingNote === p.user_id && (
-                  <input autoFocus type="text" defaultValue={p.notes ?? ''}
-                    onBlur={e => saveNote(p.user_id, e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveNote(p.user_id, (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingNote(null) }}
+                {editingNote === t.user_id && (
+                  <input autoFocus type="text" defaultValue={t.fee_notes ?? ''}
+                    onBlur={e => saveNote(t, e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter')  saveNote(t, (e.target as HTMLInputElement).value)
+                      if (e.key === 'Escape') setEditingNote(null)
+                    }}
                     placeholder="e.g. paid via bank transfer"
                     className="mt-1.5 w-full px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
                 )}
               </div>
+
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setEditingNote(editingNote === p.user_id ? null : p.user_id)}
-                  className="text-sm text-gray-300 hover:text-gray-500 transition-colors opacity-0 group-hover:opacity-100" title="Add note">📝</button>
-                <button onClick={() => toggle(p.user_id)}
-                  className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold transition-all border',
-                    p.paid
+                {/* Amount — only show when paid */}
+                {t.fee_paid && (
+                  editingAmt === t.user_id ? (
+                    <div className="flex items-center gap-0.5">
+                      <span className="text-xs text-gray-400 font-medium">$</span>
+                      <input autoFocus type="number" min="0" step="0.50" value={amtDraft}
+                        onChange={e => setAmtDraft(e.target.value)}
+                        onBlur={() => saveAmount(t)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter')  saveAmount(t)
+                          if (e.key === 'Escape') { setEditingAmt(null); setAmtDraft('') }
+                        }}
+                        className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 text-right font-mono"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingAmt(t.user_id); setAmtDraft(String(t.fee_paid_amount ?? entryFeeDefault ?? '')) }}
+                      className="text-xs font-semibold text-emerald-600 opacity-0 group-hover:opacity-100 transition-all hover:underline"
+                      title="Edit amount paid">
+                      ${(t.fee_paid_amount ?? entryFeeDefault ?? 0).toFixed(2)}
+                    </button>
+                  )
+                )}
+
+                {/* Note add button */}
+                {!t.fee_notes && editingNote !== t.user_id && (
+                  <button onClick={() => setEditingNote(t.user_id)}
+                    className="text-sm opacity-0 group-hover:opacity-100 transition-all text-gray-300 hover:text-gray-500"
+                    title="Add note">📝</button>
+                )}
+
+                {/* Paid toggle */}
+                <button onClick={() => togglePaid(t)} disabled={saving === t.user_id}
+                  className={clsx(
+                    'min-w-[82px] px-3 py-1.5 rounded-xl text-xs font-bold transition-all border text-center',
+                    saving === t.user_id ? 'opacity-50 cursor-wait' :
+                    t.fee_paid
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-red-50 hover:border-red-200 hover:text-red-600'
-                      : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700')}>
-                  {p.paid ? '✓ Paid' : 'Mark paid'}
+                      : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
+                  )}>
+                  {saving === t.user_id ? '…' : t.fee_paid ? '✓ Paid' : 'Mark paid'}
                 </button>
               </div>
             </div>
-            {p.paid && p.paid_at && <p className="text-[10px] text-emerald-500 mt-1 ml-11">{new Date(p.paid_at).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' })}</p>}
+
+            {t.fee_paid && t.fee_paid_at && (
+              <p className="text-[10px] text-emerald-500 pb-2 pl-[52px]">
+                Paid {new Date(t.fee_paid_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            )}
           </div>
         ))}
       </Section>
 
-      {payments.length > 0 && (
+      {/* Export */}
+      {tipsters.length > 0 && (
         <button onClick={() => {
-          const rows = ['Name,Email,Paid,Paid At,Notes', ...payments.map(p => `"${p.display_name}","${p.email}",${p.paid},${p.paid_at ?? ''},"${p.notes ?? ''}"`)]
-          const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type:'text/csv' }))
-          a.download = `${comp.name ?? 'comp'}-payments.csv`; a.click()
+          const rows = [
+            'Name,Email,Paid,Paid At,Amount,Notes',
+            ...tipsters.map(t =>
+              `"${t.display_name}","${t.email}",${t.fee_paid},"${t.fee_paid_at ?? ''}","${t.fee_paid_amount ?? entryFeeDefault ?? ''}","${t.fee_notes ?? ''}"`)
+          ]
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }))
+          a.download = `${comp.name ?? 'comp'}-payments.csv`
+          a.click()
         }} className="w-full py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors">
           ↓ Export payments CSV
         </button>
@@ -595,8 +643,11 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
 }
 
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
-function SettingsTab({ comp, tier, domain, minAge, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; onUpdate: (k: string, v: any) => void }) {
+function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; onUpdate: (k: string, v: any) => void }) {
   const [name,         setName]         = useState(comp?.name ?? '')
+  const [feeEnabled,   setFeeEnabled]   = useState(requiresFee)
+  const [feeAmount,    setFeeAmount]    = useState(entryFee != null ? String(entryFee) : '')
+  const [savingFee,    setSavingFee]    = useState(false)
   const [savingName,   setSavingName]   = useState(false)
   const [newDomain,    setNewDomain]    = useState(domain ?? '')
   const [newMinAge,    setNewMinAge]    = useState(minAge ? String(minAge) : '')
@@ -628,6 +679,28 @@ function SettingsTab({ comp, tier, domain, minAge, onUpdate }: { comp: any; tier
     if (d.success) { toast.success(`Admin access granted to ${adminEmail}`); setAdminEmail('') } else toast.error(d.error ?? 'Failed')
   }
 
+  const saveFeeSettings = async (enabled: boolean, amount: string) => {
+    setSavingFee(true)
+    const feeAmt = parseFloat(amount) || null
+    const res = await fetch('/api/comps/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        comp_id: comp.id, user_id: comp.created_by ?? '',
+        requires_payment_fee: enabled,
+        entry_fee_amount: enabled ? feeAmt : null,
+      }),
+    })
+    setSavingFee(false)
+    if (res.ok) {
+      onUpdate('requiresFee', enabled)
+      onUpdate('entryFee', enabled ? feeAmt : null)
+      toast.success(enabled ? 'Participation fee enabled' : 'Participation fee disabled')
+      // user_comps rows already exist — no backfill needed
+    } else {
+      toast.error('Failed to save fee settings')
+    }
+  }
+
   return (
     <div className="space-y-0">
       <div className="mb-4 flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
@@ -637,6 +710,59 @@ function SettingsTab({ comp, tier, domain, minAge, onUpdate }: { comp: any; tier
         </span>
         <span className="text-xs text-gray-500">Current plan</span>
       </div>
+
+      {/* ── Participation fee ─────────────────────────────── */}
+      <Section title="Participation fee" sub="Require tipsters to pay an entry fee to compete">
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-gray-800">Require participation fee</p>
+              <p className="text-xs text-gray-400 mt-0.5">Enables the Payments tab to track who has paid</p>
+            </div>
+            <button
+              onClick={() => {
+                const next = !feeEnabled
+                setFeeEnabled(next)
+                saveFeeSettings(next, feeAmount)
+              }}
+              className={clsx(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                feeEnabled ? 'bg-gray-900' : 'bg-gray-200'
+              )}>
+              <span className={clsx(
+                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm',
+                feeEnabled ? 'translate-x-6' : 'translate-x-1'
+              )} />
+            </button>
+          </div>
+
+          {feeEnabled && (
+            <div className="pt-2 border-t border-gray-100">
+              <label className="block text-xs font-bold text-gray-600 mb-1.5">Entry fee amount</label>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 gap-1.5">
+                  <span className="text-sm font-bold text-gray-500">$</span>
+                  <input type="number" min="0" step="0.50" value={feeAmount}
+                    onChange={e => setFeeAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-24 bg-transparent text-sm font-bold focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => saveFeeSettings(feeEnabled, feeAmount)}
+                  disabled={savingFee}
+                  className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                  {savingFee ? '…' : 'Save amount'}
+                </button>
+                <span className="text-xs text-gray-400">per tipster</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2">
+                This sets the default amount shown in the Payments tab. You can override per-tipster in the Payments tab.
+              </p>
+            </div>
+          )}
+        </div>
+      </Section>
 
       {[
         { title: 'Comp name', content: (
@@ -868,6 +994,8 @@ export default function CompAdminPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [tribes,      setTribes]      = useState<Tribe[]>([])
   const [tier,        setTier]        = useState('trial')
+  const [requiresFee, setRequiresFee] = useState(false)
+  const [entryFee,    setEntryFee]    = useState<number | null>(null)
   const [domain,      setDomain]      = useState<string | null>(null)
   const [minAge,      setMinAge]      = useState<number | null>(null)
 
@@ -877,24 +1005,31 @@ export default function CompAdminPage() {
     if (!session || !comp?.id) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/comp-members?comp_id=${comp.id}`),        // joined tipsters from user_comps
-      fetch(`/api/comp-invitations?comp_id=${comp.id}`),    // invitation records
+      fetch(`/api/comp-members?comp_id=${comp.id}`),
+      fetch(`/api/comp-invitations?comp_id=${comp.id}`),
       fetch(`/api/comp-subscriptions?comp_id=${comp.id}`),
       fetch(`/api/comps/domain?comp_id=${comp.id}`),
       fetch(`/api/tribes/list?comp_id=${comp.id}`),
+      Promise.resolve({ json: () => Promise.resolve({}) }),  // placeholder
     ]).then(async rs => {
-      const [tipData, invData, subData, domData, tribesData] = await Promise.all(rs.map(r => r.json()))
+      const [tipData, invData, subData, domData, tribesData, compData] = await Promise.all(rs.map(r => r.json()))
       setTipsters(tipData.data ?? [])
       setInvitations(invData.data ?? [])
       setTier(subData.data?.tier ?? 'trial')
       setDomain(domData.email_domain ?? null)
       setTribes(tribesData.data ?? [])
+      // Fee settings come from comp row
+      // Fee settings come from selectedComp which is loaded in UserPrefsContext
+      setRequiresFee(comp.requires_payment_fee ?? false)
+      setEntryFee(comp.entry_fee_amount ?? null)
     }).finally(() => setLoading(false))
   }, [session, comp?.id])
 
   const handleSettingUpdate = useCallback((k: string, v: any) => {
-    if (k === 'domain') setDomain(v)
-    if (k === 'minAge') setMinAge(v)
+    if (k === 'domain')      setDomain(v)
+    if (k === 'minAge')      setMinAge(v)
+    if (k === 'requiresFee') setRequiresFee(v)
+    if (k === 'entryFee')    setEntryFee(v)
   }, [])
 
   if (ctxLoading || loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
@@ -911,6 +1046,9 @@ export default function CompAdminPage() {
   const badgeCounts: Partial<Record<Tab, number>> = {
     tipsters:   tipsters.length + invitations.filter(i => !i.joined).length || 0,
     tribes:     tribes.length || 0,
+  }
+  const tabLocked: Partial<Record<Tab, boolean>> = {
+    payments: !requiresFee,
   }
 
   return (
@@ -939,8 +1077,8 @@ export default function CompAdminPage() {
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={clsx('relative flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl transition-all',
               activeTab === t.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600')}>
-            <span className="text-base leading-none">{t.icon}</span>
-            <span className="text-[10px] font-bold leading-none hidden sm:block">{t.label}</span>
+            <span className="text-base leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
+            <span className={clsx('text-[10px] font-bold leading-none hidden sm:block', tabLocked[t.id] && 'text-gray-300')}>{t.label}</span>
             {(badgeCounts[t.id] ?? 0) > 0 && (
               <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center',
                 activeTab === t.id ? 'bg-gray-900 text-white' : 'bg-gray-400 text-white')}>
@@ -953,9 +1091,20 @@ export default function CompAdminPage() {
 
       {/* Tab content */}
       {activeTab === 'tipsters'   && <TipstersTab   comp={comp} tipsters={tipsters} setTipsters={setTipsters} invitations={invitations} setInvitations={setInvitations} currentUserId={session?.user.id ?? ''} />}
-      {activeTab === 'payments'   && <PaymentsTab   comp={comp} tipsters={tipsters} />}
+      {activeTab === 'payments'   && (
+        requiresFee
+          ? <PaymentsTab comp={comp} tipsters={tipsters} setTipsters={setTipsters} entryFeeDefault={entryFee} />
+          : <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
+              <p className="text-3xl mb-3">💳</p>
+              <p className="text-sm font-bold text-gray-700 mb-1">Participation fees not enabled</p>
+              <p className="text-xs text-gray-400 mb-4">Go to Settings → Participation Fee and enable it to track payments.</p>
+              <button onClick={() => setActiveTab('settings')} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
+                Go to Settings →
+              </button>
+            </div>
+      )}
       {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} />}
-      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
     </div>
