@@ -64,19 +64,28 @@ export function MatchRow({
   const isExactRound   = EXACT_SCORE_ROUNDS.includes(round)
   const isOutcomeRound = OUTCOME_ROUNDS.includes(round)
   const isKnockout     = KNOCKOUT_ROUNDS.includes(round)
-  const sel            = (prediction as any)?.outcome ?? null   // 'H'|'D'|'A'|null
   const penWinner      = (prediction as any)?.pen_winner ?? null
-  const isPredDraw     = isExactRound
+  // Derive outcome: use stored outcome or infer from scores for outcome rounds
+  const rawOutcome = (prediction as any)?.outcome ?? null
+  const sel: 'H'|'D'|'A'|null = rawOutcome
+    ?? (isOutcomeRound && prediction != null
+        ? (prediction.home > prediction.away ? 'H' : prediction.away > prediction.home ? 'A' : prediction.home === prediction.away && prediction.home >= 0 ? 'D' : null)
+        : null)
+  const isPredDraw  = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
   const showPenPick = isKnockout && !result && !locked && isPredDraw
   const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !result && !locked
   const hasPred     = isOutcomeRound
-    ? (sel != null && !awaitingPen)   // knockout draw without pen pick = not yet saved
+    ? (sel != null && !awaitingPen)
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
   const cfg = scoringConfig ?? getDefaultScoringConfig()
-  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite, cfg) : result ? 0 : null
+  // Ensure calcPoints receives the derived outcome (handles old predictions with null outcome)
+  const predForCalc = prediction
+    ? { ...prediction, outcome: sel ?? (prediction as any).outcome ?? null }
+    : prediction
+  const pts = hasPred ? calcPoints(predForCalc, result ?? null, round, isFavourite, cfg) : result ? 0 : null
   const sc  = cfg.rounds[round] ?? cfg.rounds['f']
 
   const resultOutcome = result

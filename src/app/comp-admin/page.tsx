@@ -7,8 +7,8 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 
-interface Tribe  { id: string; name: string; description?: string | null; invite_code: string; member_count?: number }
-interface Member { id: string; display_name: string; email: string; tribe_id: string | null }
+interface Tribe  { id: string; name: string; description?: string | null; invite_code: string; member_count?: number; member_ids?: string[] }
+interface Member { id: string; display_name: string; email: string }
 interface Org    { id: string; name: string; slug: string; invite_code?: string; logo_url?: string | null }
 
 // ── Create tribe form ──────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ function GrantOrgAdminForm({ compId }: { compId: string }) {
 // ── Tribe card ────────────────────────────────────────────────────────────────
 function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
   const [copied, setCopied] = useState(false)
-  const tribeMembers = members.filter(m => m.tribe_id === tribe.id)
+  const tribeMembers = members.filter(m => tribe.member_ids?.includes(m.id))
   const displayCount = tribe.member_count ?? tribeMembers.length
 
   const copyCode = async () => {

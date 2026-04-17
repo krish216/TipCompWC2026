@@ -99,6 +99,14 @@ export default function PredictPage() {
         }
         setResults(rm)
 
+        // Diagnostic: log R32 draw fixtures with pen_winner to trace display issue
+        Object.entries(rm).forEach(([id, r]: any) => {
+          if (r.pen_winner) {
+            const pred = pm[id as any]
+            console.log('[DIAG] fixture', id, 'result_outcome:', r.result_outcome, 'result_pen:', r.pen_winner, 'pred_outcome:', pred?.outcome, 'pred_pen:', pred?.pen_winner)
+          }
+        })
+
         // Round locks
         setRoundLocks(locksData?.data ?? {})
 

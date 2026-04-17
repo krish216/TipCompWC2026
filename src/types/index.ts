@@ -177,19 +177,6 @@ export function calcPoints(
       && !!pred.pen_winner
       && pred.pen_winner === result.pen_winner
 
-    // Debug log — remove after confirming fix
-    if (rc.pen_bonus > 0 && (resultOutcome === 'D' || isScoresDraw)) {
-      console.debug('[calcPoints]', round, {
-        penBonus: rc.pen_bonus,
-        resultOutcome,
-        isScoresDraw,
-        resultPenWinner: result.pen_winner,
-        predPenWinner: pred.pen_winner,
-        penCorrect,
-        pts: rc.result_pts + (penCorrect ? rc.pen_bonus : 0),
-      })
-    }
-
     return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
   }
 }
