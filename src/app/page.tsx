@@ -402,327 +402,259 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Logged in: tournament + comp selector ── */}
+      {/* ── Logged in ── */}
       {session && (
-        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ marginBottom: 20 }}>
 
-          {/* Single consolidated card — tournament, welcome, fav team, comps */}
-          <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 20, overflow: 'hidden' }}>
-
-            {/* Tournament pills */}
-            <div style={{ padding: '14px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-              <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {activeTournaments.length > 1 ? 'Select tournament' : 'Tournament'}
-              </p>
-              {(loading || contextLoading) ? (
-                <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
-                  <Spinner className="w-5 h-5" />
+          {/* ── Welcome bar ─────────────────────────────────────────── */}
+          {displayName && (
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  background: 'linear-gradient(135deg, #153d26, #16a34a)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 700, color: '#fff',
+                }}>
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
-              ) : activeTournaments.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>No active tournaments</p>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {activeTournaments.map(t => {
-                    const isSel = selectedTournId === t.id
-                    return (
-                      <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                          borderRadius: 99, cursor: isSel ? 'default' : 'pointer',
-                          border: isSel ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-                          background: isSel ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-                          color: isSel ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                          fontSize: 13, fontWeight: isSel ? 600 : 400, transition: 'all 0.15s',
-                        }}>
-                        <span>⚽</span>
-                        <span>{t.name}</span>
-                        {isSel && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-text-success)', opacity: 0.7 }} />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Welcome strip — sits under the tournament banner */}
-            {session && displayName && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px',
-                background: 'var(--color-background-secondary)',
-                borderBottom: '0.5px solid var(--color-border-tertiary)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #153d26, #16a34a)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 700, color: '#fff',
-                  }}>
-                    {displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                    Welcome back, {displayName}! 👋
-                  </span>
-                </div>
-                {/* Global rank pill */}
-                {(totalPts !== null || myRank !== null) && (
-                  <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
-                    {totalPts !== null && (
-                      <div style={{ textAlign: 'center' }}>
-                        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#16a34a', lineHeight: 1 }}>{totalPts}</p>
-                        <p style={{ margin: '2px 0 0', fontSize: 10, color: 'var(--color-text-tertiary)' }}>pts</p>
-                      </div>
-                    )}
-                    {myRank !== null && (
-                      <div style={{ textAlign: 'center' }}>
-                        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>#{myRank}</p>
-                        <p style={{ margin: '2px 0 0', fontSize: 10, color: 'var(--color-text-tertiary)' }}>global</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <span className="text-sm font-semibold text-gray-800">
+                  {displayName}
+                </span>
               </div>
-            )}
-
-            {/* Favourite team */}
-            {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
-              <div style={{ padding: '11px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
-                    ⭐ Fav team
-                  </span>
-                  <select
-                    value={favTeam}
-                    onChange={e => saveFavTeam(e.target.value)}
-                    disabled={savingFav}
-                    style={{
-                      flex: 1, padding: '6px 10px', fontSize: 13,
-                      border: favTeam ? '1.5px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-                      borderRadius: 8, background: 'var(--color-background-primary)',
-                      color: favTeam ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                      cursor: 'pointer', outline: 'none', fontWeight: favTeam ? 500 : 400,
-                    }}>
-                    <option value="">Pick your team — double pts Grp &amp; R32</option>
-                    {(selectedTourn.teams as string[]).sort().map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
-          {/* Comp picker — inline in same card, only when tournament selected */}
-          {selectedTournId && (
-            <div style={{
-              background: 'var(--color-background-primary)',
-              border: '0.5px solid var(--color-border-tertiary)',
-              borderRadius: 20, overflow: 'hidden',
-            }}>
-              {/* Header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '12px 16px',
-                borderBottom: tournsComps.length > 0 ? '0.5px solid var(--color-border-tertiary)' : 'none',
-              }}>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  My Comps
-                </p>
-                {/* Quick-action links */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button onClick={() => setModal('join')} style={{
-                    fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
-                    background: 'none', padding: '4px 10px',
-                    border: '1px solid var(--color-border-tertiary)',
-                    borderRadius: 99, cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                    🔑 Join
-                  </button>
-                  <button onClick={() => setModal('create')} style={{
-                    fontSize: 12, fontWeight: 600, color: '#ffffff',
-                    background: 'linear-gradient(135deg, #153d26, #16a34a)',
-                    border: 'none', padding: '4px 10px',
-                    borderRadius: 99, cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                    + Create
-                  </button>
-                </div>
-              </div>
-
-              {/* Comp list */}
-              {tournsComps.length === 0 ? (
-                /* Empty state — welcoming, not a dead end */
-                <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>🏆</div>
-                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                      No comp yet for this tournament
-                    </p>
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
-                      Join a friend's comp with an invite code, or create one for your group.
-                    </p>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <button onClick={() => setModal('join')} style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                      padding: '12px 8px', borderRadius: 14, border: '1.5px solid var(--color-border-secondary)',
-                      background: 'var(--color-background-secondary)', cursor: 'pointer',
-                    }}>
-                      <span style={{ fontSize: 20 }}>🔑</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>Join a comp</span>
-                      <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>Have an invite code</span>
-                    </button>
-                    <button onClick={() => setModal('create')} style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                      padding: '12px 8px', borderRadius: 14,
-                      border: '1.5px solid rgba(22,163,74,0.3)',
-                      background: 'linear-gradient(160deg, #0a2e1c, #153d26)', cursor: 'pointer',
-                    }}>
-                      <span style={{ fontSize: 20 }}>🏆</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>Create a comp</span>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>For my group</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Comp cards */
-                <div>
-                  {tournsComps.map((c, idx) => {
-                    const isSel = selectedCompId === c.id
-                    const isAdmin = isCompAdmin && isSel
-                    return (
-                      <button key={c.id} onClick={() => pickComp(c)}
-                        style={{
-                          width: '100%', display: 'flex', alignItems: 'center', gap: 14,
-                          padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                          background: isSel ? 'var(--color-background-success)' : 'transparent',
-                          borderBottom: idx < tournsComps.length - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none',
-                          transition: 'background 0.15s',
-                          position: 'relative',
-                        }}>
-                        {/* Logo or initial */}
-                        <div style={{
-                          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                          overflow: 'hidden', border: '1px solid var(--color-border-tertiary)',
-                          background: 'var(--color-background-secondary)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {c.logo_url
-                            ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-tertiary)' }}>
-                                {c.name.charAt(0).toUpperCase()}
-                              </span>
-                          }
-                        </div>
-
-                        {/* Name + admin badge */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <p style={{
-                              margin: 0, fontSize: 14, fontWeight: isSel ? 700 : 500,
-                              color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>
-                              {c.name}
-                            </p>
-                            {isAdmin && (
-                              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-warning)', background: 'var(--color-background-warning)', padding: '1px 6px', borderRadius: 99, flexShrink: 0 }}>
-                                🛠 admin
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Comp rank + pts inline */}
-                        {compRanks[c.id] && (
-                          <div style={{ display: 'flex', gap: 10, flexShrink: 0, alignItems: 'center' }}>
-                            <div style={{ textAlign: 'right' }}>
-                              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isSel ? 'var(--color-text-success)' : 'var(--color-text-primary)', lineHeight: 1 }}>
-                                {compRanks[c.id].pts}<span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>pts</span>
-                              </p>
-                              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                                #{compRanks[c.id].rank} in comp
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Selection indicator */}
-                        {isSel ? (
-                          <div style={{
-                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                            background: 'var(--color-text-success)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
-                          </div>
-                        ) : (
-                          <div style={{
-                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                            border: '1.5px solid var(--color-border-tertiary)',
-                          }} />
-                        )}
-                      </button>
-                    )
-                  })}
-
-                  {/* Add more comps footer */}
-                  <div style={{
-                    display: 'flex', gap: 0,
-                    borderTop: '0.5px solid var(--color-border-tertiary)',
-                  }}>
-                    <button onClick={() => setModal('join')} style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      gap: 6, padding: '10px 0', border: 'none', background: 'transparent', cursor: 'pointer',
-                      fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
-                      borderRight: '0.5px solid var(--color-border-tertiary)',
-                    }}>
-                      🔑 Join another
-                    </button>
-                    <button onClick={() => setModal('create')} style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      gap: 6, padding: '10px 0', border: 'none', background: 'transparent', cursor: 'pointer',
-                      fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)',
-                    }}>
-                      + Create new
-                    </button>
-                  </div>
+              {(totalPts !== null || myRank !== null) && (
+                <div className="flex items-center gap-3">
+                  {totalPts !== null && (
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-green-600 leading-none">{totalPts}<span className="text-xs font-normal text-gray-400 ml-0.5">pts</span></p>
+                      <p className="text-[10px] text-gray-400">global</p>
+                    </div>
+                  )}
+                  {myRank !== null && (
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-800 leading-none">#{myRank}</p>
+                      <p className="text-[10px] text-gray-400">rank</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          </div>  {/* ← close consolidated card */}
+          {(loading || contextLoading) ? (
+            <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
+          ) : (
+            <>
+
+              {/* ── Tournament context ─────────────────────────────────── */}
+              {activeTournaments.length > 1 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {activeTournaments.map(t => {
+                    const isSel = selectedTournId === t.id
+                    return (
+                      <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                          isSel
+                            ? 'bg-green-600 text-white shadow-sm'
+                            : 'bg-white border border-gray-200 text-gray-500 hover:border-green-400'
+                        }`}>
+                        ⚽ {t.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {activeTournaments.length === 1 && selectedTourn && (
+                <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
+                  <span>⚽</span>{selectedTourn.name}
+                  {favTeam && <><span className="text-gray-300">·</span><span className="text-green-600 font-medium">⭐ {favTeam}</span></>}
+                </p>
+              )}
+
+              {/* ── Fav team (only if multiple tournaments or no fav set) ── */}
+              {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+                <div className="mb-3">
+                  <select
+                    value={favTeam}
+                    onChange={e => saveFavTeam(e.target.value)}
+                    disabled={savingFav}
+                    className={`w-full px-3 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-green-400 bg-white transition-colors ${
+                      favTeam ? 'border-green-300 text-green-700 font-medium' : 'border-gray-200 text-gray-400'
+                    }`}>
+                    <option value="">⭐ Pick your favourite team — earn 2× pts (Grp & R32)</option>
+                    {(selectedTourn.teams as string[]).sort().map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* ── Comp section ──────────────────────────────────────────── */}
+              {selectedTournId && (
+                <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm mb-3">
+
+                  {tournsComps.length === 0 ? (
+                    /* No comps — invitation */
+                    <div className="p-5">
+                      <p className="text-sm font-semibold text-gray-800 mb-1">No comp yet</p>
+                      <p className="text-xs text-gray-500 mb-4">Join a friend's comp with an invite code, or create one for your group.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => setModal('join')}
+                          className="flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 transition-colors bg-gray-50 hover:bg-green-50">
+                          <span className="text-xl">🔑</span>
+                          <span className="text-xs font-semibold text-gray-700">Join a comp</span>
+                          <span className="text-[10px] text-gray-400">Have an invite code</span>
+                        </button>
+                        <button onClick={() => setModal('create')}
+                          className="flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 border-transparent transition-all"
+                          style={{ background: 'linear-gradient(160deg, #0a2e1c, #166534)' }}>
+                          <span className="text-xl">🏆</span>
+                          <span className="text-xs font-semibold text-white">Create a comp</span>
+                          <span className="text-[10px] text-white opacity-60">For my group</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {tournsComps.map((c, idx) => {
+                        const isSel = selectedCompId === c.id
+                        const rank  = compRanks[c.id]
+                        const isAdm = isCompAdmin && isSel
+                        return (
+                          <Link key={c.id} href="/predict"
+                            onClick={() => { if (!isSel) pickComp(c) }}
+                            className="block no-underline"
+                            style={{ textDecoration: 'none' }}>
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 14,
+                              padding: isSel ? '16px 16px 16px 0' : '13px 14px',
+                              borderBottom: idx < tournsComps.length - 1 ? '1px solid #f3f4f6' : 'none',
+                              background: isSel ? '#f0fdf4' : 'transparent',
+                              borderLeft: isSel ? '4px solid #16a34a' : '4px solid transparent',
+                              transition: 'all 0.15s', cursor: 'pointer',
+                              paddingLeft: isSel ? 16 : 14,
+                            }}>
+                              {/* Logo */}
+                              <div style={{
+                                width: isSel ? 48 : 36, height: isSel ? 48 : 36,
+                                borderRadius: isSel ? 12 : 9, flexShrink: 0,
+                                overflow: 'hidden', border: isSel ? '2px solid #bbf7d0' : '1px solid #e5e7eb',
+                                background: '#f9fafb',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                transition: 'all 0.15s',
+                              }}>
+                                {c.logo_url
+                                  ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  : <span style={{ fontSize: isSel ? 22 : 16, fontWeight: 700, color: isSel ? '#16a34a' : '#9ca3af' }}>
+                                      {c.name.charAt(0).toUpperCase()}
+                                    </span>
+                                }
+                              </div>
+
+                              {/* Name + badge */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <p style={{
+                                    margin: 0,
+                                    fontSize: isSel ? 15 : 13,
+                                    fontWeight: isSel ? 700 : 500,
+                                    color: isSel ? '#15803d' : '#374151',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    lineHeight: 1.2,
+                                  }}>
+                                    {c.name}
+                                  </p>
+                                  {isAdm && (
+                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 99, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                      🛠 admin
+                                    </span>
+                                  )}
+                                </div>
+                                {isSel && (
+                                  <p style={{ margin: '3px 0 0', fontSize: 11, color: '#16a34a', fontWeight: 500 }}>
+                                    Tap to predict →
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Rank — prominent when selected */}
+                              {rank && (
+                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                  <p style={{
+                                    margin: 0, lineHeight: 1,
+                                    fontSize: isSel ? 18 : 13,
+                                    fontWeight: 700,
+                                    color: isSel ? '#15803d' : '#374151',
+                                  }}>
+                                    {rank.pts}
+                                    <span style={{ fontSize: isSel ? 11 : 10, fontWeight: 400, color: isSel ? '#86efac' : '#9ca3af', marginLeft: 2 }}>pts</span>
+                                  </p>
+                                  <p style={{ margin: '2px 0 0', fontSize: 10, color: isSel ? '#4ade80' : '#9ca3af' }}>
+                                    #{rank.rank} in comp
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Active indicator */}
+                              {isSel && (
+                                <div style={{
+                                  width: 8, height: 8, borderRadius: '50%',
+                                  background: '#16a34a', flexShrink: 0,
+                                  boxShadow: '0 0 0 3px #bbf7d0',
+                                }} />
+                              )}
+                            </div>
+                          </Link>
+                        )
+                      })}
+
+                      {/* Footer actions */}
+                      <div className="flex border-t border-gray-100">
+                        <button onClick={() => setModal('join')}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border-r border-gray-100">
+                          🔑 Join another
+                        </button>
+                        <button onClick={() => setModal('create')}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+                          + Create new
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+            </>
+          )}
         </div>
       )}
 
-      {loading && session && <div className="flex justify-center py-6"><Spinner className="w-6 h-6" /></div>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+      {/* ── Action grid ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2.5 mb-6">
         {session ? (
           <>
             {selectedCompId
-              ? <NavCard href="/predict" icon="🎯" title="Predict" description={started ? "Enter scores before kickoff" : "Predictions open — get ahead"} accent />
-              : <div className="flex items-start gap-4 p-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
-                  <span className="text-2xl flex-shrink-0 mt-0.5">🎯</span>
+              ? <NavCard href="/predict" icon="🎯" title="Predict" description={started ? "Enter your scores before kickoff" : "Predictions open — get ahead"} accent />
+              : <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 cursor-not-allowed opacity-50 col-span-2">
+                  <span className="text-xl flex-shrink-0">🎯</span>
                   <div>
                     <p className="text-sm font-semibold text-gray-400">Predict</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Select a comp above to start predicting</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Join or create a comp above to start predicting</p>
                   </div>
                 </div>
             }
-            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard" description="Global rankings and round-by-round standings" />
-            <NavCard href="/tribe"       icon="👥" title="Your tribe"  description="Compete on a private leaderboard with friends" />
-            <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide, tournament format, and FAQ" />
-            <NavCard href="/settings"    icon="⚙️" title="Settings"    description="Favourite team, notifications, account" />
-            {isAdmin && <NavCard href="/admin" icon="🔧" title="Admin panel" description="Enter results and manage the tournament" />}
+            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard"  description="Rankings and standings" />
+            <NavCard href="/tribe"       icon="👥" title="Tribe"        description="Compete with friends" />
+            <NavCard href="/rules"       icon="📖" title="How to play"  description="Scoring guide and rules" />
+            <NavCard href="/settings"    icon="⚙️" title="Settings"     description="Profile and preferences" />
+            {isAdmin && <NavCard href="/admin" icon="🔧" title="Admin" description="Manage the tournament" />}
           </>
         ) : (
           <>
-            <NavCard href="/login?tab=register" icon="🚀" title="Join free"     description="Register and start predicting in 30 seconds" accent />
-            <NavCard href="/login" icon="🔑" title="Sign in"       description="Already have an account" />
-            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard" description="See the current standings" />
-            <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide and tournament format" />
+            <NavCard href="/login?tab=register" icon="🚀" title="Join free"    description="Register in 30 seconds" accent />
+            <NavCard href="/login"              icon="🔑" title="Sign in"      description="Already have an account" />
+            <NavCard href="/leaderboard"        icon="🏆" title="ScoreBoard"   description="See the current standings" />
+            <NavCard href="/rules"              icon="📖" title="How to play"  description="Scoring guide" />
           </>
         )}
       </div>
