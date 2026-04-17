@@ -134,7 +134,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           const rd = await rr.json()
           const rows: RoundConfig[] = rd.data ?? []
           setRoundConfigs(rows)
-          if (rows.length > 0) setScoringConfig(buildScoringConfig(rows))
+         
+
+	  if (rows.length > 0) {
+   		const fallback = getDefaultScoringConfig()
+  		const merged = rows.map(r => ({
+    			...r,
+    		pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+  		}))
+  	setScoringConfig(buildScoringConfig(merged))
+	}
         } catch { /* use default */ }
       }
 
@@ -173,6 +182,15 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const rows: RoundConfig[] = rd.data ?? []
       setRoundConfigs(rows)
       if (rows.length > 0) setScoringConfig(buildScoringConfig(rows))
+	if (rows.length > 0) {
+  		const fallback = getDefaultScoringConfig()
+  		const merged = rows.map(r => ({
+    		...r,
+    		pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+  		}))
+  	setScoringConfig(buildScoringConfig(merged))
+	}
+
     } catch { /* use default */ }
     if (session) await loadComps(id, session.user.id, null)
     await fetch('/api/user-preferences', {
