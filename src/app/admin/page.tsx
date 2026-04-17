@@ -22,9 +22,11 @@ const FLAGS: Record<string, string> = {
 const flag = (t: string) => FLAGS[t] ?? '🏳️'
 
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
-type ResultMap  = Record<number, MatchScore>
+type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
 
 // ── AdminResultRow ────────────────────────────────────────────────────────────
+const KNOCKOUT_ROUNDS_ADMIN = ['r32','r16','qf','sf','tp','f']
+
 function AdminResultRow({
   fixture,
   result,
@@ -32,23 +34,34 @@ function AdminResultRow({
   onClear,
 }: {
   fixture: Fixture
-  result?: MatchScore
-  onSave: (id: number, home: number, away: number) => Promise<void>
+  result?: MatchScore & { pen_winner?: string | null }
+  onSave: (id: number, home: number, away: number, penWinner?: string | null) => Promise<void>
   onClear: (id: number) => Promise<void>
 }) {
   const homeRef = useRef<HTMLInputElement>(null)
   const awayRef = useRef<HTMLInputElement>(null)
-  const [saving, setSaving] = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [homeVal,    setHomeVal]    = useState(result?.home?.toString() ?? '')
+  const [awayVal,    setAwayVal]    = useState(result?.away?.toString() ?? '')
+  const [penWinner,  setPenWinner]  = useState<string>(result?.pen_winner ?? '')
+
+  const isKnockout  = KNOCKOUT_ROUNDS_ADMIN.includes(fixture.round)
+  const h           = parseInt(homeVal, 10)
+  const a           = parseInt(awayVal, 10)
+  const scoresLevel = !isNaN(h) && !isNaN(a) && h === a
+  const showPenPick = isKnockout && scoresLevel
 
   const handleSave = async () => {
-    const h = parseInt(homeRef.current?.value ?? '', 10)
-    const a = parseInt(awayRef.current?.value ?? '', 10)
     if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
       toast.error('Enter valid scores (0 or higher) for both teams')
       return
     }
+    if (showPenPick && !penWinner) {
+      toast.error('Select the penalty shootout winner')
+      return
+    }
     setSaving(true)
-    await onSave(fixture.id, h, a)
+    await onSave(fixture.id, h, a, showPenPick ? penWinner : null)
     setSaving(false)
   }
 
@@ -56,70 +69,97 @@ function AdminResultRow({
     if (!confirm(`Clear result for ${fixture.home} vs ${fixture.away}?`)) return
     setSaving(true)
     await onClear(fixture.id)
-    if (homeRef.current) homeRef.current.value = ''
-    if (awayRef.current) awayRef.current.value = ''
+    setHomeVal(''); setAwayVal(''); setPenWinner('')
     setSaving(false)
   }
 
   return (
     <div className={clsx(
-      'flex items-center gap-3 px-3 py-3 border-b border-gray-100 last:border-0 flex-wrap',
+      'px-3 py-3 border-b border-gray-100 last:border-0 transition-colors',
       result ? 'bg-green-50/40' : 'hover:bg-gray-50',
-      'transition-colors'
     )}>
-      {/* Teams + meta */}
-      <div className="flex-1 min-w-[160px]">
-        <p className="text-sm font-medium text-gray-800">
-          {flag(fixture.home)} {fixture.home} <span className="text-gray-400 text-xs mx-1">vs</span> {flag(fixture.away)} {fixture.away}
-        </p>
-        <p className="text-[11px] text-gray-400 mt-0.5">{fixture.date} · {fixture.venue}</p>
-      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Teams + meta */}
+        <div className="flex-1 min-w-[160px]">
+          <p className="text-sm font-medium text-gray-800">
+            {flag(fixture.home)} {fixture.home} <span className="text-gray-400 text-xs mx-1">vs</span> {flag(fixture.away)} {fixture.away}
+          </p>
+          <p className="text-[11px] text-gray-400 mt-0.5">{fixture.date} · {fixture.venue}</p>
+        </div>
 
-      {/* Result badge */}
-      {result && (
-        <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-md whitespace-nowrap">
-          {result.home} – {result.away}
-        </span>
-      )}
-
-      {/* Score inputs */}
-      <div className="flex items-center gap-1.5">
-        <input
-          ref={homeRef}
-          type="number"
-          min={0}
-          max={30}
-          placeholder="H"
-          defaultValue={result?.home ?? ''}
-          className="w-10 h-8 text-center text-sm font-medium border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-        />
-        <span className="text-gray-300 text-xs">–</span>
-        <input
-          ref={awayRef}
-          type="number"
-          min={0}
-          max={30}
-          placeholder="A"
-          defaultValue={result?.away ?? ''}
-          className="w-10 h-8 text-center text-sm font-medium border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-        />
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors"
-        >
-          {saving ? '…' : 'Save'}
-        </button>
+        {/* Existing result badge */}
         {result && (
-          <button
-            onClick={handleClear}
-            disabled={saving}
-            className="px-3 py-1.5 border border-gray-300 hover:bg-gray-100 disabled:opacity-50 text-gray-600 text-xs font-medium rounded-md transition-colors"
-          >
-            Clear
-          </button>
+          <span className="px-2.5 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-md whitespace-nowrap">
+            {result.home} – {result.away}
+            {result.pen_winner && <span className="ml-1 text-green-600">(pens: {result.pen_winner})</span>}
+          </span>
         )}
+
+        {/* Score inputs */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number" min={0} max={30} placeholder="H"
+            value={homeVal}
+            onChange={e => setHomeVal(e.target.value)}
+            className="w-10 h-8 text-center text-sm font-medium border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+          <span className="text-gray-300 text-xs">–</span>
+          <input
+            type="number" min={0} max={30} placeholder="A"
+            value={awayVal}
+            onChange={e => setAwayVal(e.target.value)}
+            className="w-10 h-8 text-center text-sm font-medium border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+          <button
+            onClick={handleSave} disabled={saving}
+            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors"
+          >
+            {saving ? '…' : 'Save'}
+          </button>
+          {result && (
+            <button
+              onClick={handleClear} disabled={saving}
+              className="px-3 py-1.5 border border-gray-300 hover:bg-gray-100 disabled:opacity-50 text-gray-600 text-xs font-medium rounded-md transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Penalty winner — shown when knockout draw */}
+      {showPenPick && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+            🥅 Penalty winner
+          </span>
+          <button
+            onClick={() => setPenWinner(fixture.home)}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              penWinner === fixture.home
+                ? 'bg-green-600 border-green-600 text-white'
+                : 'border-gray-300 text-gray-700 hover:border-green-400 hover:bg-green-50'
+            )}
+          >
+            {flag(fixture.home)} {fixture.home}
+          </button>
+          <button
+            onClick={() => setPenWinner(fixture.away)}
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              penWinner === fixture.away
+                ? 'bg-green-600 border-green-600 text-white'
+                : 'border-gray-300 text-gray-700 hover:border-green-400 hover:bg-green-50'
+            )}
+          >
+            {flag(fixture.away)} {fixture.away}
+          </button>
+          {!penWinner && (
+            <span className="text-[11px] text-amber-600">Required — select the penalty winner</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -155,7 +195,7 @@ export default function AdminPage() {
 
       const rm: ResultMap = {}
       ;(resData.data ?? []).forEach((r: any) => {
-        if (r.home_score != null) rm[r.id] = { home: r.home_score, away: r.away_score }
+        if (r.home_score != null) rm[r.id] = { home: r.home_score, away: r.away_score, pen_winner: r.pen_winner ?? null }
       })
       setResults(rm)
       setLoading(false)
@@ -164,18 +204,18 @@ export default function AdminPage() {
   }, [session])
 
   // ── Save result ──────────────────────────────────────────
-  const handleSave = useCallback(async (fixtureId: number, home: number, away: number) => {
+  const handleSave = useCallback(async (fixtureId: number, home: number, away: number, penWinner?: string | null) => {
     const res = await fetch('/api/results', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fixture_id: fixtureId, home, away }),
+      body: JSON.stringify({ fixture_id: fixtureId, home, away, pen_winner: penWinner ?? null }),
     })
     const { data, predictions_scored, error } = await res.json()
     if (!res.ok || error) {
       toast.error(error ?? 'Failed to save result')
       return
     }
-    setResults(prev => ({ ...prev, [fixtureId]: { home, away } }))
+    setResults(prev => ({ ...prev, [fixtureId]: { home, away, pen_winner: penWinner ?? null } }))
     toast.success(`Result saved · ${predictions_scored} prediction${predictions_scored !== 1 ? 's' : ''} scored`)
   }, [])
 
