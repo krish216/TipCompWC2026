@@ -1,1083 +1,1068 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { Spinner, Card, EmptyState } from '@/components/ui'
+import { Spinner, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 
-interface Tribe  { id: string; name: string; description?: string | null; invite_code: string; member_count?: number; member_ids?: string[] }
-interface Member { id: string; display_name: string; email: string }
-interface Org    { id: string; name: string; slug: string; invite_code?: string; logo_url?: string | null }
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Member    { id: string; display_name: string; email: string; joined_at?: string }
+interface Invite    { id: string; email: string; sent_at: string; joined: boolean; joined_at?: string | null; display_name?: string | null }
+interface Payment   { id: string; user_id: string; display_name: string; email: string; paid: boolean; amount?: number; paid_at?: string | null; notes?: string | null }
+interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; member_count?: number; member_ids?: string[] }
+interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
+interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
-// ── Create tribe form ──────────────────────────────────────────────────────────
-function CreateTribeForm({ compId, onCreated }: { compId: string; onCreated: (t: Tribe) => void }) {
-  const [name,        setName]        = useState('')
-  const [description, setDescription] = useState('')
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState<string | null>(null)
+type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges'
 
-  const submit = async () => {
-    if (!name.trim()) return
-    setLoading(true)
-    const res = await fetch('/api/tribes', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name: name.trim(), description: description.trim() || null, comp_id: compId }),
-    })
-    const { data, error } = await res.json()
-    setLoading(false)
-    if (error) {
-      if (res.status === 409) {
-        setError(`A tribe named "${name.trim()}" already exists in this comp. Please choose a different name.`)
-      } else {
-        setError(error)
-      }
-    } else {
-      toast.success(`Tribe "${data.name}" created`)
-      setName(''); setDescription(''); setError(null)
-      onCreated(data)
-    }
-  }
+const TAB_CONFIG: { id: Tab; icon: string; label: string; desc: string }[] = [
+  { id: 'tipsters',   icon: '👥', label: 'Tipsters',   desc: 'Invite & track' },
+  { id: 'payments',   icon: '💳', label: 'Payments',   desc: 'Fees & tracking' },
+  { id: 'email',      icon: '✉️',  label: 'Email',      desc: 'Send to tipsters' },
+  { id: 'settings',   icon: '⚙️',  label: 'Settings',   desc: 'Comp config' },
+  { id: 'tribes',     icon: '🏕️',  label: 'Tribes',     desc: 'Manage groups' },
+  { id: 'challenges', icon: '⚡',  label: 'Challenges', desc: 'Daily prizes' },
+]
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const colors   = ['bg-violet-100 text-violet-700','bg-blue-100 text-blue-700','bg-emerald-100 text-emerald-700','bg-amber-100 text-amber-700','bg-rose-100 text-rose-700']
+  const color    = colors[name.charCodeAt(0) % colors.length]
+  const sz       = size === 'sm' ? 'w-6 h-6 text-[10px]' : size === 'lg' ? 'w-10 h-10 text-sm' : 'w-8 h-8 text-xs'
+  return <div className={clsx('rounded-full flex items-center justify-center font-bold flex-shrink-0', sz, color)}>{initials}</div>
+}
+
+function Pill({ color, children }: { color: 'green'|'amber'|'red'|'blue'|'gray'; children: React.ReactNode }) {
+  const cls = { green:'bg-emerald-100 text-emerald-700', amber:'bg-amber-100 text-amber-700', red:'bg-red-100 text-red-600', blue:'bg-blue-100 text-blue-700', gray:'bg-gray-100 text-gray-500' }
+  return <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide', cls[color])}>{children}</span>
+}
+
+function SectionCard({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Create tribe</p>
-      <div className="space-y-3">
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-4">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">Tribe name</label>
-          <input
-            type="text" value={name} onChange={e => { setName(e.target.value); setError(null) }}
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            placeholder="e.g. The Offside Trap"
-            maxLength={50}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-          />
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">{title}</p>
+          {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-            Short description <span className="text-gray-400 font-normal">(optional, max 200 chars)</span>
-          </label>
-          <textarea
-            value={description} onChange={e => setDescription(e.target.value)}
-            placeholder="e.g. For the marketing team — weekly prize for top predictor"
-            maxLength={200} rows={2}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white resize-none"
-          />
-          <p className="text-[11px] text-gray-400 mt-1 text-right">{description.length}/200</p>
-        </div>
-        {error && (
-          <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-            {error}
-          </div>
-        )}
-        <button
-          onClick={submit} disabled={loading || !name.trim()}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5"
-        >
-          {loading && <Spinner className="w-3 h-3 text-white" />}
-          Create tribe
-        </button>
+        {action}
       </div>
-      <p className="text-[11px] text-gray-400 mt-2">
-        Players in your comp can join using the invite code.
-      </p>
-    </Card>
-  )
-}
-
-// ── Grant org admin form ───────────────────────────────────────────────────────
-function GrantOrgAdminForm({ compId }: { compId: string }) {
-  const [email,   setEmail]   = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const grant = async () => {
-    if (!email.trim()) return
-    setLoading(true)
-    const res = await fetch('/api/comp-admins', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ email: email.trim(), comp_id: compId }),
-    })
-    const { success, error } = await res.json()
-    setLoading(false)
-    if (success) { toast.success(`Org admin granted to ${email}`); setEmail('') }
-    else toast.error(error ?? 'Failed — user must be registered first')
-  }
-
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
-        Grant org admin access
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="email" value={email} onChange={e => setEmail(e.target.value)}
-          placeholder="user@example.com"
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-        />
-        <button
-          onClick={grant} disabled={loading || !email.trim()}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5"
-        >
-          {loading && <Spinner className="w-3 h-3 text-white" />}
-          Grant
-        </button>
-      </div>
-      <p className="text-[11px] text-gray-400 mt-2">
-        The user must already have a registered account in your comp.
-      </p>
-    </Card>
-  )
-}
-
-// ── Tribe card ────────────────────────────────────────────────────────────────
-function TribeCard({ tribe, members }: { tribe: Tribe; members: Member[] }) {
-  const [copied, setCopied] = useState(false)
-  const tribeMembers = members.filter(m => tribe.member_ids?.includes(m.id))
-  const displayCount = tribe.member_count ?? tribeMembers.length
-
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(tribe.invite_code)
-    setCopied(true); setTimeout(() => setCopied(false), 2000)
-    toast.success('Invite code copied!')
-  }
-
-  return (
-    <Card className="mb-3">
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900">{tribe.name}</h3>
-          {tribe.description && (
-            <p className="text-xs text-gray-500 mt-0.5">{tribe.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-          <span className="text-xs text-gray-400">{displayCount} member{displayCount !== 1 ? 's' : ''}</span>
-          <button
-            onClick={copyCode}
-            className={clsx(
-              'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium border transition-colors',
-              copied
-                ? 'bg-green-100 text-green-700 border-green-300'
-                : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-            )}
-          >
-            {tribe.invite_code} {copied ? '✓' : '⎘'}
-          </button>
-        </div>
-      </div>
-
-      {tribeMembers.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">No members yet — share the invite code</p>
-      ) : (
-        <div className="space-y-1 mt-2">
-          {tribeMembers.map(m => (
-            <div key={m.id} className="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0">
-              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-[10px] font-semibold text-green-700 flex-shrink-0">
-                {m.display_name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-800 truncate">{m.display_name}</p>
-                <p className="text-[10px] text-gray-400 truncate">{m.email}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ── Logo upload component ─────────────────────────────────────────────────────
-function OrgLogoUpload({ compId, currentLogo, onUploaded }: {
-  compId: string; currentLogo: string | null; onUploaded: (url: string) => void
-}) {
-  const { supabase, session } = useSupabase()
-  const fileRef    = useRef<HTMLInputElement>(null)
-  const [preview,   setPreview]   = useState<string | null>(currentLogo)
-  const [uploading, setUploading] = useState(false)
-
-  useEffect(() => {
-    if (currentLogo && !uploading) setPreview(currentLogo)
-  }, [currentLogo])
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !compId || !session) return
-    if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2MB'); return }
-
-    const reader = new FileReader()
-    reader.onload = ev => setPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
-
-    setUploading(true)
-    const ext  = file.name.split('.').pop()
-    const path = `${session.user.id}/logo.${ext}`
-    const { data: uploaded, error } = await supabase.storage
-      .from('org-logos').upload(path, file, { upsert: true })
-
-    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
-
-    const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
-    const logoUrl = urlData.publicUrl
-
-    await fetch('/api/comps/create', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, logo_url: logoUrl, user_id: session.user.id }),
-    })
-
-    // Verify saved
-    const verifyRes  = await fetch('/api/comp-admins')
-    const verifyData = await verifyRes.json()
-    const savedLogo  = verifyData.org?.logo_url ?? logoUrl
-    onUploaded(savedLogo)
-    setUploading(false)
-  }
-
-  return (
-    <div className="flex items-center gap-4">
-      <div className="relative flex-shrink-0">
-        {preview ? (
-          <img src={preview} alt="Org logo" className="w-16 h-16 rounded-xl object-cover border border-gray-200" />
-        ) : (
-          <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300">
-            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-        )}
-        {uploading && (
-          <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
-            <Spinner className="w-5 h-5 text-white" />
-          </div>
-        )}
-      </div>
-      <div>
-        <button onClick={() => fileRef.current?.click()} disabled={uploading}
-          className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50">
-          {preview ? 'Change logo' : 'Upload logo'}
-        </button>
-        <p className="text-[11px] text-gray-400 mt-1.5">Shown on the home page for your org members. Max 2MB.</p>
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <div>{children}</div>
     </div>
   )
 }
 
-// ── App name panel ────────────────────────────────────────────────────────────
-const DEFAULT_APP_NAME = 'World Cup 2026 Tipping Comp'
+// ─── Tab: Tipsters ────────────────────────────────────────────────────────────
+function TipstersTab({ comp, members }: { comp: any; members: Member[] }) {
+  const [invites,     setInvites]     = useState<Invite[]>([])
+  const [emailInput,  setEmailInput]  = useState('')
+  const [bulkInput,   setBulkInput]   = useState('')
+  const [showBulk,    setShowBulk]    = useState(false)
+  const [sending,     setSending]     = useState(false)
+  const [loadingInvites, setLoadingInvites] = useState(true)
+  const [filter,      setFilter]      = useState<'all'|'joined'|'pending'>('all')
 
-function AppNamePanel({ compId, currentName, onSaved, userId }: {
-  compId: string; currentName: string; onSaved: (name: string) => void; userId: string
-}) {
-  const [name,    setName]    = useState(currentName)
-  const [saving,  setSaving]  = useState(false)
+  useEffect(() => {
+    fetch(`/api/comp-admins/members?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => {
+        // Build invite list from members + any pending invites stored
+        const memberInvites: Invite[] = (d.data ?? []).map((m: Member) => ({
+          id: m.id, email: m.email, sent_at: m.joined_at ?? new Date().toISOString(),
+          joined: true, joined_at: m.joined_at, display_name: m.display_name,
+        }))
+        setInvites(memberInvites)
+      })
+      .finally(() => setLoadingInvites(false))
+  }, [comp.id])
 
-  useEffect(() => { setName(currentName) }, [currentName])
-
-  const save = async () => {
-    setSaving(true)
-    const res = await fetch('/api/comps/create', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, name: name.trim() || null, user_id: userId }),
+  const sendInvite = async (email: string) => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || !/\S+@\S+\.\S+/.test(trimmed)) { toast.error('Enter a valid email address'); return }
+    if (invites.some(i => i.email.toLowerCase() === trimmed)) { toast.error('Already invited'); return }
+    setSending(true)
+    const res = await fetch('/api/comp-admins/self-register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: trimmed, comp_id: comp.id, send_invite: true }),
     })
-    const { success, error } = await res.json()
-    setSaving(false)
-    if (success !== false && !error) {
-      onSaved(name.trim())
-      toast.success('App name saved!')
+    const data = await res.json()
+    setSending(false)
+    if (res.ok) {
+      setInvites(prev => [{ id: Date.now().toString(), email: trimmed, sent_at: new Date().toISOString(), joined: false }, ...prev])
+      setEmailInput('')
+      toast.success(`Invite sent to ${trimmed}`)
     } else {
-      toast.error(error ?? 'Failed to save')
+      toast.error(data.error ?? 'Failed to send invite')
+    }
+  }
+
+  const sendBulk = async () => {
+    const emails = bulkInput.split(/[\n,;]+/).map(e => e.trim()).filter(e => e.includes('@'))
+    if (!emails.length) { toast.error('No valid emails found'); return }
+    setSending(true)
+    let ok = 0, fail = 0
+    for (const email of emails) {
+      const res = await fetch('/api/comp-admins/self-register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, comp_id: comp.id, send_invite: true }),
+      })
+      if (res.ok) { ok++; setInvites(prev => [{ id: Date.now().toString() + email, email, sent_at: new Date().toISOString(), joined: false }, ...prev]) }
+      else fail++
+    }
+    setSending(false)
+    setBulkInput(''); setShowBulk(false)
+    toast.success(`${ok} invite${ok !== 1 ? 's' : ''} sent${fail > 0 ? ` · ${fail} failed` : ''}`)
+  }
+
+  const filtered = useMemo(() => {
+    if (filter === 'joined')  return invites.filter(i => i.joined)
+    if (filter === 'pending') return invites.filter(i => !i.joined)
+    return invites
+  }, [invites, filter])
+
+  const joinedCount  = invites.filter(i => i.joined).length
+  const pendingCount = invites.filter(i => !i.joined).length
+
+  return (
+    <div>
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {[
+          { label: 'Total invited', value: invites.length, color: 'text-gray-800' },
+          { label: 'Joined',  value: joinedCount,  color: 'text-emerald-600' },
+          { label: 'Pending', value: pendingCount, color: 'text-amber-600'   },
+        ].map(s => (
+          <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+            <p className={clsx('text-2xl font-black', s.color)}>{s.value}</p>
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Invite code */}
+      <SectionCard title="Comp join code" subtitle="Share this code — tipsters enter it on the home page">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 px-4 py-2.5 text-center">
+            <span className="text-xl font-mono font-black tracking-[0.25em] text-gray-800 select-all">{comp?.invite_code ?? '—'}</span>
+          </div>
+          <button onClick={async () => { await navigator.clipboard.writeText(comp?.invite_code ?? ''); toast.success('Copied!') }}
+            className="px-3 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
+            Copy
+          </button>
+        </div>
+      </SectionCard>
+
+      {/* Send invites */}
+      <SectionCard title="Send invite" subtitle="Tipster receives an email with a link to join your comp">
+        <div className="p-4 space-y-3">
+          <div className="flex gap-2">
+            <input type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendInvite(emailInput)}
+              placeholder="tipster@example.com"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+            />
+            <button onClick={() => sendInvite(emailInput)} disabled={sending || !emailInput.trim()}
+              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5">
+              {sending ? <Spinner className="w-3 h-3 text-white" /> : '→'}
+              Send
+            </button>
+          </div>
+          <button onClick={() => setShowBulk(v => !v)}
+            className="text-xs text-gray-500 hover:text-gray-700 font-medium underline underline-offset-2">
+            {showBulk ? 'Hide bulk import' : 'Bulk import (paste multiple emails)'}
+          </button>
+          {showBulk && (
+            <div className="space-y-2">
+              <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={4}
+                placeholder={"Paste emails separated by commas, semicolons, or new lines\n\nalice@example.com\nbob@example.com"}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none font-mono"
+              />
+              <button onClick={sendBulk} disabled={sending || !bulkInput.trim()}
+                className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                {sending ? 'Sending…' : `Send ${bulkInput.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length} invites`}
+              </button>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Invite list */}
+      <SectionCard title="Tipster list"
+        subtitle={`${invites.length} invited · ${joinedCount} joined · ${pendingCount} pending`}
+        action={
+          <div className="flex gap-1">
+            {(['all','joined','pending'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={clsx('px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-colors',
+                  filter === f ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100')}>
+                {f}
+              </button>
+            ))}
+          </div>
+        }>
+        {loadingInvites ? (
+          <div className="flex justify-center py-6"><Spinner className="w-5 h-5" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-gray-400">
+              {filter === 'all' ? 'No tipsters yet — send your first invite above.' : `No ${filter} tipsters.`}
+            </p>
+          </div>
+        ) : (
+          <div>
+            {filtered.map((inv, i) => (
+              <div key={inv.id} className={clsx('flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0', i % 2 === 0 ? '' : 'bg-gray-50/40')}>
+                <Avatar name={inv.display_name || inv.email} size="sm" />
+                <div className="flex-1 min-w-0">
+                  {inv.display_name && <p className="text-xs font-semibold text-gray-800 truncate">{inv.display_name}</p>}
+                  <p className="text-[11px] text-gray-500 truncate">{inv.email}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  {inv.joined
+                    ? <Pill color="green">✓ Joined</Pill>
+                    : <Pill color="amber">Pending</Pill>}
+                  {inv.joined_at && <p className="text-[10px] text-gray-400 mt-0.5">{new Date(inv.joined_at).toLocaleDateString()}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Tab: Payments ────────────────────────────────────────────────────────────
+function PaymentsTab({ comp, members }: { comp: any; members: Member[] }) {
+  const [payments,     setPayments]     = useState<Payment[]>([])
+  const [entryFee,     setEntryFee]     = useState<string>('')
+  const [savingFee,    setSavingFee]    = useState(false)
+  const [filter,       setFilter]       = useState<'all'|'paid'|'unpaid'>('all')
+  const [editingNote,  setEditingNote]  = useState<string | null>(null)
+
+  // Build payment records from members
+  useEffect(() => {
+    const records: Payment[] = members.map(m => ({
+      id: m.id, user_id: m.id, display_name: m.display_name, email: m.email,
+      paid: false, paid_at: null, notes: null,
+    }))
+    // Load saved payment state from localStorage (persisted client-side)
+    const saved = localStorage.getItem(`payments_${comp.id}`)
+    if (saved) {
+      const savedMap: Record<string, Partial<Payment>> = JSON.parse(saved)
+      records.forEach(r => {
+        if (savedMap[r.user_id]) Object.assign(r, savedMap[r.user_id])
+      })
+    }
+    setPayments(records)
+    const fee = localStorage.getItem(`entry_fee_${comp.id}`)
+    if (fee) setEntryFee(fee)
+  }, [comp.id, members])
+
+  const saveFee = () => {
+    localStorage.setItem(`entry_fee_${comp.id}`, entryFee)
+    setSavingFee(false)
+    toast.success('Entry fee updated')
+  }
+
+  const togglePaid = (userId: string) => {
+    setPayments(prev => {
+      const updated = prev.map(p => p.user_id === userId
+        ? { ...p, paid: !p.paid, paid_at: !p.paid ? new Date().toISOString() : null }
+        : p)
+      const savedMap: Record<string, Partial<Payment>> = {}
+      updated.forEach(p => { savedMap[p.user_id] = { paid: p.paid, paid_at: p.paid_at, notes: p.notes } })
+      localStorage.setItem(`payments_${comp.id}`, JSON.stringify(savedMap))
+      return updated
+    })
+  }
+
+  const saveNote = (userId: string, note: string) => {
+    setPayments(prev => {
+      const updated = prev.map(p => p.user_id === userId ? { ...p, notes: note || null } : p)
+      const savedMap: Record<string, Partial<Payment>> = {}
+      updated.forEach(p => { savedMap[p.user_id] = { paid: p.paid, paid_at: p.paid_at, notes: p.notes } })
+      localStorage.setItem(`payments_${comp.id}`, JSON.stringify(savedMap))
+      return updated
+    })
+    setEditingNote(null)
+  }
+
+  const filtered = useMemo(() => {
+    if (filter === 'paid')   return payments.filter(p => p.paid)
+    if (filter === 'unpaid') return payments.filter(p => !p.paid)
+    return payments
+  }, [payments, filter])
+
+  const paidCount   = payments.filter(p => p.paid).length
+  const unpaidCount = payments.filter(p => !p.paid).length
+  const feeNum      = parseFloat(entryFee) || 0
+  const totalCollected = paidCount * feeNum
+  const totalExpected  = payments.length * feeNum
+
+  return (
+    <div>
+      {/* Fee config */}
+      <SectionCard title="Entry fee" subtitle="Set the competition entry fee for tracking purposes">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-600">$</span>
+            <input type="number" min="0" step="0.01" value={entryFee}
+              onChange={e => { setEntryFee(e.target.value); setSavingFee(true) }}
+              placeholder="0.00"
+              className="w-32 px-3 py-2 text-sm font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            {savingFee && (
+              <button onClick={saveFee} className="px-3 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
+                Save
+              </button>
+            )}
+            {entryFee && !savingFee && <span className="text-xs text-gray-400">per person</span>}
+          </div>
+          {feeNum > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              Expected: <span className="font-semibold text-gray-700">${totalExpected.toFixed(2)}</span>
+              {' · '}Collected: <span className="font-semibold text-emerald-600">${totalCollected.toFixed(2)}</span>
+              {' · '}Outstanding: <span className="font-semibold text-amber-600">${(totalExpected - totalCollected).toFixed(2)}</span>
+            </p>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {[
+          { label: 'Total tipsters', value: payments.length, color: 'text-gray-800' },
+          { label: 'Paid',    value: paidCount,   color: 'text-emerald-600' },
+          { label: 'Unpaid',  value: unpaidCount, color: 'text-amber-600'   },
+        ].map(s => (
+          <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+            <p className={clsx('text-2xl font-black', s.color)}>{s.value}</p>
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Payment list */}
+      <SectionCard title="Payment tracker"
+        action={
+          <div className="flex gap-1">
+            {(['all','paid','unpaid'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={clsx('px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-colors',
+                  filter === f ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100')}>
+                {f}
+              </button>
+            ))}
+          </div>
+        }>
+        {filtered.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">
+            {members.length === 0 ? 'No tipsters in this comp yet.' : `No ${filter} tipsters.`}
+          </div>
+        ) : (
+          <div>
+            {filtered.map((p, i) => (
+              <div key={p.user_id} className={clsx('px-4 py-3 border-b border-gray-50 last:border-0', i % 2 === 0 ? '' : 'bg-gray-50/40')}>
+                <div className="flex items-center gap-3">
+                  <Avatar name={p.display_name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{p.display_name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{p.email}</p>
+                    {p.notes && editingNote !== p.user_id && (
+                      <p className="text-[11px] text-gray-500 italic mt-0.5 truncate">📝 {p.notes}</p>
+                    )}
+                    {editingNote === p.user_id && (
+                      <div className="flex gap-1.5 mt-1.5">
+                        <input autoFocus type="text" defaultValue={p.notes ?? ''}
+                          onBlur={e => saveNote(p.user_id, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveNote(p.user_id, (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingNote(null) }}
+                          placeholder="Add note (e.g. paid via bank transfer)"
+                          className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => setEditingNote(editingNote === p.user_id ? null : p.user_id)}
+                      className="text-gray-300 hover:text-gray-500 transition-colors text-sm" title="Add note">
+                      📝
+                    </button>
+                    <button onClick={() => togglePaid(p.user_id)}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border',
+                        p.paid
+                          ? 'bg-emerald-100 border-emerald-200 text-emerald-700 hover:bg-red-50 hover:border-red-200 hover:text-red-600'
+                          : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
+                      )}>
+                      {p.paid ? '✓ Paid' : 'Mark paid'}
+                    </button>
+                  </div>
+                </div>
+                {p.paid && p.paid_at && (
+                  <p className="text-[10px] text-emerald-600 mt-1 ml-10">
+                    Marked paid {new Date(p.paid_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* Export */}
+      {payments.length > 0 && (
+        <button onClick={() => {
+          const csv = ['Name,Email,Paid,Paid At,Notes',
+            ...payments.map(p => `"${p.display_name}","${p.email}",${p.paid},${p.paid_at ?? ''},"${p.notes ?? ''}"`)
+          ].join('\n')
+          const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+          a.download = `${comp.name ?? 'comp'}-payments.csv`; a.click()
+        }}
+          className="w-full py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          ↓ Export payments as CSV
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Tab: Email ───────────────────────────────────────────────────────────────
+function EmailTab({ comp, members }: { comp: any; members: Member[] }) {
+  const [subject,     setSubject]     = useState('')
+  const [body,        setBody]        = useState('')
+  const [sending,     setSending]     = useState(false)
+  const [recipients,  setRecipients]  = useState<'all'|'paid'|'custom'>('all')
+  const [customEmails, setCustomEmails] = useState('')
+  const [preview,     setPreview]     = useState(false)
+
+  const templates = [
+    { label: '👋 Welcome',    subject: `Welcome to ${comp?.name ?? 'the comp'}!`, body: `Hi {name},\n\nYou've been invited to join ${comp?.name ?? 'our tipping comp'} for the FIFA World Cup 2026.\n\nUse the join code: ${comp?.invite_code ?? '——'}\n\nGood luck!\n\nThe ${comp?.name ?? 'comp'} team` },
+    { label: '⏰ Reminder',   subject: `Don't forget to enter your tips!`, body: `Hi {name},\n\nJust a reminder that predictions are open and waiting for your tips!\n\nLog in now and submit your predictions before the next round locks.\n\nGood luck!\n\nThe ${comp?.name ?? 'comp'} team` },
+    { label: '🏆 Results',    subject: `Round results are in!`, body: `Hi {name},\n\nThe latest round results are in — check the leaderboard to see where you stand.\n\nKeep tipping!\n\nThe ${comp?.name ?? 'comp'} team` },
+    { label: '💰 Pay up',     subject: `Entry fee reminder for ${comp?.name ?? 'the comp'}`, body: `Hi {name},\n\nThis is a friendly reminder that the entry fee for ${comp?.name ?? 'the comp'} is due.\n\nPlease arrange payment at your earliest convenience.\n\nThanks!\n\nThe ${comp?.name ?? 'comp'} team` },
+  ]
+
+  const recipientList = useMemo(() => {
+    if (recipients === 'custom') return customEmails.split(/[\n,;]+/).map(e => e.trim()).filter(e => e.includes('@'))
+    return members.map(m => m.email)
+  }, [recipients, members, customEmails])
+
+  const send = async () => {
+    if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return }
+    if (recipientList.length === 0) { toast.error('No recipients selected'); return }
+    setSending(true)
+    const res = await fetch('/api/comp-announcements', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, title: subject, body, recipients: recipientList }),
+    })
+    setSending(false)
+    if (res.ok) {
+      toast.success(`Email sent to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`)
+      setSubject(''); setBody('')
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? 'Failed to send')
     }
   }
 
   return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Competition name</p>
-      <p className="text-[11px] text-gray-500 mb-3">
-        Shown as the title on the home page for your comp members.
-        Leave blank to use the default.
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder={DEFAULT_APP_NAME}
-          maxLength={60}
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-        />
-        <button onClick={save} disabled={saving}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
-          {saving && <Spinner className="w-3 h-3 text-white" />}
-          Save
-        </button>
-      </div>
-      <p className="text-[11px] text-gray-400 mt-1.5">
-        Preview: <span className="font-medium text-gray-600">{name.trim() || DEFAULT_APP_NAME}</span>
-      </p>
-    </Card>
+    <div>
+      {/* Templates */}
+      <SectionCard title="Quick templates" subtitle="Click to pre-fill the email">
+        <div className="grid grid-cols-2 gap-2 p-3">
+          {templates.map(t => (
+            <button key={t.label} onClick={() => { setSubject(t.subject); setBody(t.body); setPreview(false) }}
+              className="text-left px-3 py-2.5 border border-gray-200 rounded-xl hover:border-gray-900 hover:bg-gray-50 transition-all">
+              <p className="text-xs font-semibold text-gray-700">{t.label}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5 truncate">{t.subject}</p>
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
+      {/* Compose */}
+      <SectionCard title="Compose" subtitle={`Sending to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}>
+        <div className="p-4 space-y-3">
+          {/* Recipients */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Recipients</label>
+            <div className="flex gap-2 flex-wrap">
+              {(['all','paid','custom'] as const).map(r => (
+                <button key={r} onClick={() => setRecipients(r)}
+                  className={clsx('px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors capitalize',
+                    recipients === r ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                  {r === 'all' ? `All tipsters (${members.length})` : r === 'paid' ? 'Paid only' : 'Custom'}
+                </button>
+              ))}
+            </div>
+            {recipients === 'custom' && (
+              <textarea value={customEmails} onChange={e => setCustomEmails(e.target.value)} rows={2}
+                placeholder="Paste emails, one per line or comma-separated"
+                className="mt-2 w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono resize-none"
+              />
+            )}
+          </div>
+
+          {/* Subject */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Subject</label>
+            <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
+              placeholder="Your email subject…"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+          </div>
+
+          {/* Body */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-600">Message</label>
+              <button onClick={() => setPreview(v => !v)} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">
+                {preview ? 'Edit' : 'Preview'}
+              </button>
+            </div>
+            {preview ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 whitespace-pre-wrap min-h-[120px] font-mono">
+                {body || <span className="text-gray-300 italic">Nothing to preview</span>}
+              </div>
+            ) : (
+              <textarea value={body} onChange={e => setBody(e.target.value)} rows={7}
+                placeholder={"Hi {name},\n\nWrite your message here…\n\nUse {name} to personalise with each tipster's display name."}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+              />
+            )}
+            <p className="text-[10px] text-gray-400 mt-1">Tip: use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise with each tipster's display name</p>
+          </div>
+
+          <button onClick={send} disabled={sending || !subject.trim() || !body.trim() || recipientList.length === 0}
+            className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+            {sending ? <><Spinner className="w-4 h-4 text-white" />Sending…</> : `✉️ Send to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </SectionCard>
+    </div>
   )
 }
 
-// ── Age restriction panel ─────────────────────────────────────────────────────
-function AgeRestrictionPanel({ compId, currentMinAge, onSaved, userId }: {
-  compId: string; currentMinAge: number | null; onSaved: (age: number | null) => void; userId: string
-}) {
-  const [minAge, setMinAge] = useState<string>(currentMinAge ? String(currentMinAge) : '')
-  const [saving, setSaving] = useState(false)
+// ─── Tab: Settings ────────────────────────────────────────────────────────────
+function SettingsTab({ comp, tier, domain, minAge, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; onUpdate: (key: string, val: any) => void }) {
+  const [compName,    setCompName]    = useState(comp?.name ?? '')
+  const [saving,      setSaving]      = useState(false)
+  const [newDomain,   setNewDomain]   = useState(domain ?? '')
+  const [newMinAge,   setNewMinAge]   = useState(minAge ? String(minAge) : '')
+  const [adminEmail,  setAdminEmail]  = useState('')
+  const [grantingAdmin, setGrantingAdmin] = useState(false)
 
-  useEffect(() => { setMinAge(currentMinAge ? String(currentMinAge) : '') }, [currentMinAge])
-
-  const save = async () => {
-    const val = minAge.trim() ? parseInt(minAge) : null
-    if (val !== null && (val < 13 || val > 99)) { toast.error('Age must be between 13 and 99'); return }
+  const saveName = async () => {
+    if (!compName.trim()) return
     setSaving(true)
     const res = await fetch('/api/comps/create', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, min_age: val, user_id: userId }),
+      body: JSON.stringify({ id: comp.id, name: compName.trim() }),
     })
-    const { success, error } = await res.json()
     setSaving(false)
-    if (success !== false && !error) { onSaved(val); toast.success(val ? `Minimum age set to ${val}` : 'Age restriction removed') }
-    else toast.error(error ?? 'Failed to save')
+    if (res.ok) { onUpdate('name', compName.trim()); toast.success('Name updated') }
+    else toast.error('Failed to update name')
   }
 
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Age restriction</p>
-      <p className="text-[11px] text-gray-500 mb-3">
-        Set a minimum age requirement for joining your comp. Players must provide their date of birth at registration.
-        Leave blank for no age restriction.
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 flex-1">
-          <span className="text-sm text-gray-600 whitespace-nowrap">Minimum age</span>
-          <input
-            type="number" value={minAge} onChange={e => setMinAge(e.target.value)}
-            placeholder="e.g. 18" min={13} max={99}
-            className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-          />
-          <span className="text-sm text-gray-500">years</span>
-        </div>
-        <button onClick={save} disabled={saving}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
-          {saving && <Spinner className="w-3 h-3 text-white" />}
-          Save
-        </button>
-        {currentMinAge && (
-          <button onClick={() => { setMinAge(''); setTimeout(save, 0) }}
-            className="px-3 py-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">
-            Remove
-          </button>
-        )}
-      </div>
-      {currentMinAge && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-          ⚠️ Players under {currentMinAge} will be blocked from joining your comp.
-          Existing members under {currentMinAge} are not affected.
-        </p>
-      )}
-    </Card>
-  )
-}
-
-// ── Domain restriction panel (Enterprise only) ────────────────────────────────
-function DomainRestrictionPanel({ compId, tier }: { compId: string; tier: string }) {
-  const [domain,  setDomain]  = useState('')
-  const [current, setCurrent] = useState<string | null>(null)
-  const [saving,  setSaving]  = useState(false)
-
-  useEffect(() => {
-    // Fetch current domain restriction from comps table
-    fetch(`/api/comps/domain?comp_id=${compId}`)
-      .then(r => r.json())
-      .then(d => { setCurrent(d.email_domain ?? null); setDomain(d.email_domain ?? '') })
-      .catch(() => {})
-  }, [compId])
-
-  const save = async () => {
-    setSaving(true)
+  const saveDomain = async () => {
     const res = await fetch('/api/comps/domain', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, email_domain: domain.trim().toLowerCase() || null }),
+      body: JSON.stringify({ comp_id: comp.id, email_domain: newDomain.trim() || null }),
     })
-    const { success, error } = await res.json()
-    setSaving(false)
-    if (success) { setCurrent(domain.trim() || null); toast.success('Domain restriction saved') }
-    else toast.error(error ?? 'Failed to save')
+    if (res.ok) { onUpdate('domain', newDomain || null); toast.success(newDomain ? 'Domain restriction saved' : 'Domain restriction removed') }
+    else toast.error('Failed to update domain')
   }
 
-  if (tier !== 'enterprise') return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Email domain restriction</p>
-      <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-        <span className="text-2xl">🔒</span>
-        <div>
-          <p className="text-xs font-medium text-gray-700">Enterprise subscription required</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Restrict comp membership to players with a specific email domain (e.g. @acmecorp.com).</p>
-        </div>
-      </div>
-    </Card>
-  )
+  const saveAge = async () => {
+    const age = parseInt(newMinAge) || null
+    const res = await fetch('/api/comps/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: comp.id, min_age: age }),
+    })
+    if (res.ok) { onUpdate('minAge', age); toast.success(age ? `Minimum age set to ${age}` : 'Age restriction removed') }
+    else toast.error('Failed to update age restriction')
+  }
+
+  const grantAdmin = async () => {
+    if (!adminEmail.trim()) return
+    setGrantingAdmin(true)
+    const res = await fetch('/api/comp-admins', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adminEmail.trim(), comp_id: comp.id }),
+    })
+    setGrantingAdmin(false)
+    const d = await res.json()
+    if (d.success) { toast.success(`Admin access granted to ${adminEmail}`); setAdminEmail('') }
+    else toast.error(d.error ?? 'Failed to grant access')
+  }
 
   return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Email domain restriction</p>
-      <p className="text-[11px] text-gray-500 mb-3">
-        When set, only players whose email address matches this domain can join your comp.
-        Leave blank to allow any email address.
-      </p>
-      {current && (
-        <div className="mb-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-          <span className="text-green-600 text-xs">✓ Currently restricted to</span>
-          <span className="text-xs font-mono font-semibold text-green-800">@{current}</span>
-        </div>
-      )}
-      <div className="flex gap-2">
-        <div className="flex items-center flex-1 border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-green-400 bg-white">
-          <span className="px-3 text-sm text-gray-400 border-r border-gray-200 bg-gray-50 py-2">@</span>
-          <input type="text" value={domain} onChange={e => setDomain(e.target.value.toLowerCase().replace(/^@/, ''))}
-            placeholder="acmecorp.com"
-            className="flex-1 px-3 py-2 text-sm focus:outline-none bg-white" />
-        </div>
-        <button onClick={save} disabled={saving}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
-          {saving && <Spinner className="w-3 h-3 text-white" />}
-          Save
-        </button>
-        {current && (
-          <button onClick={() => { setDomain(''); save() }}
-            className="px-3 py-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg">
-            Clear
+    <div className="space-y-0">
+      {/* Plan badge */}
+      <div className="mb-4 flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+        <span className={clsx('text-xs font-black uppercase tracking-widest px-2.5 py-1 rounded-full',
+          tier === 'enterprise' ? 'bg-violet-100 text-violet-700' :
+          tier === 'business'   ? 'bg-blue-100 text-blue-700'     :
+          tier === 'trial'      ? 'bg-amber-100 text-amber-700'   : 'bg-gray-100 text-gray-600'
+        )}>
+          {tier}
+        </span>
+        <span className="text-xs text-gray-500">Current plan · <a href="/pricing" className="text-blue-600 underline">Upgrade</a></span>
+      </div>
+
+      {/* Comp name */}
+      <SectionCard title="Comp name">
+        <div className="flex gap-2 p-4">
+          <input type="text" value={compName} onChange={e => setCompName(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <button onClick={saveName} disabled={saving || compName === comp?.name}
+            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+            {saving ? '…' : 'Save'}
           </button>
-        )}
-      </div>
-    </Card>
-  )
-}
-
-// ── Subscription card ─────────────────────────────────────────────────────────
-function SubscriptionCard({ compId }: { compId: string }) {
-  const [sub,     setSub]     = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [monetOn, setMonetOn] = useState(false)
-
-  useEffect(() => {
-    Promise.all([
-      fetch(`/api/comp-subscriptions?comp_id=${compId}`).then(r => r.json()),
-      fetch('/api/app-settings').then(r => r.json()),
-    ]).then(([subData, settingsData]) => {
-      setSub(subData.data)
-      setMonetOn(settingsData.data?.monetisation_enabled === 'true')
-      setLoading(false)
-    })
-  }, [compId])
-
-  if (loading) return null
-  if (!monetOn) return (
-    <Card className="mb-4">
-      <div className="flex items-center gap-2">
-        <span className="text-base">⏸️</span>
-        <div>
-          <p className="text-xs font-medium text-gray-700">Monetisation is currently disabled</p>
-          <p className="text-[11px] text-gray-400">All comps have full access — no payment required during this period.</p>
         </div>
-      </div>
-    </Card>
-  )
+      </SectionCard>
 
-  if (!sub) return null
-  const tier         = sub.tier ?? 'trial'
-  const trialEnds    = sub.trial_ends_at ? new Date(sub.trial_ends_at) : null
-  const trialExpired = trialEnds ? trialEnds < new Date() : false
-  const daysLeft     = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - Date.now()) / 86400000)) : null
-
-  const TIER_LABELS: Record<string, string> = {
-    trial: 'Free Trial', starter: 'Starter ($29)', business: 'Business ($99)', enterprise: 'Enterprise',
-  }
-  const TIER_LIMITS: Record<string, string> = {
-    trial:      '1 tribe · up to 50 players · 14-day trial',
-    starter:    '3 tribes · up to 50 players',
-    business:   'Unlimited tribes · up to 200 players',
-    enterprise: 'Unlimited everything',
-  }
-
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Subscription</p>
-      <div className={clsx('rounded-xl p-3 mb-3', trialExpired ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200')}>
-        <div className="flex items-center justify-between">
-          <p className={clsx('text-sm font-semibold', trialExpired ? 'text-red-800' : 'text-blue-800')}>
-            {TIER_LABELS[tier] ?? tier}
-          </p>
-          {tier === 'trial' && daysLeft !== null && (
-            <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full',
-              trialExpired ? 'bg-red-100 text-red-700' : daysLeft <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700')}>
-              {trialExpired ? 'Trial expired' : `${daysLeft} days left`}
-            </span>
+      {/* Domain restriction */}
+      <SectionCard title="Email domain restriction" subtitle={tier === 'enterprise' ? 'Only allow users with this email domain to join' : '🔒 Enterprise plan required'}>
+        <div className="p-4">
+          {tier === 'enterprise' ? (
+            <div className="flex gap-2 items-center">
+              <span className="text-xs text-gray-500 font-medium">@</span>
+              <input type="text" value={newDomain} onChange={e => setNewDomain(e.target.value.toLowerCase().replace(/^@/, ''))}
+                placeholder="company.com (leave blank to remove)"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+              <button onClick={saveDomain} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">Save</button>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">Upgrade to Enterprise to restrict by email domain.</div>
           )}
         </div>
-        <p className="text-[11px] text-gray-600 mt-0.5">{TIER_LIMITS[tier]}</p>
-      </div>
-      {(tier === 'trial' || trialExpired) && (
-        <div className="space-y-2">
-          <p className="text-[11px] text-gray-500 font-medium">Upgrade your plan:</p>
-          {[
-            { tier: 'starter',  label: 'Starter — $29', detail: '3 tribes · 50 players' },
-            { tier: 'business', label: 'Business — $99', detail: 'Unlimited tribes · 200 players' },
-          ].map(t => (
-            <div key={t.tier} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
-              <div>
-                <p className="text-xs font-medium text-gray-800">{t.label}</p>
-                <p className="text-[10px] text-gray-400">{t.detail}</p>
-              </div>
-              <a href="mailto:admin@wc2026tipcomp.com?subject=Upgrade%20subscription"
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg">
-                Upgrade
-              </a>
-            </div>
-          ))}
-          <p className="text-[10px] text-gray-400">Contact the tournament admin to process your upgrade.</p>
+      </SectionCard>
+
+      {/* Age restriction */}
+      <SectionCard title="Minimum age" subtitle="Optionally restrict who can join this comp">
+        <div className="flex gap-2 items-center p-4">
+          <input type="number" min="13" max="100" value={newMinAge} onChange={e => setNewMinAge(e.target.value)}
+            placeholder="No restriction"
+            className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <button onClick={saveAge} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">Save</button>
+          {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
         </div>
-      )}
-    </Card>
+      </SectionCard>
+
+      {/* Grant admin */}
+      <SectionCard title="Grant admin access" subtitle="Give another tipster admin rights for this comp">
+        <div className="flex gap-2 p-4">
+          <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && grantAdmin()}
+            placeholder="tipster@example.com"
+            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <button onClick={grantAdmin} disabled={grantingAdmin || !adminEmail.trim()}
+            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+            {grantingAdmin ? <Spinner className="w-3 h-3 text-white" /> : 'Grant'}
+          </button>
+        </div>
+      </SectionCard>
+    </div>
   )
 }
 
-// ── Prizes panel ───────────────────────────────────────────────────────────────
-function PrizesPanel({ compId }: { compId: string }) {
-  const [prizes,  setPrizes]  = useState<any[]>([])
-  const [place,   setPlace]   = useState('1')
+// ─── Tab: Tribes ──────────────────────────────────────────────────────────────
+function TribesTab({ comp, members, tribes, setTribes }: { comp: any; members: Member[]; tribes: Tribe[]; setTribes: (fn: (prev: Tribe[]) => Tribe[]) => void }) {
+  const [name,    setName]    = useState('')
   const [desc,    setDesc]    = useState('')
-  const [sponsor, setSponsor] = useState('')
-  const [saving,  setSaving]  = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch(`/api/comp-prizes?comp_id=${compId}`).then(r => r.json()).then(d => setPrizes(d.data ?? []))
-  }, [compId])
-
-  const addPrize = async () => {
-    if (!desc.trim()) return
-    setSaving(true)
-    const res = await fetch('/api/comp-prizes', {
+  const createTribe = async () => {
+    if (!name.trim()) return
+    setCreating(true)
+    const res = await fetch('/api/tribes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, place: parseInt(place), description: desc.trim(), sponsor: sponsor.trim() }),
+      body: JSON.stringify({ name: name.trim(), description: desc.trim() || null, comp_id: comp.id }),
     })
-    const { data } = await res.json()
-    setSaving(false)
-    if (data) {
-      setPrizes(prev => [...prev.filter(p => p.place !== data.place), data].sort((a,b) => a.place - b.place))
-      setDesc(''); setSponsor('')
-      toast.success('Prize saved!')
-    }
-  }
-
-  const removePrize = async (p: number) => {
-    await fetch(`/api/comp-prizes?comp_id=${compId}&place=${p}`, { method: 'DELETE' })
-    setPrizes(prev => prev.filter(x => x.place !== p))
-    toast.success('Prize removed')
-  }
-
-  const MEDALS = ['🥇','🥈','🥉','4️⃣','5️⃣']
-
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Prizes</p>
-      {prizes.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {prizes.map(p => (
-            <div key={p.place} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-              <span className="text-base">{MEDALS[p.place - 1] ?? `${p.place}th`}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-800">{p.description}</p>
-                {p.sponsor && <p className="text-[10px] text-gray-400">Sponsored by {p.sponsor}</p>}
-              </div>
-              <button onClick={() => removePrize(p.place)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="space-y-2">
-        <div className="flex gap-2">
-          <select value={place} onChange={e => setPlace(e.target.value)}
-            className="w-20 px-2 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-            {[1,2,3,4,5].map(n => <option key={n} value={n}>{n === 1 ? '🥇 1st' : n === 2 ? '🥈 2nd' : n === 3 ? '🥉 3rd' : `${n}th`}</option>)}
-          </select>
-          <input type="text" value={desc} onChange={e => setDesc(e.target.value)}
-            placeholder="Prize description e.g. $100 gift voucher"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        </div>
-        <div className="flex gap-2">
-          <input type="text" value={sponsor} onChange={e => setSponsor(e.target.value)}
-            placeholder="Sponsor name (optional)"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-          <button onClick={addPrize} disabled={saving || !desc.trim()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg">
-            {saving ? <Spinner className="w-4 h-4 text-white" /> : 'Save'}
-          </button>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
-// ── Announcements panel ────────────────────────────────────────────────────────
-function AnnouncementsPanel({ compId, compName, userId }: { compId: string; compName: string; userId: string }) {
-  const [announcements, setAnnouncements] = useState<any[]>([])
-  const [title,   setTitle]   = useState('')
-  const [body,    setBody]    = useState('')
-  const [saving,  setSaving]  = useState(false)
-
-  useEffect(() => {
-    fetch('/api/announcements').then(r => r.json()).then(d =>
-      setAnnouncements((d.data ?? []).filter((a: any) => a.comp_id === compId || !a.comp_id))
-    )
-    // Re-fetch all and filter by this org
-    fetch('/api/announcements').then(r => r.json()).then(d => {
-      const mine = (d.data ?? []).filter((a: any) => {
-        const orgRaw = a.comps
-        const aOrg   = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
-        return aOrg?.name === compName
-      })
-      setAnnouncements(mine)
-    })
-  }, [compId, compName])
-
-  const post = async () => {
-    if (!title.trim() || !body.trim()) return
-    setSaving(true)
-    const res = await fetch('/api/announcements', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, title: title.trim(), body: body.trim() }),
-    })
-    const { data, error } = await res.json()
-    setSaving(false)
-    if (error) { toast.error(error); return }
-    setAnnouncements(prev => [data, ...prev])
-    setTitle(''); setBody('')
-    toast.success('Announcement posted to PUBLIC members!')
-  }
-
-  const deleteAnnouncement = async (id: string) => {
-    await fetch(`/api/announcements?id=${id}`, { method: 'DELETE' })
-    setAnnouncements(prev => prev.filter(a => a.id !== id))
-    toast.success('Deleted')
+    const { data, error: err } = await res.json()
+    setCreating(false)
+    if (err) { setError(res.status === 409 ? `"${name.trim()}" already exists. Choose a different name.` : err) }
+    else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [data, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
   }
 
   return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Announcements</p>
-      <p className="text-[11px] text-gray-500 mb-3">Post a message visible to all PUBLIC comp members — invite them to join <strong>{compName}</strong>.</p>
-
-      {/* Compose */}
-      <div className="space-y-2 mb-4">
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-          placeholder="Announcement title e.g. Join PetzBFF TipComp!"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        <textarea value={body} onChange={e => setBody(e.target.value)}
-          placeholder="Message body — include your org invite code so PUBLIC members can join"
-          rows={3} maxLength={500}
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white resize-none" />
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] text-gray-400">{body.length}/500</p>
-          <button onClick={post} disabled={saving || !title.trim() || !body.trim()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center gap-1.5">
-            {saving && <Spinner className="w-3 h-3 text-white" />}
-            Post announcement
-          </button>
+    <div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm col-span-1">
+          <p className="text-2xl font-black text-gray-800">{tribes.length}</p>
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">Tribes</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm col-span-1">
+          <p className="text-2xl font-black text-gray-800">{members.length}</p>
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">Members</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm col-span-1">
+          <p className="text-2xl font-black text-gray-800">
+            {tribes.length > 0 ? Math.round(members.length / tribes.length) : 0}
+          </p>
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">Avg size</p>
         </div>
       </div>
 
-      {/* Posted announcements */}
-      {announcements.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] font-medium text-gray-500">Posted</p>
-          {announcements.map(a => (
-            <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-800">{a.title}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{a.body}</p>
-                  <p className="text-[10px] text-gray-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
-                </div>
-                <button onClick={() => deleteAnnouncement(a.id)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ── Challenges panel ──────────────────────────────────────────────────────────
-function ChallengesPanel({ compId }: { compId: string }) {
-  const { supabase } = useSupabase()
-  const [challenges, setChallenges] = useState<any[]>([])
-  const [fixtures,   setFixtures]   = useState<any[]>([])
-  const [fixtureId,  setFixtureId]  = useState('')
-  const [prize,      setPrize]      = useState('')
-  const [sponsor,    setSponsor]    = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [groupDate,  setGroupDate]  = useState<string>('all')
-
-  useEffect(() => {
-    // Load challenges and upcoming fixtures
-    Promise.all([
-      fetch(`/api/comp-challenges?comp_id=${compId}`).then(r => r.json()),
-      fetch('/api/fixtures').then(r => r.json()),
-    ]).then(([challengeData, fxData]) => {
-      setChallenges(challengeData.data ?? [])
-      const upcoming = ((fxData.data ?? []) as any[])
-        .filter((f: any) => !f.result && new Date(f.kickoff_utc) > new Date())
-        .sort((a: any, b: any) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
-      setFixtures(upcoming)
-    })
-  }, [compId])
-
-  const createChallenge = async () => {
-    if (!fixtureId || !prize.trim()) return
-    setSaving(true)
-    const res = await fetch('/api/comp-challenges', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: compId, fixture_id: parseInt(fixtureId), prize: prize.trim(), sponsor: sponsor.trim() }),
-    })
-    const { data, error } = await res.json()
-    setSaving(false)
-    if (error) { toast.error(error); return }
-    setChallenges(prev => [data, ...prev])
-    setFixtureId(''); setPrize(''); setSponsor('')
-    toast.success('Challenge created!')
-  }
-
-  const deleteChallenge = async (id: string) => {
-    if (!confirm('Delete this challenge?')) return
-    const res = await fetch(`/api/comp-challenges?id=${id}`, { method: 'DELETE' })
-    const { success, error } = await res.json()
-    if (success) { setChallenges(prev => prev.filter(c => c.id !== id)); toast.success('Deleted') }
-    else toast.error(error)
-  }
-
-  // Group fixtures by date for the dropdown
-  const fixturesByDate = fixtures.reduce((acc: any, f: any) => {
-    const date = new Date(f.kickoff_utc).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })
-    if (!acc[date]) acc[date] = []
-    acc[date].push(f)
-    return acc
-  }, {})
-
-  // Used challenge dates (one per day limit)
-  const usedDates = new Set(challenges.filter(c => !c.settled).map((c: any) => c.challenge_date))
-
-  return (
-    <Card className="mb-4">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Daily challenges</p>
-      <p className="text-[11px] text-gray-500 mb-3">
-        Set one challenge per day — players in your comp who predict the exact score for that fixture win the prize.
-      </p>
-
-      {/* Create form */}
-      <div className="space-y-2 mb-4 bg-gray-50 rounded-xl p-3">
-        <div>
-          <label className="block text-[11px] font-medium text-gray-600 mb-1">Select fixture</label>
-          <select value={fixtureId} onChange={e => setFixtureId(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-            <option value="">Choose a match…</option>
-            {Object.entries(fixturesByDate).map(([date, fxs]: any) => (
-              <optgroup key={date} label={date}>
-                {(fxs as any[]).map((f: any) => {
-                  const dateStr = f.kickoff_utc.slice(0, 10)
-                  const taken   = usedDates.has(dateStr)
-                  return (
-                    <option key={f.id} value={f.id} disabled={taken}>
-                      {f.home} vs {f.away}{taken ? ' (challenge exists)' : ''}
-                    </option>
-                  )
-                })}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-        <div className="flex gap-2">
-          <input type="text" value={prize} onChange={e => setPrize(e.target.value)}
-            placeholder="Prize e.g. $50 voucher, bottle of wine"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-          <input type="text" value={sponsor} onChange={e => setSponsor(e.target.value)}
-            placeholder="Sponsor (optional)"
-            className="w-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-        </div>
-        <button onClick={createChallenge} disabled={saving || !fixtureId || !prize.trim()}
-          className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2">
-          {saving && <Spinner className="w-3 h-3 text-white" />}
-          🎯 Create challenge
+      {/* Create */}
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)}
+          className="w-full mb-4 py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
+          <span className="text-lg">+</span> Create new tribe
         </button>
-      </div>
-
-      {/* Challenge list */}
-      {challenges.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">No challenges yet</p>
       ) : (
-        <div className="space-y-2">
-          {challenges.map((c: any) => {
-            const fx      = Array.isArray(c.fixtures) ? c.fixtures[0] : c.fixtures
-            const winners = c.challenge_winners ?? []
+        <SectionCard title="New tribe">
+          <div className="p-4 space-y-3">
+            <input type="text" value={name} onChange={e => { setName(e.target.value); setError(null) }}
+              onKeyDown={e => e.key === 'Enter' && createTribe()}
+              placeholder="Tribe name (e.g. The Offside Trap)"
+              maxLength={50}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2}
+              placeholder="Short description (optional)"
+              maxLength={200}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+            />
+            {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
+            <div className="flex gap-2">
+              <button onClick={createTribe} disabled={creating || !name.trim()}
+                className="flex-1 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                {creating ? 'Creating…' : 'Create tribe'}
+              </button>
+              <button onClick={() => { setShowForm(false); setError(null); setName(''); setDesc('') }}
+                className="px-4 py-2 border border-gray-200 text-xs font-semibold text-gray-600 rounded-xl hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* Tribes list */}
+      {tribes.length === 0 ? (
+        <EmptyState title="No tribes yet" description="Create your first tribe to organise tipsters into groups." />
+      ) : (
+        <div className="space-y-3">
+          {tribes.map(t => {
+            const tribeMembers = members.filter(m => t.member_ids?.includes(m.id))
             return (
-              <div key={c.id} className={clsx('border rounded-xl p-3', c.settled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-gray-800">
-                          {fx ? `${fx.home} vs ${fx.away}` : `Fixture #${c.fixture_id}`}
-                        </span>
-                        {c.settled && <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">Settled ✓</span>}
+              <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{t.name}</p>
+                    {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Pill color="blue">{t.member_count ?? tribeMembers.length} members</Pill>
+                    <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
+                      className="text-[11px] font-mono bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
+                      {t.invite_code}
+                    </button>
+                  </div>
+                </div>
+                {tribeMembers.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic px-4 py-3">No members yet — share the tribe invite code</p>
+                ) : (
+                  <div className="px-4 py-2 flex flex-wrap gap-2">
+                    {tribeMembers.slice(0, 8).map(m => (
+                      <div key={m.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full px-2 py-1">
+                        <Avatar name={m.display_name} size="sm" />
+                        <span className="text-[11px] font-medium text-gray-700 max-w-[80px] truncate">{m.display_name.split(' ')[0]}</span>
                       </div>
-                      {fx && (
-                        <p className="text-[11px] text-gray-500">
-                          📅 <span className="font-medium">Challenge date:</span>{' '}
-                          {new Date(c.challenge_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'long', year:'numeric' })}
-                        </p>
-                      )}
-                      {fx && (
-                        <p className="text-[11px] text-gray-500">
-                          ⏰ <span className="font-medium">Kick-off:</span>{' '}
-                          {new Date(fx.kickoff_utc).toLocaleString('en-AU', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' })}
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-purple-700 mt-0.5">🎯 {c.prize}{c.sponsor ? ` · ${c.sponsor}` : ''}</p>
-                    {winners.length > 0 && (
-                      <div className="mt-1.5">
-                        <p className="text-[10px] font-medium text-green-700">
-                          {winners.length} winner{winners.length !== 1 ? 's' : ''}:
-                        </p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {winners.map((w: any) => {
-                            const u = Array.isArray(w.users) ? w.users[0] : w.users
-                            return (
-                              <span key={w.user_id} className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">
-                                {u?.display_name ?? 'Player'} ({w.prediction})
-                              </span>
-                            )
-                          })}
-                        </div>
+                    ))}
+                    {tribeMembers.length > 8 && (
+                      <div className="flex items-center px-2 py-1">
+                        <span className="text-[11px] text-gray-400">+{tribeMembers.length - 8} more</span>
                       </div>
-                    )}
-                    {c.settled && winners.length === 0 && (
-                      <p className="text-[10px] text-gray-400 mt-1">No exact score predictions</p>
                     )}
                   </div>
-                  {!c.settled && (
-                    <button onClick={() => deleteChallenge(c.id)} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
-                  )}
-                </div>
+                )}
               </div>
             )
           })}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
-// ── Main comp admin page ─────────────────────────────────────────────────────
-export default function OrgAdminPage() {
-  const { session } = useSupabase()
-  const { selectedComp, isCompAdmin, loading: ctxLoading } = useUserPrefs()
-
-  const [loading,     setLoading]  = useState(false)
-  const [tribes,      setTribes]   = useState<Tribe[]>([])
-  const [members,     setMembers]  = useState<Member[]>([])
-  const [compTier,    setOrgTier]  = useState<string>('trial')
-  const [compDomain,  setOrgDomain] = useState<string | null>(null)
-  const [compMinAge,  setOrgMinAge] = useState<number | null>(null)
-
-  // org is the selectedComp from context — the comp the user chose on the home page
-  const org = selectedComp as (typeof selectedComp & { invite_code?: string; min_age?: number | null }) | null
+// ─── Tab: Challenges ──────────────────────────────────────────────────────────
+function ChallengesTab({ comp }: { comp: any }) {
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [fixtures,   setFixtures]   = useState<Fixture[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [showForm,   setShowForm]   = useState(false)
+  const [fixtureId,  setFixtureId]  = useState('')
+  const [prize,      setPrize]      = useState('')
+  const [sponsor,    setSponsor]    = useState('')
+  const [saving,     setSaving]     = useState(false)
 
   useEffect(() => {
-    if (!session || !selectedComp?.id) return
-    const compId = selectedComp.id
+    Promise.all([
+      fetch(`/api/comp-challenges?comp_id=${comp.id}`).then(r => r.json()),
+      fetch('/api/fixtures').then(r => r.json()),
+    ]).then(([cData, fData]) => {
+      const fs: Fixture[] = (fData.data ?? []).map((f: any) => ({
+        id: f.id, home: f.home, away: f.away, date: f.date, round: f.round,
+      }))
+      setFixtures(fs)
+      const challenges: Challenge[] = (cData.data ?? []).map((c: any) => ({
+        ...c,
+        fixture_label: fs.find(f => f.id === c.fixture_id)
+          ? `${fs.find(f => f.id === c.fixture_id)!.home} vs ${fs.find(f => f.id === c.fixture_id)!.away}`
+          : `Fixture ${c.fixture_id}`,
+      }))
+      setChallenges(challenges)
+    }).finally(() => setLoading(false))
+  }, [comp.id])
+
+  const createChallenge = async () => {
+    if (!fixtureId || !prize.trim()) { toast.error('Select a fixture and enter a prize'); return }
+    setSaving(true)
+    const res = await fetch('/api/comp-challenges', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, fixture_id: parseInt(fixtureId), prize: prize.trim(), sponsor: sponsor.trim() || null }),
+    })
+    const { data, error } = await res.json()
+    setSaving(false)
+    if (error) { toast.error(error); return }
+    const fx = fixtures.find(f => f.id === parseInt(fixtureId))
+    setChallenges(prev => [{ ...data, fixture_label: fx ? `${fx.home} vs ${fx.away}` : `Fixture ${fixtureId}` }, ...prev])
+    setFixtureId(''); setPrize(''); setSponsor(''); setShowForm(false)
+    toast.success('Challenge created')
+  }
+
+  const deleteChallenge = async (id: string) => {
+    if (!confirm('Delete this challenge?')) return
+    await fetch(`/api/comp-challenges?id=${id}`, { method: 'DELETE' })
+    setChallenges(prev => prev.filter(c => c.id !== id))
+    toast.success('Challenge deleted')
+  }
+
+  // Group fixtures by round
+  const fixturesByRound = useMemo(() => {
+    const map: Record<string, Fixture[]> = {}
+    fixtures.forEach(f => { if (!map[f.round]) map[f.round] = []; map[f.round].push(f) })
+    return map
+  }, [fixtures])
+
+  return (
+    <div>
+      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <p className="text-xs font-bold text-blue-800 mb-1">⚡ Daily challenges</p>
+        <p className="text-xs text-blue-700">Attach a special prize to any fixture. The tipster who correctly predicts that match wins the prize. Great for sponsored prizes and keeping engagement high.</p>
+      </div>
+
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)}
+          className="w-full mb-4 py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
+          <span className="text-lg">+</span> Add challenge
+        </button>
+      ) : (
+        <SectionCard title="New challenge">
+          <div className="p-4 space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Match</label>
+              <select value={fixtureId} onChange={e => setFixtureId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
+                <option value="">Select a match…</option>
+                {Object.entries(fixturesByRound).map(([round, fxs]) => (
+                  <optgroup key={round} label={round.toUpperCase()}>
+                    {fxs.map(f => (
+                      <option key={f.id} value={f.id}>{f.home} vs {f.away} · {f.date}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Prize 🏆</label>
+              <input type="text" value={prize} onChange={e => setPrize(e.target.value)}
+                placeholder="e.g. $50 gift card, bottle of wine, free dinner…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sponsor <span className="font-normal text-gray-400">(optional)</span></label>
+              <input type="text" value={sponsor} onChange={e => setSponsor(e.target.value)}
+                placeholder="e.g. Joe's Bottle Shop"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={createChallenge} disabled={saving || !fixtureId || !prize.trim()}
+                className="flex-1 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                {saving ? 'Creating…' : 'Create challenge'}
+              </button>
+              <button onClick={() => setShowForm(false)}
+                className="px-4 py-2 border border-gray-200 text-xs font-semibold text-gray-600 rounded-xl hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Spinner className="w-5 h-5" /></div>
+      ) : challenges.length === 0 ? (
+        <EmptyState title="No challenges yet" description="Create your first challenge to attach a prize to a specific match." />
+      ) : (
+        <div className="space-y-2">
+          {challenges.map(c => (
+            <div key={c.id} className="bg-white border border-gray-200 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0 text-lg">⚡</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-800 truncate">{c.fixture_label}</p>
+                <p className="text-xs text-emerald-700 font-semibold mt-0.5">🏆 {c.prize}</p>
+                {c.sponsor && <p className="text-[11px] text-gray-400 mt-0.5">Sponsored by {c.sponsor}</p>}
+              </div>
+              <button onClick={() => deleteChallenge(c.id)}
+                className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 flex-shrink-0">
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function CompAdminPage() {
+  const { session }                                        = useSupabase()
+  const { selectedComp, isCompAdmin, loading: ctxLoading } = useUserPrefs()
+
+  const [activeTab,  setActiveTab]  = useState<Tab>('tipsters')
+  const [loading,    setLoading]    = useState(false)
+  const [tribes,     setTribes]     = useState<Tribe[]>([])
+  const [members,    setMembers]    = useState<Member[]>([])
+  const [tier,       setTier]       = useState('trial')
+  const [domain,     setDomain]     = useState<string | null>(null)
+  const [minAge,     setMinAge]     = useState<number | null>(null)
+
+  const comp = selectedComp as any
+
+  useEffect(() => {
+    if (!session || !comp?.id) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/comp-subscriptions?comp_id=${compId}`),
-      fetch(`/api/comps/domain?comp_id=${compId}`),
-      fetch(`/api/tribes/list?comp_id=${compId}`),
-      fetch(`/api/comp-admins/members?comp_id=${compId}`),
-    ]).then(async ([subRes, domainRes, tribesRes, membersRes]) => {
-      const [subData, domainData, tribesData, membersData] = await Promise.all([
-        subRes.json(), domainRes.json(), tribesRes.json(), membersRes.json(),
-      ])
-      setOrgTier(subData.data?.tier ?? 'trial')
-      setOrgDomain(domainData.email_domain ?? null)
-      setTribes(tribesData.data ?? [])
-      setMembers(membersData.data ?? [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [session, selectedComp?.id])
+      fetch(`/api/comp-subscriptions?comp_id=${comp.id}`),
+      fetch(`/api/comps/domain?comp_id=${comp.id}`),
+      fetch(`/api/tribes/list?comp_id=${comp.id}`),
+      fetch(`/api/comp-admins/members?comp_id=${comp.id}`),
+    ]).then(async ([subRes, domRes, tribesRes, membersRes]) => {
+      const [sub, dom, trib, mem] = await Promise.all([subRes.json(), domRes.json(), tribesRes.json(), membersRes.json()])
+      setTier(sub.data?.tier ?? 'trial')
+      setDomain(dom.email_domain ?? null)
+      setTribes(trib.data ?? [])
+      setMembers(mem.data ?? [])
+    }).finally(() => setLoading(false))
+  }, [session, comp?.id])
 
-  // Wait for context AND local data to finish loading
+  const handleSettingUpdate = useCallback((key: string, val: any) => {
+    if (key === 'domain') setDomain(val)
+    if (key === 'minAge') setMinAge(val)
+  }, [])
+
   if (ctxLoading || loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
-  // Not a comp admin for the selected comp — prompt to go home and pick one
-  if (!isCompAdmin || !selectedComp) return (
-    <div className="max-w-md mx-auto px-4 py-20 text-center">
+  if (!isCompAdmin || !comp) return (
+    <div className="max-w-sm mx-auto px-4 py-24 text-center">
       <div className="text-5xl mb-4">🔒</div>
-      <h1 className="text-lg font-semibold text-gray-900 mb-2">
-        {selectedComp ? 'Not a comp admin' : 'No comp selected'}
+      <h1 className="text-base font-bold text-gray-900 mb-2">
+        {comp ? 'Not a comp admin' : 'No comp selected'}
       </h1>
       <p className="text-sm text-gray-500 mb-6">
-        {selectedComp
-          ? `You are not an admin for ${selectedComp.name}. Select a comp you manage on the home page.`
-          : 'Go to the home page, select a tournament and a comp you manage, then return here.'
-        }
+        {comp ? `You're not an admin for ${comp.name}.` : 'Select a comp you manage on the home page.'}
       </p>
-      <a href="/" className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
-        Go to home page
+      <a href="/" className="inline-block px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl">
+        Go home
       </a>
     </div>
   )
 
-  // Alias for panel components
-  const comp = org!
+  const activeTabCount: Partial<Record<Tab, number | null>> = {
+    tipsters:   members.length || null,
+    tribes:     tribes.length  || null,
+    challenges: null,
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <h1 className="text-lg font-semibold text-gray-900">Comp Admin</h1>
-          </div>
-          {org && (
-            <p className="text-xs text-gray-500 mt-0.5">
-              Managing <span className="font-medium text-blue-600">{org.name}</span>
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-gray-500">
-          <span>{tribes.length} tribe{tribes.length !== 1 ? 's' : ''}</span>
-          <span>·</span>
-          <span>{members.length} member{members.length !== 1 ? 's' : ''}</span>
-        </div>
-      </div>
 
-      {/* Org invite code — displayed prominently for sharing */}
-      <Card className="mb-4">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Comp invite code</p>
-        <p className="text-[11px] text-gray-500 mb-3">
-          Share this code with members so they can join <strong>{org?.name}</strong> from the Tribe page.
-        </p>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-center">
-            <span className="text-2xl font-mono font-bold tracking-widest text-gray-800 select-all">
-              {org?.invite_code ?? '—'}
-            </span>
-          </div>
-          <button
-            onClick={async () => {
-              if (!org?.invite_code) return
-              await navigator.clipboard.writeText(org.invite_code)
-              toast.success('Invite code copied!')
-            }}
-            className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-xl transition-colors"
-          >
-            Copy
-          </button>
-        </div>
-      </Card>
-
-      {/* Org logo — Business and Enterprise only */}
-      <Card className="mb-4">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Comp logo</p>
-        {['business','enterprise'].includes(compTier) ? (
-          <OrgLogoUpload compId={org?.id ?? ''} currentLogo={orgLogo} onUploaded={url => setOrgLogo(url)} />
+      {/* ── Header ────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-5">
+        {comp.logo_url ? (
+          <img src={comp.logo_url} alt={comp.name} className="w-10 h-10 rounded-xl object-cover border border-gray-200" />
         ) : (
-          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <span className="text-2xl">🔒</span>
-            <div>
-              <p className="text-xs font-medium text-gray-700">Business or Enterprise subscription required</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Upgrade your plan to upload an comp logo.</p>
-            </div>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white text-sm font-black">
+            {comp.name?.[0] ?? '?'}
           </div>
         )}
-      </Card>
-
-      {/* Role explanation */}
-      <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-xs font-semibold text-blue-800 mb-1">Your role</p>
-        <div className="text-xs text-blue-700 space-y-1">
-          <p>✅ Create and manage tribes within <strong>{org?.name}</strong></p>
-          <p>✅ Add a description to each tribe</p>
-          <p>✅ Grant org admin access to other members</p>
-          <p>❌ Cannot enter match results — that's the Tournament Admin's role</p>
-          <p>❌ Cannot lock/unlock rounds — that's the Tournament Admin's role</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-black text-gray-900 truncate">{comp.name}</h1>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={clsx('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full',
+              tier === 'enterprise' ? 'bg-violet-100 text-violet-700' :
+              tier === 'business'   ? 'bg-blue-100 text-blue-700'     :
+              'bg-amber-100 text-amber-700'
+            )}>{tier}</span>
+            <span className="text-[11px] text-gray-400">{members.length} tipsters · {tribes.length} tribes</span>
+          </div>
         </div>
       </div>
 
-      {/* Subscription status */}
-      {org && <SubscriptionCard compId={comp.id} />}
-
-      {/* Custom app name */}
-      {org && <AppNamePanel compId={comp.id} currentName={org.name} onSaved={() => {}} userId={session?.user.id ?? ''} />}
-
-      {/* Age restriction */}
-      {org && <AgeRestrictionPanel compId={comp.id} currentMinAge={compMinAge} onSaved={setOrgMinAge} userId={session?.user.id ?? ''} />}
-
-      {/* Domain restriction — Enterprise only */}
-      {org && <DomainRestrictionPanel compId={comp.id} tier={compTier} />}
-
-      {/* Grant org admin */}
-      {org && <GrantOrgAdminForm compId={comp.id} />}
-
-      {/* Prizes */}
-      {org && <PrizesPanel compId={comp.id} />}
-
-      {/* Announcements */}
-      {/* Announcements — only for orgs without domain restriction */}
-      {org && !compDomain && (
-        <AnnouncementsPanel compId={comp.id} compName={org.name} userId={session?.user.id ?? ''} />
-      )}
-      {org && compDomain && (
-        <Card className="mb-4">
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Announcements</p>
-          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <span className="text-xl">🔒</span>
-            <div>
-              <p className="text-xs font-medium text-amber-800">Announcements unavailable</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                Your comp has a domain restriction (<span className="font-mono font-medium">@{compDomain}</span>).
-                Announcements target PUBLIC members who may not have a matching email — remove the domain restriction to enable this feature.
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Challenges */}
-      {org && <ChallengesPanel compId={comp.id} />}
-
-      {/* Create tribe */}
-      {org && <CreateTribeForm compId={comp.id} onCreated={t => setTribes(prev => [...prev, t])} />}
-
-      {/* Tribes list */}
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tribes</p>
-        <span className="text-xs text-gray-400">{tribes.length} total</span>
+      {/* ── Tab nav ───────────────────────────────── */}
+      <div className="grid grid-cols-6 gap-1 bg-gray-100 p-1 rounded-2xl mb-5">
+        {TAB_CONFIG.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={clsx(
+              'relative flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl text-center transition-all',
+              activeTab === t.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            )}>
+            <span className="text-base leading-none">{t.icon}</span>
+            <span className="text-[10px] font-bold leading-none hidden sm:block">{t.label}</span>
+            {activeTabCount[t.id] != null && (
+              <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center',
+                activeTab === t.id ? 'bg-gray-900 text-white' : 'bg-gray-400 text-white')}>
+                {activeTabCount[t.id]}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {tribes.length === 0 ? (
-        <EmptyState title="No tribes yet" description="Create the first tribe for your comp using the form above." />
-      ) : (
-        tribes.map(t => <TribeCard key={t.id} tribe={t} members={members} />)
-      )}
+      {/* ── Active tab label ──────────────────────── */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">{TAB_CONFIG.find(t => t.id === activeTab)?.icon}</span>
+        <div>
+          <h2 className="text-sm font-black text-gray-900">{TAB_CONFIG.find(t => t.id === activeTab)?.label}</h2>
+          <p className="text-[11px] text-gray-400">{TAB_CONFIG.find(t => t.id === activeTab)?.desc}</p>
+        </div>
+      </div>
+
+      {/* ── Tab content ───────────────────────────── */}
+      {activeTab === 'tipsters'   && <TipstersTab   comp={comp} members={members} />}
+      {activeTab === 'payments'   && <PaymentsTab   comp={comp} members={members} />}
+      {activeTab === 'email'      && <EmailTab      comp={comp} members={members} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'tribes'     && <TribesTab     comp={comp} members={members} tribes={tribes} setTribes={setTribes} />}
+      {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
     </div>
   )
 }
