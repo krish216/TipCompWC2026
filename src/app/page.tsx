@@ -711,7 +711,7 @@ export default function HomePage() {
                   </div>
                 </div>
             }
-            <NavCard href="/leaderboard" icon="🏆" title="Leaderboard" description="Global rankings and round-by-round standings" />
+            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard" description="Global rankings and round-by-round standings" />
             <NavCard href="/tribe"       icon="👥" title="Your tribe"  description="Compete on a private leaderboard with friends" />
             <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide, tournament format, and FAQ" />
             <NavCard href="/settings"    icon="⚙️" title="Settings"    description="Favourite team, notifications, account" />
@@ -721,7 +721,7 @@ export default function HomePage() {
           <>
             <NavCard href="/login?tab=register" icon="🚀" title="Join free"     description="Register and start predicting in 30 seconds" accent />
             <NavCard href="/login" icon="🔑" title="Sign in"       description="Already have an account" />
-            <NavCard href="/leaderboard" icon="🏆" title="Leaderboard" description="See the current standings" />
+            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard" description="See the current standings" />
             <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide and tournament format" />
           </>
         )}

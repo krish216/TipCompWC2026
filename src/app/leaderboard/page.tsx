@@ -178,14 +178,19 @@ export default function LeaderboardPage() {
     const tid = tournId ?? activeTournamentId
     try {
       const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Failed to fetch')
-      const { data, my_entry, message: msg, error: apiErr } = await res.json()
+      const res  = await fetch(url)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the API error message rather than a generic "Failed to fetch"
+        setError(json?.error ?? `Error ${res.status} — please try refreshing`)
+        return
+      }
+      const { data, my_entry, message: msg, error: apiErr } = json
       if (apiErr) { setError(apiErr); return }
       setEntries(data ?? [])
       setMyEntry(my_entry ?? null)
       setMessage(msg ?? null)
-    } catch (e: any) { setError(e.message) }
+    } catch (e: any) { setError('Network error — please check your connection and try again') }
     finally { setLoading(false) }
   }
 

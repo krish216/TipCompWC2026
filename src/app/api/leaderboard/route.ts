@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'You are not in a tribe yet.' })
     }
 
+    // Global scope with no tournament — nothing to show yet
+    if (scope === 'global' && !tournamentId) {
+      return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'No active tournament found.' })
+    }
+
     // Resolve user IDs for scope filter
     let scopeUserIds: string[] | null = null
 
