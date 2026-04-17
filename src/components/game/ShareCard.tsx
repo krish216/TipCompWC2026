@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from 'react'
 import type { RoundId } from '@/types'
-import { SCORING } from '@/types'
 
 // ── Flag emoji map ─────────────────────────────────────────────────────────
 const FLAGS: Record<string, string> = {

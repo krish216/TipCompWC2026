@@ -2,7 +2,6 @@
 
 import { clsx } from 'clsx'
 import type { RoundId } from '@/types'
-import { SCORING } from '@/types'
 
 const ROUNDS: { id: RoundId; label: string }[] = [
   { id: 'gs',  label: 'Group stage' },

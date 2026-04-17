@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 import type { RoundId } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 import { useTimezone } from '@/hooks/useTimezone'
-import { SCORING } from '@/types'
+import { getDefaultScoringConfig } from '@/types'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ interface Member {
   display_name: string
   avatar_url?: string | null
   total_points: number
-  exact_count: number
+  bonus_count: number
   correct_count: number
   joined_at: string
 }
@@ -192,7 +192,7 @@ function MatchTopicList({
         return (
           <div key={round}>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1 px-1">
-              {SCORING[round].label}
+              {getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}
             </p>
             {roundFixtures.map(f => {
               const isActive    = activeTopic === f.id
@@ -1050,7 +1050,7 @@ export default function TribePage() {
               display_name:  u.display_name ?? 'Unknown',
               avatar_url:    u.avatar_url ?? null,
               total_points:  u.total_points ?? 0,
-              exact_count:   u.exact_count  ?? 0,
+              bonus_count:   u.bonus_count  ?? 0,
               correct_count: u.correct_count ?? 0,
               joined_at:     tm.joined_at ?? '',
             }
@@ -1521,7 +1521,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
     if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
 
     const isOutcomeRound = OUTCOME_ROUNDS_SET.has(fx.round)
-    const isExactRound   = EXACT_ROUNDS_SET.has(fx.round)
+    const isBonusRound   = EXACT_ROUNDS_SET.has(fx.round)
 
     // Build display label
     const label = isOutcomeRound
@@ -1544,7 +1544,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
       if (pick.outcome === resultOutcome) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
       return { colour: 'bg-red-100 text-red-700', label }
     } else {
-      // Exact score round
+      // Bonus score round
       const ph = Number(pick.home); const pa = Number(pick.away)
       const predOutcome = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
       if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
@@ -1627,7 +1627,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
               const po = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
               return po === ro2
             }).length
-            const exactCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) =>
+            const bonusCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) =>
               Number(p.home) === rh2 && Number(p.away) === ra2
             ).length
             const pickCount  = Object.keys(roundPicks).length
@@ -1720,7 +1720,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
                           const isCorrect = isORound
                             ? pick.outcome === ro2
                             : (Number(pick.home) > Number(pick.away) ? 'H' : Number(pick.away) > Number(pick.home) ? 'A' : 'D') === ro2
-                          const isExact = !isORound && Number(pick.home) === rh2 && Number(pick.away) === ra2
+                          const isBonus = !isORound && Number(pick.home) === rh2 && Number(pick.away) === ra2
                           rowState = isCorrect ? 'correct' : 'wrong'
 
                           if (isORound) {
@@ -1738,9 +1738,9 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
                           } else {
                             pickDisplay = (
                               <span className={clsx('flex items-center gap-1 text-xs font-bold tabular-nums',
-                                isExact ? 'text-green-800' : isCorrect ? 'text-blue-800' : 'text-red-700')}>
+                                isBonus ? 'text-green-800' : isCorrect ? 'text-blue-800' : 'text-red-700')}>
                                 {pick.home} – {pick.away}
-                                {isExact && <span className="text-[10px] ml-0.5">★</span>}
+                                {isBonus && <span className="text-[10px] ml-0.5">★</span>}
                               </span>
                             )
                           }

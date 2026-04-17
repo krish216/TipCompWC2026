@@ -6,7 +6,7 @@ import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import type { LeaderboardEntry, RoundId } from '@/types'
 import { ShareButton } from '@/components/game/ShareCard'
-import { SCORING } from '@/types'
+import { getDefaultScoringConfig } from '@/types'
 
 type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = 'all' | RoundId
@@ -490,7 +490,7 @@ export default function LeaderboardPage() {
                               .filter(([, pts]) => pts > 0)
                               .map(([round, pts]) => (
                                 <div key={round} className="flex flex-col items-center bg-white border border-gray-200 rounded-md px-2.5 py-1.5">
-                                  <span className="text-[10px] text-gray-500">{SCORING[round]?.label ?? round}</span>
+                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}</span>
                                   <span className="text-sm font-semibold text-gray-800">{pts}</span>
                                 </div>
                               ))}

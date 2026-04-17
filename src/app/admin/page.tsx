@@ -5,7 +5,7 @@ import { clsx } from 'clsx'
 import { RoundTabs } from '@/components/game/RoundTabs'
 import { Spinner, StatCard, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { SCORING, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import toast from 'react-hot-toast'
 
 const FLAGS: Record<string, string> = {
@@ -632,7 +632,7 @@ export default function AdminPage() {
 
   const allFixtures = useMemo(() => Object.values(fixtures).flat(), [fixtures])
   const stats = useMemo(() => ({ total: allFixtures.length, entered: Object.keys(results).length }), [allFixtures, results])
-  const sc = SCORING[activeRound]
+  const sc = getDefaultScoringConfig().rounds[activeRound as RoundId]
   const roundResultCount = useMemo(() => (fixtures[activeRound] ?? []).filter(f => results[f.id]).length, [fixtures, activeRound, results])
 
   const visibleFixtures = useMemo(() => {
@@ -751,9 +751,9 @@ export default function AdminPage() {
 
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="font-medium text-gray-700">{sc.label}</span>
+          <span className="font-medium text-gray-700">{sc?.round_name}</span>
           <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[11px] font-medium">★ {sc.exact}</span>
-          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[11px] font-medium">✓ {sc.result}</span>
+          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[11px] font-medium">✓ {sc?.result_pts}</span>
         </div>
         <span className="text-xs text-gray-400">{roundResultCount} of {fixtures[activeRound]?.length ?? 0} entered</span>
       </div>
