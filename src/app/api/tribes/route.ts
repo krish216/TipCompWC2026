@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         display_name:  u.display_name  ?? 'Unknown',
         avatar_url:    u.avatar_url    ?? null,
         total_points:  lb.total_points  ?? 0,
-        exact_count:   lb.exact_count   ?? 0,
+        bonus_count:   lb.bonus_count ?? lb.exact_count ?? 0,
         correct_count: lb.correct_count ?? 0,
       },
     }
@@ -183,7 +183,7 @@ export async function PATCH(request: NextRequest) {
 
   // Enforce max tribe size of 25
   const { count: memberCount } = await supabase
-    .from('tribe_members').select('*', { count: 'exact', head: true }).eq('tribe_id', (tribe as any).id)
+    .from('tribe_members').select('*', { count: 'bonus', head: true }).eq('tribe_id', (tribe as any).id)
   if ((memberCount ?? 0) >= 25) {
     return NextResponse.json({ error: 'This tribe is full — maximum 25 members allowed' }, { status: 409 })
   }
