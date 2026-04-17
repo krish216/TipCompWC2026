@@ -8,7 +8,7 @@ export const FINALS_ROUNDS:          RoundId[] = ['tp', 'f']
 export const KNOCKOUT_ROUNDS:        RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
 export const EXACT_SCORE_ROUNDS:     RoundId[] = ['sf', 'tp', 'f']
 export const OUTCOME_ROUNDS:         RoundId[] = ['gs', 'r32', 'r16', 'qf']
-export const PEN_BONUS_ROUNDS:       RoundId[] = ['r16', 'qf', 'sf', 'tp', 'f']
+export const PEN_BONUS_ROUNDS:       RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
 export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
 
 // ─── Per-tournament round config (loaded from tournament_rounds DB table) ────
@@ -55,7 +55,7 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
     { id: 'gs',  tournament_id: 'default', round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-    { id: 'r32', tournament_id: 'default', round_code: 'r32', round_name: 'Round of 32',    round_order: 2, predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'r32', tournament_id: 'default', round_code: 'r32', round_name: 'Round of 32',    round_order: 2, predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: true  },
     { id: 'r16', tournament_id: 'default', round_code: 'r16', round_name: 'Round of 16',    round_order: 3, predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
     { id: 'qf',  tournament_id: 'default', round_code: 'qf',  round_name: 'Quarter-finals', round_order: 4, predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
     { id: 'sf',  tournament_id: 'default', round_code: 'sf',  round_name: 'Semi-finals',    round_order: 5, predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
