@@ -65,19 +65,19 @@ export async function GET(request: NextRequest) {
     } else if (scope === 'comp') {
       const explicitCompId = searchParams.get('comp_id')
       const effectiveCompId = explicitCompId ?? compId
-      if (effectiveCompId) {
-        const { data: members } = await (adminClient.from('user_comps') as any)
-          .select('user_id').eq('comp_id', effectiveCompId)
-        scopeUserIds = (members ?? []).map((m: any) => m.user_id)
-        if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
-      }
+      // No comp selected — return empty rather than showing everyone's data
+      if (!effectiveCompId) return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'No comp selected' })
+      const { data: members } = await (adminClient.from('user_comps') as any)
+        .select('user_id').eq('comp_id', effectiveCompId)
+      scopeUserIds = (members ?? []).map((m: any) => m.user_id)
+      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     }
 
     // Query leaderboard view
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
+      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
-      .order('exact_count',  { ascending: false })
+      .order('bonus_count',  { ascending: false })
       .limit(limit)
 
     // Always filter by tournament
@@ -125,14 +125,14 @@ export async function GET(request: NextRequest) {
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
       const myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
+        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
       if (myRaw) {
         const m = myRaw as any
         let aheadQ = (adminClient.from('leaderboard') as any)
-          .select('user_id', { count: 'exact', head: true })
+          .select('user_id', { count: 'bonus', head: true })
           .gt('total_points', m.total_points)
         if (tournamentId) aheadQ = aheadQ.eq('tournament_id', tournamentId)
         const { count: ahead } = await aheadQ

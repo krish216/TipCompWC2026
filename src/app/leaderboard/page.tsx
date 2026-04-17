@@ -115,7 +115,7 @@ function ChallengeResultsTab({ selectedComp }: { selectedComp: string | null }) 
 
             {/* Winners */}
             {winners.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">No exact score predictions — no winner this round</p>
+              <p className="text-xs text-gray-400 italic">No bonus score predictions — no winner this round</p>
             ) : (
               <div>
                 <p className="text-[11px] font-medium text-gray-500 mb-2 uppercase tracking-wide">
@@ -256,7 +256,7 @@ export default function LeaderboardPage() {
       .sort((a, b) =>
         b.total_points !== a.total_points
           ? b.total_points - a.total_points
-          : (b.exact_count ?? 0) - (a.exact_count ?? 0)
+          : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
       )
       .map((e, i) => ({ ...e, rank: i + 1 }))
   }, [entries, roundView])
@@ -373,7 +373,11 @@ export default function LeaderboardPage() {
           ) : error ? (
             <EmptyState title={error} description="Try refreshing." />
           ) : message ? (
-            <EmptyState title={message} description={scope === 'tribe' ? 'Go to the Tribe tab to join one.' : ''} />
+            <EmptyState title={message} description={
+              scope === 'tribe' ? 'Go to the Tribe tab to join one.'
+              : scope === 'comp' ? 'Go to the home page and select or join a comp first.'
+              : ''
+            } />
           ) : filteredEntries.length === 0 ? (
             <EmptyState
               title={scope === 'tribe' ? 'No tribe members yet' : scope === 'comp' ? 'No comp members yet' : 'No predictions yet'}
@@ -415,7 +419,7 @@ export default function LeaderboardPage() {
                   <span>#</span>
                   <span>Player</span>
                   <span className="text-right">Points</span>
-                  <span className="text-right">Exact</span>
+                  <span className="text-right">Bonus</span>
                   <span className="text-right">✓</span>
                 </div>
 
@@ -444,7 +448,7 @@ export default function LeaderboardPage() {
                               {isMe && (
                                 <ShareButton compact payload={{
                                   type: 'rank', rank: entry.rank ?? i+1,
-                                  points: entry.total_points, exact: entry.exact_count,
+                                  points: entry.total_points, bonus: entry.bonus_count,
                                   correct: entry.correct_count, displayName: entry.display_name,
                                   roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
                                 }} />
@@ -466,7 +470,7 @@ export default function LeaderboardPage() {
                           </span>
                         </div>
                         <div className="flex items-center justify-end">
-                          <span className="text-xs text-purple-700 font-medium">{entry.exact_count}</span>
+                          <span className="text-xs text-purple-700 font-medium">{entry.bonus_count}</span>
                         </div>
                         <div className="flex items-center justify-end">
                           <span className="text-xs text-blue-700 font-medium">{entry.correct_count}</span>
@@ -494,7 +498,7 @@ export default function LeaderboardPage() {
               </Card>
 
               <div className="flex gap-4 mt-3 text-[11px] text-gray-400">
-                <span><span className="text-purple-600 font-medium">Exact</span> = correct scoreline</span>
+                <span><span className="text-purple-600 font-medium">Bonus</span> = correct scoreline</span>
                 <span><span className="text-blue-600 font-medium">✓</span> = right result, wrong score</span>
               </div>
 
@@ -509,7 +513,7 @@ export default function LeaderboardPage() {
                       You are ranked <span className="text-green-700">#{myEntry.rank}</span> — outside the top {scope === 'tribe' ? 25 : 50}
                     </p>
                     <p className="text-[11px] text-green-600 mt-0.5">
-                      {myEntry.total_points} pts · {myEntry.exact_count} exact · {myEntry.correct_count} correct
+                      {myEntry.total_points} pts · {myEntry.bonus_count} bonus · {myEntry.correct_count} correct
                       {myEntry.tribe_name && ` · ${myEntry.tribe_name}`}
                     </p>
                   </div>

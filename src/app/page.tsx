@@ -701,7 +701,16 @@ export default function HomePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         {session ? (
           <>
-            <NavCard href="/predict"     icon="🎯" title="Predict"     description={started ? "Enter scores before kickoff" : "Predictions open — get ahead"} accent />
+            {selectedCompId
+              ? <NavCard href="/predict" icon="🎯" title="Predict" description={started ? "Enter scores before kickoff" : "Predictions open — get ahead"} accent />
+              : <div className="flex items-start gap-4 p-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
+                  <span className="text-2xl flex-shrink-0 mt-0.5">🎯</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-400">Predict</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Select a comp above to start predicting</p>
+                  </div>
+                </div>
+            }
             <NavCard href="/leaderboard" icon="🏆" title="Leaderboard" description="Global rankings and round-by-round standings" />
             <NavCard href="/tribe"       icon="👥" title="Your tribe"  description="Compete on a private leaderboard with friends" />
             <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring guide, tournament format, and FAQ" />
