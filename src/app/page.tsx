@@ -278,6 +278,7 @@ export default function HomePage() {
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [isAdmin,     setIsAdmin]     = useState(false)
+  const [avatar,       setAvatar]       = useState<string | null>(null)
   const [modal,       setModal]       = useState<'join' | 'create' | null>(null)
   // Per-comp rank: { [compId]: { pts, rank } }
   const [compRanks,   setCompRanks]   = useState<Record<string, { pts: number; rank: number }>>({})
@@ -310,12 +311,13 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).single(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
+      if (ud?.avatar_url) setAvatar(ud.avatar_url)
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
@@ -410,14 +412,17 @@ export default function HomePage() {
           {displayName && (
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: 'linear-gradient(135deg, #153d26, #16a34a)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 700, color: '#fff',
-                }}>
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
+                {avatar
+                  ? <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #bbf7d0' }} />
+                  : <div style={{
+                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                      background: 'linear-gradient(135deg, #153d26, #16a34a)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, fontWeight: 700, color: '#fff',
+                    }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                }
                 <span className="text-sm font-semibold text-gray-800">
                   {displayName}
                 </span>
