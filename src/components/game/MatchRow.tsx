@@ -83,7 +83,7 @@ export function MatchRow({
     : null
 
   const isCorrect = hasPred && !!result && (pts ?? 0) > 0
-  const isExact   = isCorrect && isExactRound && !!sc && pts === (sc?.result_pts ?? 0_pts + sc.exact_bonus)
+  const isExact   = isCorrect && isExactRound && !!sc && pts === (sc.result_pts + sc.exact_bonus)
   const isWrong   = hasPred && !!result && pts === 0
 
   const handleChange = useCallback((side: 'home'|'away', raw: string) => {
