@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
   }
 
   let lbQ = (adminClientGet.from('leaderboard') as any)
-    .select('user_id, total_points, exact_count, correct_count').in('user_id', memberIds)
+    .select('user_id, total_points, bonus_count, correct_count').in('user_id', memberIds)
   if (activeTid) lbQ = lbQ.eq('tournament_id', activeTid)
   const { data: lbRows } = await lbQ
 
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         display_name:  u.display_name  ?? 'Unknown',
         avatar_url:    u.avatar_url    ?? null,
         total_points:  lb.total_points  ?? 0,
-        bonus_count:   lb.bonus_count ?? lb.exact_count ?? 0,
+        bonus_count:   lb.bonus_count ?? 0,
         correct_count: lb.correct_count ?? 0,
       },
     }

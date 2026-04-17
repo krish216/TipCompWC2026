@@ -80,9 +80,9 @@ export async function GET(request: NextRequest) {
 
     // Query leaderboard view
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
+      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
-      .order('exact_count',  { ascending: false })
+      .order('bonus_count',  { ascending: false })
       .limit(limit)
 
     // Always filter by tournament
@@ -92,11 +92,7 @@ export async function GET(request: NextRequest) {
 
     const { data: lbData, error: lbError } = await lbQuery
     if (lbError) return NextResponse.json({ error: lbError.message }, { status: 500 })
-    // Normalise: DB may have exact_count (pre-migration) or bonus_count (post-migration 046)
-    const rows = ((lbData ?? []) as any[]).map((r: any) => ({
-      ...r,
-      bonus_count: r.bonus_count ?? r.exact_count ?? 0,
-    }))
+    const rows = (lbData ?? []) as any[]
 
     // Build fixture → round map (single query, no join)
     const { data: fixRows } = await adminClient
@@ -134,7 +130,7 @@ export async function GET(request: NextRequest) {
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
       const myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, exact_count, correct_count, predictions_made')
+        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
