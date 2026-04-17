@@ -48,25 +48,36 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
 // Used when tournament_rounds rows have not yet loaded (e.g. SSR, cold start).
 // Must match the seeded rows in migration 049.
 
-const WC2026_ROUNDS: Omit<RoundConfig, 'id' | 'tournament_id'>[] = [
-  { round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-  { round_code: 'r32', round_name: 'Round of 32',    round_order: 2, predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-  { round_code: 'r16', round_name: 'Round of 16',    round_order: 3, predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-  { round_code: 'qf',  round_name: 'Quarter-finals', round_order: 4, predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-  { round_code: 'sf',  round_name: 'Semi-finals',    round_order: 5, predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-  { round_code: 'tp',  round_name: '3rd Place',      round_order: 6, predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-  { round_code: 'f',   round_name: 'Final',          round_order: 7, predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-]
+// WC2026 hardcoded fallback — mirrors rows seeded in migration 049.
+// Exported as a function (not a const) to avoid module-level TDZ issues.
+export function getDefaultScoringConfig(): TournamentScoringConfig {
+  return buildScoringConfig([
+    { id: 'gs',  tournament_id: 'default', round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'r32', tournament_id: 'default', round_code: 'r32', round_name: 'Round of 32',    round_order: 2, predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'r16', tournament_id: 'default', round_code: 'r16', round_name: 'Round of 16',    round_order: 3, predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+    { id: 'qf',  tournament_id: 'default', round_code: 'qf',  round_name: 'Quarter-finals', round_order: 4, predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+    { id: 'sf',  tournament_id: 'default', round_code: 'sf',  round_name: 'Semi-finals',    round_order: 5, predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'tp',  tournament_id: 'default', round_code: 'tp',  round_name: '3rd Place',      round_order: 6, predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'f',   tournament_id: 'default', round_code: 'f',   round_name: 'Final',          round_order: 7, predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+  ])
+}
 
-export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = buildScoringConfig(
-  WC2026_ROUNDS.map(r => ({ ...r, id: r.round_code, tournament_id: 'default' }))
-)
+// Module-level singleton — initialised after all functions are defined, safe from TDZ
+let _defaultConfig: TournamentScoringConfig | null = null
+export function getDefaultScoringConfigCached(): TournamentScoringConfig {
+  if (!_defaultConfig) _defaultConfig = getDefaultScoringConfig()
+  return _defaultConfig
+}
 
-// Convenience accessors from the default config (for rules page, display only)
-export const EXACT_SCORE_ROUNDS: RoundId[] = DEFAULT_SCORING_CONFIG.exact_score_rounds
-export const PEN_BONUS_ROUNDS:   RoundId[] = DEFAULT_SCORING_CONFIG.pen_bonus_rounds
-export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = DEFAULT_SCORING_CONFIG.fav_team_rounds
-export const OUTCOME_ROUNDS:     RoundId[] = DEFAULT_SCORING_CONFIG.outcome_rounds
+// Keep a named export for backwards compat — aliased to the cached getter result
+// Note: accessed via function call to avoid TDZ on module init
+export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = (() => getDefaultScoringConfig())()
+
+// Convenience arrays — derived at module init, safe because functions are hoisted
+export const EXACT_SCORE_ROUNDS:     RoundId[] = (() => getDefaultScoringConfig().exact_score_rounds)()
+export const PEN_BONUS_ROUNDS:       RoundId[] = (() => getDefaultScoringConfig().pen_bonus_rounds)()
+export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = (() => getDefaultScoringConfig().fav_team_rounds)()
+export const OUTCOME_ROUNDS:         RoundId[] = (() => getDefaultScoringConfig().outcome_rounds)()
 
 // ─── Entity types ─────────────────────────────────────────────────────────────
 

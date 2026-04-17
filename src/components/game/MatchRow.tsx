@@ -5,7 +5,7 @@ import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, DEFAULT_SCORING_CONFIG, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type TournamentScoringConfig } from '@/types'
+import { calcPoints, getDefaultScoringConfig, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -45,7 +45,7 @@ interface Props {
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
-  timezone = 'UTC', scoringConfig = DEFAULT_SCORING_CONFIG,
+  timezone = 'UTC', scoringConfig = getDefaultScoringConfig(),
   onPredict, onOutcome, onPenWinner,
 }: Props) {
   const [localHome, setLocalHome] = useState<string>(

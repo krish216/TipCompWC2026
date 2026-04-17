@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
-import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, DEFAULT_SCORING_CONFIG } from '@/types'
+import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, getDefaultScoringConfig } from '@/types'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 export interface Tournament {
@@ -64,7 +64,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
   const [roundConfigs,      setRoundConfigs]      = useState<RoundConfig[]>([])
-  const [scoringConfig,     setScoringConfig]     = useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG)
+  const [scoringConfig,     setScoringConfig]     = useState<TournamentScoringConfig>(getDefaultScoringConfig)
   // Admin comp IDs fetched once at load — isCompAdmin is derived from selectedCompId
   const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
   const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])

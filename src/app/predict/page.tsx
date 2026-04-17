@@ -8,7 +8,7 @@ import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { calcPoints, DEFAULT_SCORING_CONFIG, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { calcPoints, getDefaultScoringConfig, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -30,7 +30,7 @@ const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
 }
 
 // Safe scoring lookup — 'finals' maps to 'f'
-function getScoringForTab(tab: RoundTab, cfg = DEFAULT_SCORING_CONFIG) {
+function getScoringForTab(tab: RoundTab, cfg = getDefaultScoringConfig()) {
   return cfg.rounds[tab === 'finals' ? 'f' : tab as RoundId]
 }
 

@@ -1,6 +1,4 @@
-'use client'
-import { useUserPrefs } from '@/components/layout/UserPrefsContext'
-import { type RoundId } from '@/types'
+import { type RoundId, getDefaultScoringConfig } from '@/types'
 
 // Show each round as a separate row — tp (3rd place) and f (Final) have different scoring
 const SCORING_ROWS: { rid: RoundId; label: string; badge?: string; highlight?: boolean }[] = [
@@ -36,7 +34,7 @@ const FAQS = [
 ]
 
 export default function RulesPage() {
-  const { scoringConfig } = useUserPrefs()
+  const scoringConfig = getDefaultScoringConfig()
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <h1 className="text-lg font-semibold text-gray-900 mb-1">How to play</h1>
