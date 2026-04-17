@@ -168,11 +168,28 @@ export function calcPoints(
     const resultOutcome = result.result_outcome ?? getOutcome(result.home, result.away)
     if (predOutcome !== resultOutcome) return 0
 
-    // Use resultOutcome (computed fallback), not raw result.result_outcome (may be null)
+    // Pen bonus: scores level (draw) + pen winner stored + prediction matches
+    // Use BOTH resultOutcome === 'D' AND scores comparison as fallback
+    const isScoresDraw = result.home === result.away
     const penCorrect = rc.pen_bonus > 0
-      && resultOutcome === 'D'
+      && (resultOutcome === 'D' || isScoresDraw)
       && !!result.pen_winner
+      && !!pred.pen_winner
       && pred.pen_winner === result.pen_winner
+
+    // Debug log — remove after confirming fix
+    if (rc.pen_bonus > 0 && (resultOutcome === 'D' || isScoresDraw)) {
+      console.debug('[calcPoints]', round, {
+        penBonus: rc.pen_bonus,
+        resultOutcome,
+        isScoresDraw,
+        resultPenWinner: result.pen_winner,
+        predPenWinner: pred.pen_winner,
+        penCorrect,
+        pts: rc.result_pts + (penCorrect ? rc.pen_bonus : 0),
+      })
+    }
+
     return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
   }
 }
