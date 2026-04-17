@@ -30,8 +30,9 @@ const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
 }
 
 // Safe scoring lookup — 'finals' maps to 'f'
-function getScoringForTab(tab: RoundTab, cfg = getDefaultScoringConfig()) {
-  return cfg.rounds[tab === 'finals' ? 'f' : tab as RoundId]
+function getScoringForTab(tab: RoundTab, cfg?: TournamentScoringConfig) {
+  const c = cfg ?? getDefaultScoringConfig()
+  return c.rounds[tab === 'finals' ? 'f' : tab as RoundId]
 }
 
 export default function PredictPage() {
@@ -260,7 +261,7 @@ export default function PredictPage() {
   const globalStats = useMemo(() => {
     let totalPts = 0, exactCt = 0, correctCt = 0, notEnteredCt = 0
     for (const f of allFixtures) {
-      const sc      = scoringConfig?.rounds[f.round]
+      const sc      = (scoringConfig ?? getDefaultScoringConfig()).rounds[f.round]
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0

@@ -45,7 +45,7 @@ interface Props {
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
-  timezone = 'UTC', scoringConfig = getDefaultScoringConfig(),
+  timezone = 'UTC', scoringConfig,
   onPredict, onOutcome, onPenWinner,
 }: Props) {
   const [localHome, setLocalHome] = useState<string>(
@@ -75,8 +75,9 @@ export function MatchRow({
     ? (sel != null && !awaitingPen)   // knockout draw without pen pick = not yet saved
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
-  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite, scoringConfig) : result ? 0 : null
-  const sc  = scoringConfig.rounds[round] ?? scoringConfig.rounds['f']
+  const cfg = scoringConfig ?? getDefaultScoringConfig()
+  const pts = hasPred ? calcPoints(prediction, result ?? null, round, isFavourite, cfg) : result ? 0 : null
+  const sc  = cfg.rounds[round] ?? cfg.rounds['f']
 
   const resultOutcome = result
     ? (result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D')
@@ -131,7 +132,7 @@ export function MatchRow({
         </div>
 
         <div className="flex items-center gap-2 text-[11px]">
-          {isFavourite && scoringConfig.fav_team_rounds.includes(round) && (
+          {isFavourite && cfg.fav_team_rounds.includes(round) && (
             <span className="text-purple-600 font-semibold">⭐ 2×</span>
           )}
           {challenge && !result && (

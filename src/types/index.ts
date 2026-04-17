@@ -3,53 +3,55 @@
 export type RoundId  = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
 
-// Static round groupings used for UI tabs and display logic
-export const FINALS_ROUNDS:   RoundId[] = ['tp', 'f']
-export const KNOCKOUT_ROUNDS: RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
+// Static round groupings — plain literals, no computed values, no TDZ risk
+export const FINALS_ROUNDS:          RoundId[] = ['tp', 'f']
+export const KNOCKOUT_ROUNDS:        RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
+export const EXACT_SCORE_ROUNDS:     RoundId[] = ['sf', 'tp', 'f']
+export const OUTCOME_ROUNDS:         RoundId[] = ['gs', 'r32', 'r16', 'qf']
+export const PEN_BONUS_ROUNDS:       RoundId[] = ['r16', 'qf', 'sf', 'tp', 'f']
+export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
 
 // ─── Per-tournament round config (loaded from tournament_rounds DB table) ────
 
 export interface RoundConfig {
-  id:           string
+  id:            string
   tournament_id: string
-  round_code:   RoundId
-  round_name:   string
-  round_order:  number
-  predict_mode: 'outcome' | 'score'
-  result_pts:   number   // pts for correct outcome
-  exact_bonus:  number   // extra pts when exact score predicted (0 if N/A)
-  pen_bonus:    number   // extra pts when pen winner correct (0 if N/A)
-  fav_team_2x:  boolean  // whether 2× multiplier applies for fav team
+  round_code:    RoundId
+  round_name:    string
+  round_order:   number
+  predict_mode:  'outcome' | 'score'
+  result_pts:    number
+  exact_bonus:   number
+  pen_bonus:     number
+  fav_team_2x:   boolean
 }
 
-// Derived convenience arrays — computed from round configs at runtime
 export interface TournamentScoringConfig {
   rounds:             Record<RoundId, RoundConfig>
-  exact_score_rounds: RoundId[]   // rounds where predict_mode === 'score'
-  pen_bonus_rounds:   RoundId[]   // rounds where pen_bonus > 0
-  fav_team_rounds:    RoundId[]   // rounds where fav_team_2x === true
-  outcome_rounds:     RoundId[]   // rounds where predict_mode === 'outcome'
+  exact_score_rounds: RoundId[]
+  pen_bonus_rounds:   RoundId[]
+  fav_team_rounds:    RoundId[]
+  outcome_rounds:     RoundId[]
 }
 
-/** Build a TournamentScoringConfig from an array of RoundConfig rows (from DB). */
+/** Build a TournamentScoringConfig from an array of RoundConfig rows from the DB. */
 export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig {
   const rounds = {} as Record<RoundId, RoundConfig>
   rows.forEach(r => { rounds[r.round_code] = r })
   return {
     rounds,
     exact_score_rounds: rows.filter(r => r.predict_mode === 'score').map(r => r.round_code),
-    pen_bonus_rounds:   rows.filter(r => r.pen_bonus   >  0).map(r => r.round_code),
-    fav_team_rounds:    rows.filter(r => r.fav_team_2x     ).map(r => r.round_code),
+    pen_bonus_rounds:   rows.filter(r => r.pen_bonus > 0).map(r => r.round_code),
+    fav_team_rounds:    rows.filter(r => r.fav_team_2x).map(r => r.round_code),
     outcome_rounds:     rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
   }
 }
 
-// ─── Hardcoded WC2026 fallback ────────────────────────────────────────────────
-// Used when tournament_rounds rows have not yet loaded (e.g. SSR, cold start).
-// Must match the seeded rows in migration 049.
-
-// WC2026 hardcoded fallback — mirrors rows seeded in migration 049.
-// Exported as a function (not a const) to avoid module-level TDZ issues.
+/**
+ * Returns the WC2026 hardcoded fallback config — called as a function so it
+ * never runs at module evaluation time (avoids TDZ in bundled output).
+ * Mirrors rows seeded in migration 049.
+ */
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
     { id: 'gs',  tournament_id: 'default', round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
@@ -61,23 +63,6 @@ export function getDefaultScoringConfig(): TournamentScoringConfig {
     { id: 'f',   tournament_id: 'default', round_code: 'f',   round_name: 'Final',          round_order: 7, predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
   ])
 }
-
-// Module-level singleton — initialised after all functions are defined, safe from TDZ
-let _defaultConfig: TournamentScoringConfig | null = null
-export function getDefaultScoringConfigCached(): TournamentScoringConfig {
-  if (!_defaultConfig) _defaultConfig = getDefaultScoringConfig()
-  return _defaultConfig
-}
-
-// Keep a named export for backwards compat — aliased to the cached getter result
-// Note: accessed via function call to avoid TDZ on module init
-export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = (() => getDefaultScoringConfig())()
-
-// Convenience arrays — derived at module init, safe because functions are hoisted
-export const EXACT_SCORE_ROUNDS:     RoundId[] = (() => getDefaultScoringConfig().exact_score_rounds)()
-export const PEN_BONUS_ROUNDS:       RoundId[] = (() => getDefaultScoringConfig().pen_bonus_rounds)()
-export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = (() => getDefaultScoringConfig().fav_team_rounds)()
-export const OUTCOME_ROUNDS:         RoundId[] = (() => getDefaultScoringConfig().outcome_rounds)()
 
 // ─── Entity types ─────────────────────────────────────────────────────────────
 
@@ -145,40 +130,40 @@ export function getOutcome(h: number, a: number): 'H' | 'A' | 'D' {
 
 /**
  * Calculate points for a prediction against a result.
- * Uses TournamentScoringConfig loaded from the tournament_rounds table.
- * Falls back to DEFAULT_SCORING_CONFIG if config is not provided.
+ * Pass scoringConfig from UserPrefsContext (loaded from tournament_rounds table).
+ * Falls back to getDefaultScoringConfig() if not provided.
  */
 export function calcPoints(
-  pred:   Pick<Prediction, 'home' | 'away' | 'pen_winner' | 'outcome'> | null | undefined,
-  result: (MatchScore & { pen_winner?: string | null; result_outcome?: string | null }) | null | undefined,
-  round:  RoundId,
-  isFavourite = false,
-  config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG
+  pred:        Pick<Prediction, 'home' | 'away' | 'pen_winner' | 'outcome'> | null | undefined,
+  result:      (MatchScore & { pen_winner?: string | null; result_outcome?: string | null }) | null | undefined,
+  round:       RoundId,
+  isFavourite: boolean = false,
+  config?:     TournamentScoringConfig
 ): number | null {
   if (!result) return null
   if (!pred)   return 0
 
-  const rc = config.rounds[round]
-  if (!rc)     return null
+  const cfg = config ?? getDefaultScoringConfig()
+  const rc  = cfg.rounds[round]
+  if (!rc)  return null
 
   const multiplier = isFavourite && rc.fav_team_2x ? 2 : 1
 
   if (rc.predict_mode === 'score') {
-    // ── Score-prediction round (sf / tp / f) ─────────────────────────────
+    // Score-prediction rounds (sf / tp / f)
     const resultOutcome = getOutcome(result.home, result.away)
     const predOutcome   = getOutcome(pred.home ?? 0, pred.away ?? 0)
     const isExactScore  = pred.home === result.home && pred.away === result.away
 
-    if (isExactScore)             return (rc.result_pts + rc.exact_bonus) * multiplier
+    if (isExactScore) return (rc.result_pts + rc.exact_bonus) * multiplier
     if (predOutcome !== resultOutcome) return 0
 
-    // Correct result, not exact — check pen winner bonus
     const drewAndPens = result.home === result.away && !!result.pen_winner
     const penCorrect  = drewAndPens && rc.pen_bonus > 0 && pred.pen_winner === result.pen_winner
     return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
 
   } else {
-    // ── Outcome-only round (gs / r32 / r16 / qf) ─────────────────────────
+    // Outcome-only rounds (gs / r32 / r16 / qf)
     const predOutcome   = pred.outcome ?? getOutcome(pred.home ?? 0, pred.away ?? 0)
     const resultOutcome = result.result_outcome ?? getOutcome(result.home, result.away)
     if (predOutcome !== resultOutcome) return 0
