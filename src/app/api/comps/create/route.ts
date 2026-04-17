@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
 
   // Step 4: assign user to new comp, enrol in user_comps, and grant comp admin
   await Promise.all([
-    (adminClient.from('users') as any).update({ comp_id: compId }).eq('id', user_id),
     (adminClient.from('comp_admins') as any).upsert({ comp_id: compId, user_id }),
     (adminClient.from('user_comps') as any).upsert(
       { user_id, comp_id: compId },
@@ -103,22 +102,27 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data: org }, { status: 201 })
 }
 
-// PATCH /api/comps/create — update logo URL after upload
+// PATCH /api/comps/create — update comp settings
 export async function PATCH(request: NextRequest) {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await request.json().catch(() => null)
-  const { comp_id, logo_url, user_id, min_age, name } = body ?? {}
-  if (!comp_id || !user_id) {
-    return NextResponse.json({ error: 'comp_id and user_id required' }, { status: 400 })
+  const { comp_id, logo_url, min_age, name, requires_payment_fee, entry_fee_amount } = body ?? {}
+  if (!comp_id) {
+    return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()
 
-  // Verify caller is org admin or created the org
-  const { data: org } = await (adminClient.from('comps') as any)
-    .select('created_by').eq('id', comp_id).single()
-  const { data: compAdminRow } = await (adminClient.from('comp_admins') as any)
-    .select('user_id').eq('user_id', user_id).eq('comp_id', comp_id).single()
-  if (!org || ((org as any).created_by !== user_id && !compAdminRow)) {
+  // Verify caller is comp admin, tournament admin, or created the comp
+  const [{ data: org }, { data: compAdminRow }, { data: tournAdmin }] = await Promise.all([
+    (adminClient.from('comps') as any).select('created_by').eq('id', comp_id).single(),
+    (adminClient.from('comp_admins') as any).select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single(),
+    adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single(),
+  ])
+  if (!org || ((org as any).created_by !== user.id && !compAdminRow && !tournAdmin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -126,7 +130,9 @@ export async function PATCH(request: NextRequest) {
     .update({
         ...(name      !== undefined ? { name:     name ?? null      } : {}),
         ...(logo_url  !== undefined ? { logo_url }                    : {}),
-        ...(min_age   !== undefined ? { min_age:  min_age ?? null   } : {}),
+        ...(min_age              !== undefined ? { min_age:              min_age ?? null              } : {}),
+        ...(requires_payment_fee !== undefined ? { requires_payment_fee: requires_payment_fee ?? false } : {}),
+        ...(entry_fee_amount     !== undefined ? { entry_fee_amount:     entry_fee_amount ?? null      } : {}),
       }).eq('id', comp_id)
 
   return NextResponse.json({ success: true })

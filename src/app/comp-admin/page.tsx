@@ -685,7 +685,7 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
     const res = await fetch('/api/comps/create', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        comp_id: comp.id, user_id: comp.created_by ?? '',
+        comp_id: comp.id,
         requires_payment_fee: enabled,
         entry_fee_amount: enabled ? feeAmt : null,
       }),
