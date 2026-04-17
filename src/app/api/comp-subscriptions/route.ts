@@ -10,40 +10,40 @@ export const TIERS = {
   public:     { label: 'Public',               max_players: -1,  max_tribes: 1,  price_aud: 0    },
 }
 
-// GET /api/org-subscriptions?org_id= — get subscription for org
+// GET /api/comp-subscriptions?comp_id= — get subscription for org
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const orgId = new URL(request.url).searchParams.get('org_id')
-  if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 })
+  const compId = new URL(request.url).searchParams.get('comp_id')
+  if (!compId) return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
 
   const { data, error } = await supabase
-    .from('org_subscriptions')
+    .from('comp_subscriptions')
     .select('*')
-    .eq('org_id', orgId)
+    .eq('comp_id', compId)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data, tiers: TIERS })
 }
 
-// POST /api/org-subscriptions — upgrade tier (tournament admin or org admin)
+// POST /api/comp-subscriptions — upgrade tier (tournament admin or org admin)
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { org_id, tier, payment_ref } = await request.json()
-  if (!org_id || !tier) return NextResponse.json({ error: 'org_id and tier required' }, { status: 400 })
+  const { comp_id, tier, payment_ref } = await request.json()
+  if (!comp_id || !tier) return NextResponse.json({ error: 'comp_id and tier required' }, { status: 400 })
 
   // Allow tournament admin or org admin
   const { data: isAdmin } = await adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single()
-  const { data: isOrgAdmin } = await (adminClient.from('org_admins') as any)
-    .select('user_id').eq('user_id', user.id).eq('org_id', org_id).single()
-  if (!isAdmin && !isOrgAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { data: isCompAdmin } = await (adminClient.from('comp_admins') as any)
+    .select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
+  if (!isAdmin && !isCompAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const tierConfig = TIERS[tier as keyof typeof TIERS]
   if (!tierConfig) return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
     expires_at:  tier !== 'trial' ? new Date(Date.now() + 90 * 86400000).toISOString() : null,
   }
 
-  const { error } = await (adminClient.from('org_subscriptions') as any)
-    .upsert({ org_id, ...update })
+  const { error } = await (adminClient.from('comp_subscriptions') as any)
+    .upsert({ comp_id, ...update })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
