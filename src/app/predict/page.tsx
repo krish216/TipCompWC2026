@@ -99,9 +99,25 @@ export default function PredictPage() {
         }
         setResults(rm)
 
-        // Diagnostic: log R32 draw fixtures with pen_winner to trace display issue
+        // Round locks
+        const locks: Record<string, boolean> = locksData.data ?? {}
+        setRoundLocks(locks)
+
+        // User tournament prefs (favourite team)
+        const userTournData = (await userRes.json().catch(() => ({}))) as any
+        if (userTournData?.data?.length) {
+          const ut = userTournData.data[0]
+          setFavouriteTeam((ut as any).favourite_team ?? null)
+        }
+
+      } catch {
+        // load error handled silently
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [])
+    load()
+  }, [session])
 
   const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
     setPredictions(prev => ({
