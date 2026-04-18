@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-export const TIERS = {
+const TIERS = {
   trial:      { label: 'Free Trial (14 days)', max_players: 50,  max_tribes: 1,  price_aud: 0    },
   starter:    { label: 'Starter',              max_players: 50,  max_tribes: 3,  price_aud: 29   },
   business:   { label: 'Business',             max_players: 200, max_tribes: -1, price_aud: 99   },
