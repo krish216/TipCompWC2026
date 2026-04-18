@@ -1,5 +1,6 @@
 // ─── Domain types ────────────────────────────────────────────────────────────
 
+// scoring v2 — r32 pen_bonus=5
 export type RoundId  = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
 
@@ -176,7 +177,6 @@ export function calcPoints(
       && !!result.pen_winner
       && !!pred.pen_winner
       && pred.pen_winner === result.pen_winner
-    console.log('[PEN]', round, { rc_pen_bonus: rc.pen_bonus, resultOutcome, isScoresDraw, res_pen: result.pen_winner, pred_pen: pred.pen_winner, penCorrect, pts: rc.result_pts + (penCorrect ? rc.pen_bonus : 0) })
     return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
   }
 }

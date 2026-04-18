@@ -48,6 +48,13 @@ export default function LoginPage() {
   const [password,        setPassword]        = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name,            setName]            = useState('')
+  const [firstName,       setFirstName]       = useState('')
+  const [lastName,        setLastName]        = useState('')
+  const [agreedToTerms,   setAgreedToTerms]   = useState(false)
+  // Simple math captcha
+  const [captchaA]        = useState(() => Math.floor(Math.random() * 9) + 1)
+  const [captchaB]        = useState(() => Math.floor(Math.random() * 9) + 1)
+  const [captchaInput,    setCaptchaInput]    = useState('')
   const [country,  setCountry]  = useState('')
   const [timezone, setTimezone] = useState('UTC')
   const [favTeam,      setFavTeam]      = useState('')
@@ -182,12 +189,28 @@ export default function LoginPage() {
         return
       }
 
+      if (!firstName.trim()) {
+        setError('First name is required')
+        return
+      }
+      if (!lastName.trim()) {
+        setError('Last name is required')
+        return
+      }
       if (password !== confirmPassword) {
         setError('Passwords do not match — please re-enter')
         return
       }
       if (password.length < 8) {
         setError('Password must be at least 8 characters')
+        return
+      }
+      if (parseInt(captchaInput) !== captchaA + captchaB) {
+        setError(`Captcha incorrect — what is ${captchaA} + ${captchaB}?`)
+        return
+      }
+      if (!agreedToTerms) {
+        setError('You must agree to the Terms & Conditions to register')
         return
       }
 
@@ -236,6 +259,8 @@ export default function LoginPage() {
           id:                  newUser.id,
           email:               newUser.email!,
           display_name:        displayName,
+          first_name:          firstName.trim() || null,
+          last_name:           lastName.trim() || null,
           country:             country || null,
           timezone:            timezone || 'UTC',
           date_of_birth:       birthYear ? `${birthYear}-01-01` : null,
@@ -552,6 +577,26 @@ export default function LoginPage() {
                   <p className="text-[11px] text-amber-600 mt-1">Minimum 3 characters</p>
                 )}
               </div>
+              {/* First name + Last name */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    First name <span className="text-red-500">*</span>
+                  </label>
+                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
+                    placeholder="Alex" maxLength={50} required
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Last name <span className="text-red-500">*</span>
+                  </label>
+                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)}
+                    placeholder="Smith" maxLength={50} required
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Country</label>
                 <select value={country} onChange={e => {
@@ -721,6 +766,57 @@ export default function LoginPage() {
                 <p className="text-[11px] text-green-600 mt-1">✓ Passwords match</p>
               )}
             </div>
+          )}
+
+          {/* Captcha + T&C — register only */}
+          {mode === 'register' && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Verification <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                    What is {captchaA} + {captchaB}?
+                  </span>
+                  <input
+                    type="number"
+                    value={captchaInput}
+                    onChange={e => setCaptchaInput(e.target.value)}
+                    placeholder="Answer"
+                    className={`w-24 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                      captchaInput && parseInt(captchaInput) !== captchaA + captchaB
+                        ? 'border-red-400'
+                        : captchaInput && parseInt(captchaInput) === captchaA + captchaB
+                        ? 'border-green-400'
+                        : 'border-gray-300'
+                    }`}
+                  />
+                  {captchaInput && parseInt(captchaInput) === captchaA + captchaB && (
+                    <span className="text-green-600 text-sm">✓</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  id="agree-terms"
+                  checked={agreedToTerms}
+                  onChange={e => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-400 flex-shrink-0 cursor-pointer"
+                />
+                <label htmlFor="agree-terms" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                  I agree to the{' '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer"
+                    className="text-blue-600 underline underline-offset-1 hover:text-blue-800"
+                    onClick={e => e.stopPropagation()}>
+                    Terms &amp; Conditions
+                  </a>
+                  {' '}of TipComp. I confirm I am 18 years of age or older.
+                </label>
+              </div>
+            </>
           )}
 
           {error && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>}

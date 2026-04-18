@@ -100,64 +100,6 @@ export default function PredictPage() {
         setResults(rm)
 
         // Diagnostic: log R32 draw fixtures with pen_winner to trace display issue
-        Object.entries(rm).forEach(([id, r]: any) => {
-          if (r.pen_winner) {
-            const pred = pm[id as any]
-            console.log('[DIAG] fixture', id, 'result_outcome:', r.result_outcome, 'result_pen:', r.pen_winner, 'pred_outcome:', pred?.outcome, 'pred_pen:', pred?.pen_winner)
-          }
-        })
-
-        // Round locks
-        setRoundLocks(locksData?.data ?? {})
-
-        // Favourite team — from user_tournaments (per-tournament)
-        const userTournsData = await userRes.json()
-        const activeTournId  = (fxData.data?.[0] as any)?.tournament_id ?? null
-        const myEnrollment   = (userTournsData.data ?? []).find(
-          (ut: any) => ut.tournament_id === activeTournId
-        )
-        setFavouriteTeam(myEnrollment?.favourite_team ?? null)
-      } catch (err) {
-        console.error('Failed to load predict page data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [session])
-
-  // ── Realtime results ──────────────────────────────────────
-  useEffect(() => {
-    if (!session) return
-    const channel = supabase
-      .channel('predict-fixtures')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'fixtures' }, payload => {
-        const f = payload.new as any
-        if (f.home_score != null) {
-          setResults(prev => ({ ...prev, [f.id]: { home: f.home_score, away: f.away_score } }))
-        }
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [supabase, session])
-
-  // ── Save prediction ───────────────────────────────────────
-  const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
-    setSaving(prev => new Set(prev).add(fixtureId))
-    try {
-      const res = await fetch('/api/predictions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fixture_id: fixtureId, home, away }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        toast.error(res.status === 409 ? 'Round not open for predictions' : body.error ?? 'Save failed')
-      }
-    } catch {
-      toast.error('Network error — prediction not saved')
-    } finally {
-      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
     }
   }, [])
 

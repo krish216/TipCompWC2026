@@ -78,11 +78,13 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
         supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).single(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
+      setFirstName((userRes.data as any).first_name ?? '')
+      setLastName((userRes.data as any).last_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
         // Extract year from stored date_of_birth (stored as YYYY-01-01 from registration)
         const dob = (userRes.data as any).date_of_birth ?? ''
@@ -108,7 +110,7 @@ export default function SettingsPage() {
     setSavingName(true)
     const { error } = await supabase
       .from('users')
-      .update({ display_name: displayName.trim() })
+      .update({ display_name: displayName.trim(), first_name: firstName.trim() || null, last_name: lastName.trim() || null })
       .eq('id', session.user.id)
     setSavingName(false)
     if (error) toast.error('Failed to save name')
