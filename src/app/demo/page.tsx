@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import Link from 'next/link'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -197,24 +198,15 @@ function Leaderboard({ entries, myUserId, totalFixtures }: {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DemoPage() {
   const { session } = useSupabase()
-  const [tab,         setTab]         = useState<'predict' | 'board'>('predict')
-  const [fixtures,    setFixtures]    = useState<DemoFixture[]>([])
-  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [submitting,  setSubmitting]  = useState<number | null>(null)
-  const [tournamentId, setTournamentId] = useState<string | null>(null)
+  const { selectedTournId } = useUserPrefs()
+  const tournamentId = selectedTournId
+  const [tab,          setTab]          = useState<'predict' | 'board'>('predict')
+  const [fixtures,     setFixtures]     = useState<DemoFixture[]>([])
+  const [leaderboard,  setLeaderboard]  = useState<LeaderEntry[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [submitting,   setSubmitting]   = useState<number | null>(null)
   const [totalFixtures, setTotalFixtures] = useState(0)
-  const [groupFilter, setGroupFilter] = useState<string>('all')
-
-  // Load active tournament first
-  useEffect(() => {
-    fetch('/api/tournaments?active=1')
-      .then(r => r.json())
-      .then(d => {
-        const tid = d.data?.[0]?.id ?? null
-        setTournamentId(tid)
-      }).catch(() => setLoading(false))
-  }, [])
+  const [groupFilter,  setGroupFilter]  = useState<string>('all')
 
   const loadFixtures = useCallback(async () => {
     if (!tournamentId) return
