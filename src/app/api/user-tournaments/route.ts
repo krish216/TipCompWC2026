@@ -31,8 +31,7 @@ export async function POST(request: NextRequest) {
     .from('tournaments').select('id, status').eq('id', tournament_id).single()
   if (!tourn) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-  const { error } = await supabase
-    .from('user_tournaments')
+  const { error } = await (supabase.from('user_tournaments') as any)
     .upsert({ user_id: user.id, tournament_id, favourite_team: favourite_team || null },
       { onConflict: 'user_id,tournament_id' })
 
@@ -51,8 +50,7 @@ export async function DELETE(request: NextRequest) {
   const tournament_id = new URL(request.url).searchParams.get('tournament_id')
   if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
 
-  const { error } = await supabase
-    .from('user_tournaments')
+  const { error } = await (supabase.from('user_tournaments') as any)
     .delete()
     .match({ user_id: user.id, tournament_id })
 
