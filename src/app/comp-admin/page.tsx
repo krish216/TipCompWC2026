@@ -346,8 +346,9 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
     const next = !t.fee_paid
     await patch(t.user_id, {
       fee_paid:        next,
-      fee_paid_amount: next ? (t.fee_paid_amount ?? entryFeeDefault ?? undefined) : undefined,
-    })
+      // Set default amount when marking paid; clear it when marking unpaid
+      fee_paid_amount: next ? (t.fee_paid_amount ?? entryFeeDefault ?? null) : null,
+    } as any)
     toast.success(next ? 'Marked as paid ✓' : 'Marked as unpaid')
   }
 

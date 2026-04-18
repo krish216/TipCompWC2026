@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   // Query user_comps with admin client — no RLS interference
   let query = (adminClient.from('user_comps') as any)
-    .select('comp_id, joined_at, comps(id, name, slug, logo_url, tournament_id, invite_code)')
+    .select('comp_id, joined_at, fee_paid, fee_paid_amount, comps(id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount)')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const compId = (userRow as any)?.comp_id ?? null
     if (compId) {
       const { data: compRow } = await (adminClient.from('comps') as any)
-        .select('id, name, slug, logo_url, tournament_id, invite_code')
+        .select('id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount')
         .eq('id', compId).single()
 
       if (compRow && (!tournamentId || (compRow as any).tournament_id === tournamentId)) {
@@ -77,8 +77,6 @@ export async function POST(request: NextRequest) {
     .upsert({ user_id: user.id, comp_id }, { onConflict: 'user_id,comp_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Keep users.comp_id in sync
-  await (adminClient.from('users') as any).update({ comp_id }).eq('id', user.id)
   return NextResponse.json({ success: true })
 }
 

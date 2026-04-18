@@ -19,14 +19,19 @@ export async function GET(request: NextRequest) {
   const compId = new URL(request.url).searchParams.get('comp_id')
   if (!compId) return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('comp_subscriptions')
-    .select('*')
-    .eq('comp_id', compId)
-    .maybeSingle()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: data ?? { tier: 'trial' }, tiers: TIERS })
+  try {
+    const { data, error } = await supabase
+      .from('comp_subscriptions')
+      .select('*')
+      .eq('comp_id', compId)
+      .maybeSingle()
+    if (error) throw error
+    return NextResponse.json({ data: data ?? { tier: 'trial' }, tiers: TIERS })
+  } catch (e: any) {
+    // Table may not exist or no subscription row — default to trial
+    console.warn('[comp-subscriptions GET]', e?.message)
+    return NextResponse.json({ data: { tier: 'trial' }, tiers: TIERS })
+  }
 }
 
 // POST /api/comp-subscriptions — upgrade tier (tournament admin or org admin)
