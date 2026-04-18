@@ -160,24 +160,6 @@ export default function AdminPage() {
   const [adminEmail,  setAdminEmail]  = useState('')
   const [grantingAccess, setGrantingAccess] = useState(false)
 
-  // Demo tab state
-  const [demoLoading,    setDemoLoading]    = useState(false)
-  const [demoGenerated,  setDemoGenerated]  = useState<{fixtures: number; results: number} | null>(null)
-  const [demoError,      setDemoError]      = useState<string | null>(null)
-
-  const generateDemo = async () => {
-    if (!tournamentId) { setDemoError('No active tournament found'); return }
-    setDemoLoading(true); setDemoError(null); setDemoGenerated(null)
-    const res  = await fetch('/api/demo/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: tournamentId }),
-    })
-    const data = await res.json()
-    setDemoLoading(false)
-    if (data.success) setDemoGenerated({ fixtures: data.fixtures_created, results: data.results_generated })
-    else setDemoError(data.error ?? 'Failed to generate demo results')
-  }
-
   // Tournament tab state
   const [tournLoading,   setTournLoading]   = useState(false)
   const [tournamentData, setTournamentData] = useState<any>(null)
@@ -695,41 +677,23 @@ export default function AdminPage() {
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <h2 className="text-sm font-bold text-gray-900 mb-1">Pre-Tournament Demo Mode</h2>
             <p className="text-xs text-gray-500 mb-4">
-              Copies all Group Stage fixtures into a demo table and asks AI to generate realistic scores.
-              Tipsters can predict on the <a href="/demo" target="_blank" className="text-blue-600 underline">/demo page</a> and see results revealed after they predict.
-              The demo scoreboard is public — no login required to view.
+              Group Stage fixtures are pre-seeded with AI-generated results via the <code className="bg-gray-100 px-1 rounded">058_demo_seed.sql</code> migration.
+              Tipsters can predict at the <a href="/demo" target="_blank" className="text-blue-600 underline">/demo page</a> — results are revealed after each prediction.
+              The scoreboard is public and requires no login to view.
             </p>
-
-            {demoError && (
-              <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">{demoError}</div>
-            )}
-            {demoGenerated && (
-              <div className="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700">
-                ✓ Generated {demoGenerated.results} AI results for {demoGenerated.fixtures} Group Stage fixtures.
-                <a href="/demo" target="_blank" className="ml-2 underline font-semibold">View demo page →</a>
-              </div>
-            )}
-
             <div className="flex gap-3 items-center flex-wrap">
-              <button onClick={generateDemo} disabled={demoLoading}
-                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors flex items-center gap-2">
-                {demoLoading ? (
-                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> Generating AI results…</>
-                ) : '🤖 Generate AI Results'}
-              </button>
               <a href="/demo" target="_blank"
-                className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-600 rounded-xl transition-colors">
+                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-bold rounded-xl transition-colors">
                 View /demo page ↗
               </a>
             </div>
-
             <div className="mt-5 pt-4 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-700 mb-2">How it works</p>
               <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
-                <li>Click Generate — AI creates realistic scores for all 48 GS matches</li>
-                <li>Tipsters visit /demo and pick H/D/A for each fixture</li>
+                <li>Run migration 058_demo_seed.sql in Supabase to seed fixtures and AI results</li>
+                <li>Tipsters visit /demo and pick H/D/A for each Group Stage match</li>
                 <li>Result is revealed immediately after they predict</li>
-                <li>Scoreboard updates in real-time — anyone can view it</li>
+                <li>Scoreboard updates live — anyone can view without logging in</li>
                 <li>When the real tournament starts, /demo stays up as a separate record</li>
               </ol>
             </div>
