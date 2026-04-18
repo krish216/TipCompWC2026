@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   await Promise.all([
-    supabase.from('tribe_members').insert({ user_id: user.id, tribe_id: (tribe as any).id }),
+    (supabase.from('tribe_members') as any).insert({ user_id: user.id, tribe_id: (tribe as any).id }),
   ])
 
   return NextResponse.json({ data: tribe })

@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
     .lte('kickoff_utc', windowEnd)
     .is('home_score', null)
 
-  const pending = (pendingFixtures ?? []) as any[]
-  if (!pending.length) {
+  if (!pendingFixtures?.length) {
     return NextResponse.json({ updated: 0, message: 'No pending fixtures' })
   }
 
@@ -42,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   let updated = 0
 
-  for (const fixture of pending) {
+  for (const fixture of pendingFixtures) {
     try {
       // Query API-Football for this fixture's result
       // In production, you'd map fixture.id to the API-Football fixture ID
@@ -66,11 +65,11 @@ export async function GET(request: NextRequest) {
         const home = f.teams?.home?.name?.toLowerCase()
         const away = f.teams?.away?.name?.toLowerCase()
         return (
-          home?.includes((fixture.home as string).toLowerCase()) ||
-          (fixture.home as string).toLowerCase().includes(home ?? '')
+          home?.includes(fixture.home.toLowerCase()) ||
+          fixture.home.toLowerCase().includes(home ?? '')
         ) && (
-          away?.includes((fixture.away as string).toLowerCase()) ||
-          (fixture.away as string).toLowerCase().includes(away ?? '')
+          away?.includes(fixture.away.toLowerCase()) ||
+          fixture.away.toLowerCase().includes(away ?? '')
         )
       })
 
@@ -85,8 +84,7 @@ export async function GET(request: NextRequest) {
       if (homeScore === null || homeScore === undefined) continue
       if (awayScore === null || awayScore === undefined) continue
 
-      await supabase
-        .from('fixtures')
+      await (supabase.from('fixtures') as any)
         .update({
           home_score: homeScore,
           away_score: awayScore,
@@ -96,7 +94,7 @@ export async function GET(request: NextRequest) {
         .eq('id', fixture.id)
 
       updated++
-      console.log(`[scores/sync] Updated fixture ${fixture.id}: ${fixture.home as string} ${homeScore}-${awayScore} ${fixture.away as string}`)
+      console.log(`[scores/sync] Updated fixture ${fixture.id}: ${fixture.home} ${homeScore}-${awayScore} ${fixture.away}`)
 
     } catch (err) {
       console.error(`[scores/sync] Error for fixture ${fixture.id}:`, err)
@@ -105,7 +103,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     updated,
-    checked: pending.length,
+    checked: pendingFixtures.length,
     timestamp: now.toISOString(),
   })
 }
