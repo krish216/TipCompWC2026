@@ -344,7 +344,7 @@ export default function LoginPage() {
       // No sessionStorage processing needed
 
       // Mark onboarding complete
-      await supabase.from('users')
+      await (supabase.from('users') as any)
         .update({ onboarding_complete: true })
         .eq('id', session!.user.id)
 
