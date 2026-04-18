@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from '@/components/layout/SessionContext'
+import { useSupabase } from '@/components/layout/SupabaseProvider'
 import Link from 'next/link'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ function Leaderboard({ entries, myUserId, totalFixtures }: {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DemoPage() {
-  const { session } = useSession()
+  const { session } = useSupabase()
   const [tab,         setTab]         = useState<'predict' | 'board'>('predict')
   const [fixtures,    setFixtures]    = useState<DemoFixture[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
