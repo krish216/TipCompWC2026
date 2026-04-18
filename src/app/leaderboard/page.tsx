@@ -490,7 +490,7 @@ export default function LeaderboardPage() {
                               .filter(([, pts]) => pts > 0)
                               .map(([round, pts]) => (
                                 <div key={round} className="flex flex-col items-center bg-white border border-gray-200 rounded-md px-2.5 py-1.5">
-                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}</span>
+                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as RoundId]?.round_name ?? round}</span>
                                   <span className="text-sm font-semibold text-gray-800">{pts}</span>
                                 </div>
                               ))}
