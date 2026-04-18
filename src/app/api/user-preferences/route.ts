@@ -32,8 +32,7 @@ export async function PUT(request: NextRequest) {
   if (tournament_id !== undefined) payload.tournament_id = tournament_id ?? null
   if (comp_id       !== undefined) payload.comp_id       = comp_id ?? null
 
-  const { error } = await supabase
-    .from('user_preferences')
+  const { error } = await (supabase.from('user_preferences') as any)
     .upsert(payload, { onConflict: 'user_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

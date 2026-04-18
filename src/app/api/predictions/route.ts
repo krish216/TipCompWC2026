@@ -137,7 +137,7 @@ export async function DELETE(request: NextRequest) {
   if ((new Date(fx.kickoff_utc).getTime() - Date.now()) / 60000 <= 5 || fx.home_score !== null)
     return NextResponse.json({ error: 'Cannot withdraw after lockout' }, { status: 409 })
 
-  const { error } = await supabase.from('predictions').delete().match({ user_id: user.id, fixture_id })
+  const { error } = await (supabase.from('predictions') as any).delete().match({ user_id: user.id, fixture_id })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

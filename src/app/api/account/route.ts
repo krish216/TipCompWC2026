@@ -17,7 +17,7 @@ export async function DELETE() {
   await (adminClient.from('tribe_members') as any).delete().eq('user_id', uid)
 
   // 2. Delete predictions
-  await adminClient.from('predictions').delete().eq('user_id', uid)
+  await (adminClient.from('predictions') as any).delete().eq('user_id', uid)
 
   // 3. Remove comp admin roles
   await (adminClient.from('comp_admins') as any).delete().eq('user_id', uid)
