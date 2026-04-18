@@ -189,7 +189,7 @@ interface PredictionPayload {
 }
 interface RankPayload {
   type: 'rank'
-  rank: number; points: number; exact: number; correct: number
+  rank: number; points: number; exact: number; correct: number; bonus?: number
   displayName?: string; roundLabel?: string
 }
 interface AchievementPayload {
