@@ -32,8 +32,7 @@ export function useTimezone() {
   const setTimezone = async (tz: string) => {
     setTimezoneState(tz)
     if (session) {
-      await supabase
-        .from('users')
+      await (supabase.from('users') as any)
         .update({ timezone: tz })
         .eq('id', session.user.id)
     }

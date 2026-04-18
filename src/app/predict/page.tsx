@@ -250,8 +250,8 @@ export default function PredictPage() {
 
       if (r && pts !== null) {
         totalPts += pts
-        if (pts === sc.exact)                       exactCt++
-        else if (pts === sc.result && pts > 0)      correctCt++
+        if (pts === sc.exact_bonus)                       exactCt++
+        else if (pts === sc.result_pts && pts > 0)      correctCt++
       }
 
       // Count not-entered only for the current open tab's rounds
@@ -294,10 +294,10 @@ export default function PredictPage() {
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
       const v       = hasPred ? (calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0) : 0
       pts += v
-      if (v === sc.exact)                  exactCt++
-      else if (v === sc.result && v > 0)   correctCt++
+      if (v === sc.exact_bonus)                  exactCt++
+      else if (v === sc.result_pts && v > 0)   correctCt++
     }
-    return { played, total: fs.length, pts, exactCt, correctCt }
+    return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
   }, [fixtures, activeRound, predictions, results])
 
   // Fixtures sorted chronologically, with optional pending filter
@@ -480,7 +480,7 @@ export default function PredictPage() {
 
       {/* Filter toggle */}
       {(() => {
-        const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound] ?? fixtures[rid] ?? [])
+        const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound as RoundId] ?? fixtures[rid] ?? [])
         const pendingCount = allFs.filter(f => {
           if (results[f.id] || isLocked(f)) return false
           const p = predictions[f.id]

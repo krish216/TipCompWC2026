@@ -192,7 +192,7 @@ function MatchTopicList({
         return (
           <div key={round}>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1 px-1">
-              {getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}
+              {getDefaultScoringConfig().rounds[round as RoundId]?.round_name ?? round}
             </p>
             {roundFixtures.map(f => {
               const isActive    = activeTopic === f.id
@@ -318,7 +318,7 @@ function ChatPanel({
   const sendMessage = async () => {
     if (!msgInput.trim()) return
     setSending(true)
-    await supabase.from('chat_messages').insert({
+    await (supabase.from('chat_messages') as any).insert({
       tribe_id:   tribeId,
       user_id:    myId,
       content:    msgInput.trim(),

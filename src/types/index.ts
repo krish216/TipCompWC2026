@@ -69,12 +69,12 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
     { id: 'gs',  tournament_id: 'default', round_code: 'gs',  is_knockout: false,  round_name: 'Group Stage',    round_order: 1, tab_group: 'gs',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-    { id: 'r32', tournament_id: 'default', round_code: 'r32', round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',    predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: true  },
-    { id: 'r16', tournament_id: 'default', round_code: 'r16', round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',    predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+    { id: 'r32', tournament_id: 'default', round_code: 'r32', is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',    predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: true  },
+    { id: 'r16', tournament_id: 'default', round_code: 'r16', is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',    predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
     { id: 'qf',  tournament_id: 'default', round_code: 'qf',  is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',     predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
     { id: 'sf',  tournament_id: 'default', round_code: 'sf',  is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',     predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
     { id: 'tp',  tournament_id: 'default', round_code: 'tp',  is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals', predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-    { id: 'f',   tournament_id: 'default', round_code: 'f',   round_name: 'Final',          round_order: 7, tab_group: 'finals', predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'f',   tournament_id: 'default', round_code: 'f',   is_knockout: true,  round_name: 'Final',          round_order: 7, tab_group: 'finals', predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
   ])
 }
 
@@ -82,7 +82,8 @@ export function getDefaultScoringConfig(): TournamentScoringConfig {
 
 export interface Fixture {
   id:          number
-  round:       RoundId
+  round:       RoundId,
+  tab_group:   string
   group?:      string
   home:        string
   away:        string

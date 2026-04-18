@@ -141,7 +141,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
             const fallback = getDefaultScoringConfig()
             const merged = rows.map(r => ({
               ...r,
-              pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+              pen_bonus: Math.max(r.pen_bonus, ( fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
             }))
             setScoringConfig(buildScoringConfig(merged))
           }
@@ -186,7 +186,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         const fallback = getDefaultScoringConfig()
         const merged = rows.map(r => ({
           ...r,
-          pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+          pen_bonus: Math.max(r.pen_bonus, ( fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
         }))
         setScoringConfig(buildScoringConfig(merged))
       }

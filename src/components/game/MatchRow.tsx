@@ -61,10 +61,10 @@ export function MatchRow({
     if (prediction && prediction.away >= 0 && localAway === '') setLocalAway(String(prediction.away))
   }
 
+  const cfg = scoringConfig ?? getDefaultScoringConfig()
   const isExactRound   = cfg.exact_score_rounds.includes(round)
   const isOutcomeRound = cfg.outcome_rounds.includes(round)
   const isKnockout     = cfg.knockout_rounds.includes(round)
-  const cfg = scoringConfig ?? getDefaultScoringConfig()
   const penWinner      = (prediction as any)?.pen_winner ?? null
   // Derive outcome: use stored outcome or infer from scores for outcome rounds
   const rawOutcome = (prediction as any)?.outcome ?? null

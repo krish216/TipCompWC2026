@@ -80,8 +80,8 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).maybeSingle(),
-        supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).maybeSingle(),
+        (supabase.from('users') as any).select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).maybeSingle(),
+        (supabase.from('notification_prefs') as any).select('*').eq('user_id', session.user.id).maybeSingle(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
@@ -97,9 +97,9 @@ export default function SettingsPage() {
         setTimezone(tz); setSavedTimezone(tz)
       }
       if (prefRes.data) setPrefs({
-        push_enabled:  prefRes.data.push_enabled,
-        email_enabled: prefRes.data.email_enabled,
-        tribe_nudges:  prefRes.data.tribe_nudges,
+        push_enabled:  (prefRes.data as any).push_enabled,
+        email_enabled: (prefRes.data as any).email_enabled,
+        tribe_nudges:  (prefRes.data as any).tribe_nudges,
       })
       setLoading(false)
     }
@@ -110,8 +110,7 @@ export default function SettingsPage() {
     e.preventDefault()
     if (!session || !displayName.trim()) return
     setSavingName(true)
-    const { error } = await supabase
-      .from('users')
+    const { error } = await (supabase.from('users') as any)
       .update({ display_name: displayName.trim(), first_name: firstName.trim() || null, last_name: lastName.trim() || null })
       .eq('id', session.user.id)
     setSavingName(false)
@@ -122,7 +121,7 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     if (!session) return
     setSavingProfile(true)
-    const { error } = await supabase.from('users')
+    const { error } = await (supabase.from('users') as any)
       .update({ country: country || null, timezone: timezone || 'UTC' })
       .eq('id', session.user.id)
     setSavingProfile(false)
@@ -138,8 +137,7 @@ export default function SettingsPage() {
     const updated = { ...prefs, [key]: value }
     setPrefs(updated)
     setSavingPrefs(true)
-    const { error } = await supabase
-      .from('notification_prefs')
+    const { error } = await (supabase.from('notification_prefs') as any)
       .upsert({ user_id: session!.user.id, ...updated })
     setSavingPrefs(false)
     if (error) { toast.error('Failed to save preference'); setPrefs(prefs) }
@@ -154,7 +152,7 @@ export default function SettingsPage() {
       return
     }
     setSavingYear(true)
-    await supabase.from('users').update({ date_of_birth: `${birthYear}-01-01` }).eq('id', session.user.id)
+    await (supabase.from('users') as any).update({ date_of_birth: `${birthYear}-01-01` }).eq('id', session.user.id)
     setSavingYear(false)
     toast.success('Year of birth saved')
   }
@@ -223,7 +221,7 @@ export default function SettingsPage() {
                   if (error) { toast.error('Upload failed'); setUploadingAvatar(false); return }
                   const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
                   const url = urlData.publicUrl
-                  await supabase.from('users').update({ avatar_url: url }).eq('id', session.user.id)
+                  await (supabase.from('users') as any).update({ avatar_url: url }).eq('id', session.user.id)
                   setAvatar(url)
                   setUploadingAvatar(false)
                   toast.success('Profile photo updated!')

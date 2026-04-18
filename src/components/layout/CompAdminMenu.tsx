@@ -128,7 +128,7 @@ function CompSettings({ comp, onClose, onSaved }: { comp: Comp; onClose: () => v
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={labelStyle}>Display name (shown to players)</label>
-          <input value={compName} onChange={e => setAppName(e.target.value)} placeholder={comp.name} />
+          <input value={compName} onChange={e => setCompName(e.target.value)} placeholder={comp.name} />
         </div>
         <div>
           <label style={labelStyle}>Logo</label>

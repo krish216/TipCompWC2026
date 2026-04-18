@@ -78,8 +78,7 @@ export function useTribeChat(tribeId: string | null) {
     if (!tribeId || !session || !content.trim()) return
     setSending(true)
 
-    const { error } = await supabase
-      .from('chat_messages')
+    const { error } = await (supabase.from('chat_messages') as any)
       .insert({
         tribe_id: tribeId,
         user_id: session.user.id,

@@ -30,7 +30,7 @@ export function SupabaseProvider({
   }, [supabase])
 
   return (
-    <Context.Provider value={{ supabase, session }}>
+    <Context.Provider value={{ supabase: supabase as any, session }}>
       {children}
     </Context.Provider>
   )
