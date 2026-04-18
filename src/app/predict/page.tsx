@@ -15,56 +15,8 @@ import toast from 'react-hot-toast'
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
-// RoundTab is now a plain string — derived from tournament_rounds at runtime
+import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
 type RoundTab = string
-
-// Helper: build tab list from scoringConfig (loaded from tournament_rounds table).
-// Uses tab_group column — pure groupBy, no hardcoded round codes.
-// The tab label comes from the first round in the group (lowest round_order).
-interface RoundTabConfig {
-  tabs:        RoundTab[]
-  tabLabel:    Record<RoundTab, string>
-  tabToRounds: Record<RoundTab, RoundId[]>
-}
-
-function buildRoundTabs(cfg: TournamentScoringConfig): RoundTabConfig {
-  const tabLabel:    Record<RoundTab, string>     = {}
-  const tabToRounds: Record<RoundTab, RoundId[]> = {}
-
-  // Sort rounds by round_order so tab order and label come from the first in each group
-  const ordered = Object.values(cfg.rounds)
-    .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
-
-  for (const rc of ordered) {
-    // Fall back to round_code if tab_group not yet in DB (before migration 059)
-    const tab: RoundTab = (rc as any).tab_group ?? rc.round_code
-    if (!tabToRounds[tab]) {
-      tabToRounds[tab] = []
-      tabLabel[tab]    = rc.round_name  // label from first (lowest order) round in group
-    }
-    tabToRounds[tab].push(rc.round_code)
-  }
-
-  // Preserve insertion order (Object.keys respects it in V8)
-  const tabs = Object.keys(tabToRounds) as RoundTab[]
-
-  // Fallback if config is empty
-  if (!tabs.length) {
-    return { tabs: ['gs'], tabLabel: { gs: 'Group Stage' }, tabToRounds: { gs: ['gs'] } }
-  }
-
-  return { tabs, tabLabel, tabToRounds }
-}
-
-// Scoring lookup for a tab — for grouped tabs (e.g. finals), use the highest-value round
-function getScoringForTab(tab: RoundTab, cfg?: TournamentScoringConfig) {
-  const c = cfg ?? getDefaultScoringConfig()
-  // Direct lookup first (covers all single-round tabs)
-  if (c.rounds[tab as RoundId]) return c.rounds[tab as RoundId]
-  // Grouped tab: find rounds in this tab and return the one with highest result_pts
-  const inTab = Object.values(c.rounds).filter(r => ((r as any).tab_group ?? r.round_code) === tab)
-  return inTab.sort((a, b) => b.result_pts - a.result_pts)[0]
-}
 
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
@@ -243,28 +195,28 @@ export default function PredictPage() {
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
 
-  const isRoundOpen = useCallback((roundId: RoundId): boolean => {
+  const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
     if (!hasLocks) return roundId === (ROUND_TABS[0] ?? 'gs')
     // Use tab_group from scoringConfig as the lock key fallback
-    const tabGroup = (scoringConfig.rounds[roundId] as any)?.tab_group ?? roundId
+    const tabGroup = scoringConfig.rounds[roundId]?.tab_group ?? roundId
     return !!roundLocks[roundId] || !!roundLocks[tabGroup]
   }, [roundLocks, scoringConfig, ROUND_TABS])
 
-  const isLocked = useCallback((f: Fixture): boolean => {
+  const isLocked = useCallback((f: Fixture) => {
     if (!isRoundOpen(f.round)) return true
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
   }, [isRoundOpen])
 
   // Current open round tab
-  const currentRoundTab = useMemo((): RoundTab => {
+  const currentRoundTab = useMemo(() => {
     const hasLocks = Object.keys(roundLocks).length > 0
     if (!hasLocks) return ROUND_TABS[0] ?? 'gs'
     return ROUND_TABS.find(tab => {
       const rounds = TAB_TO_ROUNDS[tab] ?? []
       return rounds.some(r => {
-        const tabGroup = (scoringConfig.rounds[r] as any)?.tab_group ?? r
+        const tabGroup = scoringConfig.rounds[r]?.tab_group ?? r
         return !!roundLocks[r] || !!roundLocks[tabGroup]
       })
     }) ?? (ROUND_TABS[0] ?? 'gs')
@@ -303,7 +255,7 @@ export default function PredictPage() {
       }
 
       // Count not-entered only for the current open tab's rounds
-      const tabForRound: RoundTab = (scoringConfig.rounds[f.round] as any)?.tab_group ?? f.round
+      const tabForRound: RoundTab = f.tab_group ?? f.round
       if (tabForRound === currentRoundTab && !hasPred && !r && isRoundOpen(f.round)) {
         notEnteredCt++
       }
@@ -321,7 +273,7 @@ export default function PredictPage() {
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
       const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav, scoringConfig) : null
       if (pts !== null && r) {
-        const tab = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round
+        const tab = f.tab_group ?? f.round
         rp[tab]   = (rp[tab] ?? 0) + pts
       }
     }
@@ -423,6 +375,8 @@ export default function PredictPage() {
     </div>
   )
 
+  const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-4">
       <CountdownBanner />
@@ -469,11 +423,12 @@ export default function PredictPage() {
       {favouriteTeam && (
         <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
           <span className="text-base">⭐</span>
-          <span>Double points on <strong>{favouriteTeam}</strong> matches
+          <span>
+            Double points on <strong>{favouriteTeam}</strong> matches
             {scoringConfig.fav_team_rounds.length > 0 && (
-              <> — {scoringConfig.fav_team_rounds
+              <span> — {scoringConfig.fav_team_rounds
                 .map(r => scoringConfig.rounds[r]?.round_name ?? r)
-                .join(' & ')} only</>
+                .join(' & ')} only</span>
             )}
           </span>
         </div>
@@ -519,7 +474,7 @@ export default function PredictPage() {
 
       {/* Round score bar */}
       <RoundScoreBar
-        round={f.round}  {/* use fixture's actual round, not tab name */}
+        round={activeRoundId}
         {...roundScoreBarProps}
       />
 
