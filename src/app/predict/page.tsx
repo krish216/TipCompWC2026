@@ -21,11 +21,13 @@ type RoundTab = string
 // Helper: build tab list from scoringConfig (loaded from tournament_rounds table).
 // Uses tab_group column — pure groupBy, no hardcoded round codes.
 // The tab label comes from the first round in the group (lowest round_order).
-function buildRoundTabs(cfg: TournamentScoringConfig): {
+interface RoundTabConfig {
   tabs:        RoundTab[]
   tabLabel:    Record<RoundTab, string>
   tabToRounds: Record<RoundTab, RoundId[]>
-} {
+}
+
+function buildRoundTabs(cfg: TournamentScoringConfig): RoundTabConfig {
   const tabLabel:    Record<RoundTab, string>     = {}
   const tabToRounds: Record<RoundTab, RoundId[]> = {}
 
