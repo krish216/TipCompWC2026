@@ -255,7 +255,7 @@ export default function LoginPage() {
       const newUser = signUpData.user
       if (newUser) {
         // Upsert user row — no default comp, user will pick on homepage
-        await supabase.from('users').upsert({
+        await (supabase.from('users') as any).upsert({
           id:                  newUser.id,
           email:               newUser.email!,
           display_name:        displayName,
