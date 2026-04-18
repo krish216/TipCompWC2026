@@ -1,13 +1,8 @@
 /** @type {import('next').NextConfig} */
+// Cache buster: 20260418-215104
 const nextConfig = {
-  typescript: {
-    // Type errors are caught locally — don't block production builds
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // ESLint errors are caught locally — don't block production builds
-    ignoreDuringBuilds: true,
-  },
+  generateBuildId: async () => '20260418215104',
+  // Image domains for avatars (Supabase storage + Gravatar)
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
@@ -15,6 +10,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
     ],
   },
+
+  // Security headers
   async headers() {
     return [
       {
@@ -28,12 +25,18 @@ const nextConfig = {
       },
     ]
   },
+
+  // Redirect / → /predict (also handled in page.tsx)
   async redirects() {
     return [
       { source: '/home', destination: '/predict', permanent: true },
     ]
   },
+
+  // Disable x-powered-by header
   poweredByHeader: false,
+
+  // Enable React strict mode
   reactStrictMode: true,
 }
 
