@@ -86,8 +86,21 @@ export function MatchRow({
     ? { ...prediction, outcome: sel ?? (prediction as any).outcome ?? null }
     : prediction
   const pts = hasPred ? calcPoints(predForCalc, result ?? null, round, isFavourite, cfg) : result ? 0 : null
-  if (result && (result as any).pen_winner) {
- onPredict(fixture.id, 'home', v === '' ? -1 : parseInt(v)) }
+  const sc  = cfg.rounds[round] ?? cfg.rounds['f']
+
+  const resultOutcome = result
+    ? (result.home > result.away ? 'H' : result.away > result.home ? 'A' : 'D')
+    : null
+
+  const isCorrect = hasPred && !!result && (pts ?? 0) > 0
+  const isExact   = isCorrect && isExactRound && !!sc && pts === (sc.result_pts + sc.exact_bonus)
+  const isWrong   = hasPred && !!result && pts === 0
+  // pen bonus earned: outcome round, draw result, correct pen winner, pts > base result_pts
+  const penBonusEarned = hasPred && !!result && !isExactRound && (pts ?? 0) > (sc?.result_pts ?? 0) && !!penWinner && penWinner === (result as any)?.pen_winner
+
+  const handleChange = useCallback((side: 'home'|'away', raw: string) => {
+    const v = raw.replace(/[^0-9]/g, '')
+    if (side === 'home') { setLocalHome(v); onPredict(fixture.id, 'home', v === '' ? -1 : parseInt(v)) }
     else                 { setLocalAway(v); onPredict(fixture.id, 'away', v === '' ? -1 : parseInt(v)) }
   }, [fixture.id, onPredict])
 
