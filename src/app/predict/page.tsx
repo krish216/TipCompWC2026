@@ -169,6 +169,18 @@ export default function PredictPage() {
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
   }, [fixtures])
 
+  const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
+    setSaving(prev => new Set(prev).add(fixtureId))
+    try {
+      await fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
+      })
+    } catch { toast.error('Network error — prediction not saved') }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+  }, [])
+
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
