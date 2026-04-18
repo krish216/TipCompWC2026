@@ -267,11 +267,19 @@ export default function LoginPage() {
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
-        // Enrol in each selected tournament (fire-and-forget, handled after email confirm)
-        // We store the selection in sessionStorage to process after email verification
-        if (typeof window !== 'undefined') {
-          const tid = selectedTourn || tournaments[0]?.id
-          if (tid) sessionStorage.setItem('pending_tournaments', JSON.stringify({ [tid]: favTeamForTourn }))
+        // Enrol in selected tournament immediately — write directly to user_tournaments
+        // using the admin endpoint (no session needed yet, uses service-role client)
+        const tid = selectedTourn || tournaments[0]?.id
+        if (tid && newUser.id) {
+          fetch('/api/user-tournaments/enrol', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id:        newUser.id,
+              tournament_id:  tid,
+              favourite_team: favTeamForTourn || null,
+            }),
+          }).catch(() => {}) // fire-and-forget — row written before email confirmation
         }
 
         // Show "check your email" confirmation
@@ -332,21 +340,8 @@ export default function LoginPage() {
         }
       }
 
-      // Enrol in pending tournaments from registration (stored before email verify)
-      const pending = typeof window !== 'undefined' ? sessionStorage.getItem('pending_tournaments') : null
-      if (pending) {
-        try {
-          const tourns: Record<string, string> = JSON.parse(pending)
-          await Promise.all(Object.entries(tourns).map(([tid, fav]) =>
-            fetch('/api/user-tournaments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tournament_id: tid, favourite_team: fav || null }),
-            })
-          ))
-          sessionStorage.removeItem('pending_tournaments')
-        } catch { /* ignore */ }
-      }
+      // Tournament enrolment was already written at registration time via /api/user-tournaments/enrol
+      // No sessionStorage processing needed
 
       // Mark onboarding complete
       await supabase.from('users')
