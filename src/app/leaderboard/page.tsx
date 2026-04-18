@@ -257,7 +257,7 @@ export default function LeaderboardPage() {
           .reduce((sum, [, v]) => sum + Number(v), 0)
         return { ...e, total_points: pts }
       })
-      .filter(e => e.total_points > 0 || roundView === 'all')
+      .filter(e => e.total_points > 0)
       .sort((a, b) =>
         b.total_points !== a.total_points
           ? b.total_points - a.total_points
