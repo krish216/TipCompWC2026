@@ -334,7 +334,7 @@ export default function LoginPage() {
             await fetch('/api/comps/create', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ comp_id: comp.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
+              body: JSON.stringify({ comp_id: org.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
             })
           }
         }
