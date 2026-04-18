@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const adminClient = createAdminClient()
   const { data, error } = await (adminClient.from('tournament_rounds') as any)
-    .select('id, tournament_id, round_code, round_name, round_order, tab_group, predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x')
+    .select('id, tournament_id, round_code, round_name, round_order, tab_group, is_knockout, predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x')
     .eq('tournament_id', tournamentId)
     .order('round_order', { ascending: true })
 
@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest) {
 
   // Verify tournament admin
   const body = await request.json()
-  const { tournament_id, round_code, round_name, round_order, tab_group,
+  const { tournament_id, round_code, round_name, round_order, tab_group, is_knockout,
           predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x } = body
 
   if (!tournament_id || !round_code) {
@@ -44,6 +44,7 @@ export async function PUT(request: NextRequest) {
     .upsert({
       tournament_id, round_code, round_name, round_order,
       tab_group:    tab_group   ?? round_code,
+      is_knockout:  is_knockout  ?? false,
       predict_mode: predict_mode ?? 'outcome',
       result_pts:   result_pts  ?? 0,
       exact_bonus:  exact_bonus ?? 0,

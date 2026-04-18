@@ -8,7 +8,7 @@ import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { StatCard, EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { calcPoints, getDefaultScoringConfig, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, KNOCKOUT_ROUNDS, type RoundId, type Fixture, type MatchScore } from '@/types'
+import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
@@ -70,18 +70,25 @@ export default function PredictPage() {
   const { selectedTourn, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
-  // Build round tabs dynamically from tournament_rounds (via scoringConfig)
-  const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = useMemo(
-    () => buildRoundTabs(scoringConfig),
-    [scoringConfig]
-  )
+  // Build round tabs dynamically from tournament_rounds (via scoringConfig).
+  // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
+  // server renders with default config, client loads real config — keeping them in sync
+  // via state means React never sees a mismatch between server and client HTML.
+  const [roundTabState, setRoundTabState] = useState(() => buildRoundTabs(getDefaultScoringConfig()))
+  useEffect(() => {
+    const next = buildRoundTabs(scoringConfig)
+    setRoundTabState(next)
+    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
+    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? 'gs'))
+  }, [scoringConfig])
+  const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
 
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
-  const [activeRound,   setActiveRound]   = useState<RoundTab>('gs')
+  const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
@@ -177,7 +184,7 @@ export default function PredictPage() {
     // Look up round for this fixture
     const allFx = Object.values(fixtures).flat() as Fixture[]
     const fx = allFx.find(f => f.id === fixtureId)
-    const isKnockout = fx ? KNOCKOUT_ROUNDS.includes(fx.round) : false
+    const isKnockout = fx ? scoringConfig.knockout_rounds.includes(fx.round) : false
     const needsPen = isKnockout && outcome === 'D'
 
     // Always update local state immediately
@@ -204,6 +211,18 @@ export default function PredictPage() {
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
   }, [fixtures])
 
+  const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
+    setSaving(prev => new Set(prev).add(fixtureId))
+    try {
+      await fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
+      })
+    } catch { /* silent — user sees saving indicator */ }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+  }, [])
+
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
@@ -224,10 +243,11 @@ export default function PredictPage() {
 
   const isRoundOpen = useCallback((roundId: RoundId): boolean => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return roundId === 'gs'
-    const tabKey = (roundId === 'tp' || roundId === 'f') ? 'finals' : roundId
-    return !!roundLocks[tabKey] || !!roundLocks[roundId]
-  }, [roundLocks])
+    if (!hasLocks) return roundId === (ROUND_TABS[0] ?? 'gs')
+    // Use tab_group from scoringConfig as the lock key fallback
+    const tabGroup = (scoringConfig.rounds[roundId] as any)?.tab_group ?? roundId
+    return !!roundLocks[roundId] || !!roundLocks[tabGroup]
+  }, [roundLocks, scoringConfig, ROUND_TABS])
 
   const isLocked = useCallback((f: Fixture): boolean => {
     if (!isRoundOpen(f.round)) return true
@@ -238,12 +258,15 @@ export default function PredictPage() {
   // Current open round tab
   const currentRoundTab = useMemo((): RoundTab => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return 'gs'
+    if (!hasLocks) return ROUND_TABS[0] ?? 'gs'
     return ROUND_TABS.find(tab => {
-      const rounds = TAB_TO_ROUNDS[tab]
-      return rounds.some(r => !!roundLocks[r === 'tp' || r === 'f' ? 'finals' : r])
-    }) ?? 'gs'
-  }, [roundLocks])
+      const rounds = TAB_TO_ROUNDS[tab] ?? []
+      return rounds.some(r => {
+        const tabGroup = (scoringConfig.rounds[r] as any)?.tab_group ?? r
+        return !!roundLocks[r] || !!roundLocks[tabGroup]
+      })
+    }) ?? (ROUND_TABS[0] ?? 'gs')
+  }, [roundLocks, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
 
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
@@ -252,7 +275,7 @@ export default function PredictPage() {
       const fs = TAB_TO_ROUNDS[tab].flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
-        if (OUTCOME_ROUNDS.includes(f.round)) return p && (p as any).outcome != null
+        if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
         return p && p.home >= 0 && p.away >= 0
       }).length
       counts[tab] = { entered, total: fs.length }
@@ -336,8 +359,8 @@ export default function PredictPage() {
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
       // Knockout draw with no pen winner selected = incomplete
-      const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
-      const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
       if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
       return false
     }
@@ -366,8 +389,8 @@ export default function PredictPage() {
       if (results[f.id] || isLocked(f)) return false
       const p = predictions[f.id]
       if (!p) return true
-      const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
-      const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
       if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
       return false
     })?.id ?? null
@@ -444,7 +467,13 @@ export default function PredictPage() {
       {favouriteTeam && (
         <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
           <span className="text-base">⭐</span>
-          <span>Double points on <strong>{favouriteTeam}</strong> matches — Group Stage &amp; Rd of 32 only</span>
+          <span>Double points on <strong>{favouriteTeam}</strong> matches
+            {scoringConfig.fav_team_rounds.length > 0 && (
+              <> — {scoringConfig.fav_team_rounds
+                .map(r => scoringConfig.rounds[r]?.round_name ?? r)
+                .join(' & ')} only</>
+            )}
+          </span>
         </div>
       )}
 
@@ -488,7 +517,7 @@ export default function PredictPage() {
 
       {/* Round score bar */}
       <RoundScoreBar
-        round={activeRound === 'finals' ? 'f' : activeRound as RoundId}
+        round={f.round}  {/* use fixture's actual round, not tab name */}
         {...roundScoreBarProps}
       />
 
@@ -499,8 +528,8 @@ export default function PredictPage() {
           if (results[f.id] || isLocked(f)) return false
           const p = predictions[f.id]
           if (!p) return true
-          const isKnockout = KNOCKOUT_ROUNDS.includes(f.round)
-          const isOutcome  = OUTCOME_ROUNDS.includes(f.round)
+          const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+          const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
           if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
           return false
         }).length

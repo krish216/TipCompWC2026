@@ -5,7 +5,7 @@ import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
-import { calcPoints, getDefaultScoringConfig, KNOCKOUT_ROUNDS, EXACT_SCORE_ROUNDS, OUTCOME_ROUNDS, type TournamentScoringConfig } from '@/types'
+import { calcPoints, getDefaultScoringConfig, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
 
 const FLAGS: Record<string, string> = {
@@ -61,9 +61,10 @@ export function MatchRow({
     if (prediction && prediction.away >= 0 && localAway === '') setLocalAway(String(prediction.away))
   }
 
-  const isExactRound   = EXACT_SCORE_ROUNDS.includes(round)
-  const isOutcomeRound = OUTCOME_ROUNDS.includes(round)
-  const isKnockout     = KNOCKOUT_ROUNDS.includes(round)
+  const isExactRound   = cfg.exact_score_rounds.includes(round)
+  const isOutcomeRound = cfg.outcome_rounds.includes(round)
+  const isKnockout     = cfg.knockout_rounds.includes(round)
+  const cfg = scoringConfig ?? getDefaultScoringConfig()
   const penWinner      = (prediction as any)?.pen_winner ?? null
   // Derive outcome: use stored outcome or infer from scores for outcome rounds
   const rawOutcome = (prediction as any)?.outcome ?? null
@@ -80,7 +81,6 @@ export function MatchRow({
     ? (sel != null && !awaitingPen)
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
 
-  const cfg = scoringConfig ?? getDefaultScoringConfig()
   // Ensure calcPoints receives the derived outcome (handles old predictions with null outcome)
   const predForCalc = prediction
     ? { ...prediction, outcome: sel ?? (prediction as any).outcome ?? null }

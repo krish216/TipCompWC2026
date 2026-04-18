@@ -4,13 +4,20 @@
 export type RoundId  = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
 export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
 
-// Static round groupings — plain literals, no computed values, no TDZ risk
-export const FINALS_ROUNDS:          RoundId[] = ['tp', 'f']
+// ── Static arrays REMOVED — use TournamentScoringConfig derived sets instead:
+// scoringConfig.knockout_rounds    (replaces KNOCKOUT_ROUNDS)
+// scoringConfig.outcome_rounds     (replaces OUTCOME_ROUNDS)
+// scoringConfig.exact_score_rounds (replaces EXACT_SCORE_ROUNDS)
+// scoringConfig.pen_bonus_rounds   (replaces PEN_BONUS_ROUNDS)
+// scoringConfig.fav_team_rounds    (replaces FAV_TEAM_DOUBLE_ROUNDS)
+//
+// Kept only for legacy compatibility — do not use in new code:
+/** @deprecated use scoringConfig.knockout_rounds */
 export const KNOCKOUT_ROUNDS:        RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
+/** @deprecated use scoringConfig.exact_score_rounds */
 export const EXACT_SCORE_ROUNDS:     RoundId[] = ['sf', 'tp', 'f']
+/** @deprecated use scoringConfig.outcome_rounds */
 export const OUTCOME_ROUNDS:         RoundId[] = ['gs', 'r32', 'r16', 'qf']
-export const PEN_BONUS_ROUNDS:       RoundId[] = ['r32', 'r16', 'qf', 'sf', 'tp', 'f']
-export const FAV_TEAM_DOUBLE_ROUNDS: RoundId[] = ['gs', 'r32']
 
 // ─── Per-tournament round config (loaded from tournament_rounds DB table) ────
 
@@ -21,6 +28,7 @@ export interface RoundConfig {
   round_name:    string
   round_order:   number
   tab_group:     string    // UI tab this round belongs to — from tournament_rounds.tab_group
+  is_knockout:   boolean   // single-elimination format — pen winner can apply
   predict_mode:  'outcome' | 'score'
   result_pts:    number
   exact_bonus:   number
@@ -30,22 +38,26 @@ export interface RoundConfig {
 
 export interface TournamentScoringConfig {
   rounds:             Record<RoundId, RoundConfig>
-  exact_score_rounds: RoundId[]
-  pen_bonus_rounds:   RoundId[]
-  fav_team_rounds:    RoundId[]
-  outcome_rounds:     RoundId[]
+  // All derived from tournament_rounds rows — no hardcoding:
+  knockout_rounds:    RoundId[]   // is_knockout === true
+  outcome_rounds:     RoundId[]   // predict_mode === 'outcome'
+  exact_score_rounds: RoundId[]   // predict_mode === 'score'
+  pen_bonus_rounds:   RoundId[]   // pen_bonus > 0
+  fav_team_rounds:    RoundId[]   // fav_team_2x === true
 }
 
-/** Build a TournamentScoringConfig from an array of RoundConfig rows from the DB. */
+/** Build a TournamentScoringConfig from an array of RoundConfig rows from the DB.
+ *  All derived sets are computed here — no hardcoded round codes anywhere. */
 export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig {
   const rounds = {} as Record<RoundId, RoundConfig>
   rows.forEach(r => { rounds[r.round_code] = r })
   return {
     rounds,
+    knockout_rounds:    rows.filter(r => r.is_knockout).map(r => r.round_code),
+    outcome_rounds:     rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
     exact_score_rounds: rows.filter(r => r.predict_mode === 'score').map(r => r.round_code),
     pen_bonus_rounds:   rows.filter(r => r.pen_bonus > 0).map(r => r.round_code),
     fav_team_rounds:    rows.filter(r => r.fav_team_2x).map(r => r.round_code),
-    outcome_rounds:     rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
   }
 }
 
@@ -56,12 +68,12 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
  */
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
-    { id: 'gs',  tournament_id: 'default', round_code: 'gs',  round_name: 'Group Stage',    round_order: 1, tab_group: 'gs',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'gs',  tournament_id: 'default', round_code: 'gs',  is_knockout: false,  round_name: 'Group Stage',    round_order: 1, tab_group: 'gs',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
     { id: 'r32', tournament_id: 'default', round_code: 'r32', round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',    predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: true  },
     { id: 'r16', tournament_id: 'default', round_code: 'r16', round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',    predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-    { id: 'qf',  tournament_id: 'default', round_code: 'qf',  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',     predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-    { id: 'sf',  tournament_id: 'default', round_code: 'sf',  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',     predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-    { id: 'tp',  tournament_id: 'default', round_code: 'tp',  round_name: '3rd Place',      round_order: 6, tab_group: 'finals', predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'qf',  tournament_id: 'default', round_code: 'qf',  is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',     predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
+    { id: 'sf',  tournament_id: 'default', round_code: 'sf',  is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',     predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'tp',  tournament_id: 'default', round_code: 'tp',  is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals', predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
     { id: 'f',   tournament_id: 'default', round_code: 'f',   round_name: 'Final',          round_order: 7, tab_group: 'finals', predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
   ])
 }
