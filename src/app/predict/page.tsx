@@ -15,24 +15,53 @@ import toast from 'react-hot-toast'
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
-type RoundTab   = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
+// RoundTab is now a plain string — derived from tournament_rounds at runtime
+type RoundTab = string
 
-const ROUND_TABS: RoundTab[] = ['gs','r32','r16','qf','sf','finals']
+// Helper: build tab list from scoringConfig (loaded from tournament_rounds table).
+// Uses tab_group column — pure groupBy, no hardcoded round codes.
+// The tab label comes from the first round in the group (lowest round_order).
+function buildRoundTabs(cfg: TournamentScoringConfig): {
+  tabs:        RoundTab[]
+  tabLabel:    Record<RoundTab, string>
+  tabToRounds: Record<RoundTab, RoundId[]>
+} {
+  const tabLabel:    Record<RoundTab, string>     = {}
+  const tabToRounds: Record<RoundTab, RoundId[]> = {}
 
-const ROUND_TAB_LABEL: Record<RoundTab, string> = {
-  gs: 'Group Stage', r32: 'Rd of 32', r16: 'Rd of 16',
-  qf: 'Quarters',   sf: 'Semis',      finals: 'Finals',
+  // Sort rounds by round_order so tab order and label come from the first in each group
+  const ordered = Object.values(cfg.rounds)
+    .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
+
+  for (const rc of ordered) {
+    // Fall back to round_code if tab_group not yet in DB (before migration 059)
+    const tab: RoundTab = (rc as any).tab_group ?? rc.round_code
+    if (!tabToRounds[tab]) {
+      tabToRounds[tab] = []
+      tabLabel[tab]    = rc.round_name  // label from first (lowest order) round in group
+    }
+    tabToRounds[tab].push(rc.round_code)
+  }
+
+  // Preserve insertion order (Object.keys respects it in V8)
+  const tabs = Object.keys(tabToRounds) as RoundTab[]
+
+  // Fallback if config is empty
+  if (!tabs.length) {
+    return { tabs: ['gs'], tabLabel: { gs: 'Group Stage' }, tabToRounds: { gs: ['gs'] } }
+  }
+
+  return { tabs, tabLabel, tabToRounds }
 }
 
-const TAB_TO_ROUNDS: Record<RoundTab, RoundId[]> = {
-  gs: ['gs'], r32: ['r32'], r16: ['r16'],
-  qf: ['qf'], sf:  ['sf'],  finals: ['tp', 'f'],
-}
-
-// Safe scoring lookup — 'finals' maps to 'f'
+// Scoring lookup for a tab — for grouped tabs (e.g. finals), use the highest-value round
 function getScoringForTab(tab: RoundTab, cfg?: TournamentScoringConfig) {
   const c = cfg ?? getDefaultScoringConfig()
-  return c.rounds[tab === 'finals' ? 'f' : tab as RoundId]
+  // Direct lookup first (covers all single-round tabs)
+  if (c.rounds[tab as RoundId]) return c.rounds[tab as RoundId]
+  // Grouped tab: find rounds in this tab and return the one with highest result_pts
+  const inTab = Object.values(c.rounds).filter(r => ((r as any).tab_group ?? r.round_code) === tab)
+  return inTab.sort((a, b) => b.result_pts - a.result_pts)[0]
 }
 
 export default function PredictPage() {
@@ -40,6 +69,12 @@ export default function PredictPage() {
   const { timezone } = useTimezone()
   const { selectedTourn, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const scoringConfig = ctxScoringConfig  // alias for clarity
+
+  // Build round tabs dynamically from tournament_rounds (via scoringConfig)
+  const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = useMemo(
+    () => buildRoundTabs(scoringConfig),
+    [scoringConfig]
+  )
 
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
@@ -110,8 +145,8 @@ export default function PredictPage() {
           setFavouriteTeam((ut as any).favourite_team ?? null)
         }
 
-      } catch {
-        // load error handled silently
+      } catch (e) {
+        console.error('[predict] load error', e)
       } finally {
         setLoading(false)
       }
@@ -168,18 +203,6 @@ export default function PredictPage() {
     } catch { toast.error('Network error — prediction not saved') }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
   }, [fixtures])
-
-  const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
-    setSaving(prev => new Set(prev).add(fixtureId))
-    try {
-      await fetch('/api/predictions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
-      })
-    } catch { toast.error('Network error — prediction not saved') }
-    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-  }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
@@ -255,7 +278,7 @@ export default function PredictPage() {
       }
 
       // Count not-entered only for the current open tab's rounds
-      const tabForRound: RoundTab = (f.round === 'tp' || f.round === 'f') ? 'finals' : f.round as RoundTab
+      const tabForRound: RoundTab = (scoringConfig.rounds[f.round] as any)?.tab_group ?? f.round
       if (tabForRound === currentRoundTab && !hasPred && !r && isRoundOpen(f.round)) {
         notEnteredCt++
       }
