@@ -317,6 +317,7 @@ export default function AdminPage() {
     { id: 'scoring',    label: 'Scoring',    icon: '📊' },
     { id: 'tournament', label: 'Tournament', icon: '🏆' },
     { id: 'access',     label: 'Access',     icon: '👤' },
+    { id: 'demo',       label: 'Demo',       icon: '🤖' },
   ]
 
   return (
