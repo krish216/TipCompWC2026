@@ -59,7 +59,7 @@ export default function LoginPage() {
   const [timezone, setTimezone] = useState('UTC')
   const [favTeam,      setFavTeam]      = useState('')
   const [birthYear,    setBirthYear]    = useState('')
-  const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string}[]>([])
+  const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string;start_date?:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
   const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')
   const [tournTeamsMap,  setTournTeamsMap]   = useState<Record<string, string[]>>({})
