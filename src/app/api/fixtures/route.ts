@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/fixtures — returns fixtures for the player's active tournament
 // Falls back to the app-wide active tournament if user has no preference
@@ -35,9 +36,10 @@ export async function GET(request: NextRequest) {
     activeTournamentId = (setting as any)?.value ?? null
   }
 
-  let query = supabase
-    .from('fixtures')
-    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, tournament_id')
+  // Use admin client so tournament_rounds join works without RLS interference
+  const adminClient = createAdminClient()
+  let query = (adminClient.from('fixtures') as any)
+    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, tournament_id, tournament_rounds!inner(tab_group)')
     .order('kickoff_utc')
 
   // Always filter by tournament
@@ -54,6 +56,8 @@ export async function GET(request: NextRequest) {
   const fixtures = rows.map(f => ({
     id:            f.id,
     round:         f.round,
+    // tab_group from tournament_rounds join — falls back to round if join missing
+    tab_group:     (Array.isArray(f.tournament_rounds) ? f.tournament_rounds[0]?.tab_group : f.tournament_rounds?.tab_group) ?? f.round,
     group:         f.grp,
     home:          f.home,
     away:          f.away,
