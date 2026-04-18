@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   let updated = 0
 
-  for (const fixture of pendingFixtures) {
+  for (const fixture of pendingFixtures as { id: number; home: string; away: string }[]) {  
     try {
       // Query API-Football for this fixture's result
       // In production, you'd map fixture.id to the API-Football fixture ID
