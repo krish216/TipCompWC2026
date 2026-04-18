@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     .eq('id', comp_id)
     .eq('invite_code', invite_code.toUpperCase())
     .neq('slug', 'public')
-    .single()
+    .maybeSingle()
 
   if (!org) return NextResponse.json({ error: 'Invalid comp code' }, { status: 403 })
 
@@ -42,10 +42,9 @@ export async function POST(request: NextRequest) {
 
   // Assign user to org as an ordinary member — no org admin role granted
   await (adminClient.from('users') as any)
-    .update({ comp_id }).eq('id', user.id)
 
   // Enrol in user_comps (multi-comp membership table)
-  await supabase.from('user_comps' as any).upsert(
+  await (supabase.from('user_comps') as any).upsert(
     { user_id: user.id, comp_id },
     { onConflict: 'user_id,comp_id' }
   )
