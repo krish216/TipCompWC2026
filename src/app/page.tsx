@@ -311,7 +311,7 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, adminRes] = await Promise.all([
-        supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).single(),
+        supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/admin'),
       ])
