@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const { session, supabase } = useSupabase()
 
   const [displayName,   setDisplayName]   = useState('')
+  const [firstName,     setFirstName]     = useState('')
+  const [lastName,      setLastName]      = useState('')
   const [country,       setCountry]       = useState('')
   const [timezone,      setTimezone]      = useState('UTC')
   const [savedCountry,  setSavedCountry]  = useState('')
@@ -78,13 +80,13 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        supabase.from('users').select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).single(),
-        supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).single(),
+        supabase.from('users').select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).maybeSingle(),
+        supabase.from('notification_prefs').select('*').eq('user_id', session.user.id).maybeSingle(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
-      setFirstName((userRes.data as any).first_name ?? '')
-      setLastName((userRes.data as any).last_name ?? '')
+        setFirstName((userRes.data as any).first_name ?? '')
+        setLastName((userRes.data as any).last_name ?? '')
         setAvatar((userRes.data as any).avatar_url ?? null)
         // Extract year from stored date_of_birth (stored as YYYY-01-01 from registration)
         const dob = (userRes.data as any).date_of_birth ?? ''
