@@ -407,13 +407,13 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">{orgStep === 'choose' ? '🎉' : orgStep === 'join' ? '🔑' : '✨'}</div>
           <h1 className="text-xl font-semibold text-gray-900">
-            {orgStep === 'choose' ? "Welcome to TipComp 2026!" : orgStep === 'join' ? 'Join an comp' : 'Create an comp'}
+            {orgStep === 'choose' ? "Welcome to TipComp 2026!" : orgStep === 'join' ? 'Join a Comp' : 'Create a Comp'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {orgStep === 'choose'
               ? 'Set up your comp to compete with your group'
               : orgStep === 'join'
-              ? 'Enter the code shared by your tournament admin'
+              ? 'Enter the invite code shared by your Comp admin'
               : 'Register your comp for the tournament'}
           </p>
         </div>
@@ -425,16 +425,16 @@ export default function LoginPage() {
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
               <span className="text-2xl">🔑</span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Join an comp</p>
-                <p className="text-xs text-gray-500 mt-0.5">I have an invite code from my tournament admin</p>
+                <p className="text-sm font-semibold text-gray-900">Join a Comp</p>
+                <p className="text-xs text-gray-500 mt-0.5">I have an invite code from my Comp admin</p>
               </div>
             </button>
             <button onClick={() => setOrgStep('create')}
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
               <span className="text-2xl">✨</span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Create an comp</p>
-                <p className="text-xs text-gray-500 mt-0.5">Set up a new org for my company or group</p>
+                <p className="text-sm font-semibold text-gray-900">Create a Comp</p>
+                <p className="text-xs text-gray-500 mt-0.5">Set up a new Comp for my team</p>
               </div>
             </button>
             <button onClick={() => completeOnboarding()}

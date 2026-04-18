@@ -295,6 +295,7 @@ export default function HomePage() {
   // favourite_team is per-tournament, stored in user_tournaments
   const [favTeam,     setFavTeam]     = useState<string>('')
   const [savingFav,   setSavingFav]   = useState(false)
+  const [hoveredComp, setHoveredComp] = useState<string | null>(null)
 
   const started = Date.now() >= KICKOFF.getTime()
 
@@ -373,7 +374,7 @@ export default function HomePage() {
       .select('favourite_team')
       .eq('user_id', session!.user.id)
       .eq('tournament_id', tournId)
-      .single()
+      .maybeSingle()
     setFavTeam((data as any)?.favourite_team ?? '')
   }
 
@@ -530,14 +531,19 @@ export default function HomePage() {
                             onClick={() => { if (!isSel) pickComp(c) }}
                             className="block no-underline"
                             style={{ textDecoration: 'none' }}>
-                            <div style={{
+                            <div
+                              onMouseEnter={() => setHoveredComp(c.id)}
+                              onMouseLeave={() => setHoveredComp(null)}
+                              style={{
                               display: 'flex', alignItems: 'center', gap: 14,
                               padding: isSel ? '16px 16px 16px 0' : '13px 14px',
                               borderBottom: idx < tournsComps.length - 1 ? '1px solid #f3f4f6' : 'none',
-                              background: isSel ? '#f0fdf4' : 'transparent',
-                              borderLeft: isSel ? '4px solid #16a34a' : '4px solid transparent',
+                              background: isSel ? '#f0fdf4' : hoveredComp === c.id ? '#f9fafb' : 'transparent',
+                              borderLeft: isSel ? '4px solid #16a34a' : hoveredComp === c.id ? '4px solid #d1fae5' : '4px solid transparent',
                               transition: 'all 0.15s', cursor: 'pointer',
                               paddingLeft: isSel ? 16 : 14,
+                              transform: hoveredComp === c.id && !isSel ? 'translateX(2px)' : 'none',
+                              boxShadow: hoveredComp === c.id && !isSel ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
                             }}>
                               {/* Logo */}
                               <div style={{
