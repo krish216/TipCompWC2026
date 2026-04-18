@@ -453,7 +453,7 @@ export default function LeaderboardPage() {
                               {isMe && (
                                 <ShareButton compact payload={{
                                   type: 'rank', rank: entry.rank ?? i+1,
-                                  points: entry.total_points, bonus: entry.bonus_count,
+                                  points: entry.total_points, exact: entry.bonus_count, bonus: entry.bonus_count,
                                   correct: entry.correct_count, displayName: entry.display_name,
                                   roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
                                 }} />
