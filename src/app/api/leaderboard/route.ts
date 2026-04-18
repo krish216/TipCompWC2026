@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       const { data: members } = await adminClient
         .from('tribe_members').select('user_id').eq('tribe_id', tribeId)
       scopeUserIds = (members ?? []).map((m: any) => m.user_id)
-      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+      if (!scopeUserIds?.length) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     } else if (scope === 'comp') {
       const explicitCompId = searchParams.get('comp_id')
       const effectiveCompId = explicitCompId ?? compId
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       const { data: members } = await (adminClient.from('user_comps') as any)
         .select('user_id').eq('comp_id', effectiveCompId)
       scopeUserIds = (members ?? []).map((m: any) => m.user_id)
-      if (scopeUserIds.length === 0) return NextResponse.json({ data: [], my_entry: null, total: 0 })
+      if (!scopeUserIds?.length) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     }
 
     // Query leaderboard view
