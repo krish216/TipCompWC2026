@@ -9,7 +9,7 @@ import { ShareButton } from '@/components/game/ShareCard'
 import { getDefaultScoringConfig } from '@/types'
 
 type Scope     = 'tribe' | 'comp' | 'global'
-type RoundView = 'all' | RoundId
+type RoundView = 'all' | RoundId | 'finals'
 type MainTab   = 'leaderboard' | 'challenges'
 
 const SCOPE_LABELS: Record<Scope, string> = {
