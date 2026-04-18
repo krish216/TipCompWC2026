@@ -118,7 +118,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
       // 2. User preferences
       const { data: prefs } = await supabase
-        .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).single()
+        .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle()
       const prefTournId = (prefs as any)?.tournament_id ?? null
       const prefCompId  = (prefs as any)?.comp_id ?? null
 

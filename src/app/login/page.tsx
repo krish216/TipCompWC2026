@@ -218,7 +218,7 @@ export default function LoginPage() {
 
       // Check display name uniqueness
       const { data: nameCheck } = await supabase
-        .from('users').select('id').ilike('display_name', displayName).single()
+        .from('users').select('id').ilike('display_name', displayName).maybeSingle()
       if (nameCheck) {
         setError(`Display name "${displayName}" is already taken — please choose another`)
         setLoading(false)
@@ -227,7 +227,7 @@ export default function LoginPage() {
 
       // Check email uniqueness (Supabase auth will also catch this, but gives a nicer message)
       const { data: emailCheck } = await supabase
-        .from('users').select('id').ilike('email', email.trim()).single()
+        .from('users').select('id').ilike('email', email.trim()).maybeSingle()
       if (emailCheck) {
         setError('This email is already registered — use Sign in or Reset password.')
         setLoading(false)
