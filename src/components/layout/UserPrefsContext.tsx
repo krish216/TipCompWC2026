@@ -43,6 +43,7 @@ interface UserPrefsCtx {
   scoringConfig:      TournamentScoringConfig
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
+  updateComp:         (id: string, patch: Partial<Comp>) => void
   refreshComps:       () => Promise<void>
   loading:            boolean
 }
@@ -134,16 +135,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           const rd = await rr.json()
           const rows: RoundConfig[] = rd.data ?? []
           setRoundConfigs(rows)
-         
-
-	  if (rows.length > 0) {
-   		const fallback = getDefaultScoringConfig()
-  		const merged = rows.map(r => ({
-    			...r,
-    		pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
-  		}))
-  	setScoringConfig(buildScoringConfig(merged))
-	}
+          if (rows.length > 0) {
+            // Merge with fallback defaults — take max pen_bonus to prevent
+            // re-running seed migrations from overwriting migration 051 values
+            const fallback = getDefaultScoringConfig()
+            const merged = rows.map(r => ({
+              ...r,
+              pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+            }))
+            setScoringConfig(buildScoringConfig(merged))
+          }
         } catch { /* use default */ }
       }
 
@@ -181,16 +182,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const rd = await rr.json()
       const rows: RoundConfig[] = rd.data ?? []
       setRoundConfigs(rows)
-      if (rows.length > 0) setScoringConfig(buildScoringConfig(rows))
-	if (rows.length > 0) {
-  		const fallback = getDefaultScoringConfig()
-  		const merged = rows.map(r => ({
-    		...r,
-    		pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
-  		}))
-  	setScoringConfig(buildScoringConfig(merged))
-	}
-
+      if (rows.length > 0) {
+        const fallback = getDefaultScoringConfig()
+        const merged = rows.map(r => ({
+          ...r,
+          pen_bonus: Math.max(r.pen_bonus, fallback.rounds[r.round_code as any]?.pen_bonus ?? 0),
+        }))
+        setScoringConfig(buildScoringConfig(merged))
+      }
     } catch { /* use default */ }
     if (session) await loadComps(id, session.user.id, null)
     await fetch('/api/user-preferences', {
@@ -224,6 +223,11 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
   const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null
   const selectedComp  = tournsComps.find(c => c.id === selectedCompId) ?? null
+
+  // Update a specific comp's fields in state (e.g. after saving settings)
+  const updateComp = useCallback((id: string, patch: Partial<Comp>) => {
+    setTournsComps(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+  }, [])
   // Derived synchronously — true whenever the selected comp is one the user admins
   const isCompAdmin   = selectedCompId != null && adminCompIds.has(selectedCompId)
 
@@ -231,7 +235,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     <UserPrefsContext.Provider value={{
       activeTournaments, tournsComps,
       selectedTournId, selectedCompId,
-      selectedTourn, selectedComp,
+      selectedTourn, selectedComp, updateComp,
       isCompAdmin, adminComps,
       roundConfigs, scoringConfig,
       pickTournament, pickComp, refreshComps,

@@ -22,9 +22,13 @@ export async function GET(request: NextRequest) {
 
   if (!tribe_id) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
 
-  // Verify tribe membership
-  const { data: me } = await supabase.from('users').select('tribe_id').eq('id', user.id).single()
-  if ((me as any)?.tribe_id !== tribe_id) {
+  // Verify tribe membership — check tribe_members table first, fall back to users.tribe_id
+  const [{ data: tmRow }, { data: userRow }] = await Promise.all([
+    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle(),
+    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
+  ])
+  const isMember = !!(tmRow as any)?.tribe_id || (userRow as any)?.tribe_id === tribe_id
+  if (!isMember) {
     return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
   }
 
@@ -71,9 +75,13 @@ export async function POST(request: NextRequest) {
 
   const { tribe_id, content, fixture_id } = parsed.data
 
-  // Verify membership
-  const { data: me } = await supabase.from('users').select('tribe_id').eq('id', user.id).single()
-  if ((me as any)?.tribe_id !== tribe_id) {
+  // Verify membership — check tribe_members table first, fall back to users.tribe_id
+  const [{ data: tmRow2 }, { data: userRow2 }] = await Promise.all([
+    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle(),
+    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
+  ])
+  const isMember2 = !!(tmRow2 as any)?.tribe_id || (userRow2 as any)?.tribe_id === tribe_id
+  if (!isMember2) {
     return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
   }
 

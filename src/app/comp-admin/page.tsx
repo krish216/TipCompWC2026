@@ -987,7 +987,7 @@ function ChallengesTab({ comp }: { comp: any }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function CompAdminPage() {
   const { session }                                         = useSupabase()
-  const { selectedComp, isCompAdmin, loading: ctxLoading }  = useUserPrefs()
+  const { selectedComp, isCompAdmin, loading: ctxLoading, updateComp } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<Tab>('tipsters')
   const [loading,     setLoading]     = useState(false)
@@ -1029,9 +1029,9 @@ export default function CompAdminPage() {
   const handleSettingUpdate = useCallback((k: string, v: any) => {
     if (k === 'domain')      setDomain(v)
     if (k === 'minAge')      setMinAge(v)
-    if (k === 'requiresFee') setRequiresFee(v)
-    if (k === 'entryFee')    setEntryFee(v)
-  }, [])
+    if (k === 'requiresFee') { setRequiresFee(v); updateComp(comp?.id, { requires_payment_fee: v } as any) }
+    if (k === 'entryFee')    { setEntryFee(v);    updateComp(comp?.id, { entry_fee_amount: v }    as any) }
+  }, [comp?.id, updateComp])
 
   if (ctxLoading || loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
