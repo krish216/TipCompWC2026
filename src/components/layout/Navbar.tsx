@@ -8,9 +8,9 @@ import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const NAV_BASE = [
-  { href: '/',            label: 'My Comp'    },
+  { href: '/',            label: 'My Comps'    },
   { href: '/leaderboard', label: 'ScoreBoard' },
-  { href: '/tribe',       label: 'Join tribe' },
+  { href: '/tribe',       label: 'My Tribe' },
   { href: '/rules',       label: 'Rules'      },
 ]
 

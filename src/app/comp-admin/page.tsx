@@ -275,7 +275,9 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
               <div key={row.key} className={clsx('flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 group', i % 2 === 1 ? 'bg-gray-50/30' : '')}>
                 <Avi name={row.display_name || row.email} />
                 <div className="flex-1 min-w-0">
-                  {row.display_name && <p className="text-xs font-bold text-gray-800 truncate">{row.display_name}</p>}
+                  <p className="text-xs font-bold text-gray-800 truncate">
+                    {row.display_name ?? <span className="text-gray-400 font-normal italic">Not registered yet</span>}
+                  </p>
                   <p className="text-[11px] text-gray-500 truncate">{row.email}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
                     {row.joined && row.joined_at && `Joined ${new Date(row.joined_at).toLocaleDateString()}`}
@@ -543,12 +545,14 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
 
 // ─── Tab: Email ────────────────────────────────────────────────────────────────
 function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
-  const [subject,      setSubject]      = useState('')
-  const [body,         setBody]         = useState('')
-  const [recipients,   setRecipients]   = useState<'all'|'custom'>('all')
-  const [customEmails, setCustomEmails] = useState('')
-  const [sending,      setSending]      = useState(false)
-  const [preview,      setPreview]      = useState(false)
+  const [subject,        setSubject]        = useState('')
+  const [body,           setBody]           = useState('')
+  const [recipients,     setRecipients]     = useState<'all'|'custom'>('all')
+  const [customEmails,   setCustomEmails]   = useState('')
+  const [customSearch,   setCustomSearch]   = useState('')
+  const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
+  const [sending,        setSending]        = useState(false)
+  const [preview,        setPreview]        = useState(false)
 
   const TEMPLATES = [
     { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,                  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
@@ -560,8 +564,8 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
   const recipientList = useMemo(() =>
     recipients === 'all'
       ? tipsters.map(t => t.email)
-      : customEmails.split(/[\n,;]+/).map(e => e.trim()).filter(e => e.includes('@'))
-  , [recipients, tipsters, customEmails])
+      : tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
+  , [recipients, tipsters, customSelected])
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return }
@@ -604,10 +608,56 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
               ))}
             </div>
             {recipients === 'custom' && (
-              <textarea value={customEmails} onChange={e => setCustomEmails(e.target.value)} rows={2}
-                placeholder="Paste emails, comma or newline separated"
-                className="mt-2 w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 font-mono resize-none"
-              />
+              <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
+                {/* Search */}
+                <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                  <input type="text" value={customSearch} onChange={e => setCustomSearch(e.target.value)}
+                    placeholder="Search by name or email…"
+                    className="w-full text-xs focus:outline-none bg-transparent"
+                  />
+                </div>
+                {/* Tipster list */}
+                <div className="max-h-48 overflow-y-auto">
+                  {tipsters.filter(t => {
+                    const q = customSearch.toLowerCase()
+                    return !q || t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
+                  }).map(t => {
+                    const sel = customSelected.has(t.user_id)
+                    return (
+                      <button key={t.user_id} onClick={() => setCustomSelected(prev => {
+                        const n = new Set(prev)
+                        sel ? n.delete(t.user_id) : n.add(t.user_id)
+                        return n
+                      })}
+                        className={clsx('w-full flex items-center gap-2.5 px-3 py-2 border-b border-gray-50 last:border-0 text-left transition-colors',
+                          sel ? 'bg-blue-50' : 'hover:bg-gray-50')}>
+                        <div className={clsx('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors',
+                          sel ? 'bg-gray-900 border-gray-900' : 'border-gray-300')}>
+                          {sel && <span className="text-white text-[9px] font-black">✓</span>}
+                        </div>
+                        <Avi name={t.display_name} size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                          <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                  {tipsters.length === 0 && (
+                    <p className="px-3 py-4 text-xs text-gray-400 text-center">No joined tipsters yet</p>
+                  )}
+                </div>
+                {/* Select all / none */}
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
+                  <span className="text-[11px] text-gray-500">{customSelected.size} selected</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => setCustomSelected(new Set(tipsters.map(t => t.user_id)))}
+                      className="text-[11px] text-blue-600 font-medium hover:underline">All</button>
+                    <button onClick={() => setCustomSelected(new Set())}
+                      className="text-[11px] text-gray-400 font-medium hover:underline">None</button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
           <div>

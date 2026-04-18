@@ -570,9 +570,19 @@ export default function HomePage() {
                                     {c.name}
                                   </p>
                                   {isAdm && (
-                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 99, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                      🛠 admin
-                                    </span>
+                                    <Link
+                                      href="/comp-admin"
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        fontSize: 10, fontWeight: 700, color: '#1d4ed8',
+                                        background: '#eff6ff', border: '1px solid #bfdbfe',
+                                        padding: '2px 8px', borderRadius: 99,
+                                        flexShrink: 0, whiteSpace: 'nowrap',
+                                        textDecoration: 'none', display: 'inline-flex',
+                                        alignItems: 'center', gap: 3,
+                                      }}>
+                                      ⚙️ Manage
+                                    </Link>
                                   )}
                                 </div>
                                 {isSel && (
