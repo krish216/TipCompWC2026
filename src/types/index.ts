@@ -27,7 +27,8 @@ export interface RoundConfig {
   round_code:    RoundId
   round_name:    string
   round_order:   number
-  tab_group:     string    // UI tab this round belongs to — from tournament_rounds.tab_group
+  tab_group:     string    // UI tab this round belongs to
+  tab_label?:    string    // display label for the tab (overrides round_name) — from tournament_rounds.tab_group
   is_knockout:   boolean   // single-elimination format — pen winner can apply
   predict_mode:  'outcome' | 'score'
   result_pts:    number
