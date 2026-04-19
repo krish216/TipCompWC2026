@@ -27,8 +27,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const round = searchParams.get('round')
 
-  let query = supabase
-    .from('fixtures')
+  let query = (supabase.from('fixtures') as any)
     .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, result_set_at')
     .not('home_score', 'is', null)
     .order('kickoff_utc')
