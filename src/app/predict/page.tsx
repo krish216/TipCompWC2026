@@ -190,6 +190,8 @@ export default function PredictPage() {
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
+    // Switch to 'all' while editing so other completed fixtures stay visible
+    setShowFilter('all')
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
       const updated  = { ...current, [side]: value }
