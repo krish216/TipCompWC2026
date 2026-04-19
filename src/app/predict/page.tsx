@@ -47,8 +47,6 @@ export default function PredictPage() {
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
   const [editingFixture, setEditingFixture] = useState<number | null>(null)
-  const [editingFixture, setEditingFixture] = useState<number | null>(null)
-  const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -327,7 +325,6 @@ export default function PredictPage() {
       // Keep all fixtures visible while user is editing any score input
       if (editingFixture !== null && editingFixture !== f.id) return true
       // Keep all fixtures visible while user is editing any score input
-      if (editingFixture !== null && editingFixture !== f.id) return true
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
       // Score rounds: incomplete until both scores entered and saved
@@ -392,8 +389,6 @@ export default function PredictPage() {
       onPredict={onPredict}
       onOutcome={onOutcome}
       onPenWinner={onPenWinner}
-      onFocusScore={() => setEditingFixture(f.id)}
-      onBlurScore={() => setEditingFixture(null)}
       onFocusScore={() => setEditingFixture(f.id)}
       onBlurScore={() => setEditingFixture(null)}
     />
