@@ -312,6 +312,9 @@ export default function PredictPage() {
       if (results[f.id] || isLocked(f)) return false
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
+      // Score rounds: incomplete if either score not yet entered
+      const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
+      if (isScoreRound && (p.home < 0 || p.away < 0)) return true
       // Knockout draw with no pen winner selected = incomplete
       const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
       const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
