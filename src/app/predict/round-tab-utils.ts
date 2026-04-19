@@ -21,11 +21,19 @@ export function buildRoundTabs(cfg: TournamentScoringConfig): RoundTabConfig {
     const tab: RoundTab = rc.tab_group ?? rc.round_code
     if (!tabToRounds[tab]) {
       tabToRounds[tab] = []
-      tabLabel[tab]    = rc.round_name
+      tabLabel[tab]    = rc.round_name  // updated below for grouped tabs
     }
     tabToRounds[tab].push(rc.round_code)
   }
 
+  // For grouped tabs, use the last round's name as the label (e.g. 'Final' not '3rd Place')
+  for (const tab of Object.keys(tabToRounds)) {
+    const rounds = tabToRounds[tab]
+    if (rounds.length > 1) {
+      const lastRound = ordered.filter(r => rounds.includes(r.round_code)).pop()
+      if (lastRound) tabLabel[tab] = lastRound.round_name
+    }
+  }
   const tabs = Object.keys(tabToRounds) as RoundTab[]
   if (!tabs.length) {
     return { tabs: ['gs'], tabLabel: { gs: 'Group Stage' }, tabToRounds: { gs: ['gs'] } }
