@@ -493,12 +493,17 @@ export default function PredictPage() {
           if (results[f.id] || isLocked(f)) return false
           const p = predictions[f.id]
           if (!p) return true
+          const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
+          if (isScoreRound && (p.home < 0 || p.away < 0)) return true
+          if (isScoreRound && saving.has(f.id)) return true
           const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
           const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
           if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+          if (isScoreRound && isKnockout && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return true
           return false
         }).length
-        return pendingCount > 0 ? (
+        const hasFixtures = allFs.length > 0
+        return hasFixtures ? (
           <div className="flex items-center gap-2 mb-3">
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
               <button
