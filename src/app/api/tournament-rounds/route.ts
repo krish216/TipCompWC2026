@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const adminClient = createAdminClient()
   const { data, error } = await (adminClient.from('tournament_rounds') as any)
-    .select('id, tournament_id, round_code, round_name, round_order, tab_group, is_knockout, predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x')
+    .select('id, tournament_id, round_code, round_name, round_order, tab_group, tab_label, is_knockout, predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x')
     .eq('tournament_id', tournamentId)
     .order('round_order', { ascending: true })
 
