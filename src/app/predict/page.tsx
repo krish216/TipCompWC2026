@@ -75,6 +75,18 @@ export default function PredictPage() {
           byRound[f.round]!.push(f)
         }
         setFixtures(byRound)
+        // Set active round to the first round that has fixtures (by kickoff order)
+        const firstRoundWithFixtures = Object.keys(byRound)
+          .sort((a, b) => {
+            const aFirst = byRound[a]?.[0]?.kickoff_utc ?? ''
+            const bFirst = byRound[b]?.[0]?.kickoff_utc ?? ''
+            return aFirst.localeCompare(bFirst)
+          })[0]
+        if (firstRoundWithFixtures) {
+          // Map round_code to tab_group
+          const tabGroup = byRound[firstRoundWithFixtures]?.[0]?.tab_group ?? firstRoundWithFixtures
+          setActiveRound(tabGroup)
+        }
 
         // Predictions map
         const pm: PredMap = {}
