@@ -312,9 +312,11 @@ export default function PredictPage() {
       if (results[f.id] || isLocked(f)) return false
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
-      // Score rounds: incomplete if either score not yet entered
+      // Score rounds: incomplete until both scores entered and saved
       const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
       if (isScoreRound && (p.home < 0 || p.away < 0)) return true
+      // Score rounds: still saving (debounce in flight) = incomplete
+      if (isScoreRound && saving.has(f.id)) return true
       // Score rounds: draw predicted but no pen winner yet
       const isKnockoutScore = isScoreRound && scoringConfig.knockout_rounds.includes(f.round)
       if (isKnockoutScore && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return true
