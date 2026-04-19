@@ -21,7 +21,7 @@ export function buildRoundTabs(cfg: TournamentScoringConfig): RoundTabConfig {
     const tab: RoundTab = rc.tab_group ?? rc.round_code
     if (!tabToRounds[tab]) {
       tabToRounds[tab] = []
-      tabLabel[tab]    = (rc as any).tab_label ?? rc.round_name
+      tabLabel[tab]    = rc.tab_label ?? rc.round_name
     }
     tabToRounds[tab].push(rc.round_code)
   }
