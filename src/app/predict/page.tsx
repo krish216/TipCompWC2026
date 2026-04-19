@@ -46,6 +46,8 @@ export default function PredictPage() {
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
+  const [editingFixture, setEditingFixture] = useState<number | null>(null)
+  const [editingFixture, setEditingFixture] = useState<number | null>(null)
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -190,8 +192,6 @@ export default function PredictPage() {
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
-    // Switch to 'all' while editing so other completed fixtures stay visible
-    setShowFilter('all')
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
       const updated  = { ...current, [side]: value }
@@ -324,6 +324,10 @@ export default function PredictPage() {
     // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
     const isIncomplete = (f: Fixture) => {
       if (results[f.id] || isLocked(f)) return false
+      // Keep all fixtures visible while user is editing any score input
+      if (editingFixture !== null && editingFixture !== f.id) return true
+      // Keep all fixtures visible while user is editing any score input
+      if (editingFixture !== null && editingFixture !== f.id) return true
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
       // Score rounds: incomplete until both scores entered and saved
@@ -343,7 +347,7 @@ export default function PredictPage() {
     const pending = sorted.filter(isIncomplete)
     // If nothing pending, fall back to showing all so page isn't empty
     return pending.length > 0 ? pending : sorted
-  }, [fixtures, activeRound, showFilter, results, predictions, roundLocks])
+  }, [fixtures, activeRound, showFilter, results, predictions, roundLocks, editingFixture, saving])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
@@ -388,6 +392,10 @@ export default function PredictPage() {
       onPredict={onPredict}
       onOutcome={onOutcome}
       onPenWinner={onPenWinner}
+      onFocusScore={() => setEditingFixture(f.id)}
+      onBlurScore={() => setEditingFixture(null)}
+      onFocusScore={() => setEditingFixture(f.id)}
+      onBlurScore={() => setEditingFixture(null)}
     />
   )
 

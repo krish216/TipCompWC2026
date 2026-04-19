@@ -38,6 +38,8 @@ interface Props {
   timezone?:   string
   scoringConfig?: TournamentScoringConfig
   onPredict:    (fixtureId: number, side: 'home'|'away', value: number) => void
+  onFocusScore?: () => void
+  onBlurScore?:  () => void
   onOutcome?:   (fixtureId: number, outcome: 'H'|'D'|'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
 }
@@ -46,7 +48,7 @@ export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig,
-  onPredict, onOutcome, onPenWinner,
+  onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore,
 }: Props) {
   const [localHome, setLocalHome] = useState<string>(
     prediction && prediction.home >= 0 ? String(prediction.home) : ''
@@ -263,7 +265,7 @@ export function MatchRow({
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
                   )}
                   onChange={e => handleChange('home', e.target.value)}
-                  onFocus={e => e.target.select()} inputMode="numeric"
+                  onFocus={e => { e.target.select(); onFocusScore?.() }} onBlur={onBlurScore} inputMode="numeric"
                 />
                 <span className="text-gray-300 font-light text-2xl">–</span>
                 <input type="number" min={0} max={20}
@@ -275,7 +277,7 @@ export function MatchRow({
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
                   )}
                   onChange={e => handleChange('away', e.target.value)}
-                  onFocus={e => e.target.select()} inputMode="numeric"
+                  onFocus={e => { e.target.select(); onFocusScore?.() }} onBlur={onBlurScore} inputMode="numeric"
                 />
               </div>
               {result && (
