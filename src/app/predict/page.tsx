@@ -47,6 +47,7 @@ export default function PredictPage() {
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
   const [editingFixture, setEditingFixture] = useState<number | null>(null)
+  const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
 
