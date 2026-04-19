@@ -368,17 +368,6 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="max-w-sm w-full text-center">
         <div className="text-6xl mb-5">📬</div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h1>
-        <p className="text-sm text-gray-600 mb-2">
-          We sent a verification link to <strong>{email}</strong>.
-        </p>
-        <p className="text-sm text-gray-500 mb-6">
-          Click the link in the email to verify your account, then come back here to sign in.
-        </p>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
-          <p className="text-xs font-semibold text-amber-800 mb-1">⚠️ Don't skip this step</p>
-          <p className="text-xs text-amber-700">You won't be able to sign in until your email is verified.</p>
-        </div>
         <button onClick={() => { setRegistered(false); setMode('login'); setError(null) }}
           className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl">
           Back to sign in
@@ -692,7 +681,7 @@ export default function LoginPage() {
                 </label>
                 {(() => {
                   const yr = birthYear ? parseInt(birthYear, 10) : NaN
-                  const maxYr = new Date().getFullYear() - 5
+                  const maxYr = new Date().getFullYear() - 13
                   const yearInvalid = birthYear.length === 4 && (isNaN(yr) || yr < 1920 || yr > maxYr)
                   return (
                     <>
