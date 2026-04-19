@@ -73,8 +73,7 @@ export async function POST(request: NextRequest) {
   const tournamentId = await getActiveTournamentId(supabase, user.id)
 
   // Validate fixtures belong to the active tournament and check lockout
-  const { data: fixturesRaw } = await supabase
-    .from('fixtures')
+  const { data: fixturesRaw } = await (supabase.from('fixtures') as any)
     .select('id, round, kickoff_utc, home_score, tournament_id')
     .in('id', fixtureIds)
   const fixtures = (fixturesRaw ?? []) as any[]
