@@ -261,11 +261,13 @@ export default function PredictPage() {
     }) ?? (ROUND_TABS[0] ?? 'gs')
   }, [roundLocks, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
 
+  const safeActiveRound = ROUND_TABS.includes(activeRound) ? activeRound : (ROUND_TABS[0] ?? 'gs')
+
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
     const counts: Record<string, { entered: number; total: number }> = {}
     for (const tab of ROUND_TABS) {
-      const fs = TAB_TO_ROUNDS[tab].flatMap(rid => fixtures[rid] ?? [])
+      const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
         if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
@@ -345,8 +347,8 @@ export default function PredictPage() {
 
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
-    const sc  = getScoringForTab(activeRound, scoringConfig)
-    const fs  = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
+    const sc  = getScoringForTab(safeActiveRound, scoringConfig)
+    const fs  = (TAB_TO_ROUNDS[safeActiveRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
     let pts = 0, exactCt = 0, correctCt = 0, played = 0
     for (const f of fs) {
       const r = results[f.id]
@@ -361,16 +363,16 @@ export default function PredictPage() {
       else if (v === sc.result_pts && v > 0)   correctCt++
     }
     return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
-  }, [fixtures, activeRound, predictions, results])
+  }, [fixtures, safeActiveRound, predictions, results])
 
   // Fixtures sorted chronologically (no filtering)
   const visibleFixtures = useMemo(() => {
-    const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
+    const fs = (TAB_TO_ROUNDS[safeActiveRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
     const sorted = [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
     return sorted
-  }, [fixtures, activeRound])
+  }, [fixtures, safeActiveRound])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
@@ -436,7 +438,7 @@ export default function PredictPage() {
     </div>
   )
 
-  const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
+  const activeRoundId: RoundId = (TAB_TO_ROUNDS[safeActiveRound]?.[0] ?? safeActiveRound) as RoundId
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4">
