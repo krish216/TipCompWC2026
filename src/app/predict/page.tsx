@@ -31,7 +31,7 @@ export default function PredictPage() {
   const defaultRoundTabState = buildRoundTabs(getDefaultScoringConfig())
   const [roundTabState, setRoundTabState] = useState(defaultRoundTabState)
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
-  const defaultTab = ROUND_TABS[0] ?? defaultRoundTabState.tabs[0] ?? 'gs'
+  const defaultTab: RoundTab = ROUND_TABS[0] ?? defaultRoundTabState.tabs[0] ?? ''
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
