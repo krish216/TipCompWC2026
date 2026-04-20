@@ -276,6 +276,30 @@ export default function PredictPage() {
     return { totalPts, exactCt, correctCt, notEnteredCt }
   }, [allFixtures, predictions, results, currentRoundTab, isRoundOpen])
 
+  // Current prediction streak: consecutive correct predictions from most recent backwards
+  const currentStreak = useMemo(() => {
+    // Get all fixtures with results, sorted by kickoff (most recent first)
+    const completed = allFixtures
+      .filter(f => results[f.id])
+      .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime())
+    
+    let streak = 0
+    for (const f of completed) {
+      const p = predictions[f.id]
+      const r = results[f.id]
+      const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+      const pts = calcPoints(p, r, f.round, isFav, scoringConfig)
+      
+      // Count consecutive fixtures with points earned
+      if (pts && pts > 0) {
+        streak++
+      } else {
+        break // Stop at first incorrect prediction
+      }
+    }
+    return streak
+  }, [allFixtures, predictions, results, favouriteTeam, scoringConfig])
+
   // Points per tab
   const roundPoints = useMemo(() => {
     const rp: Record<string, number> = {}
@@ -319,13 +343,11 @@ export default function PredictPage() {
     const sorted = [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
-    if (showFilter === 'all') return sorted
+    // Never filter while user is editing — always show all fixtures to prevent frustrating mid-entry filtering
+    if (showFilter === 'all' || editingFixture !== null) return sorted
     // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
     const isIncomplete = (f: Fixture) => {
       if (results[f.id] || isLocked(f)) return false
-      // Keep all fixtures visible while user is editing any score input
-      if (editingFixture !== null && editingFixture !== f.id) return true
-      // Keep all fixtures visible while user is editing any score input
       const p = predictions[f.id]
       if (!p) return true  // no prediction at all
       // Score rounds: incomplete until both scores entered and saved
@@ -423,10 +445,11 @@ export default function PredictPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
         <StatCard label="Total pts"  value={globalStats.totalPts}    accent="green" />
         <StatCard label="Exact"      value={globalStats.exactCt}     accent="blue"  />
         <StatCard label="Correct"    value={globalStats.correctCt} />
+        <StatCard label="🔥 Streak"  value={currentStreak}           accent={currentStreak > 2 ? 'blue' : undefined} />
         <StatCard
           label={`To predict (${ROUND_TAB_LABEL[currentRoundTab]})`}
           value={globalStats.notEnteredCt}
