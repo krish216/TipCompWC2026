@@ -45,7 +45,6 @@ export default function PredictPage() {
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
-  const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
   const [editingFixture, setEditingFixture] = useState<number | null>(null)
   const [celebrationFixture, setCelebrationFixture] = useState<number | null>(null)
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
@@ -131,14 +130,14 @@ export default function PredictPage() {
   }, [session])
 
   const celebrateSavedFixture = useCallback((fixtureId: number) => {
-    if (showFilter !== 'pending' || editingFixture !== null) return
+    if (editingFixture !== null) return
     setCelebrationFixture(fixtureId)
     if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
     celebrationTimer.current = setTimeout(() => {
       setCelebrationFixture(null)
       celebrationTimer.current = null
     }, 1500)
-  }, [editingFixture, showFilter])
+  }, [editingFixture])
 
   const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
     setPredictions(prev => ({
@@ -364,37 +363,14 @@ export default function PredictPage() {
     return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
   }, [fixtures, activeRound, predictions, results])
 
-  // Fixtures sorted chronologically, with optional pending filter
+  // Fixtures sorted chronologically (no filtering)
   const visibleFixtures = useMemo(() => {
     const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
     const sorted = [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
-    // Never filter while user is editing or while we are celebrating a just-saved fixture
-    if (showFilter === 'all' || editingFixture !== null || celebrationFixture !== null) return sorted
-    // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
-    const isIncomplete = (f: Fixture) => {
-      if (results[f.id] || isLocked(f)) return false
-      const p = predictions[f.id]
-      if (!p) return true  // no prediction at all
-      // Score rounds: incomplete until both scores entered and saved
-      const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
-      if (isScoreRound && (p.home < 0 || p.away < 0)) return true
-      // Score rounds: still saving (debounce in flight) = incomplete
-      if (isScoreRound && saving.has(f.id)) return true
-      // Score rounds: draw predicted but no pen winner yet
-      const isKnockoutScore = isScoreRound && scoringConfig.knockout_rounds.includes(f.round)
-      if (isKnockoutScore && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return true
-      // Knockout draw with no pen winner selected = incomplete
-      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
-      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
-      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
-      return false
-    }
-    const pending = sorted.filter(isIncomplete)
-    // If nothing pending, fall back to showing all so page isn't empty
-    return pending.length > 0 ? pending : sorted
-  }, [fixtures, activeRound, showFilter, results, predictions, roundLocks, editingFixture, saving, celebrationFixture])
+    return sorted
+  }, [fixtures, activeRound])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
@@ -424,13 +400,13 @@ export default function PredictPage() {
   }, [visibleFixtures, results, predictions, roundLocks, scoringConfig])
 
   useEffect(() => {
-    if (celebrationFixture === null || showFilter !== 'pending') return
+    if (celebrationFixture === null) return
     if (!nextUnpredictedId || nextUnpredictedId === celebrationFixture) return
     const timer = window.setTimeout(() => {
       document.getElementById(`fixture-row-${nextUnpredictedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 100)
     return () => window.clearTimeout(timer)
-  }, [celebrationFixture, nextUnpredictedId, showFilter])
+  }, [celebrationFixture, nextUnpredictedId])
 
   const renderMatchRow = (f: Fixture) => (
     <MatchRow
@@ -530,7 +506,7 @@ export default function PredictPage() {
           return (
             <button
               key={tab}
-              onClick={() => { setActiveRound(tab); setShowFilter('pending') }}
+              onClick={() => setActiveRound(tab)}
               className={clsx(
                 'relative px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
                 isActive ? 'bg-green-600 border-green-700 text-white' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
@@ -563,52 +539,6 @@ export default function PredictPage() {
         round={activeRoundId}
         {...roundScoreBarProps}
       />
-
-      {/* Filter toggle */}
-      {(() => {
-        const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound as RoundId] ?? fixtures[rid] ?? [])
-        const pendingCount = allFs.filter(f => {
-          if (results[f.id] || isLocked(f)) return false
-          const p = predictions[f.id]
-          if (!p) return true
-          const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
-          if (isScoreRound && (p.home < 0 || p.away < 0)) return true
-          if (isScoreRound && saving.has(f.id)) return true
-          const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
-          const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
-          if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
-          if (isScoreRound && isKnockout && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return true
-          return false
-        }).length
-        const hasFixtures = allFs.length > 0
-        return hasFixtures ? (
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              <button
-                onClick={() => setShowFilter('pending')}
-                className={clsx(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-                  showFilter === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                ⚡ To predict ({pendingCount})
-              </button>
-              <button
-                onClick={() => setShowFilter('all')}
-                className={clsx(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-                  showFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                All fixtures
-              </button>
-            </div>
-            {showFilter === 'pending' && (
-              <span className="text-[11px] text-amber-600">Showing unpredicted matches only</span>
-            )}
-          </div>
-        ) : null
-      })()}
 
       {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
