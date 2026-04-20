@@ -28,21 +28,16 @@ export default function PredictPage() {
   // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
   // server renders with default config, client loads real config — keeping them in sync
   // via state means React never sees a mismatch between server and client HTML.
-  const [roundTabState, setRoundTabState] = useState(() => buildRoundTabs(getDefaultScoringConfig()))
-  useEffect(() => {
-    const next = buildRoundTabs(scoringConfig)
-    setRoundTabState(next)
-    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
-    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? 'gs'))
-  }, [scoringConfig])
+  const defaultRoundTabState = buildRoundTabs(getDefaultScoringConfig())
+  const [roundTabState, setRoundTabState] = useState(defaultRoundTabState)
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
-
+  const defaultTab = ROUND_TABS[0] ?? defaultRoundTabState.tabs[0] ?? 'gs'
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
-  const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
+  const [activeRound,   setActiveRound]   = useState<RoundTab>(defaultTab)
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [editingFixture, setEditingFixture] = useState<number | null>(null)
@@ -51,6 +46,13 @@ export default function PredictPage() {
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const next = buildRoundTabs(scoringConfig)
+    setRoundTabState(next)
+    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
+    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? defaultTab))
+  }, [scoringConfig])
 
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
@@ -236,11 +238,11 @@ export default function PredictPage() {
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return roundId === (ROUND_TABS[0] ?? 'gs')
+    if (!hasLocks) return (TAB_TO_ROUNDS[defaultTab] ?? []).includes(roundId)
     // Use tab_group from scoringConfig as the lock key fallback
     const tabGroup = scoringConfig.rounds[roundId]?.tab_group ?? roundId
     return !!roundLocks[roundId] || !!roundLocks[tabGroup]
-  }, [roundLocks, scoringConfig, ROUND_TABS])
+  }, [roundLocks, scoringConfig, TAB_TO_ROUNDS, defaultTab])
 
   const isLocked = useCallback((f: Fixture) => {
     if (!isRoundOpen(f.round)) return true
@@ -249,19 +251,19 @@ export default function PredictPage() {
   }, [isRoundOpen])
 
   // Current open round tab
+  const safeActiveRound = ROUND_TABS.includes(activeRound) ? activeRound : defaultTab
+
   const currentRoundTab = useMemo(() => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return ROUND_TABS[0] ?? 'gs'
+    if (!hasLocks) return defaultTab
     return ROUND_TABS.find(tab => {
       const rounds = TAB_TO_ROUNDS[tab] ?? []
       return rounds.some(r => {
         const tabGroup = scoringConfig.rounds[r]?.tab_group ?? r
         return !!roundLocks[r] || !!roundLocks[tabGroup]
       })
-    }) ?? (ROUND_TABS[0] ?? 'gs')
+    }) ?? defaultTab
   }, [roundLocks, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
-
-  const safeActiveRound = ROUND_TABS.includes(activeRound) ? activeRound : (ROUND_TABS[0] ?? 'gs')
 
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
