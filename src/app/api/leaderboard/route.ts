@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
       })
 
       const userTabBreakdowns = await Promise.all(userIds.map(async (userId) => {
-        const { data, error } = await ((adminClient as any).rpc('get_user_tab_breakdown', { p_user_id: userId }))
+        const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
         if (error) throw error
         return { userId, rows: (data ?? []) as any[] }
       }))
