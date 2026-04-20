@@ -37,6 +37,7 @@ interface Props {
   challenge?:  { prize: string; sponsor?: string|null } | null
   timezone?:   string
   scoringConfig?: TournamentScoringConfig
+  celebrating?: boolean
   onPredict:    (fixtureId: number, side: 'home'|'away', value: number) => void
   onFocusScore?: () => void
   onBlurScore?:  () => void
@@ -46,7 +47,7 @@ interface Props {
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, saving = false, isFavourite = false, challenge,
+  locked = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore,
 }: Props) {
@@ -121,6 +122,7 @@ export function MatchRow({
     !result && !hasPred && !awaitingPen && !locked && 'border-gray-200 bg-white',
     locked && !result   && 'border-gray-200 bg-gray-50/60',
     isFavourite && !result && 'ring-1 ring-purple-200',
+    celebrating && 'ring-2 ring-green-200 shadow-lg',
   )
 
   return (
@@ -148,7 +150,10 @@ export function MatchRow({
             <span className="text-purple-600 font-medium">🎯 {challenge.prize}</span>
           )}
           {saving && <span className="text-gray-400 animate-pulse">saving…</span>}
-          {!saving && !locked && !result && hasPred && (
+          {!saving && celebrating && (
+            <span className="text-green-600 font-semibold">🎉 Saved!</span>
+          )}
+          {!saving && !celebrating && !locked && !result && hasPred && (
             <span className="text-green-600 font-semibold">✓ saved</span>
           )}
           {!saving && awaitingPen && (
