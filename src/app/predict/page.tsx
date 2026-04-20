@@ -49,6 +49,84 @@ export default function PredictPage() {
     setActiveRound(prev => ROUND_TABS.includes(prev) ? prev : (ROUND_TABS[0] ?? ''))
   }, [ROUND_TABS])
 
+  // ── Load all data ─────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return
+    const load = async () => {
+      setLoading(true)
+      try {
+        const [fxRes, predRes, resRes, locksRes, userRes] = await Promise.all([
+          fetch('/api/fixtures'),
+          fetch('/api/predictions'),
+          fetch('/api/results'),
+          fetch('/api/round-locks'),
+          fetch('/api/user-tournaments'),
+        ])
+
+        const [fxData, predData, resData, locksData] = await Promise.all([
+          fxRes.json(), predRes.json(), resRes.json(), locksRes.json(),
+        ])
+
+        // Fixtures by tab_group (or round as fallback)
+        const byRound: FixtureMap = {}
+        for (const f of (fxData.data ?? []) as Fixture[]) {
+          const key = f.tab_group || f.round
+          if (!byRound[key]) byRound[key] = []
+          byRound[key].push(f)
+        }
+        setFixtures(byRound)
+        // Set active round to the first round that has fixtures (by kickoff order)
+        const firstRoundWithFixtures = Object.keys(byRound)
+          .sort((a, b) => {
+            const aFirst = (byRound as any)[a]?.[0]?.kickoff_utc ?? ''
+            const bFirst = (byRound as any)[b]?.[0]?.kickoff_utc ?? ''
+            return aFirst.localeCompare(bFirst)
+          })[0]
+        if (firstRoundWithFixtures) {
+          // Map round_code to tab_group
+          const tabGroup = (byRound as any)[firstRoundWithFixtures]?.[0]?.tab_group ?? firstRoundWithFixtures
+          setActiveRound(tabGroup)
+        }
+
+        // Predictions map
+        const pm: PredMap = {}
+        for (const p of (predData.data ?? []) as any[]) {
+          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null }
+        }
+        setPredictions(pm)
+
+        // Results map
+        const rm: ResultMap = {}
+        for (const r of (resData.data ?? []) as any[]) {
+          if (r.home_score != null) rm[r.id] = {
+            home:           r.home_score,
+            away:           r.away_score,
+            pen_winner:     r.pen_winner     ?? null,
+            result_outcome: r.result_outcome ?? null,
+          }
+        }
+        setResults(rm)
+
+        // Round locks
+        const locks: Record<string, boolean> = locksData.data ?? {}
+        setRoundLocks(locks)
+
+        // User tournament prefs (favourite team)
+        const userTournData = (await userRes.json().catch(() => ({}))) as any
+        if (userTournData?.data?.length) {
+          const ut = userTournData.data[0]
+          setFavouriteTeam((ut as any).favourite_team ?? null)
+        }
+
+      } catch (e) {
+        console.error('[predict] load error', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [session])
+
   const celebrateSavedFixture = useCallback((fixtureId: number) => {
     if (editingFixture !== null) return
     setCelebrationFixture(fixtureId)
