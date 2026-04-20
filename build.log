@@ -1,0 +1,98 @@
+
+> wc2026-predictor@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.3
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/56) ...
+   Generating static pages (14/56) 
+Leaderboard error: n [Error]: Dynamic server usage: Route /api/leaderboard couldn't be rendered statically because it used cookies. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at u (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/.next/server/chunks/8489.js:1:42255)
+    at f (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/.next/server/app/api/account/route.js:1:3652)
+    at a (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/.next/server/app/api/account/route.js:1:8535)
+    at u (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/.next/server/app/api/leaderboard/route.js:1:827)
+    at /Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:34672
+    at /Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093)
+    at ProxyTracer.startActiveSpan (/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18854) {
+  description: "Route /api/leaderboard couldn't be rendered statically because it used cookies. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (28/56) 
+   Generating static pages (42/56) 
+ ✓ Generating static pages (56/56)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ƒ /                                    8.17 kB         165 kB
+├ ƒ /_not-found                          875 B          87.9 kB
+├ ƒ /admin                               8.46 kB         163 kB
+├ ƒ /api/account                         0 B                0 B
+├ ƒ /api/admin                           0 B                0 B
+├ ƒ /api/admin/reset-password            0 B                0 B
+├ ƒ /api/app-settings                    0 B                0 B
+├ ƒ /api/chat                            0 B                0 B
+├ ƒ /api/comp-admins                     0 B                0 B
+├ ƒ /api/comp-admins/members             0 B                0 B
+├ ƒ /api/comp-admins/self-register       0 B                0 B
+├ ƒ /api/comp-announcements              0 B                0 B
+├ ƒ /api/comp-challenges                 0 B                0 B
+├ ƒ /api/comp-challenges/settle          0 B                0 B
+├ ƒ /api/comp-invitations                0 B                0 B
+├ ƒ /api/comp-members                    0 B                0 B
+├ ƒ /api/comp-prizes                     0 B                0 B
+├ ƒ /api/comp-subscriptions              0 B                0 B
+├ ƒ /api/comps                           0 B                0 B
+├ ƒ /api/comps/create                    0 B                0 B
+├ ƒ /api/comps/domain                    0 B                0 B
+├ ƒ /api/comps/registry                  0 B                0 B
+├ ƒ /api/demo/fixtures                   0 B                0 B
+├ ƒ /api/demo/generate                   0 B                0 B
+├ ƒ /api/demo/leaderboard                0 B                0 B
+├ ƒ /api/demo/predictions                0 B                0 B
+├ ƒ /api/fixtures                        0 B                0 B
+├ ƒ /api/leaderboard                     0 B                0 B
+├ ƒ /api/notifications/reminders         0 B                0 B
+├ ƒ /api/predictions                     0 B                0 B
+├ ƒ /api/results                         0 B                0 B
+├ ƒ /api/round-locks                     0 B                0 B
+├ ƒ /api/scores/sync                     0 B                0 B
+├ ƒ /api/tournament-rounds               0 B                0 B
+├ ƒ /api/tournaments                     0 B                0 B
+├ ƒ /api/tribes                          0 B                0 B
+├ ƒ /api/tribes/list                     0 B                0 B
+├ ƒ /api/tribes/picks                    0 B                0 B
+├ ƒ /api/user-comps                      0 B                0 B
+├ ƒ /api/user-preferences                0 B                0 B
+├ ƒ /api/user-tournaments                0 B                0 B
+├ ƒ /api/user-tournaments/enrol          0 B                0 B
+├ ƒ /auth/reset-password                 3.37 kB         150 kB
+├ ƒ /comp-admin                          12.2 kB         167 kB
+├ ƒ /demo                                3.51 kB         160 kB
+├ ƒ /leaderboard                         9.25 kB         156 kB
+├ ƒ /login                               7.31 kB         158 kB
+├ ƒ /predict                             8.88 kB         167 kB
+├ ƒ /privacy                             144 B          87.2 kB
+├ ƒ /rules                               143 B          87.2 kB
+├ ƒ /settings                            5.59 kB         161 kB
+├ ƒ /su-challenge                        4.28 kB        98.2 kB
+├ ƒ /terms                               143 B          87.2 kB
+└ ƒ /tribe                               11.9 kB         170 kB
++ First Load JS shared by all            87.1 kB
+  ├ chunks/23-15d3c9ee22554531.js        31.5 kB
+  ├ chunks/fd9d1056-3cbff3119709d183.js  53.7 kB
+  └ other shared chunks (total)          1.94 kB
+
+
+ƒ Middleware                             76.5 kB
+
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -83,7 +83,7 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
             <span>{fixture.away}</span>
             <span>{flag(fixture.away)}</span>
           </div>
-          <p className="text-[11px] text-gray-400 mt-0.5">{fixture.date} · {fixture.venue}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">{new Date(fixture.kickoff_utc).toLocaleDateString()} · {fixture.venue}</p>
         </div>
 
         {/* Result badge */}

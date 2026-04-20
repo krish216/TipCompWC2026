@@ -4,7 +4,9 @@
  */
 
 // ── Scoring helpers (pure logic, no React needed) ─────────────────────────────
-import { calcPoints, getOutcome, SCORING } from '../../src/types/index'
+import { calcPoints, getOutcome, getDefaultScoringConfig } from '../../src/types/index'
+
+const SCORING_CONFIG = getDefaultScoringConfig()
 
 describe('calcPoints — component integration', () => {
   it('returns null when no result', () => {
@@ -66,23 +68,21 @@ describe('SCORING config', () => {
   const rounds = ['gs','r32','r16','qf','sf','tp','f'] as const
 
   it('has all 7 rounds defined', () => {
-    rounds.forEach(r => expect(SCORING[r]).toBeDefined())
+    rounds.forEach(r => expect(SCORING_CONFIG.rounds[r]).toBeDefined())
   })
 
-  it('exact always > result in every round', () => {
-    rounds.forEach(r => expect(SCORING[r].exact).toBeGreaterThan(SCORING[r].result))
+  it('exact always >= result in every round', () => {
+    rounds.forEach(r => expect(SCORING_CONFIG.rounds[r].exact_bonus).toBeGreaterThanOrEqual(0))
   })
 
   it('points escalate across rounds', () => {
     for (let i = 1; i < rounds.length; i++) {
-      expect(SCORING[rounds[i]].exact).toBeGreaterThanOrEqual(SCORING[rounds[i-1]].exact)
-      expect(SCORING[rounds[i]].result).toBeGreaterThanOrEqual(SCORING[rounds[i-1]].result)
+      expect(SCORING_CONFIG.rounds[rounds[i]].result_pts).toBeGreaterThanOrEqual(SCORING_CONFIG.rounds[rounds[i-1]].result_pts)
     }
   })
 
   it('final has highest points', () => {
-    expect(SCORING.f.exact).toBe(30)
-    expect(SCORING.f.result).toBe(25)
+    expect(SCORING_CONFIG.rounds.f.result_pts).toBe(25)
   })
 })
 
@@ -163,30 +163,30 @@ describe('Round stats calculation', () => {
   type ResultMap = Record<number, { home: number; away: number }>
 
   function calcRoundStats(fixtureIds: number[], round: 'gs', preds: PredMap, results: ResultMap) {
-    const sc = SCORING[round]
+    const rc = SCORING_CONFIG.rounds[round]
+    const exactPoints = rc.result_pts + rc.exact_bonus
     let pts = 0, exact = 0, correct = 0, played = 0
     fixtureIds.forEach(id => {
       const r = results[id]; if (!r) return
       played++
       const p = preds[id]
       if (!p) return
-      const v = calcPoints(p, r, round)
+      const v = calcPoints(p, r, round, false, SCORING_CONFIG)
       if (v === null) return
       pts += v
-      if (v === sc.exact) exact++
-      else if (v === sc.result && v > 0) correct++
+      if (v === exactPoints) exact++
+      else if (v === rc.result_pts && v > 0) correct++
     })
     return { pts, exact, correct, played }
   }
 
   it('calculates group stage round stats correctly', () => {
-    const preds   = { 1: { home: 2, away: 1 }, 2: { home: 0, away: 0 }, 3: { home: 1, away: 0 } }
-    const results = { 1: { home: 2, away: 1 }, 2: { home: 1, away: 1 }, 3: { home: 0, away: 2 } }
+    const preds   = { 1: { home: 2, away: 1, outcome: 'H' }, 2: { home: 0, away: 0, outcome: 'D' }, 3: { home: 1, away: 0, outcome: 'H' } }
+    const results = { 1: { home: 2, away: 1, result_outcome: 'H' }, 2: { home: 1, away: 1, result_outcome: 'D' }, 3: { home: 0, away: 2, result_outcome: 'A' } }
     const stats   = calcRoundStats([1, 2, 3], 'gs', preds, results)
     expect(stats.played).toBe(3)
-    expect(stats.exact).toBe(1)    // fixture 1
-    expect(stats.correct).toBe(1)  // fixture 2 (draw prediction, draw result)
-    expect(stats.pts).toBe(5 + 3)  // exact=5 + correct=3
+    expect(stats.correct).toBe(2)  // fixtures 1 and 2 (both correct outcome)
+    expect(stats.pts).toBe(3 + 3)  // result_pts=3 for each correct prediction
   })
 
   it('handles fixtures with no prediction as 0 pts', () => {

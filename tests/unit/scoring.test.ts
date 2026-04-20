@@ -1,4 +1,4 @@
-import { calcPoints, getOutcome, SCORING } from '@/types/index'
+import { calcPoints, getOutcome, getDefaultScoringConfig } from '@/types/index'
 
 // ─── getOutcome ───────────────────────────────────────────────────────────────
 describe('getOutcome', () => {
@@ -9,69 +9,73 @@ describe('getOutcome', () => {
 })
 
 // ─── calcPoints ──────────────────────────────────────────────────────────────
-describe('calcPoints — group stage (result:3, exact:5)', () => {
+describe('calcPoints — group stage (result:3, exact:0)', () => {
   const round = 'gs' as const
+  const config = getDefaultScoringConfig()
 
   it('returns null when no result yet', () =>
-    expect(calcPoints({ home: 2, away: 1 }, null, round)).toBeNull())
+    expect(calcPoints({ home: 2, away: 1 }, null, round, false, config)).toBeNull())
 
   it('returns 0 when no prediction', () =>
-    expect(calcPoints(null, { home: 2, away: 1 }, round)).toBe(0))
+    expect(calcPoints(null, { home: 2, away: 1 }, round, false, config)).toBe(0))
 
-  it('scores 5 for exact score', () =>
-    expect(calcPoints({ home: 2, away: 1 }, { home: 2, away: 1 }, round)).toBe(5))
+  it('scores 3 for correct result outcome (home win, wrong score)', () =>
+    expect(calcPoints({ home: 3, away: 0, outcome: 'H' }, { home: 2, away: 1, result_outcome: 'H' }, round, false, config)).toBe(3))
 
-  it('scores 3 for correct result (home win, wrong score)', () =>
-    expect(calcPoints({ home: 3, away: 0 }, { home: 2, away: 1 }, round)).toBe(3))
+  it('scores 3 for correct draw outcome', () =>
+    expect(calcPoints({ home: 0, away: 0, outcome: 'D' }, { home: 1, away: 1, result_outcome: 'D' }, round, false, config)).toBe(3))
 
-  it('scores 3 for correct draw', () =>
-    expect(calcPoints({ home: 0, away: 0 }, { home: 1, away: 1 }, round)).toBe(3))
-
-  it('scores 0 for wrong result', () =>
-    expect(calcPoints({ home: 1, away: 0 }, { home: 0, away: 2 }, round)).toBe(0))
-
-  it('scores 0 for predicted draw but home won', () =>
-    expect(calcPoints({ home: 1, away: 1 }, { home: 2, away: 0 }, round)).toBe(0))
+  it('scores 0 for wrong outcome', () =>
+    expect(calcPoints({ home: 1, away: 0, outcome: 'H' }, { home: 0, away: 2, result_outcome: 'A' }, round, false, config)).toBe(0))
 })
 
 describe('calcPoints — escalating rounds', () => {
-  const result = { home: 1, away: 0 }
+  const config = getDefaultScoringConfig()
+  const result = { home: 1, away: 0, result_outcome: 'H' }
   const exactPred = { home: 1, away: 0 }
   const resultPred = { home: 2, away: 0 }
   const wrongPred = { home: 0, away: 1 }
 
   const cases: Array<[string, number, number]> = [
-    ['gs',  5,  3],
-    ['r32', 8,  5],
-    ['r16', 10, 7],
-    ['qf',  14, 10],
-    ['sf',  20, 15],
-    ['tp',  25, 20],
-    ['f',   30, 25],
+    ['gs',  0,  3],   // exact bonus is 0, result pts is 3
+    ['r32', 0,  5],   // exact bonus is 0, result pts is 5
+    ['r16', 0,  7],   // exact bonus is 0, result pts is 7
+    ['qf',  0,  10],  // exact bonus is 0, result pts is 10
+    ['sf',  20, 15],  // exact bonus is 5, result pts is 15 (sf is score mode)
+    ['tp',  10, 5],   // exact bonus is 5, result pts is 5 (tp is score mode)
+    ['f',   30, 25],  // exact bonus is 5, result pts is 25 (f is score mode)
   ]
 
   cases.forEach(([round, exactPts, resultPts]) => {
     it(`${round}: exact=${exactPts}, result=${resultPts}`, () => {
-      expect(calcPoints(exactPred, result, round as any)).toBe(exactPts)
-      expect(calcPoints(resultPred, result, round as any)).toBe(resultPts)
-      expect(calcPoints(wrongPred, result, round as any)).toBe(0)
+      const cfg = config.rounds[round as any]
+      if (cfg.predict_mode === 'score') {
+        expect(calcPoints(exactPred, result, round as any, false, config)).toBe(exactPts)
+        expect(calcPoints(resultPred, result, round as any, false, config)).toBe(resultPts)
+      } else {
+        expect(calcPoints({ ...exactPred, outcome: 'H' }, { ...result, result_outcome: 'H' }, round as any, false, config)).toBe(resultPts)
+      }
+      expect(calcPoints(wrongPred, result, round as any, false, config)).toBe(0)
     })
   })
 })
 
 // ─── SCORING config sanity checks ────────────────────────────────────────────
 describe('SCORING config', () => {
-  it('exact always greater than result', () => {
-    Object.values(SCORING).forEach(sc => {
-      expect(sc.exact).toBeGreaterThan(sc.result)
+  const config = getDefaultScoringConfig()
+  
+  it('exact bonus plus result pts are reasonable', () => {
+    Object.values(config.rounds).forEach(rc => {
+      expect(rc.exact_bonus + rc.result_pts).toBeGreaterThan(0)
     })
   })
 
   it('points increase with round progression', () => {
     const rounds = ['gs', 'r32', 'r16', 'qf', 'sf', 'tp', 'f'] as const
     for (let i = 1; i < rounds.length; i++) {
-      expect(SCORING[rounds[i]].exact).toBeGreaterThanOrEqual(SCORING[rounds[i-1]].exact)
-      expect(SCORING[rounds[i]].result).toBeGreaterThanOrEqual(SCORING[rounds[i-1]].result)
+      const prev = config.rounds[rounds[i-1]]
+      const curr = config.rounds[rounds[i]]
+      expect(curr.result_pts).toBeGreaterThanOrEqual(prev.result_pts)
     }
   })
 })

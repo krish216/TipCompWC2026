@@ -1,8 +1,8 @@
 // ─── Domain types ────────────────────────────────────────────────────────────
 
-// scoring v2 — r32 pen_bonus=5
-export type RoundId  = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
-export type RoundTab = 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'finals'
+// RoundId is now dynamic — pulled from tournament_rounds table, not hardcoded enum
+export type RoundId  = string
+export type RoundTab = string
 
 // ── Static arrays REMOVED — use TournamentScoringConfig derived sets instead:
 // scoringConfig.knockout_rounds    (replaces KNOCKOUT_ROUNDS)
@@ -83,15 +83,15 @@ export function getDefaultScoringConfig(): TournamentScoringConfig {
 
 export interface Fixture {
   id:          number
-  round:       RoundId,
+  round:       RoundId
   tab_group:   string
   group?:      string
   home:        string
   away:        string
-  date:        string
   kickoff_utc: string
   venue:       string
-  result?:     MatchScore
+  tournament_id?: string
+  result?:     MatchScore & { pen_winner?: string | null; result_outcome?: string | null }
 }
 
 export interface MatchScore {

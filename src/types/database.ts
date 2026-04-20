@@ -53,6 +53,11 @@ export interface Database {
         Insert: { user_id: string; push_enabled?: boolean; email_enabled?: boolean; tribe_nudges?: boolean }
         Update: { push_enabled?: boolean; email_enabled?: boolean; tribe_nudges?: boolean }
       }
+      tournament_rounds: {
+        Row:    { id: string; tournament_id: string; round_code: string; round_name: string; round_order: number; tab_group: string; tab_label: string | null; is_knockout: boolean; predict_mode: 'outcome' | 'score'; result_pts: number; exact_bonus: number; pen_bonus: number; fav_team_2x: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; tournament_id: string; round_code: string; round_name: string; round_order: number; tab_group: string; tab_label?: string | null; is_knockout?: boolean; predict_mode?: 'outcome' | 'score'; result_pts?: number; exact_bonus?: number; pen_bonus?: number; fav_team_2x?: boolean }
+        Update: { round_name?: string; round_order?: number; tab_group?: string; tab_label?: string | null; is_knockout?: boolean; predict_mode?: 'outcome' | 'score'; result_pts?: number; exact_bonus?: number; pen_bonus?: number; fav_team_2x?: boolean }
+      }
     }
     Views: {
       leaderboard: {
@@ -61,7 +66,7 @@ export interface Database {
     }
     Functions: {}
     Enums: {
-      round_id: 'gs' | 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'f'
+      round_id: string  // dynamically defined by tournament_rounds table
     }
   }
 }
