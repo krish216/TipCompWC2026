@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
     // Build round breakdown per user using admin client (bypasses RLS)
     const userIds = rows.map((r: any) => r.user_id)
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
+    const tabBreakdownMap: Record<string, Record<string, number>> = {}
 
     if (userIds.length > 0) {
       const { data: predRows } = await (adminClient.from('predictions') as any)
@@ -117,6 +118,20 @@ export async function GET(request: NextRequest) {
         if (!breakdownMap[p.user_id]) breakdownMap[p.user_id] = {} as Record<RoundId, number>
         breakdownMap[p.user_id][round] = (breakdownMap[p.user_id][round] ?? 0) + (Number(p.points_earned) || 0)
       })
+
+      const userTabBreakdowns = await Promise.all(userIds.map(async (userId) => {
+        const { data, error } = await ((adminClient as any).rpc('get_user_tab_breakdown', { p_user_id: userId }))
+        if (error) throw error
+        return { userId, rows: (data ?? []) as any[] }
+      }))
+
+      userTabBreakdowns.forEach(({ userId, rows }) => {
+        const map: Record<string, number> = {}
+        rows.forEach((row) => {
+          map[row.tab_group] = Number(row.points ?? 0)
+        })
+        tabBreakdownMap[userId] = map
+      })
     }
 
     const ranked = rows.map((row: any, i: number) => ({
@@ -124,6 +139,7 @@ export async function GET(request: NextRequest) {
       rank:            i + 1,
       is_me:           row.user_id === user.id,
       round_breakdown: breakdownMap[row.user_id] ?? {},
+      tab_breakdown:   tabBreakdownMap[row.user_id] ?? {},
     }))
 
     // Always return current user's entry even if outside top 50
@@ -145,6 +161,7 @@ export async function GET(request: NextRequest) {
           ...m, is_me: true,
           rank: (ahead ?? 0) + 1,
           round_breakdown: breakdownMap[user.id] ?? {},
+          tab_breakdown:   tabBreakdownMap[user.id] ?? {},
         }
       }
     }

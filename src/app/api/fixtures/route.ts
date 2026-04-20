@@ -38,8 +38,21 @@ export async function GET(request: NextRequest) {
 
   // Use admin client so tournament_rounds join works without RLS interference
   const adminClient = createAdminClient()
+  
+  // First, get the round to tab_group mapping
+  const { data: roundData } = await adminClient
+    .from('tournament_rounds')
+    .select('round_code, tab_group')
+    .eq('tournament_id', activeTournamentId || '')
+  const roundToTab: Record<string, string> = {}
+  if (roundData) {
+    for (const r of roundData as any[]) {
+      roundToTab[r.round_code] = r.tab_group
+    }
+  }
+
   let query = (adminClient.from('fixtures') as any)
-    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, tournament_id, tournament_rounds!inner(tab_group)')
+    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, tournament_id')
     .order('kickoff_utc')
 
   // Always filter by tournament
@@ -56,8 +69,8 @@ export async function GET(request: NextRequest) {
   const fixtures = rows.map(f => ({
     id:            f.id,
     round:         f.round,
-    // tab_group from tournament_rounds join — falls back to round if join missing
-    tab_group:     (Array.isArray(f.tournament_rounds) ? f.tournament_rounds[0]?.tab_group : f.tournament_rounds?.tab_group) ?? f.round,
+    // tab_group from mapping, fallback to round
+    tab_group:     roundToTab[f.round] || f.round,
     group:         f.grp,
     home:          f.home,
     away:          f.away,

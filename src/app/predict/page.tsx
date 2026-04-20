@@ -25,19 +25,17 @@ export default function PredictPage() {
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
   // Build round tabs dynamically from tournament_rounds (via scoringConfig).
-  // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
-  // server renders with default config, client loads real config — keeping them in sync
-  // via state means React never sees a mismatch between server and client HTML.
-  const defaultRoundTabState = buildRoundTabs(getDefaultScoringConfig())
-  const [roundTabState, setRoundTabState] = useState(defaultRoundTabState)
+  // Use useMemo to avoid re-computation and potential re-render loops.
+  const roundTabState = useMemo(() => buildRoundTabs(scoringConfig), [scoringConfig])
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
-  const defaultTab: RoundTab = ROUND_TABS[0] ?? defaultRoundTabState.tabs[0] ?? ''
+  const defaultTab: RoundTab = ROUND_TABS[0] ?? ''
+
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
-  const [activeRound,   setActiveRound]   = useState<RoundTab>(defaultTab)
+  const [activeRound,   setActiveRound]   = useState<RoundTab>('')
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [editingFixture, setEditingFixture] = useState<number | null>(null)
@@ -48,89 +46,8 @@ export default function PredictPage() {
   const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const next = buildRoundTabs(scoringConfig)
-    setRoundTabState(next)
-    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
-    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? defaultTab))
-  }, [scoringConfig])
-
-  // ── Load all data ─────────────────────────────────────────
-  useEffect(() => {
-    if (!session) return
-    const load = async () => {
-      setLoading(true)
-      try {
-        const [fxRes, predRes, resRes, locksRes, userRes] = await Promise.all([
-          fetch('/api/fixtures'),
-          fetch('/api/predictions'),
-          fetch('/api/results'),
-          fetch('/api/round-locks'),
-          fetch('/api/user-tournaments'),
-        ])
-
-        const [fxData, predData, resData, locksData] = await Promise.all([
-          fxRes.json(), predRes.json(), resRes.json(), locksRes.json(),
-        ])
-
-        // Fixtures by tab_group (or round as fallback)
-        const byRound: FixtureMap = {}
-        for (const f of (fxData.data ?? []) as Fixture[]) {
-          const key = f.tab_group || f.round
-          if (!byRound[key]) byRound[key] = []
-          byRound[key].push(f)
-        }
-        setFixtures(byRound)
-        // Set active round to the first round that has fixtures (by kickoff order)
-        const firstRoundWithFixtures = Object.keys(byRound)
-          .sort((a, b) => {
-            const aFirst = (byRound as any)[a]?.[0]?.kickoff_utc ?? ''
-            const bFirst = (byRound as any)[b]?.[0]?.kickoff_utc ?? ''
-            return aFirst.localeCompare(bFirst)
-          })[0]
-        if (firstRoundWithFixtures) {
-          // Map round_code to tab_group
-          const tabGroup = (byRound as any)[firstRoundWithFixtures]?.[0]?.tab_group ?? firstRoundWithFixtures
-          setActiveRound(tabGroup)
-        }
-
-        // Predictions map
-        const pm: PredMap = {}
-        for (const p of (predData.data ?? []) as any[]) {
-          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null }
-        }
-        setPredictions(pm)
-
-        // Results map
-        const rm: ResultMap = {}
-        for (const r of (resData.data ?? []) as any[]) {
-          if (r.home_score != null) rm[r.id] = {
-            home:           r.home_score,
-            away:           r.away_score,
-            pen_winner:     r.pen_winner     ?? null,
-            result_outcome: r.result_outcome ?? null,
-          }
-        }
-        setResults(rm)
-
-        // Round locks
-        const locks: Record<string, boolean> = locksData.data ?? {}
-        setRoundLocks(locks)
-
-        // User tournament prefs (favourite team)
-        const userTournData = (await userRes.json().catch(() => ({}))) as any
-        if (userTournData?.data?.length) {
-          const ut = userTournData.data[0]
-          setFavouriteTeam((ut as any).favourite_team ?? null)
-        }
-
-      } catch (e) {
-        console.error('[predict] load error', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [session])
+    setActiveRound(prev => ROUND_TABS.includes(prev) ? prev : (ROUND_TABS[0] ?? ''))
+  }, [ROUND_TABS])
 
   const celebrateSavedFixture = useCallback((fixtureId: number) => {
     if (editingFixture !== null) return
