@@ -14,7 +14,7 @@ import toast from 'react-hot-toast'
 
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
-type FixtureMap = Partial<Record<RoundId, Fixture[]>>
+type FixtureMap = Record<string, Fixture[]>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
 type RoundTab = string
 
@@ -72,11 +72,12 @@ export default function PredictPage() {
           fxRes.json(), predRes.json(), resRes.json(), locksRes.json(),
         ])
 
-        // Fixtures by round
+        // Fixtures by tab_group (or round as fallback)
         const byRound: FixtureMap = {}
         for (const f of (fxData.data ?? []) as Fixture[]) {
-          if (!byRound[f.round]) byRound[f.round] = []
-          byRound[f.round]!.push(f)
+          const key = f.tab_group || f.round
+          if (!byRound[key]) byRound[key] = []
+          byRound[key].push(f)
         }
         setFixtures(byRound)
         // Set active round to the first round that has fixtures (by kickoff order)
