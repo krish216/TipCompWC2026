@@ -119,18 +119,24 @@ export async function GET(request: NextRequest) {
         breakdownMap[p.user_id][round] = (breakdownMap[p.user_id][round] ?? 0) + (Number(p.points_earned) || 0)
       })
 
-      const userTabBreakdowns = await Promise.all(userIds.map(async (userId) => {
+      const userTabBreakdowns = await Promise.allSettled(userIds.map(async (userId) => {
         const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
-        if (error) throw error
+        if (error) {
+          console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
+          return { userId, rows: [] }
+        }
         return { userId, rows: (data ?? []) as any[] }
       }))
 
-      userTabBreakdowns.forEach(({ userId, rows }) => {
-        const map: Record<string, number> = {}
-        rows.forEach((row) => {
-          map[row.tab_group] = Number(row.points ?? 0)
-        })
-        tabBreakdownMap[userId] = map
+      userTabBreakdowns.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          const { userId, rows } = result.value
+          const map: Record<string, number> = {}
+          rows.forEach((row) => {
+            map[row.tab_group] = Number(row.points ?? 0)
+          })
+          tabBreakdownMap[userId] = map
+        }
       })
     }
 
@@ -169,7 +175,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length })
 
   } catch (err: any) {
-    console.error('Leaderboard error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Leaderboard error:', {
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack,
+    })
+    return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 })
   }
 }
