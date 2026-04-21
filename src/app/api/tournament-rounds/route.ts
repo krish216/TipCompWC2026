@@ -12,14 +12,17 @@ export async function GET(request: NextRequest) {
   const tournamentId = searchParams.get('tournament_id')
   if (!tournamentId) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
 
-  const adminClient = createAdminClient()
-  const { data, error } = await (adminClient.from('tournament_rounds') as any)
-    .select('id, tournament_id, round_code, round_name, round_order, tab_group, tab_label, is_knockout, predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x')
-    .eq('tournament_id', tournamentId)
-    .order('round_order', { ascending: true })
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: (data ?? []) as RoundConfig[] }, { headers: { 'Cache-Control': 'no-store' } })
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const fields = 'id,tournament_id,round_code,round_name,round_order,tab_group,tab_label,is_knockout,predict_mode,result_pts,exact_bonus,pen_bonus,fav_team_2x'
+  const url = supabaseUrl + '/rest/v1/tournament_rounds?tournament_id=eq.' + tournamentId + '&order=round_order&select=' + fields
+  const res = await fetch(url, {
+    headers: { 'apikey': serviceKey ?? '', 'Authorization': 'Bearer ' + (serviceKey ?? '') },
+    cache: 'no-store',
+  })
+  if (!res.ok) return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 })
+  const data = await res.json()
+  return NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 // PUT /api/tournament-rounds — tournament admin upserts a round config
