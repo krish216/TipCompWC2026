@@ -231,16 +231,11 @@ export default function PredictPage() {
   }, [roundLocks, scoringConfig, ROUND_TABS])
 
   const isLocked = useCallback((f: Fixture) => {
-    if (allowRetroactivePredictions) {
-      // Fixtures with a result always unlock in retroactive mode regardless of round lock
-      if (results[f.id]) return false
-      // Fixtures without a result still require an open round, but ignore kick-off time
-      return !isRoundOpen(f.round)
-    }
+    if (allowRetroactivePredictions) return !isRoundOpen(f.round)
     if (!isRoundOpen(f.round)) return true
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
-  }, [isRoundOpen, allowRetroactivePredictions, results])
+  }, [isRoundOpen, allowRetroactivePredictions])
 
   // Current open round tab
   const currentRoundTab = useMemo(() => {
