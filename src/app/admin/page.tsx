@@ -275,6 +275,25 @@ export default function AdminPage() {
     else toast('Leaderboard auto-refreshes after each result save', { icon: 'ℹ️' })
   }
 
+  // ── Retroactive predictions toggle ───────────────────────────
+  const [togglingRetroactive, setTogglingRetroactive] = useState(false)
+  const handleToggleRetroactive = async () => {
+    if (!tournamentData) return
+    const next = !tournamentData.allow_retroactive_predictions
+    setTogglingRetroactive(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, allow_retroactive_predictions: next }),
+    })
+    setTogglingRetroactive(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, allow_retroactive_predictions: next }))
+      toast.success(next ? '🧪 Practice Mode enabled' : 'Practice Mode disabled')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
+
   // ── Computed ───────────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat(), [fixtures])
   const totalEntered = Object.keys(results).length
@@ -662,6 +681,25 @@ export default function AdminPage() {
           <div className="bg-white border border-red-100 rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-bold text-red-500 uppercase tracking-wide mb-3">⚠️ Danger Zone</h3>
             <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">🧪 Practice Mode</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Lets tipsters predict any match — including those with results. Use for testing and onboarding.</p>
+                </div>
+                <button
+                  onClick={handleToggleRetroactive}
+                  disabled={togglingRetroactive || !tournamentData}
+                  className={clsx(
+                    'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                    tournamentData?.allow_retroactive_predictions ? 'bg-blue-500' : 'bg-gray-200'
+                  )}
+                >
+                  <span className={clsx(
+                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                    tournamentData?.allow_retroactive_predictions ? 'translate-x-5' : 'translate-x-0'
+                  )} />
+                </button>
+              </div>
               <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl">
                 <div>
                   <p className="text-xs font-semibold text-gray-800">Clear all results</p>

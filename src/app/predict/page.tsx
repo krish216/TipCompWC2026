@@ -23,6 +23,7 @@ export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
   const { selectedTourn, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
   // Build round tabs dynamically from tournament_rounds (via scoringConfig).
@@ -231,9 +232,10 @@ export default function PredictPage() {
 
   const isLocked = useCallback((f: Fixture) => {
     if (!isRoundOpen(f.round)) return true
+    if (allowRetroactivePredictions) return false
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
-  }, [isRoundOpen])
+  }, [isRoundOpen, allowRetroactivePredictions])
 
   // Current open round tab
   const currentRoundTab = useMemo(() => {
@@ -393,6 +395,7 @@ export default function PredictPage() {
       scoringConfig={scoringConfig}
       timezone={timezone}
       challenge={challenges[f.id] ?? null}
+      retroactive={allowRetroactivePredictions}
       onPredict={onPredict}
       onOutcome={onOutcome}
       onPenWinner={onPenWinner}
@@ -410,6 +413,17 @@ export default function PredictPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-4">
       <CountdownBanner />
+
+      {/* Practice / onboarding mode banner */}
+      {allowRetroactivePredictions && (
+        <div className="mb-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+          <span className="text-base flex-shrink-0">🧪</span>
+          <div>
+            <span className="font-bold">Practice Mode active</span>
+            <span className="text-blue-600"> — You can predict any match, including ones with results already entered. Points are earned as normal.</span>
+          </div>
+        </div>
+      )}
 
       {/* Tournament metadata footer */}
       {selectedTourn && (selectedTourn.kickoff_venue || selectedTourn.final_venue || selectedTourn.total_matches) && (

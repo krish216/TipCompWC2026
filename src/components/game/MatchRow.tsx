@@ -38,6 +38,7 @@ interface Props {
   timezone?:   string
   scoringConfig?: TournamentScoringConfig
   celebrating?: boolean
+  retroactive?: boolean
   onPredict:    (fixtureId: number, side: 'home'|'away', value: number) => void
   onFocusScore?: () => void
   onBlurScore?:  () => void
@@ -48,7 +49,7 @@ interface Props {
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, saving = false, celebrating = false, isFavourite = false, challenge,
-  timezone = 'UTC', scoringConfig,
+  timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore,
 }: Props) {
   const [localHome, setLocalHome] = useState<string>(
@@ -85,8 +86,9 @@ export function MatchRow({
   const isPredDraw  = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
-  const showPenPick = isKnockout && !result && !locked && isPredDraw
-  const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !result && !locked
+  const inputDisabled = locked || (!!result && !retroactive)
+  const showPenPick = isKnockout && !locked && isPredDraw && (retroactive ? true : !result)
+  const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !locked && (retroactive ? true : !result)
   const hasPred     = isOutcomeRound
     ? (sel != null && !awaitingPen)
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
@@ -136,7 +138,7 @@ export function MatchRow({
     : null
 
   // ── Card border / bg based on result state ──────────────────────────────────
-  const noTip = !!result && !hasPred  // result in but no prediction was made
+  const noTip = !!result && !hasPred && !retroactive  // result in but no prediction was made
 
   const cardClass = clsx(
     'rounded-2xl border mb-2.5 overflow-hidden transition-all',
@@ -236,7 +238,7 @@ export function MatchRow({
                   const isPick  = sel === o
                   const isRes   = resultOutcome === o
 
-                  if (result) {
+                  if (result && !retroactive) {
                     return (
                       <div key={o} className={clsx(
                         'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
@@ -262,12 +264,12 @@ export function MatchRow({
 
                   return (
                     <button key={o}
-                      disabled={locked}
-                      onClick={() => !locked && onOutcome?.(fixture.id, o)}
+                      disabled={inputDisabled}
+                      onClick={() => !inputDisabled && onOutcome?.(fixture.id, o)}
                       className={clsx(
                         'flex-1 h-10 flex items-center justify-center rounded-lg transition-all',
-                        !locked && 'hover:bg-gray-200 active:scale-95',
-                        locked && 'cursor-not-allowed',
+                        !inputDisabled && 'hover:bg-gray-200 active:scale-95',
+                        inputDisabled && 'cursor-not-allowed',
                         isPick && 'bg-white shadow-sm',
                       )}>
                       <div className={clsx(
@@ -300,10 +302,10 @@ export function MatchRow({
             <>
               <div className="flex items-center gap-2">
                 <input type="number" min={0} max={20}
-                  value={localHome} disabled={locked || !!result}
+                  value={localHome} disabled={inputDisabled}
                   className={clsx(
                     'w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
-                    locked || result ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
+                    inputDisabled ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
                     localHome !== '' ? 'bg-white border-green-400 text-gray-900' :
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
                   )}
@@ -312,10 +314,10 @@ export function MatchRow({
                 />
                 <span className="text-gray-300 font-light text-2xl">–</span>
                 <input type="number" min={0} max={20}
-                  value={localAway} disabled={locked || !!result}
+                  value={localAway} disabled={inputDisabled}
                   className={clsx(
                     'w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors',
-                    locked || result ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
+                    inputDisabled ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' :
                     localAway !== '' ? 'bg-white border-green-400 text-gray-900' :
                     'bg-gray-50 border-dashed border-gray-300 text-gray-400'
                   )}
