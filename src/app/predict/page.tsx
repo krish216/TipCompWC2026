@@ -162,14 +162,12 @@ export default function PredictPage() {
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: null }] }),
       })
     } catch { toast.error('Network error — prediction not saved') }
-    finally {
-      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
-      setStreak(prev => {
-        const next = prev + 1
-        if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
-        return next
-      })
-    }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+    setStreak(prev => {
+      const next = prev + 1
+      if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
+      return next
+    })
   }, [fixtures])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
@@ -181,14 +179,12 @@ export default function PredictPage() {
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
       })
     } catch { /* silent — user sees saving indicator */ }
-    finally {
-      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
-      setStreak(prev => {
-        const next = prev + 1
-        if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
-        return next
-      })
-    }
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+    setStreak(prev => {
+      const next = prev + 1
+      if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
+      return next
+    })
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
