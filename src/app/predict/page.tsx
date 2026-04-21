@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -46,6 +46,7 @@ export default function PredictPage() {
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
+  const [completedTrayOpen, setCompletedTrayOpen] = useState(false)
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -162,7 +163,9 @@ export default function PredictPage() {
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: null }] }),
       })
     } catch { toast.error('Network error — prediction not saved') }
-    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+    finally {
+      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+    }
   }, [fixtures])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
@@ -174,7 +177,9 @@ export default function PredictPage() {
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
       })
     } catch { /* silent — user sees saving indicator */ }
-    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+    finally {
+      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+    }
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
@@ -194,7 +199,6 @@ export default function PredictPage() {
 
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
-
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
@@ -251,8 +255,8 @@ export default function PredictPage() {
 
       if (r && pts !== null) {
         totalPts += pts
-        if (pts === sc.exact)                       exactCt++
-        else if (pts === sc.result && pts > 0)      correctCt++
+        if (pts === sc.exact_bonus)                       exactCt++
+        else if (pts === sc.result_pts && pts > 0)      correctCt++
       }
 
       // Count not-entered only for the current open tab's rounds
@@ -295,10 +299,10 @@ export default function PredictPage() {
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
       const v       = hasPred ? (calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0) : 0
       pts += v
-      if (v === sc.exact)                  exactCt++
-      else if (v === sc.result && v > 0)   correctCt++
+      if (v === sc.exact_bonus)            exactCt++
+      else if (v === sc.result_pts && v > 0)   correctCt++
     }
-    return { played, total: fs.length, pts, exactCt, correctCt }
+    return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
   }, [fixtures, activeRound, predictions, results])
 
   // Fixtures sorted chronologically, with optional pending filter
@@ -437,6 +441,37 @@ export default function PredictPage() {
           </span>
         </div>
       )}
+
+
+      {/* Favourite team banner */}
+      {favouriteTeam && (
+        <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
+          <span className="text-base">⭐</span>
+          <span>
+            Double points on <strong>{favouriteTeam}</strong> matches
+            {scoringConfig.fav_team_rounds.length > 0 && (
+              <span> — {scoringConfig.fav_team_rounds
+                .map(r => scoringConfig.rounds[r]?.round_name ?? r)
+                .join(' & ')} only</span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
+      <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
+          {ROUND_TABS.map(tab => {
+            const cnt      = roundPredCounts[tab]
+            const pts      = roundPoints[tab]
+            const isActive = activeRound === tab
+            const allDone  = cnt && cnt.total > 0 && cnt.entered === cnt.total
+            const hasUnsaved = cnt && cnt.total > 0 && cnt.entered < cnt.total
+
+            return (
+              <button
+                key={tab}
+                onClick={() => { setActiveRound(tab); setShowFilter('pending') }}
                 className={clsx(
                   'relative flex flex-col items-center justify-center',
                   'px-3.5 py-2 rounded-lg transition-all duration-200 whitespace-nowrap',
