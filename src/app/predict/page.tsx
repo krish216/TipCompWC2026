@@ -195,23 +195,6 @@ export default function PredictPage() {
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
 
-  // Track streak via prediction count changes
-  const predCountRef = React.useRef(0)
-  useEffect(() => {
-    const count = Object.keys(predictions).length
-    if (count > predCountRef.current) {
-      predCountRef.current = count
-      setStreakCount(s => s + 1)
-    }
-  }, [predictions])
-
-  useEffect(() => {
-    if (streakCount >= 3) {
-      setShowStreakBurst(true)
-      const t = setTimeout(() => setShowStreakBurst(false), 2000)
-      return () => clearTimeout(t)
-    }
-  }, [streakCount])
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
@@ -454,59 +437,6 @@ export default function PredictPage() {
           </span>
         </div>
       )}
-
-      {/* Streak burst — appears after 3+ consecutive picks */}
-      {showStreakBurst && (
-        <div className="mb-3 flex items-center justify-center gap-2 bg-green-600 rounded-xl px-4 py-2.5 animate-bounce">
-          <span className="text-lg">🔥</span>
-          <span className="text-sm font-bold text-white">
-            {streakCount} in a row — you're on fire!
-          </span>
-        </div>
-      )}
-
-      {/* Ongoing streak indicator (subtle, always visible after first pick) */}
-      {streakCount > 0 && !showStreakBurst && (
-        <div className="mb-3 flex items-center gap-1.5 px-1">
-          {Array.from({ length: Math.min(streakCount, 8) }).map((_, i) => (
-            <div key={i} className="w-2 h-2 rounded-full bg-green-400 opacity-80" />
-          ))}
-          {streakCount > 8 && <span className="text-xs text-green-500 font-semibold">+{streakCount - 8}</span>}
-          <span className="text-xs text-green-600 font-medium ml-1">
-            {streakCount === 1 ? '1 pick made' : `${streakCount} picks — keep going`}
-          </span>
-        </div>
-      )}
-
-      {/* Favourite team banner */}
-      {favouriteTeam && (
-        <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-          <span className="text-base">⭐</span>
-          <span>
-            Double points on <strong>{favouriteTeam}</strong> matches
-            {scoringConfig.fav_team_rounds.length > 0 && (
-              <span> — {scoringConfig.fav_team_rounds
-                .map(r => scoringConfig.rounds[r]?.round_name ?? r)
-                .join(' & ')} only</span>
-            )}
-          </span>
-        </div>
-      )}
-
-      {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
-      <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
-        <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
-          {ROUND_TABS.map(tab => {
-            const cnt      = roundPredCounts[tab]
-            const pts      = roundPoints[tab]
-            const isActive = activeRound === tab
-            const allDone  = cnt && cnt.total > 0 && cnt.entered === cnt.total
-            const hasUnsaved = cnt && cnt.total > 0 && cnt.entered < cnt.total
-
-            return (
-              <button
-                key={tab}
-                onClick={() => { setActiveRound(tab); setShowFilter('pending') }}
                 className={clsx(
                   'relative flex flex-col items-center justify-center',
                   'px-3.5 py-2 rounded-lg transition-all duration-200 whitespace-nowrap',
