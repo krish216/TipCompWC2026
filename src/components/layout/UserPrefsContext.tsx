@@ -109,7 +109,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       // 1. Active tournaments (is_active flag)
       const tournRes = await supabase
         .from('tournaments')
-        .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams')
+        .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions')
         .eq('is_active', true)
         .order('start_date', { ascending: true })
       // Only show tournaments with is_active=true — inactive ones are hidden
