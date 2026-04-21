@@ -45,8 +45,6 @@ export default function PredictPage() {
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
-  const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
-  const [completedTrayOpen, setCompletedTrayOpen] = useState(false)
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -305,28 +303,13 @@ export default function PredictPage() {
     return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
   }, [fixtures, activeRound, predictions, results])
 
-  // Fixtures sorted chronologically, with optional pending filter
+  // Fixtures sorted chronologically
   const visibleFixtures = useMemo(() => {
     const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
-    const sorted = [...fs].sort((a, b) =>
+    return [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
-    if (showFilter === 'all') return sorted
-    // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
-    const isIncomplete = (f: Fixture) => {
-      if (results[f.id] || isLocked(f)) return false
-      const p = predictions[f.id]
-      if (!p) return true  // no prediction at all
-      // Knockout draw with no pen winner selected = incomplete
-      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
-      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
-      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
-      return false
-    }
-    const pending = sorted.filter(isIncomplete)
-    // If nothing pending, fall back to showing all so page isn't empty
-    return pending.length > 0 ? pending : sorted
-  }, [fixtures, activeRound, showFilter, results, predictions, roundLocks])
+  }, [fixtures, activeRound])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
@@ -341,25 +324,6 @@ export default function PredictPage() {
     }
     return map
   }, [visibleFixtures, timezone])
-
-  // First fixture that needs a prediction (not locked, no result, no prediction)
-  // Fixtures that have been predicted but have no result yet — shown in completed tray
-  const completedFixtures = useMemo(() => {
-    const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => (fixtures as any)[rid] ?? []) as Fixture[]
-    return fs.filter(f => {
-      if (results[f.id] || isLocked(f)) return false  // exclude resulted/locked
-      const p = predictions[f.id]
-      if (!p) return false
-      const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
-      if (isScoreRound && (p.home < 0 || p.away < 0)) return false  // partial score
-      if (isScoreRound && saving.has(f.id)) return false
-      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
-      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
-      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return false
-      if (isScoreRound && isKnockout && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return false
-      return true  // fully predicted
-    }).sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
-  }, [fixtures, activeRound, predictions, results, saving, scoringConfig, TAB_TO_ROUNDS])
 
   const nextUnpredictedId = useMemo(() => {
     return visibleFixtures.find(f => {
@@ -471,7 +435,7 @@ export default function PredictPage() {
             return (
               <button
                 key={tab}
-                onClick={() => { setActiveRound(tab); setShowFilter('pending') }}
+                onClick={() => setActiveRound(tab)}
                 className={clsx(
                   'relative flex flex-col items-center justify-center',
                   'px-3.5 py-2 rounded-lg transition-all duration-200 whitespace-nowrap',
@@ -528,46 +492,6 @@ export default function PredictPage() {
         {...roundScoreBarProps}
       />
 
-      {/* Filter toggle */}
-      {(() => {
-        const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound] ?? fixtures[rid] ?? [])
-        const pendingCount = allFs.filter(f => {
-          if (results[f.id] || isLocked(f)) return false
-          const p = predictions[f.id]
-          if (!p) return true
-          const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
-          const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
-          if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
-          return false
-        }).length
-        return pendingCount > 0 ? (
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              <button
-                onClick={() => setShowFilter('pending')}
-                className={clsx(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-                  showFilter === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                ⚡ To predict ({pendingCount})
-              </button>
-              <button
-                onClick={() => setShowFilter('all')}
-                className={clsx(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
-                  showFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                All fixtures
-              </button>
-            </div>
-            {showFilter === 'pending' && (
-              <span className="text-[11px] text-amber-600">Showing unpredicted matches only</span>
-            )}
-          </div>
-        ) : null
-      })()}
 
       {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
@@ -604,70 +528,6 @@ export default function PredictPage() {
         ))
       )}
 
-      {/* ── Completed predictions tray ──────────────────────────────────── */}
-      {completedFixtures.length > 0 && showFilter === 'pending' && (
-        <div className="mt-6 border border-gray-200 rounded-xl overflow-hidden bg-white">
-          <button
-            onClick={() => setCompletedTrayOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm">✅</span>
-              <span className="text-xs font-semibold text-gray-600">
-                {completedFixtures.length} predicted
-              </span>
-              <div className="flex gap-0.5 ml-1">
-                {completedFixtures.slice(0, 5).map(f => {
-                  const p = predictions[f.id]
-                  const isOutcome = scoringConfig.outcome_rounds.includes(f.round)
-                  const label = isOutcome
-                    ? (p as any).outcome === 'H' ? '🏠' : (p as any).outcome === 'A' ? '✈️' : '🤝'
-                    : `${p?.home}-${p?.away}`
-                  return (
-                    <span key={f.id} className="text-[10px] bg-green-100 text-green-700 rounded px-1 font-mono font-semibold">
-                      {label}
-                    </span>
-                  )
-                })}
-                {completedFixtures.length > 5 && (
-                  <span className="text-[10px] text-gray-400">+{completedFixtures.length - 5}</span>
-                )}
-              </div>
-            </div>
-            <span className="text-xs text-gray-400">{completedTrayOpen ? '▲ Hide' : '▼ Show'}</span>
-          </button>
-
-          {completedTrayOpen && (
-            <div className="divide-y divide-gray-100">
-              {completedFixtures.map(f => {
-                const p = predictions[f.id]
-                const isOutcome = scoringConfig.outcome_rounds.includes(f.round)
-                const outcomeLabel = isOutcome
-                  ? (p as any).outcome === 'H' ? `${f.home} win` : (p as any).outcome === 'A' ? `${f.away} win` : 'Draw'
-                  : `${p?.home} – ${p?.away}`
-                return (
-                  <div key={f.id} className="flex items-center justify-between px-4 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700 truncate">
-                        {f.home} vs {f.away}
-                      </p>
-                      <p className="text-[11px] text-gray-400">
-                        {new Date(f.kickoff_utc).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-3">
-                      <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-0.5">
-                        {outcomeLabel}
-                      </span>
-                      <span className="text-green-500 text-xs">✓</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
     </div>
   )
