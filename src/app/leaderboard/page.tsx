@@ -147,7 +147,7 @@ export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
   const { scoringConfig } = useUserPrefs()
 
-  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, ROUND_ORDER } = useMemo(() => {
+  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, ROUND_ORDER, TAB_ROUNDS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
     const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
@@ -173,6 +173,7 @@ export default function LeaderboardPage() {
       ROUND_SNAPSHOTS: snapshots,
       SNAPSHOT_TO_ROUNDS: snapshotToRounds,
       ROUND_ORDER: rounds.map(r => r.round_code) as RoundId[],
+      TAB_ROUNDS: Object.fromEntries(Object.entries(tabGroups).map(([k, v]) => [k, v.rounds as RoundId[]])),
     }
   }, [scoringConfig])
 
@@ -284,12 +285,82 @@ export default function LeaderboardPage() {
       .map((e, i) => ({ ...e, rank: i + 1 }))
   }, [entries, roundView])
 
+  // Previous snapshot rankings — for movement arrows (compare consecutive non-'all' snapshots)
+  const prevFilteredEntries = useMemo(() => {
+    const currentIdx = ROUND_SNAPSHOTS.findIndex(r => r.id === roundView)
+    if (currentIdx < 2) return null // 'all'(0) or first round(1) has no meaningful previous
+    const prevSnap = ROUND_SNAPSHOTS[currentIdx - 1]
+    const validRounds = new Set(SNAPSHOT_TO_ROUNDS[prevSnap.id] ?? [] as RoundId[])
+    return entries
+      .map(e => {
+        const pts = Object.entries(e.round_breakdown ?? {})
+          .filter(([r]) => validRounds.has(r as RoundId))
+          .reduce((s, [, v]) => s + Number(v), 0)
+        return { ...e, total_points: pts }
+      })
+      .filter(e => e.total_points > 0)
+      .sort((a, b) => b.total_points !== a.total_points ? b.total_points - a.total_points : (b.bonus_count ?? 0) - (a.bonus_count ?? 0))
+      .map((e, i) => ({ ...e, rank: i + 1 }))
+  }, [entries, roundView, ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS])
+
+  // rank change per user: positive = moved up, negative = moved down
+  const movementMap = useMemo(() => {
+    if (!prevFilteredEntries) return {} as Record<string, number>
+    const prevRanks: Record<string, number> = {}
+    for (const e of prevFilteredEntries) prevRanks[e.user_id] = e.rank
+    const map: Record<string, number> = {}
+    for (const e of filteredEntries) {
+      const prev = prevRanks[e.user_id]
+      if (prev != null) map[e.user_id] = prev - (e.rank ?? 0)
+    }
+    return map
+  }, [filteredEntries, prevFilteredEntries])
+
+  // Biggest mover this snapshot
+  const biggestMover = useMemo(() => {
+    let maxMove = 1
+    let mover: any = null
+    for (const e of filteredEntries) {
+      const move = movementMap[e.user_id] ?? 0
+      if (move > maxMove) { maxMove = move; mover = e }
+    }
+    return mover ? { entry: mover, gain: maxMove } : null
+  }, [filteredEntries, movementMap])
+
+  // Per-round max pts across all entries — for crown badge
+  const roundWinnerPts = useMemo(() => {
+    if (filteredEntries.length <= 1) return {} as Record<string, number>
+    const max: Record<string, number> = {}
+    for (const e of filteredEntries) {
+      for (const [r, pts] of Object.entries(e.round_breakdown ?? {})) {
+        const n = Number(pts)
+        if (n > 0 && (max[r] == null || n > max[r])) max[r] = n
+      }
+    }
+    return max
+  }, [filteredEntries])
+
+  // The latest snapshot tab whose own (non-cumulative) rounds have scoring data — shown as LIVE
+  const liveSnapshotId = useMemo(() => {
+    const roundsWithData = new Set<string>()
+    for (const e of entries) {
+      for (const [r, pts] of Object.entries(e.round_breakdown ?? {})) {
+        if (Number(pts) > 0) roundsWithData.add(r)
+      }
+    }
+    let live: string | null = null
+    for (const snap of ROUND_SNAPSHOTS.filter(s => s.id !== 'all')) {
+      if ((TAB_ROUNDS[snap.id] ?? []).some(r => roundsWithData.has(r))) live = snap.id
+    }
+    return live
+  }, [entries, ROUND_SNAPSHOTS, TAB_ROUNDS])
+
   const top3     = useMemo(() => filteredEntries.slice(0, 3), [filteredEntries])
   const myId     = session?.user.id
   const amInList = filteredEntries.some(e => e.user_id === myId)
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-4">
+    <div className="max-w-3xl mx-auto px-4 py-4 pb-24">
 
       {/* Page header */}
       <div className="mb-4">
@@ -357,6 +428,33 @@ export default function LeaderboardPage() {
         ))}
       </div>
 
+      {/* Sticky "your position" bar — always visible while scrolling */}
+      {mainTab === 'leaderboard' && (() => {
+        const me = filteredEntries.find(e => e.user_id === myId) ?? myEntry
+        if (!me || !myId) return null
+        const rank      = me.rank ?? '?'
+        const pts       = me.total_points ?? 0
+        const above     = typeof rank === 'number' && rank > 1 ? filteredEntries[rank - 2] : null
+        const gapToAbove = above ? above.total_points - pts : 0
+        const isLeading  = rank === 1
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-green-200 shadow-lg">
+            <div className="max-w-3xl mx-auto flex items-center gap-3 px-4 py-2.5">
+              <div className="flex flex-col items-center w-8">
+                <Medal rank={typeof rank === 'number' ? rank : 99} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-green-800 truncate">{me.display_name} · {pts} pts</p>
+                <p className="text-[11px] text-gray-500">
+                  {isLeading ? '🏆 Leading' : gapToAbove > 0 ? `${gapToAbove} pts behind #${(rank as number) - 1}` : `Tied #${(rank as number) - 1}`}
+                </p>
+              </div>
+              <span className="text-xl font-bold text-green-700">#{rank}</span>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Challenge Results tab */}
       {mainTab === 'challenges' && <ChallengeResultsTab selectedComp={selectedComp} />}
 
@@ -378,17 +476,26 @@ export default function LeaderboardPage() {
 
           {/* Round snapshot pills */}
           <div className="flex gap-1.5 flex-wrap mb-4">
-            {ROUND_SNAPSHOTS.map(r => (
-              <button key={r.id} onClick={() => setRoundView(r.id)}
-                className={clsx(
-                  'px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
-                  roundView === r.id
-                    ? 'bg-green-600 border-green-700 text-white'
-                    : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-                )}>
-                {r.label}
-              </button>
-            ))}
+            {ROUND_SNAPSHOTS.map(r => {
+              const isLive = r.id === liveSnapshotId
+              return (
+                <button key={r.id} onClick={() => setRoundView(r.id)}
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
+                    roundView === r.id
+                      ? 'bg-green-600 border-green-700 text-white'
+                      : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+                  )}>
+                  {r.label}
+                  {isLive && (
+                    <span className={clsx('inline-flex items-center gap-0.5 text-[9px] font-semibold', roundView === r.id ? 'text-green-200' : 'text-green-600')}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                      live
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
           {loading ? (
@@ -408,6 +515,17 @@ export default function LeaderboardPage() {
             />
           ) : (
             <>
+              {/* Biggest mover callout */}
+              {biggestMover && roundView !== 'all' && (
+                <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs">
+                  <span className="text-base">⚡</span>
+                  <span className="text-amber-800">
+                    <span className="font-semibold">{biggestMover.entry.display_name}</span> is the biggest mover this round
+                    <span className="ml-1 font-bold text-green-600">▲{biggestMover.gain}</span>
+                  </span>
+                </div>
+              )}
+
               {/* Podium */}
               {top3.length >= 3 && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
@@ -449,6 +567,10 @@ export default function LeaderboardPage() {
                 {filteredEntries.map((entry, i) => {
                   const isMe       = entry.user_id === myId
                   const isExpanded = expanded === entry.user_id
+                  const myRank     = entry.rank ?? i + 1
+                  const move       = movementMap[entry.user_id]
+                  const above      = myRank > 1 ? filteredEntries[myRank - 2] : null
+                  const gapToAbove = above ? above.total_points - entry.total_points : 0
                   return (
                     <div key={entry.user_id}>
                       <button
@@ -458,8 +580,13 @@ export default function LeaderboardPage() {
                         )}
                         onClick={() => setExpanded(isExpanded ? null : entry.user_id)}
                       >
-                        <div className="flex items-center justify-center">
-                          <Medal rank={entry.rank ?? i+1} />
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <Medal rank={myRank} />
+                          {move != null && move !== 0 && (
+                            <span className={clsx('text-[9px] font-bold leading-none', move > 0 ? 'text-green-500' : 'text-red-400')}>
+                              {move > 0 ? `▲${move}` : `▼${Math.abs(move)}`}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar name={entry.display_name} size="xs" />
@@ -470,7 +597,7 @@ export default function LeaderboardPage() {
                               </p>
                               {isMe && (
                                 <ShareButton compact payload={{
-                                  type: 'rank', rank: entry.rank ?? i+1,
+                                  type: 'rank', rank: myRank,
                                   points: entry.total_points, bonus: entry.bonus_count,
                                   correct: entry.correct_count, exact: entry.exact_count ?? 0, displayName: entry.display_name,
                                   roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
@@ -483,6 +610,14 @@ export default function LeaderboardPage() {
                               )}
                               {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
                                 <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.comp_name}</span>
+                              )}
+                              {isMe && myRank === 1 && (
+                                <span className="text-[10px] text-green-600 font-semibold">Leading 🏆</span>
+                              )}
+                              {isMe && myRank > 1 && (
+                                <span className="text-[10px] text-amber-600">
+                                  {gapToAbove > 0 ? `${gapToAbove} behind #${myRank - 1}` : `Tied #${myRank - 1}`}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -500,26 +635,39 @@ export default function LeaderboardPage() {
                         </div>
                       </button>
 
-                      {isExpanded && entry.round_breakdown && (
-                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                          <p className="text-[11px] font-medium text-gray-500 mb-2 uppercase tracking-wide">Points by round</p>
-                          <div className="flex gap-2 flex-wrap">
-                            {(Object.entries(entry.round_breakdown) as [RoundId, number][])
-                              .filter(([, pts]) => pts > 0)
-                              .sort(([a], [b]) => {
-                                const ai = ROUND_ORDER.indexOf(a as RoundId)
-                                const bi = ROUND_ORDER.indexOf(b as RoundId)
-                                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-                              })
-                              .map(([round, pts]) => (
-                                <div key={round} className="flex flex-col items-center bg-white border border-gray-200 rounded-md px-2.5 py-1.5">
-                                  <span className="text-[10px] text-gray-500">{scoringConfig.rounds[round as RoundId]?.round_name ?? round}</span>
-                                  <span className="text-sm font-semibold text-gray-800">{pts}</span>
-                                </div>
-                              ))}
+                      {isExpanded && entry.round_breakdown && (() => {
+                        const sorted = (Object.entries(entry.round_breakdown) as [RoundId, number][])
+                          .filter(([, pts]) => Number(pts) > 0)
+                          .sort(([a], [b]) => {
+                            const ai = ROUND_ORDER.indexOf(a as RoundId)
+                            const bi = ROUND_ORDER.indexOf(b as RoundId)
+                            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+                          })
+                        const maxPts = Math.max(...sorted.map(([, v]) => Number(v)), 1)
+                        return (
+                          <div className="px-4 pt-3 pb-4 bg-gray-50 border-b border-gray-100">
+                            <p className="text-[11px] font-medium text-gray-500 mb-3 uppercase tracking-wide">Points by round</p>
+                            <div className="flex items-end gap-3 flex-wrap">
+                              {sorted.map(([round, pts]) => {
+                                const n        = Number(pts)
+                                const barH     = Math.max(Math.round((n / maxPts) * 52), 6)
+                                const isCrown  = roundWinnerPts[round] === n && n > 0
+                                return (
+                                  <div key={round} className="flex flex-col items-center gap-1 min-w-[36px]">
+                                    <span className="text-[10px] font-bold text-gray-700">{n}</span>
+                                    {isCrown && <span className="text-[11px] leading-none">👑</span>}
+                                    <div
+                                      className={clsx('w-8 rounded-t-md transition-all', isCrown ? 'bg-amber-400' : isMe ? 'bg-green-400' : 'bg-blue-300')}
+                                      style={{ height: `${barH}px` }}
+                                    />
+                                    <span className="text-[9px] text-gray-400 font-medium uppercase">{round}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
                     </div>
                   )
                 })}
@@ -530,24 +678,6 @@ export default function LeaderboardPage() {
                 <span><span className="text-blue-600 font-medium">✓</span> = right result, wrong score</span>
               </div>
 
-              {/* Player position note */}
-              {myEntry && !amInList && (
-                <div className="mt-3 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex-wrap">
-                  <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {(myEntry.display_name ?? 'Y').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-green-800">
-                      You are ranked <span className="text-green-700">#{myEntry.rank}</span> — outside the top {scope === 'tribe' ? 25 : 50}
-                    </p>
-                    <p className="text-[11px] text-green-600 mt-0.5">
-                      {myEntry.total_points} pts · {myEntry.bonus_count} bonus · {myEntry.correct_count} correct
-                      {myEntry.tribe_name && ` · ${myEntry.tribe_name}`}
-                    </p>
-                  </div>
-                  <span className="text-xl font-bold text-green-700">#{myEntry.rank}</span>
-                </div>
-              )}
             </>
           )}
         </>
