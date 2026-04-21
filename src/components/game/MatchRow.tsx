@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
@@ -64,6 +64,13 @@ export function MatchRow({
     if (prediction && prediction.away >= 0 && localAway === '') setLocalAway(String(prediction.away))
   }
 
+  // Minute ticker for deadline urgency
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
   const cfg = scoringConfig ?? getDefaultScoringConfig()
   const isExactRound   = cfg.exact_score_rounds.includes(round)
   const isOutcomeRound = cfg.outcome_rounds.includes(round)
@@ -107,6 +114,27 @@ export function MatchRow({
     else                 { setLocalAway(v); onPredict(fixture.id, 'away', v === '' ? -1 : parseInt(v)) }
   }, [fixture.id, onPredict])
 
+  // ── Deadline urgency ──────────────────────────────────────────────────────
+  const minsToKickoff = (new Date(fixture.kickoff_utc).getTime() - now) / 60_000
+  const urgencyLabel = !locked && !result && minsToKickoff > 5 && minsToKickoff <= 1440
+    ? minsToKickoff < 60
+      ? `${Math.round(minsToKickoff)}m left`
+      : `${Math.floor(minsToKickoff / 60)}h left`
+    : null
+  const isVeryUrgent = urgencyLabel !== null && minsToKickoff < 120
+
+  // ── Max points at stake ───────────────────────────────────────────────────
+  const maxPts = !result && !hasPred && !locked && sc
+    ? (() => {
+        const base = isExactRound
+          ? sc.result_pts + sc.exact_bonus
+          : isKnockout && sc.pen_bonus > 0
+          ? sc.result_pts + sc.pen_bonus
+          : sc.result_pts
+        return isFavourite && cfg.fav_team_rounds.includes(round) ? base * 2 : base
+      })()
+    : null
+
   // ── Card border / bg based on result state ──────────────────────────────────
   const noTip = !!result && !hasPred  // result in but no prediction was made
 
@@ -122,7 +150,7 @@ export function MatchRow({
     !result && !hasPred && !awaitingPen && !locked && 'border-gray-200 bg-white',
     locked && !result   && 'border-gray-200 bg-gray-50/60',
     isFavourite && !result && 'ring-1 ring-purple-200',
-    celebrating && 'ring-2 ring-green-200 shadow-lg',
+    celebrating && 'ring-2 ring-green-300 shadow-md scale-[1.01]',
   )
 
   return (
@@ -139,7 +167,15 @@ export function MatchRow({
           )}
           <span>{formatKickoff(fixture.kickoff_utc, timezone)}</span>
           <span className="text-gray-300">·</span>
-          <span className="truncate max-w-[150px]">{fixture.venue}</span>
+          <span className="truncate max-w-[100px]">{fixture.venue}</span>
+          {urgencyLabel && (
+            <span className={clsx(
+              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none',
+              isVeryUrgent ? 'bg-red-100 text-red-600' : 'bg-amber-50 text-amber-600'
+            )}>
+              ⏱ {urgencyLabel}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-[11px]">
@@ -160,7 +196,9 @@ export function MatchRow({
             <span className="text-amber-600 font-semibold animate-pulse">🥅 Pick penalties ↓</span>
           )}
           {!locked && !result && !hasPred && !awaitingPen && (
-            <span className="text-amber-500 font-semibold">Pick now</span>
+            <span className="text-amber-500 font-semibold">
+              {maxPts != null ? `+${maxPts} pts` : 'Pick now'}
+            </span>
           )}
           {noTip && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-full">

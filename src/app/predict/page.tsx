@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
+import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
@@ -46,8 +47,14 @@ export default function PredictPage() {
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
+  const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
+  const [allDoneBanner, setAllDoneBanner] = useState<string | null>(null)
 
-  const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+  const saveTimers             = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+  const fixtureRefs            = useRef<Map<number, HTMLDivElement>>(new Map())
+  const nextUnpredictedIdRef   = useRef<number | null>(null)
+  const tabCompletionFired     = useRef<Set<string>>(new Set())
+  const prevRoundPredCountsRef = useRef<Record<string, { entered: number; total: number }>>({})
 
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
@@ -114,6 +121,17 @@ export default function PredictPage() {
     load()
   }, [session])
 
+  const triggerCelebration = useCallback((fixtureId: number) => {
+    setCelebrating(prev => new Set(prev).add(fixtureId))
+    setTimeout(() => setCelebrating(prev => { const s = new Set(prev); s.delete(fixtureId); return s }), 1800)
+    setTimeout(() => {
+      const nextId = nextUnpredictedIdRef.current
+      if (nextId && nextId !== fixtureId) {
+        fixtureRefs.current.get(nextId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 700)
+  }, [])
+
   const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
     setPredictions(prev => ({
       ...prev,
@@ -130,8 +148,11 @@ export default function PredictPage() {
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome: p.outcome ?? null, pen_winner: team }] }),
       })
     } catch { toast.error('Network error — penalty pick not saved') }
-    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-  }, [predictions])
+    finally {
+      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      triggerCelebration(fixtureId)
+    }
+  }, [predictions, triggerCelebration])
 
   const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
     // Look up round for this fixture
@@ -163,8 +184,9 @@ export default function PredictPage() {
     } catch { toast.error('Network error — prediction not saved') }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      triggerCelebration(fixtureId)
     }
-  }, [fixtures])
+  }, [fixtures, triggerCelebration])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
     setSaving(prev => new Set(prev).add(fixtureId))
@@ -177,8 +199,9 @@ export default function PredictPage() {
     } catch { /* silent — user sees saving indicator */ }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      triggerCelebration(fixtureId)
     }
-  }, [])
+  }, [triggerCelebration])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
@@ -337,6 +360,25 @@ export default function PredictPage() {
     })?.id ?? null
   }, [visibleFixtures, results, predictions, roundLocks])
 
+  // Keep ref current so triggerCelebration's setTimeout closure always reads the latest value
+  useEffect(() => { nextUnpredictedIdRef.current = nextUnpredictedId }, [nextUnpredictedId])
+
+  // All-done detection: fire confetti when a tab transitions from partial → fully predicted
+  useEffect(() => {
+    if (loading) return
+    const cnt = roundPredCounts[activeRound]
+    if (!cnt || cnt.total === 0) return
+    const prev = prevRoundPredCountsRef.current[activeRound]
+    prevRoundPredCountsRef.current[activeRound] = cnt
+    if (!prev) return // first render for this tab — record baseline, no celebration
+    if (cnt.entered === cnt.total && prev.entered < cnt.total && !tabCompletionFired.current.has(activeRound)) {
+      tabCompletionFired.current.add(activeRound)
+      setAllDoneBanner(ROUND_TAB_LABEL[activeRound] ?? activeRound)
+      confetti({ particleCount: 130, spread: 80, origin: { y: 0.55 }, colors: ['#22c55e', '#16a34a', '#fbbf24', '#f59e0b'] })
+      setTimeout(() => setAllDoneBanner(null), 4000)
+    }
+  }, [roundPredCounts, activeRound, loading])
+
   const renderMatchRow = (f: Fixture) => (
     <MatchRow
       key={f.id}
@@ -346,6 +388,7 @@ export default function PredictPage() {
       result={results[f.id] ?? null}
       locked={isLocked(f)}
       saving={saving.has(f.id)}
+      celebrating={celebrating.has(f.id)}
       isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
       scoringConfig={scoringConfig}
       timezone={timezone}
@@ -492,6 +535,34 @@ export default function PredictPage() {
         {...roundScoreBarProps}
       />
 
+      {/* Progress bar */}
+      {(() => {
+        const cnt = roundPredCounts[activeRound]
+        if (!cnt || cnt.total === 0) return null
+        const pct = Math.round((cnt.entered / cnt.total) * 100)
+        return (
+          <div className="mb-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={clsx(
+                'h-full rounded-full transition-all duration-500 ease-out',
+                pct === 100 ? 'bg-green-500' : 'bg-gradient-to-r from-amber-400 to-green-400'
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )
+      })()}
+
+      {/* All-done banner */}
+      {allDoneBanner && (
+        <div className="mb-3 flex items-center gap-3 bg-green-50 border border-green-300 rounded-xl px-4 py-3">
+          <span className="text-xl">🎉</span>
+          <div>
+            <p className="text-sm font-bold text-green-800">You&apos;re all locked in!</p>
+            <p className="text-xs text-green-600">{allDoneBanner} predictions complete</p>
+          </div>
+        </div>
+      )}
 
       {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
@@ -511,7 +582,10 @@ export default function PredictPage() {
               <div className="h-px flex-1 bg-gray-200" />
             </div>
             {dayFixtures.map(f => (
-              <div key={f.id}>
+              <div
+                key={f.id}
+                ref={el => { if (el) fixtureRefs.current.set(f.id, el); else fixtureRefs.current.delete(f.id) }}
+              >
                 {/* "Predict next" indicator — first unpredicted fixture */}
                 {f.id === nextUnpredictedId && (
                   <div className="flex items-center gap-2 mb-1.5">
