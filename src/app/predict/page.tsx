@@ -259,7 +259,7 @@ export default function PredictPage() {
   const roundPredCounts = useMemo(() => {
     const counts: Record<string, { entered: number; total: number }> = {}
     for (const tab of ROUND_TABS) {
-      const fs = TAB_TO_ROUNDS[tab].flatMap(rid => fixtures[rid] ?? [])
+      const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
         if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
@@ -268,7 +268,7 @@ export default function PredictPage() {
       counts[tab] = { entered, total: fs.length }
     }
     return counts
-  }, [fixtures, predictions])
+  }, [fixtures, predictions, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
 
   // Global stats
   const globalStats = useMemo(() => {
@@ -316,7 +316,7 @@ export default function PredictPage() {
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
     const sc  = getScoringForTab(activeRound, scoringConfig)
-    const fs  = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
+    const fs  = (TAB_TO_ROUNDS[activeRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
     let pts = 0, exactCt = 0, correctCt = 0, played = 0
     for (const f of fs) {
       const r = results[f.id]
@@ -335,11 +335,11 @@ export default function PredictPage() {
 
   // Fixtures sorted chronologically
   const visibleFixtures = useMemo(() => {
-    const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
+    const fs = (TAB_TO_ROUNDS[activeRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
     return [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
-  }, [fixtures, activeRound])
+  }, [fixtures, activeRound, TAB_TO_ROUNDS])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
