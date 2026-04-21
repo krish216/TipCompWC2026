@@ -6,14 +6,13 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
-import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin, selectedCompId, adminComps } = useUserPrefs()
+  const { isCompAdmin, selectedCompId } = useUserPrefs()
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -26,7 +25,6 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
     ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
     { href: '/leaderboard', label: 'ScoreBoard' },
     { href: '/tribe',       label: 'My Tribe'  },
-    { href: '/rules',       label: 'Rules'     },
   ]
 
   return (
@@ -53,7 +51,16 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                 </Link>
               ))}
               {isCompAdmin && selectedCompId && (
-                <CompAdminMenu adminComps={adminComps} />
+                <Link href="/comp-admin"
+                  className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    pathname.startsWith('/comp-admin') ? 'bg-blue-50 text-blue-700' : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                  )}>
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" fill="currentColor"/>
+                    <path fillRule="evenodd" clipRule="evenodd" d="M5.612 1.223a.75.75 0 0 1 .734-.596h1.308a.75.75 0 0 1 .734.596l.17.859a4.02 4.02 0 0 1 .748.435l.824-.29a.75.75 0 0 1 .905.317l.654 1.133a.75.75 0 0 1-.15.937l-.642.568a4.08 4.08 0 0 1 0 .836l.642.568a.75.75 0 0 1 .15.937l-.654 1.133a.75.75 0 0 1-.905.318l-.824-.29a4.02 4.02 0 0 1-.748.434l-.17.86a.75.75 0 0 1-.734.596H6.346a.75.75 0 0 1-.734-.596l-.17-.86a4.02 4.02 0 0 1-.748-.434l-.824.29a.75.75 0 0 1-.905-.318L2.311 8.323a.75.75 0 0 1 .15-.937l.642-.568a4.08 4.08 0 0 1 0-.836l-.642-.568a.75.75 0 0 1-.15-.937l.654-1.133a.75.75 0 0 1 .905-.318l.824.29a4.02 4.02 0 0 1 .748-.434l.17-.86ZM7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"/>
+                  </svg>
+                  Manage
+                </Link>
               )}
               {isAdmin && (
                 <Link href="/admin"
