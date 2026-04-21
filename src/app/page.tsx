@@ -477,21 +477,35 @@ export default function HomePage() {
                 </p>
               )}
 
-              {/* ── Fav team (only if multiple tournaments or no fav set) ── */}
+              {/* ── Fav team picker ── */}
               {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
-                <div className="mb-3">
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-amber-800">⭐ Pick your favourite team</p>
+                    {started
+                      ? <span className="text-[10px] font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">Locked — tournament started</span>
+                      : <span className="text-[10px] text-amber-600">Locks at kickoff · Jun 11</span>
+                    }
+                  </div>
                   <select
                     value={favTeam}
-                    onChange={e => saveFavTeam(e.target.value)}
-                    disabled={savingFav}
-                    className={`w-full px-3 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-green-400 bg-white transition-colors ${
-                      favTeam ? 'border-green-300 text-green-700 font-medium' : 'border-gray-200 text-gray-400'
+                    onChange={e => !started && saveFavTeam(e.target.value)}
+                    disabled={savingFav || started}
+                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors ${
+                      started
+                        ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-60'
+                        : favTeam
+                        ? 'border-amber-300 text-amber-800 font-medium bg-white'
+                        : 'border-amber-200 text-gray-400 bg-white'
                     }`}>
-                    <option value="">⭐ Pick your favourite team — earn 2× pts (Grp & R32)</option>
+                    <option value="">Choose a team…</option>
                     {(selectedTourn.teams as string[]).sort().map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
+                  <p className="text-[10px] text-amber-700 mt-1.5">
+                    Earns you <strong>2× points</strong> on all Group Stage &amp; Round of 32 matches for your chosen team.
+                  </p>
                 </div>
               )}
 
@@ -728,6 +742,11 @@ export default function HomePage() {
               {kickoffStr && <><span>🗓 Kickoff: {kickoffStr}</span><span>·</span></>}
               {t?.kickoff_venue && <><span>🏟 {t.kickoff_venue}</span><span>·</span></>}
               {finalStr && t?.final_venue && <span>🏆 Final: {finalStr}, {t.final_venue}</span>}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <Link href="/rules" className="text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1">
+                📖 View scoring rules &amp; how to play →
+              </Link>
             </div>
           </div>
         )

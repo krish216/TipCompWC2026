@@ -356,14 +356,15 @@ export function CompAdminMenu({ adminComps }: { adminComps?: Comp[] }) {
 
   return (
     <>
-      {/* Hamburger button */}
-      <button onClick={() => setOpen(true)} style={{
-        display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px',
-        background: 'none', border: 'none', cursor: 'pointer',
-      }} aria-label="Comp admin menu">
-        {[0,1,2].map(i => (
-          <span key={i} style={{ display: 'block', width: 18, height: 1.5, background: 'var(--color-text-secondary)', borderRadius: 2 }}/>
-        ))}
+      {/* Manage button */}
+      <button onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+        aria-label="Manage comp">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" fill="currentColor"/>
+          <path fillRule="evenodd" clipRule="evenodd" d="M5.612 1.223a.75.75 0 0 1 .734-.596h1.308a.75.75 0 0 1 .734.596l.17.859a4.02 4.02 0 0 1 .748.435l.824-.29a.75.75 0 0 1 .905.317l.654 1.133a.75.75 0 0 1-.15.937l-.642.568a4.08 4.08 0 0 1 0 .836l.642.568a.75.75 0 0 1 .15.937l-.654 1.133a.75.75 0 0 1-.905.318l-.824-.29a4.02 4.02 0 0 1-.748.434l-.17.86a.75.75 0 0 1-.734.596H6.346a.75.75 0 0 1-.734-.596l-.17-.86a4.02 4.02 0 0 1-.748-.434l-.824.29a.75.75 0 0 1-.905-.318L2.311 8.323a.75.75 0 0 1 .15-.937l.642-.568a4.08 4.08 0 0 1 0-.836l-.642-.568a.75.75 0 0 1-.15-.937l.654-1.133a.75.75 0 0 1 .905-.318l.824.29a4.02 4.02 0 0 1 .748-.434l.17-.86ZM7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"/>
+        </svg>
+        Manage
       </button>
 
       {/* Overlay backdrop */}

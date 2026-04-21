@@ -6,26 +6,28 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
-
-const NAV_BASE = [
-  { href: '/',            label: 'My Comps'    },
-  { href: '/leaderboard', label: 'ScoreBoard' },
-  { href: '/tribe',       label: 'My Tribe' },
-  { href: '/rules',       label: 'Rules'      },
-]
+import { CompAdminMenu } from '@/components/layout/CompAdminMenu'
 
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()
 
-  const { isCompAdmin, selectedCompId } = useUserPrefs()
+  const { isCompAdmin, selectedCompId, adminComps } = useUserPrefs()
 
   const signOut = async () => {
     await supabase.auth.signOut()
     router.push('/')
     router.refresh()
   }
+
+  const navItems = [
+    { href: '/',            label: 'My Comps'  },
+    ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
+    { href: '/leaderboard', label: 'ScoreBoard' },
+    { href: '/tribe',       label: 'My Tribe'  },
+    { href: '/rules',       label: 'Rules'     },
+  ]
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200">
@@ -40,10 +42,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
           {/* Nav links — only shown when logged in */}
           {session && (
             <div className="flex items-center gap-0.5 overflow-x-auto">
-              {[
-                  ...(selectedCompId ? [{ href: '/predict', label: 'Predict' }] : []),
-                  ...NAV_BASE,
-                ].map(item => (
+              {navItems.map(item => (
                 <Link key={item.href} href={item.href}
                   className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
                     (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))
@@ -53,12 +52,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                   {item.label}
                 </Link>
               ))}
-              {isCompAdmin && (
-                <Link href="/comp-admin"
-                  className={clsx('px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                    pathname.startsWith('/comp-admin') ? 'bg-blue-50 text-blue-700' : 'text-blue-500 hover:text-blue-700 hover:bg-blue-50')}>
-                  Comp Admin
-                </Link>
+              {isCompAdmin && selectedCompId && (
+                <CompAdminMenu adminComps={adminComps} />
               )}
               {isAdmin && (
                 <Link href="/admin"
