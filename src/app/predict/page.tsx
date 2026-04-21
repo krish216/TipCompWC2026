@@ -163,9 +163,6 @@ export default function PredictPage() {
       })
     } catch { toast.error('Network error — prediction not saved') }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-    setStreak(s => s + 1)
-    setShowStreakBurst(true)
-    setTimeout(() => setShowStreakBurst(false), 2000)
   }, [fixtures])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
@@ -178,9 +175,6 @@ export default function PredictPage() {
       })
     } catch { /* silent — user sees saving indicator */ }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-    setStreak(s => s + 1)
-    setShowStreakBurst(true)
-    setTimeout(() => setShowStreakBurst(false), 2000)
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
@@ -201,23 +195,23 @@ export default function PredictPage() {
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
 
-  // Track streak by counting how many predictions exist — increments each time a new one saves
+  // Track streak via prediction count changes
   const predCountRef = React.useRef(0)
   useEffect(() => {
     const count = Object.keys(predictions).length
     if (count > predCountRef.current) {
-      const diff = count - predCountRef.current
       predCountRef.current = count
-      setStreak(s => {
-        const next = s + diff
-        if (next >= 3) {
-          setShowStreakBurst(true)
-          setTimeout(() => setShowStreakBurst(false), 2000)
-        }
-        return next
-      })
+      setStreakCount(s => s + 1)
     }
   }, [predictions])
+
+  useEffect(() => {
+    if (streakCount >= 3) {
+      setShowStreakBurst(true)
+      const t = setTimeout(() => setShowStreakBurst(false), 2000)
+      return () => clearTimeout(t)
+    }
+  }, [streakCount])
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
@@ -466,20 +460,20 @@ export default function PredictPage() {
         <div className="mb-3 flex items-center justify-center gap-2 bg-green-600 rounded-xl px-4 py-2.5 animate-bounce">
           <span className="text-lg">🔥</span>
           <span className="text-sm font-bold text-white">
-            {streak} in a row — you're on fire!
+            {streakCount} in a row — you're on fire!
           </span>
         </div>
       )}
 
       {/* Ongoing streak indicator (subtle, always visible after first pick) */}
-      {streak > 0 && !showStreakBurst && (
+      {streakCount > 0 && !showStreakBurst && (
         <div className="mb-3 flex items-center gap-1.5 px-1">
-          {Array.from({ length: Math.min(streak, 8) }).map((_, i) => (
+          {Array.from({ length: Math.min(streakCount, 8) }).map((_, i) => (
             <div key={i} className="w-2 h-2 rounded-full bg-green-400 opacity-80" />
           ))}
-          {streak > 8 && <span className="text-xs text-green-500 font-semibold">+{streak - 8}</span>}
+          {streakCount > 8 && <span className="text-xs text-green-500 font-semibold">+{streakCount - 8}</span>}
           <span className="text-xs text-green-600 font-medium ml-1">
-            {streak === 1 ? '1 pick made' : `${streak} picks — keep going`}
+            {streakCount === 1 ? '1 pick made' : `${streakCount} picks — keep going`}
           </span>
         </div>
       )}
