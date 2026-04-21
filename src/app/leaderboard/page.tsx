@@ -506,9 +506,14 @@ export default function LeaderboardPage() {
                           <div className="flex gap-2 flex-wrap">
                             {(Object.entries(entry.round_breakdown) as [RoundId, number][])
                               .filter(([, pts]) => pts > 0)
+                              .sort(([a], [b]) => {
+                                const ai = ROUND_ORDER.indexOf(a as RoundId)
+                                const bi = ROUND_ORDER.indexOf(b as RoundId)
+                                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+                              })
                               .map(([round, pts]) => (
                                 <div key={round} className="flex flex-col items-center bg-white border border-gray-200 rounded-md px-2.5 py-1.5">
-                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}</span>
+                                  <span className="text-[10px] text-gray-500">{scoringConfig.rounds[round as RoundId]?.round_name ?? round}</span>
                                   <span className="text-sm font-semibold text-gray-800">{pts}</span>
                                 </div>
                               ))}

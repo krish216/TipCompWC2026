@@ -1340,11 +1340,6 @@ export default function TribePage() {
 }
 
 // ── Tribe Standings (cross-tab by round) ─────────────────────────────────────
-const ROUND_ORDER_DISPLAY = ['gs','r32','r16','qf','sf','tp','f'] as const
-const ROUND_SHORT: Record<string, string> = {
-  gs:'GS', r32:'R32', r16:'R16', qf:'QF', sf:'SF', tp:'3rd', f:'FIN'
-}
-
 function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksLoading }: {
   members: Member[]
   myId: string
@@ -1352,6 +1347,23 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
   onLoadPicks: () => void
   picksLoading: boolean
 }) {
+  const { scoringConfig } = useUserPrefs()
+
+  // Round order and short labels derived from tournament_rounds (via scoringConfig)
+  const roundOrderDisplay = useMemo(() =>
+    Object.values(scoringConfig.rounds)
+      .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
+      .map(r => r.round_code)
+  , [scoringConfig])
+
+  const roundShort = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const r of Object.values(scoringConfig.rounds)) {
+      map[r.round_code] = r.round_code.toUpperCase()
+    }
+    return map
+  }, [scoringConfig])
+
   // Load picks on mount if not yet loaded
   useEffect(() => {
     if (!tribePicksData && !picksLoading) onLoadPicks()
@@ -1376,8 +1388,8 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
     return breakdown
   }, [tribePicksData, members])
 
-  // Which rounds have any data
-  const activeRounds = ROUND_ORDER_DISPLAY.filter(r =>
+  // Which rounds have any data, in tournament_rounds order
+  const activeRounds = roundOrderDisplay.filter(r =>
     members.some(m => (roundBreakdown[m.user_id]?.[r] ?? 0) > 0)
   )
 
@@ -1400,7 +1412,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
                 ? <th className="px-3 py-2.5 text-[11px] font-semibold text-gray-400">Awaiting results</th>
                 : activeRounds.map(r => (
                   <th key={r} className="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide min-w-[44px]">
-                    {ROUND_SHORT[r]}
+                    {roundShort[r] ?? r.toUpperCase()}
                   </th>
                 ))
               }
@@ -1470,10 +1482,9 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
       {activeRounds.length > 0 && (
         <div className="mt-2 flex gap-3 flex-wrap text-[11px] text-gray-400">
           {activeRounds.map(r => (
-            <span key={r}><span className="font-medium text-gray-500">{ROUND_SHORT[r]}</span> = {
-              r==='gs'?'Group Stage':r==='r32'?'Round of 32':r==='r16'?'Round of 16':
-              r==='qf'?'Quarter-finals':r==='sf'?'Semi-finals':r==='tp'?'3rd Place':'Final'
-            }</span>
+            <span key={r}>
+              <span className="font-medium text-gray-500">{roundShort[r] ?? r.toUpperCase()}</span> = {scoringConfig.rounds[r as RoundId]?.round_name ?? r}
+            </span>
           ))}
         </div>
       )}
