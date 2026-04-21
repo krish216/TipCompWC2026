@@ -14,7 +14,7 @@ import toast from 'react-hot-toast'
 
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
-type FixtureMap = Record<string, Fixture[]>
+type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
 type RoundTab = string
 
@@ -25,29 +25,30 @@ export default function PredictPage() {
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
   // Build round tabs dynamically from tournament_rounds (via scoringConfig).
-  // Use useMemo to avoid re-computation and potential re-render loops.
-  const roundTabState = useMemo(() => buildRoundTabs(scoringConfig), [scoringConfig])
+  // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
+  // server renders with default config, client loads real config — keeping them in sync
+  // via state means React never sees a mismatch between server and client HTML.
+  const [roundTabState, setRoundTabState] = useState(() => buildRoundTabs(getDefaultScoringConfig()))
+  useEffect(() => {
+    const next = buildRoundTabs(scoringConfig)
+    setRoundTabState(next)
+    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
+    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? 'gs'))
+  }, [scoringConfig])
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
-  const defaultTab: RoundTab = ROUND_TABS[0] ?? ''
 
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
-  const [activeRound,   setActiveRound]   = useState<RoundTab>('')
+  const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
-  const [editingFixture, setEditingFixture] = useState<number | null>(null)
-  const [celebrationFixture, setCelebrationFixture] = useState<number | null>(null)
+  const [showFilter,    setShowFilter]    = useState<'pending' | 'all'>('pending')
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
 
   const saveTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
-  const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    setActiveRound(prev => ROUND_TABS.includes(prev) ? prev : (ROUND_TABS[0] ?? ''))
-  }, [ROUND_TABS])
 
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
@@ -67,26 +68,13 @@ export default function PredictPage() {
           fxRes.json(), predRes.json(), resRes.json(), locksRes.json(),
         ])
 
-        // Fixtures by tab_group (or round as fallback)
+        // Fixtures by round
         const byRound: FixtureMap = {}
         for (const f of (fxData.data ?? []) as Fixture[]) {
-          const key = f.tab_group || f.round
-          if (!byRound[key]) byRound[key] = []
-          byRound[key].push(f)
+          if (!byRound[f.round]) byRound[f.round] = []
+          byRound[f.round]!.push(f)
         }
         setFixtures(byRound)
-        // Set active round to the first round that has fixtures (by kickoff order)
-        const firstRoundWithFixtures = Object.keys(byRound)
-          .sort((a, b) => {
-            const aFirst = (byRound as any)[a]?.[0]?.kickoff_utc ?? ''
-            const bFirst = (byRound as any)[b]?.[0]?.kickoff_utc ?? ''
-            return aFirst.localeCompare(bFirst)
-          })[0]
-        if (firstRoundWithFixtures) {
-          // Map round_code to tab_group
-          const tabGroup = (byRound as any)[firstRoundWithFixtures]?.[0]?.tab_group ?? firstRoundWithFixtures
-          setActiveRound(tabGroup)
-        }
 
         // Predictions map
         const pm: PredMap = {}
@@ -127,16 +115,6 @@ export default function PredictPage() {
     load()
   }, [session])
 
-  const celebrateSavedFixture = useCallback((fixtureId: number) => {
-    if (editingFixture !== null) return
-    setCelebrationFixture(fixtureId)
-    if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
-    celebrationTimer.current = setTimeout(() => {
-      setCelebrationFixture(null)
-      celebrationTimer.current = null
-    }, 1500)
-  }, [editingFixture])
-
   const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
     setPredictions(prev => ({
       ...prev,
@@ -145,21 +123,16 @@ export default function PredictPage() {
     const p = predictions[fixtureId]
     if (!p) return
     setSaving(prev => new Set(prev).add(fixtureId))
-    let saved = false
     try {
       // Save outcome + pen_winner together (this is the completing action for knockout draws)
-      const res = await fetch('/api/predictions', {
+      await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome: p.outcome ?? null, pen_winner: team }] }),
       })
-      saved = res.ok
     } catch { toast.error('Network error — penalty pick not saved') }
-    finally {
-      setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
-      if (saved) celebrateSavedFixture(fixtureId)
-    }
-  }, [celebrateSavedFixture, predictions])
+    finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
+  }, [predictions])
 
   const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
     // Look up round for this fixture
@@ -182,37 +155,41 @@ export default function PredictPage() {
     if (needsPen) return
 
     setSaving(prev => new Set(prev).add(fixtureId))
-    let saved = false
     try {
-      const res = await fetch('/api/predictions', {
+      await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: null }] }),
       })
-      saved = res.ok
     } catch { toast.error('Network error — prediction not saved') }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
-      if (saved) celebrateSavedFixture(fixtureId)
+      setStreak(prev => {
+        const next = prev + 1
+        if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
+        return next
+      })
     }
-  }, [fixtures, celebrateSavedFixture])
+  }, [fixtures])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
     setSaving(prev => new Set(prev).add(fixtureId))
-    let saved = false
     try {
-      const res = await fetch('/api/predictions', {
+      await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
       })
-      saved = res.ok
     } catch { /* silent — user sees saving indicator */ }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
-      if (saved) celebrateSavedFixture(fixtureId)
+      setStreak(prev => {
+        const next = prev + 1
+        if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
+        return next
+      })
     }
-  }, [celebrateSavedFixture])
+  }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
@@ -234,11 +211,11 @@ export default function PredictPage() {
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return (TAB_TO_ROUNDS[defaultTab] ?? []).includes(roundId)
+    if (!hasLocks) return roundId === (ROUND_TABS[0] ?? 'gs')
     // Use tab_group from scoringConfig as the lock key fallback
     const tabGroup = scoringConfig.rounds[roundId]?.tab_group ?? roundId
     return !!roundLocks[roundId] || !!roundLocks[tabGroup]
-  }, [roundLocks, scoringConfig, TAB_TO_ROUNDS, defaultTab])
+  }, [roundLocks, scoringConfig, ROUND_TABS])
 
   const isLocked = useCallback((f: Fixture) => {
     if (!isRoundOpen(f.round)) return true
@@ -247,25 +224,23 @@ export default function PredictPage() {
   }, [isRoundOpen])
 
   // Current open round tab
-  const safeActiveRound = ROUND_TABS.includes(activeRound) ? activeRound : defaultTab
-
   const currentRoundTab = useMemo(() => {
     const hasLocks = Object.keys(roundLocks).length > 0
-    if (!hasLocks) return defaultTab
+    if (!hasLocks) return ROUND_TABS[0] ?? 'gs'
     return ROUND_TABS.find(tab => {
       const rounds = TAB_TO_ROUNDS[tab] ?? []
       return rounds.some(r => {
         const tabGroup = scoringConfig.rounds[r]?.tab_group ?? r
         return !!roundLocks[r] || !!roundLocks[tabGroup]
       })
-    }) ?? defaultTab
+    }) ?? (ROUND_TABS[0] ?? 'gs')
   }, [roundLocks, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
 
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
     const counts: Record<string, { entered: number; total: number }> = {}
     for (const tab of ROUND_TABS) {
-      const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? [])
+      const fs = TAB_TO_ROUNDS[tab].flatMap(rid => fixtures[rid] ?? [])
       const entered = fs.filter(f => {
         const p = predictions[f.id]
         if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
@@ -289,8 +264,8 @@ export default function PredictPage() {
 
       if (r && pts !== null) {
         totalPts += pts
-        if (pts === sc.exact_bonus)                       exactCt++
-        else if (pts === sc.result_pts && pts > 0)      correctCt++
+        if (pts === sc.exact)                       exactCt++
+        else if (pts === sc.result && pts > 0)      correctCt++
       }
 
       // Count not-entered only for the current open tab's rounds
@@ -301,30 +276,6 @@ export default function PredictPage() {
     }
     return { totalPts, exactCt, correctCt, notEnteredCt }
   }, [allFixtures, predictions, results, currentRoundTab, isRoundOpen])
-
-  // Current prediction streak: consecutive correct predictions from most recent backwards
-  const currentStreak = useMemo(() => {
-    // Get all fixtures with results, sorted by kickoff (most recent first)
-    const completed = allFixtures
-      .filter(f => results[f.id])
-      .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime())
-    
-    let streak = 0
-    for (const f of completed) {
-      const p = predictions[f.id]
-      const r = results[f.id]
-      const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const pts = calcPoints(p, r, f.round, isFav, scoringConfig)
-      
-      // Count consecutive fixtures with points earned
-      if (pts && pts > 0) {
-        streak++
-      } else {
-        break // Stop at first incorrect prediction
-      }
-    }
-    return streak
-  }, [allFixtures, predictions, results, favouriteTeam, scoringConfig])
 
   // Points per tab
   const roundPoints = useMemo(() => {
@@ -345,8 +296,8 @@ export default function PredictPage() {
 
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
-    const sc  = getScoringForTab(safeActiveRound, scoringConfig)
-    const fs  = (TAB_TO_ROUNDS[safeActiveRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
+    const sc  = getScoringForTab(activeRound, scoringConfig)
+    const fs  = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
     let pts = 0, exactCt = 0, correctCt = 0, played = 0
     for (const f of fs) {
       const r = results[f.id]
@@ -357,20 +308,34 @@ export default function PredictPage() {
       const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
       const v       = hasPred ? (calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0) : 0
       pts += v
-      if (v === sc.exact_bonus)                  exactCt++
-      else if (v === sc.result_pts && v > 0)   correctCt++
+      if (v === sc.exact)                  exactCt++
+      else if (v === sc.result && v > 0)   correctCt++
     }
-    return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
-  }, [fixtures, safeActiveRound, predictions, results])
+    return { played, total: fs.length, pts, exactCt, correctCt }
+  }, [fixtures, activeRound, predictions, results])
 
-  // Fixtures sorted chronologically (no filtering)
+  // Fixtures sorted chronologically, with optional pending filter
   const visibleFixtures = useMemo(() => {
-    const fs = (TAB_TO_ROUNDS[safeActiveRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
+    const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[rid] ?? [])
     const sorted = [...fs].sort((a, b) =>
       new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
     )
-    return sorted
-  }, [fixtures, safeActiveRound])
+    if (showFilter === 'all') return sorted
+    // 'pending': unlocked fixtures with no prediction, OR knockout draw awaiting pen winner
+    const isIncomplete = (f: Fixture) => {
+      if (results[f.id] || isLocked(f)) return false
+      const p = predictions[f.id]
+      if (!p) return true  // no prediction at all
+      // Knockout draw with no pen winner selected = incomplete
+      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
+      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+      return false
+    }
+    const pending = sorted.filter(isIncomplete)
+    // If nothing pending, fall back to showing all so page isn't empty
+    return pending.length > 0 ? pending : sorted
+  }, [fixtures, activeRound, showFilter, results, predictions, roundLocks])
 
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
@@ -387,6 +352,24 @@ export default function PredictPage() {
   }, [visibleFixtures, timezone])
 
   // First fixture that needs a prediction (not locked, no result, no prediction)
+  // Fixtures that have been predicted but have no result yet — shown in completed tray
+  const completedFixtures = useMemo(() => {
+    const fs = TAB_TO_ROUNDS[activeRound].flatMap(rid => (fixtures as any)[rid] ?? []) as Fixture[]
+    return fs.filter(f => {
+      if (results[f.id] || isLocked(f)) return false  // exclude resulted/locked
+      const p = predictions[f.id]
+      if (!p) return false
+      const isScoreRound = !scoringConfig.outcome_rounds.includes(f.round)
+      if (isScoreRound && (p.home < 0 || p.away < 0)) return false  // partial score
+      if (isScoreRound && saving.has(f.id)) return false
+      const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+      const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
+      if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return false
+      if (isScoreRound && isKnockout && p.home === p.away && p.home >= 0 && !(p as any).pen_winner) return false
+      return true  // fully predicted
+    }).sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
+  }, [fixtures, activeRound, predictions, results, saving, scoringConfig, TAB_TO_ROUNDS])
+
   const nextUnpredictedId = useMemo(() => {
     return visibleFixtures.find(f => {
       if (results[f.id] || isLocked(f)) return false
@@ -397,16 +380,7 @@ export default function PredictPage() {
       if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
       return false
     })?.id ?? null
-  }, [visibleFixtures, results, predictions, roundLocks, scoringConfig])
-
-  useEffect(() => {
-    if (celebrationFixture === null) return
-    if (!nextUnpredictedId || nextUnpredictedId === celebrationFixture) return
-    const timer = window.setTimeout(() => {
-      document.getElementById(`fixture-row-${nextUnpredictedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 100)
-    return () => window.clearTimeout(timer)
-  }, [celebrationFixture, nextUnpredictedId])
+  }, [visibleFixtures, results, predictions, roundLocks])
 
   const renderMatchRow = (f: Fixture) => (
     <MatchRow
@@ -417,7 +391,6 @@ export default function PredictPage() {
       result={results[f.id] ?? null}
       locked={isLocked(f)}
       saving={saving.has(f.id)}
-      celebrating={celebrationFixture === f.id}
       isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
       scoringConfig={scoringConfig}
       timezone={timezone}
@@ -425,8 +398,6 @@ export default function PredictPage() {
       onPredict={onPredict}
       onOutcome={onOutcome}
       onPenWinner={onPenWinner}
-      onFocusScore={() => setEditingFixture(f.id)}
-      onBlurScore={() => setEditingFixture(null)}
     />
   )
 
@@ -436,7 +407,7 @@ export default function PredictPage() {
     </div>
   )
 
-  const activeRoundId: RoundId = (TAB_TO_ROUNDS[safeActiveRound]?.[0] ?? safeActiveRound) as RoundId
+  const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4">
@@ -458,11 +429,10 @@ export default function PredictPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         <StatCard label="Total pts"  value={globalStats.totalPts}    accent="green" />
         <StatCard label="Exact"      value={globalStats.exactCt}     accent="blue"  />
         <StatCard label="Correct"    value={globalStats.correctCt} />
-        <StatCard label="🔥 Streak"  value={currentStreak}           accent={currentStreak > 2 ? 'blue' : undefined} />
         <StatCard
           label={`To predict (${ROUND_TAB_LABEL[currentRoundTab]})`}
           value={globalStats.notEnteredCt}
@@ -477,6 +447,29 @@ export default function PredictPage() {
           <span>
             <strong>{globalStats.notEnteredCt}</strong> match{globalStats.notEnteredCt !== 1 ? 'es' : ''} in
             the <strong>{ROUND_TAB_LABEL[currentRoundTab]}</strong> still need your prediction
+          </span>
+        </div>
+      )}
+
+      {/* Streak burst — appears after 3+ consecutive picks */}
+      {showStreakBurst && (
+        <div className="mb-3 flex items-center justify-center gap-2 bg-green-600 rounded-xl px-4 py-2.5 animate-bounce">
+          <span className="text-lg">🔥</span>
+          <span className="text-sm font-bold text-white">
+            {streak} in a row — you're on fire!
+          </span>
+        </div>
+      )}
+
+      {/* Ongoing streak indicator (subtle, always visible after first pick) */}
+      {streak > 0 && !showStreakBurst && (
+        <div className="mb-3 flex items-center gap-1.5 px-1">
+          {Array.from({ length: Math.min(streak, 8) }).map((_, i) => (
+            <div key={i} className="w-2 h-2 rounded-full bg-green-400 opacity-80" />
+          ))}
+          {streak > 8 && <span className="text-xs text-green-500 font-semibold">+{streak - 8}</span>}
+          <span className="text-xs text-green-600 font-medium ml-1">
+            {streak === 1 ? '1 pick made' : `${streak} picks — keep going`}
           </span>
         </div>
       )}
@@ -496,42 +489,68 @@ export default function PredictPage() {
         </div>
       )}
 
-      {/* Round tabs */}
-      <div className="flex gap-1.5 flex-wrap mb-3">
-        {ROUND_TABS.map(tab => {
-          const cnt      = roundPredCounts[tab]
-          const pts      = roundPoints[tab]
-          const isActive = activeRound === tab
-          const allDone  = cnt && cnt.total > 0 && cnt.entered === cnt.total
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveRound(tab)}
-              className={clsx(
-                'relative px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
-                isActive ? 'bg-green-600 border-green-700 text-white' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-              )}
-            >
-              {ROUND_TAB_LABEL[tab]}
-              {pts != null && pts > 0 && (
+      {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
+      <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
+          {ROUND_TABS.map(tab => {
+            const cnt      = roundPredCounts[tab]
+            const pts      = roundPoints[tab]
+            const isActive = activeRound === tab
+            const allDone  = cnt && cnt.total > 0 && cnt.entered === cnt.total
+            const hasUnsaved = cnt && cnt.total > 0 && cnt.entered < cnt.total
+
+            return (
+              <button
+                key={tab}
+                onClick={() => { setActiveRound(tab); setShowFilter('pending') }}
+                className={clsx(
+                  'relative flex flex-col items-center justify-center',
+                  'px-3.5 py-2 rounded-lg transition-all duration-200 whitespace-nowrap',
+                  'text-xs font-semibold min-w-[72px]',
+                  isActive
+                    ? 'bg-white text-green-800 shadow-sm border border-gray-200'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
+                )}
+              >
+                {/* Tab label from DB tab_label field */}
                 <span className={clsx(
-                  'absolute -top-1.5 -right-1.5 text-[9px] font-semibold rounded-full px-1 min-w-[16px] text-center',
-                  isActive ? 'bg-amber-400 text-amber-900' : 'bg-amber-100 text-amber-700'
+                  'leading-tight',
+                  isActive ? 'text-green-800' : allDone ? 'text-gray-400' : 'text-gray-600'
                 )}>
-                  {pts}
+                  {ROUND_TAB_LABEL[tab]}
                 </span>
-              )}
-              {cnt && cnt.total > 0 && (
-                <span className={clsx(
-                  'block text-[9px] mt-0.5 font-normal',
-                  isActive ? 'text-green-200' : allDone ? 'text-green-500' : 'text-gray-400'
-                )}>
-                  {cnt.entered}/{cnt.total}
-                </span>
-              )}
-            </button>
-          )
-        })}
+
+                {/* Progress — prediction count */}
+                {cnt && cnt.total > 0 && (
+                  <span className={clsx(
+                    'text-[9px] font-medium mt-0.5 leading-none',
+                    isActive
+                      ? allDone ? 'text-green-500' : 'text-amber-500'
+                      : allDone ? 'text-green-400' : 'text-gray-400'
+                  )}>
+                    {allDone ? '✓ done' : `${cnt.entered}/${cnt.total}`}
+                  </span>
+                )}
+
+                {/* Points badge — top right */}
+                {pts != null && pts > 0 && (
+                  <span className={clsx(
+                    'absolute -top-1 -right-1 text-[9px] font-bold rounded-full',
+                    'px-1 min-w-[16px] text-center leading-4',
+                    isActive ? 'bg-amber-400 text-amber-900' : 'bg-amber-100 text-amber-600'
+                  )}>
+                    {pts}
+                  </span>
+                )}
+
+                {/* Unsaved dot — bottom of inactive tab */}
+                {!isActive && hasUnsaved && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-400" />
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Round score bar */}
@@ -539,6 +558,47 @@ export default function PredictPage() {
         round={activeRoundId}
         {...roundScoreBarProps}
       />
+
+      {/* Filter toggle */}
+      {(() => {
+        const allFs = TAB_TO_ROUNDS[activeRound].flatMap(rid => fixtures[activeRound] ?? fixtures[rid] ?? [])
+        const pendingCount = allFs.filter(f => {
+          if (results[f.id] || isLocked(f)) return false
+          const p = predictions[f.id]
+          if (!p) return true
+          const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
+          const isOutcome  = scoringConfig.outcome_rounds.includes(f.round)
+          if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
+          return false
+        }).length
+        return pendingCount > 0 ? (
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setShowFilter('pending')}
+                className={clsx(
+                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                  showFilter === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                ⚡ To predict ({pendingCount})
+              </button>
+              <button
+                onClick={() => setShowFilter('all')}
+                className={clsx(
+                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                  showFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                All fixtures
+              </button>
+            </div>
+            {showFilter === 'pending' && (
+              <span className="text-[11px] text-amber-600">Showing unpredicted matches only</span>
+            )}
+          </div>
+        ) : null
+      })()}
 
       {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
@@ -558,7 +618,7 @@ export default function PredictPage() {
               <div className="h-px flex-1 bg-gray-200" />
             </div>
             {dayFixtures.map(f => (
-              <div key={f.id} id={`fixture-row-${f.id}`}>
+              <div key={f.id}>
                 {/* "Predict next" indicator — first unpredicted fixture */}
                 {f.id === nextUnpredictedId && (
                   <div className="flex items-center gap-2 mb-1.5">
@@ -574,6 +634,72 @@ export default function PredictPage() {
           </div>
         ))
       )}
+
+      {/* ── Completed predictions tray ──────────────────────────────────── */}
+      {completedFixtures.length > 0 && showFilter === 'pending' && (
+        <div className="mt-6 border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <button
+            onClick={() => setCompletedTrayOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm">✅</span>
+              <span className="text-xs font-semibold text-gray-600">
+                {completedFixtures.length} predicted
+              </span>
+              <div className="flex gap-0.5 ml-1">
+                {completedFixtures.slice(0, 5).map(f => {
+                  const p = predictions[f.id]
+                  const isOutcome = scoringConfig.outcome_rounds.includes(f.round)
+                  const label = isOutcome
+                    ? (p as any).outcome === 'H' ? '🏠' : (p as any).outcome === 'A' ? '✈️' : '🤝'
+                    : `${p?.home}-${p?.away}`
+                  return (
+                    <span key={f.id} className="text-[10px] bg-green-100 text-green-700 rounded px-1 font-mono font-semibold">
+                      {label}
+                    </span>
+                  )
+                })}
+                {completedFixtures.length > 5 && (
+                  <span className="text-[10px] text-gray-400">+{completedFixtures.length - 5}</span>
+                )}
+              </div>
+            </div>
+            <span className="text-xs text-gray-400">{completedTrayOpen ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+
+          {completedTrayOpen && (
+            <div className="divide-y divide-gray-100">
+              {completedFixtures.map(f => {
+                const p = predictions[f.id]
+                const isOutcome = scoringConfig.outcome_rounds.includes(f.round)
+                const outcomeLabel = isOutcome
+                  ? (p as any).outcome === 'H' ? `${f.home} win` : (p as any).outcome === 'A' ? `${f.away} win` : 'Draw'
+                  : `${p?.home} – ${p?.away}`
+                return (
+                  <div key={f.id} className="flex items-center justify-between px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 truncate">
+                        {f.home} vs {f.away}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        {new Date(f.kickoff_utc).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-0.5">
+                        {outcomeLabel}
+                      </span>
+                      <span className="text-green-500 text-xs">✓</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   )
 }
