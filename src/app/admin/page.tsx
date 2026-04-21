@@ -499,13 +499,13 @@ export default function AdminPage() {
                   <span className="text-[11px] text-gray-400">{gFs.filter(f => results[f.id]).length}/{gFs.length}</span>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  {gFs.map(f => <AdminResultRow key={f.id} fixture={f} result={results[f.id]} onSave={handleSave} onClear={handleClear} />)}
+                  {gFs.map(f => <AdminResultRow key={f.id} fixture={f} result={results[f.id]} knockoutRounds={KNOCKOUT_ROUNDS} onSave={handleSave} onClear={handleClear} />)}
                 </div>
               </div>
             ))
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-              {visibleFixtures.map(f => <AdminResultRow key={f.id} fixture={f} result={results[f.id]} onSave={handleSave} onClear={handleClear} />)}
+              {visibleFixtures.map(f => <AdminResultRow key={f.id} fixture={f} result={results[f.id]} knockoutRounds={KNOCKOUT_ROUNDS} onSave={handleSave} onClear={handleClear} />)}
             </div>
           )}
         </div>
