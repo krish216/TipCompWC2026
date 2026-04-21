@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -163,11 +163,9 @@ export default function PredictPage() {
       })
     } catch { toast.error('Network error — prediction not saved') }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-    setStreak(prev => {
-      const next = prev + 1
-      if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
-      return next
-    })
+    setStreak(s => s + 1)
+    setShowStreakBurst(true)
+    setTimeout(() => setShowStreakBurst(false), 2000)
   }, [fixtures])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
@@ -180,11 +178,9 @@ export default function PredictPage() {
       })
     } catch { /* silent — user sees saving indicator */ }
     finally { setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s }) }
-    setStreak(prev => {
-      const next = prev + 1
-      if (next >= 3) { setShowStreakBurst(true); setTimeout(() => setShowStreakBurst(false), 2000) }
-      return next
-    })
+    setStreak(s => s + 1)
+    setShowStreakBurst(true)
+    setTimeout(() => setShowStreakBurst(false), 2000)
   }, [])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
@@ -204,6 +200,24 @@ export default function PredictPage() {
 
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
+
+  // Track streak by counting how many predictions exist — increments each time a new one saves
+  const predCountRef = React.useRef(0)
+  useEffect(() => {
+    const count = Object.keys(predictions).length
+    if (count > predCountRef.current) {
+      const diff = count - predCountRef.current
+      predCountRef.current = count
+      setStreak(s => {
+        const next = s + diff
+        if (next >= 3) {
+          setShowStreakBurst(true)
+          setTimeout(() => setShowStreakBurst(false), 2000)
+        }
+        return next
+      })
+    }
+  }, [predictions])
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
