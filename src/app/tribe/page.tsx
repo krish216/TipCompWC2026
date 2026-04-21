@@ -1496,6 +1496,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
 function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: {
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
 }) {
+  const { scoringConfig } = useUserPrefs()
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
   const [activePickRound, setActivePickRound] = useState<string>('gs')
 
@@ -1564,11 +1565,18 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
     }
   }
 
-  const roundOrder = ['gs','r32','r16','qf','sf','tp','f']
-  const roundLabels: Record<string, string> = {
-    gs:'Group Stage', r32:'Round of 32', r16:'Round of 16',
-    qf:'Quarter-finals', sf:'Semi-finals', tp:'3rd Place', f:'Final',
-  }
+  const roundOrder = useMemo(() =>
+    Object.values(scoringConfig.rounds)
+      .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
+      .map(r => r.round_code)
+  , [scoringConfig])
+
+  const roundLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const r of Object.values(scoringConfig.rounds)) map[r.round_code] = r.round_name
+    return map
+  }, [scoringConfig])
+
   const byRound: Record<string, any[]> = {}
   for (const f of fixtures) {
     if (!byRound[f.round]) byRound[f.round] = []
