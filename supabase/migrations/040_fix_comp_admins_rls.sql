@@ -1,20 +1,40 @@
--- Migration 040 — fix comp_admins RLS so users can read their own rows
--- This is needed for the client-side CompAdminMenu check
+-- Migration 040 — fix RLS on comp_admins and user_comps
+-- These tables had policies causing infinite recursion (policies referencing each other)
 
--- Check existing policies
-SELECT policyname, cmd, qual FROM pg_policies WHERE tablename = 'comp_admins';
+-- ── comp_admins ──────────────────────────────────────────────────────────────
+-- Drop ALL existing policies first
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT policyname FROM pg_policies WHERE tablename = 'comp_admins' LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.comp_admins', r.policyname);
+  END LOOP;
+END $$;
 
--- Drop all existing and recreate clean
-DROP POLICY IF EXISTS "comp_admins_self_read"   ON public.comp_admins;
-DROP POLICY IF EXISTS "comp_admins_read"         ON public.comp_admins;
-DROP POLICY IF EXISTS "org_admins_self"          ON public.comp_admins;
-DROP POLICY IF EXISTS "comp_admin_read"          ON public.comp_admins;
-
--- Simple self-read: a user can see their own comp_admin rows
+-- Single safe policy: users can read their own rows only
 CREATE POLICY "comp_admins_self_read" ON public.comp_admins
   FOR SELECT USING (auth.uid() = user_id);
 
+-- Admins need insert/update — tournament admins use service role (bypasses RLS)
+-- so no additional policies needed for writes
+
+-- ── user_comps ───────────────────────────────────────────────────────────────
+-- Drop any policy that references comp_admins (the recursion source)
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT policyname FROM pg_policies WHERE tablename = 'user_comps' LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.user_comps', r.policyname);
+  END LOOP;
+END $$;
+
+CREATE POLICY "user_comps_self" ON public.user_comps
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- Verify
-SELECT policyname, cmd FROM pg_policies WHERE tablename = 'comp_admins';
+SELECT tablename, policyname, cmd
+FROM pg_policies
+WHERE tablename IN ('comp_admins', 'user_comps')
+ORDER BY tablename, policyname;
 
 SELECT 'Migration 040 complete' AS status;

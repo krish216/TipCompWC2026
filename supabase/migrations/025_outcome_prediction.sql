@@ -181,3 +181,73 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- ── Addendum: sf is now an exact-score round ──────────────────────────────
+-- Update is_exact_round in the scoring trigger to include sf
+CREATE OR REPLACE FUNCTION score_predictions_for_fixture()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  sc_result  smallint;
+  sc_exact   smallint;
+  is_fav_round boolean;
+  is_exact_round boolean;
+  is_knockout_round boolean;
+BEGIN
+  SELECT
+    CASE NEW.round
+      WHEN 'gs'  THEN 3  WHEN 'r32' THEN 5  WHEN 'r16' THEN 7
+      WHEN 'qf'  THEN 10 WHEN 'sf'  THEN 15 WHEN 'tp'  THEN 5
+      WHEN 'f'   THEN 25
+    END,
+    CASE NEW.round
+      WHEN 'gs'  THEN 5  WHEN 'r32' THEN 8  WHEN 'r16' THEN 10
+      WHEN 'qf'  THEN 14 WHEN 'sf'  THEN 20 WHEN 'tp'  THEN 10
+      WHEN 'f'   THEN 30
+    END
+  INTO sc_result, sc_exact;
+
+  is_fav_round      := NEW.round IN ('gs', 'r32');
+  is_exact_round    := NEW.round IN ('sf', 'tp', 'f');
+  is_knockout_round := NEW.round IN ('r32','r16','qf','sf','tp','f');
+
+  UPDATE public.predictions p
+  SET points_earned =
+    CASE
+      WHEN is_exact_round THEN
+        CASE
+          WHEN p.home = NEW.home_score AND p.away = NEW.away_score THEN
+            sc_exact * CASE WHEN is_fav_round AND EXISTS (
+              SELECT 1 FROM public.users u WHERE u.id = p.user_id AND u.favourite_team IN (NEW.home, NEW.away)
+            ) THEN 2 ELSE 1 END
+          WHEN (p.home > p.away) = (NEW.home_score > NEW.away_score)
+           AND (p.home < p.away) = (NEW.home_score < NEW.away_score)
+           AND (p.home = p.away) = (NEW.home_score = NEW.away_score) THEN
+            sc_result * CASE WHEN is_fav_round AND EXISTS (
+              SELECT 1 FROM public.users u WHERE u.id = p.user_id AND u.favourite_team IN (NEW.home, NEW.away)
+            ) THEN 2 ELSE 1 END
+          ELSE 0
+        END
+      ELSE
+        CASE
+          WHEN p.outcome = NEW.result_outcome THEN
+            CASE
+              WHEN is_knockout_round AND NEW.result_outcome = 'D' AND NEW.pen_winner IS NOT NULL THEN
+                sc_result * CASE WHEN is_fav_round AND EXISTS (
+                    SELECT 1 FROM public.users u WHERE u.id = p.user_id AND u.favourite_team IN (NEW.home, NEW.away)
+                  ) THEN 2 ELSE 1 END
+              ELSE
+                sc_result * CASE WHEN is_fav_round AND EXISTS (
+                  SELECT 1 FROM public.users u WHERE u.id = p.user_id AND u.favourite_team IN (NEW.home, NEW.away)
+                ) THEN 2 ELSE 1 END
+            END
+          ELSE 0
+        END
+    END,
+    updated_at = now()
+  WHERE p.fixture_id = NEW.id;
+
+  RETURN NEW;
+END;
+$$;
+
+SELECT 'sf added to exact score rounds' AS status;
