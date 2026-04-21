@@ -27,17 +27,14 @@ type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
 type LockMap    = Record<string, boolean>
 type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo'
 
-const KNOCKOUT_ROUNDS = ['r32','r16','qf','sf','tp','f']
-const ALL_ROUNDS: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
-const ROUND_LABELS: Record<RoundId, string> = {
-  gs: 'Group Stage', r32: 'Round of 32', r16: 'Round of 16',
-  qf: 'Quarter-finals', sf: 'Semi-finals', tp: '3rd Place', f: 'Final',
-}
+// ALL_ROUNDS and ROUND_LABELS are now derived from tournament_rounds API
+// via scoringConfig loaded in UserPrefsContext — no hardcoding
 
 // ─── AdminResultRow ───────────────────────────────────────────────────────────
-function AdminResultRow({ fixture, result, onSave, onClear }: {
+function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
   fixture: Fixture
   result?: MatchScore & { pen_winner?: string | null }
+  knockoutRounds?: string[]
   onSave:  (id: number, home: number, away: number, penWinner?: string | null) => Promise<void>
   onClear: (id: number) => Promise<void>
 }) {
@@ -46,7 +43,7 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
   const [awayVal,   setAwayVal]   = useState(result?.away?.toString() ?? '')
   const [penWinner, setPenWinner] = useState<string>(result?.pen_winner ?? '')
 
-  const isKnockout  = KNOCKOUT_ROUNDS.includes(fixture.round)
+  const isKnockout  = (knockoutRounds ?? []).includes(fixture.round)
   const h = parseInt(homeVal, 10), a = parseInt(awayVal, 10)
   const scoresLevel = !isNaN(h) && !isNaN(a) && h === a
   const showPenPick = isKnockout && scoresLevel
@@ -83,7 +80,7 @@ function AdminResultRow({ fixture, result, onSave, onClear }: {
             <span>{fixture.away}</span>
             <span>{flag(fixture.away)}</span>
           </div>
-          <p className="text-[11px] text-gray-400 mt-0.5">{new Date(fixture.kickoff_utc).toLocaleDateString()} · {fixture.venue}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">{new Date(fixture.kickoff_utc).toLocaleDateString("en-AU")} · {fixture.venue}</p>
         </div>
 
         {/* Result badge */}
@@ -148,11 +145,26 @@ export default function AdminPage() {
   const { scoringConfig, selectedTournId, activeTournaments } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<AdminTab>('results')
+
+  // Derive round list from scoringConfig (loaded from tournament_rounds by UserPrefsContext)
+  const ALL_ROUNDS = useMemo(() =>
+    Object.values(scoringConfig.rounds)
+      .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
+      .map(r => r.round_code),
+  [scoringConfig])
+
+  const ROUND_LABELS = useMemo(() => {
+    const m: Record<string, string> = {}
+    Object.values(scoringConfig.rounds).forEach(r => { m[r.round_code] = r.round_name })
+    return m
+  }, [scoringConfig])
+
+  const KNOCKOUT_ROUNDS = useMemo(() => scoringConfig.knockout_rounds, [scoringConfig])
   const [fixtures,    setFixtures]    = useState<FixtureMap>({})
   const [results,     setResults]     = useState<ResultMap>({})
   const [locks,       setLocks]       = useState<LockMap>({})
   const [loading,     setLoading]     = useState(true)
-  const [activeRound, setActiveRound] = useState<RoundId>('gs')
+  const [activeRound, setActiveRound] = useState<string>('')
   const [activeGroup, setActiveGroup] = useState('all')
   const [search,      setSearch]      = useState('')
 
@@ -165,6 +177,13 @@ export default function AdminPage() {
   const [tournamentData, setTournamentData] = useState<any>(null)
 
   // ── Load ─────────────────────────────────────────────────
+  // Set initial active round from DB when rounds load
+  useEffect(() => {
+    if (ALL_ROUNDS.length > 0 && !activeRound) {
+      setActiveRound(ALL_ROUNDS[0])
+    }
+  }, [ALL_ROUNDS, activeRound])
+
   useEffect(() => {
     if (!session) return
     setLoading(true)
@@ -222,14 +241,14 @@ export default function AdminPage() {
   }
 
   // ── Lock handlers ──────────────────────────────────────────
-  const handleToggleLock = async (round: RoundId, open: boolean) => {
+  const handleToggleLock = async (round: string, open: boolean) => {
     const res = await fetch('/api/round-locks', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ round, is_open: open }),
     })
     if (res.ok) {
       setLocks(prev => ({ ...prev, [round]: open }))
-      toast.success(`${ROUND_LABELS[round]} ${open ? 'opened' : 'closed'} for predictions`)
+      toast.success(`${ROUND_LABELS[round] ?? round} ${open ? 'opened' : 'closed'} for predictions`)
     } else {
       toast.error('Failed to update lock')
     }
@@ -264,7 +283,7 @@ export default function AdminPage() {
   const roundProgress = useMemo(() =>
     ALL_ROUNDS.map(r => ({
       id: r,
-      label: ROUND_LABELS[r],
+      label: ROUND_LABELS[r] ?? r,
       total:   (fixtures[r] ?? []).length,
       entered: (fixtures[r] ?? []).filter(f => results[f.id]).length,
       isOpen:  locks[r] ?? false,
@@ -338,15 +357,14 @@ export default function AdminPage() {
             style={{ width: totalFixtures ? `${(totalEntered / totalFixtures) * 100}%` : '0%' }}
           />
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div className={`grid gap-1`} style={{ gridTemplateColumns: `repeat(${ALL_ROUNDS.length}, minmax(0, 1fr))` }}>
           {roundProgress.map(r => (
             <div key={r.id} className="text-center">
               <div className={clsx(
                 'text-[10px] font-semibold mb-0.5 truncate',
                 r.entered === r.total && r.total > 0 ? 'text-emerald-600' : 'text-gray-500'
               )}>
-                {r.id === 'gs' ? 'GS' : r.id === 'r32' ? 'R32' : r.id === 'r16' ? 'R16' :
-                 r.id === 'qf' ? 'QF' : r.id === 'sf' ? 'SF' : r.id === 'tp' ? '3P' : 'F'}
+                {r.id.toUpperCase().slice(0,3)}
               </div>
               <div className="text-[10px] text-gray-400">{r.entered}/{r.total}</div>
               <div className={clsx(
@@ -395,7 +413,7 @@ export default function AdminPage() {
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
                   )}>
-                  {r === 'gs' ? 'Group Stage' : ROUND_LABELS[r]}
+                  {ROUND_LABELS[r] ?? r}
                   {prog.total > 0 && (
                     <span className={clsx(
                       'text-[10px] px-1.5 py-0.5 rounded-full font-bold',
@@ -498,7 +516,7 @@ export default function AdminPage() {
                 )}>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-800">{ROUND_LABELS[r]}</span>
+                      <span className="text-sm font-semibold text-gray-800">{ROUND_LABELS[r] ?? r}</span>
                       <span className={clsx(
                         'text-[10px] font-bold px-2 py-0.5 rounded-full',
                         isOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'

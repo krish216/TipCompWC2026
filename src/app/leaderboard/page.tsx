@@ -1,15 +1,17 @@
 'use client'
+// v3 — roundview type fix
 
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
 import { ShareButton } from '@/components/game/ShareCard'
 import { getDefaultScoringConfig } from '@/types'
 
 type Scope     = 'tribe' | 'comp' | 'global'
-type RoundView = 'all' | RoundId | 'finals'
+type RoundView = string
 type MainTab   = 'leaderboard' | 'challenges'
 
 const SCOPE_LABELS: Record<Scope, string> = {
@@ -18,25 +20,9 @@ const SCOPE_LABELS: Record<Scope, string> = {
   global:'Global',
 }
 
-const ROUND_SNAPSHOTS: { id: RoundView; label: string }[] = [
-  { id: 'all',    label: 'Overall'          },
-  { id: 'gs',     label: 'After Group stage' },
-  { id: 'r32',    label: 'After Rd of 32'   },
-  { id: 'r16',    label: 'After Rd of 16'   },
-  { id: 'qf',     label: 'After Quarters'   },
-  { id: 'sf',     label: 'After Semis'      },
-  { id: 'finals', label: 'After Finals'     },
-]
-
-const SNAPSHOT_TO_ROUNDS: Record<string, RoundId[]> = {
-  gs:     ['gs'],
-  r32:    ['gs','r32'],
-  r16:    ['gs','r32','r16'],
-  qf:     ['gs','r32','r16','qf'],
-  sf:     ['gs','r32','r16','qf','sf'],
-  finals: ['gs','r32','r16','qf','sf','tp','f'],
-}
-const ROUND_ORDER: RoundId[] = ['gs','r32','r16','qf','sf','tp','f']
+// ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS and ROUND_ORDER are now built
+// inside the component from scoringConfig (loaded from tournament_rounds API)
+// — no hardcoding. Static 'all' snapshot is always prepended.
 
 // ── Challenge Results tab ─────────────────────────────────────────────────────
 function ChallengeResultsTab({ selectedComp }: { selectedComp: string | null }) {
@@ -159,6 +145,36 @@ function ChallengeResultsTab({ selectedComp }: { selectedComp: string | null }) 
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
+  const { scoringConfig } = useUserPrefs()
+
+  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, ROUND_ORDER } = useMemo(() => {
+    const rounds = Object.values(scoringConfig.rounds)
+      .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
+    const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
+    for (const r of rounds) {
+      const tab = (r as any).tab_group ?? r.round_code
+      const label = (r as any).tab_label ?? r.round_name
+      if (!tabGroups[tab]) tabGroups[tab] = { label, rounds: [], maxOrder: 0 }
+      tabGroups[tab].rounds.push(r.round_code)
+      tabGroups[tab].maxOrder = Math.max(tabGroups[tab].maxOrder, r.round_order ?? 0)
+    }
+    const sortedTabs = Object.entries(tabGroups).sort(([,a],[,b]) => a.maxOrder - b.maxOrder)
+    const snapshots: { id: RoundView; label: string }[] = [
+      { id: 'all', label: 'Overall' },
+      ...sortedTabs.map(([tab, g]) => ({ id: tab as RoundView, label: 'After ' + g.label })),
+    ]
+    const snapshotToRounds: Record<string, RoundId[]> = {}
+    let cumulative: RoundId[] = []
+    for (const [tab, g] of sortedTabs) {
+      cumulative = [...cumulative, ...g.rounds] as RoundId[]
+      snapshotToRounds[tab] = [...cumulative] as RoundId[]
+    }
+    return {
+      ROUND_SNAPSHOTS: snapshots,
+      SNAPSHOT_TO_ROUNDS: snapshotToRounds,
+      ROUND_ORDER: rounds.map(r => r.round_code) as RoundId[],
+    }
+  }, [scoringConfig])
 
   const [mainTab,    setMainTab]    = useState<MainTab>('leaderboard')
   const [userComps,  setUserComps]  = useState<{id:string;name:string}[]>([])
@@ -245,8 +261,10 @@ export default function LeaderboardPage() {
   const filteredEntries = useMemo(() => {
     if (roundView === 'all') return entries.map((e, i) => ({ ...e, rank: i + 1 }))
     const validRounds = new Set(
-      SNAPSHOT_TO_ROUNDS[roundView] ??
-      ROUND_ORDER.slice(0, ROUND_ORDER.indexOf(roundView as RoundId) + 1)
+      SNAPSHOT_TO_ROUNDS[roundView as string] ??
+      (ROUND_ORDER.includes(roundView as RoundId)
+        ? ROUND_ORDER.slice(0, ROUND_ORDER.indexOf(roundView as RoundId) + 1)
+        : ROUND_ORDER)
     )
     return entries
       .map(e => {
@@ -453,8 +471,8 @@ export default function LeaderboardPage() {
                               {isMe && (
                                 <ShareButton compact payload={{
                                   type: 'rank', rank: entry.rank ?? i+1,
-                                  points: entry.total_points, exact: entry.bonus_count, bonus: entry.bonus_count,
-                                  correct: entry.correct_count, displayName: entry.display_name,
+                                  points: entry.total_points, bonus: entry.bonus_count,
+                                  correct: entry.correct_count, exact: entry.exact_count ?? 0, displayName: entry.display_name,
                                   roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
                                 }} />
                               )}
@@ -490,7 +508,7 @@ export default function LeaderboardPage() {
                               .filter(([, pts]) => pts > 0)
                               .map(([round, pts]) => (
                                 <div key={round} className="flex flex-col items-center bg-white border border-gray-200 rounded-md px-2.5 py-1.5">
-                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as RoundId]?.round_name ?? round}</span>
+                                  <span className="text-[10px] text-gray-500">{getDefaultScoringConfig().rounds[round as any]?.round_name ?? round}</span>
                                   <span className="text-sm font-semibold text-gray-800">{pts}</span>
                                 </div>
                               ))}
