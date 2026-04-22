@@ -98,18 +98,14 @@ export async function POST(request: NextRequest) {
   const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round_code))
 
   const now = new Date(); const locked: number[] = []
-  fixtures.forEach((fx: any) => {
-    if (retroactive) {
-      // In retroactive mode: only an explicit closed round lock blocks predictions
-      const explicitlyLocked = hasLockRows && !openRounds.has(fx.round)
-      if (explicitlyLocked) locked.push(fx.id)
-    } else {
+  if (!retroactive) {
+    fixtures.forEach((fx: any) => {
       const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
       const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
       const hasResult     = fx.home_score !== null
       if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
-    }
-  })
+    })
+  }
   if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
 
   const rows = predictions.map((p: any) => {

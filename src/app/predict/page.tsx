@@ -13,7 +13,7 @@ import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type M
 import { useTimezone } from '@/hooks/useTimezone'
 import toast from 'react-hot-toast'
 
-type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null }>
+type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; standard_points?: number|null; bonus_points?: number|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
@@ -86,7 +86,7 @@ export default function PredictPage() {
         // Predictions map
         const pm: PredMap = {}
         for (const p of (predData.data ?? []) as any[]) {
-          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null }
+          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null, standard_points: p.standard_points ?? null, bonus_points: p.bonus_points ?? null }
         }
         setPredictions(pm)
 
@@ -120,7 +120,7 @@ export default function PredictPage() {
       }
     }
     load()
-  }, [session])
+  }, [session, selectedTournId])
 
   const triggerCelebration = useCallback((fixtureId: number) => {
     setCelebrating(prev => new Set(prev).add(fixtureId))
@@ -231,7 +231,7 @@ export default function PredictPage() {
   }, [roundLocks, scoringConfig, ROUND_TABS])
 
   const isLocked = useCallback((f: Fixture) => {
-    if (allowRetroactivePredictions) return !isRoundOpen(f.round)
+    if (allowRetroactivePredictions) return false   // retroactive: nothing is locked
     if (!isRoundOpen(f.round)) return true
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
@@ -267,19 +267,23 @@ export default function PredictPage() {
 
   // Global stats
   const globalStats = useMemo(() => {
-    let totalPts = 0, exactCt = 0, correctCt = 0, notEnteredCt = 0
+    let totalPts = 0, correctPts = 0, bonusPts = 0, notEnteredCt = 0
     for (const f of allFixtures) {
-      const sc      = scoringConfig.rounds[f.round]
       const p       = predictions[f.id]
       const r       = results[f.id]
       const hasPred = p != null && p.home >= 0 && p.away >= 0
-      const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const pts     = hasPred ? calcPoints(p, r ?? null, f.round, isFav, scoringConfig) : null
 
-      if (r && pts !== null) {
-        totalPts += pts
-        if (pts === sc.exact_bonus)                       exactCt++
-        else if (pts === sc.result_pts && pts > 0)      correctCt++
+      if (r && hasPred) {
+        // Prefer DB-stored split; fall back to calcPoints for totals only
+        if (p.standard_points != null && p.bonus_points != null) {
+          correctPts += p.standard_points
+          bonusPts   += p.bonus_points
+          totalPts   += p.standard_points + p.bonus_points
+        } else {
+          const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+          const pts   = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
+          totalPts   += pts
+        }
       }
 
       // Count not-entered only for the current open tab's rounds
@@ -288,8 +292,8 @@ export default function PredictPage() {
         notEnteredCt++
       }
     }
-    return { totalPts, exactCt, correctCt, notEnteredCt }
-  }, [allFixtures, predictions, results, currentRoundTab, isRoundOpen])
+    return { totalPts, correctPts, bonusPts, notEnteredCt }
+  }, [allFixtures, predictions, results, currentRoundTab, isRoundOpen, favouriteTeam, scoringConfig])
 
   // Points per tab
   const roundPoints = useMemo(() => {
@@ -442,9 +446,9 @@ export default function PredictPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        <StatCard label="Total pts"  value={globalStats.totalPts}    accent="green" />
-        <StatCard label="Exact"      value={globalStats.exactCt}     accent="blue"  />
-        <StatCard label="Correct"    value={globalStats.correctCt} />
+        <StatCard label="Total pts"    value={globalStats.totalPts}   accent="green" />
+        <StatCard label="Correct pts"  value={globalStats.correctPts} accent="blue"  />
+        <StatCard label="Bonus pts"    value={globalStats.bonusPts}   accent="amber" />
         <StatCard
           label={`To predict (${ROUND_TAB_LABEL[currentRoundTab]})`}
           value={globalStats.notEnteredCt}
