@@ -146,7 +146,7 @@ export default function PredictPage() {
       await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome: p.outcome ?? null, pen_winner: team }] }),
+        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: team }] }),
       })
     } catch { toast.error('Network error — penalty pick not saved') }
     finally {
