@@ -86,6 +86,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Check retroactive mode — bypasses kickoff and result locks when enabled
+  const { data: tournRow } = await (supabase.from('tournaments') as any)
+    .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
+  const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
+
   const { data: roundLockRows } = await supabase
     .from('round_locks').select('round, is_open')
   const hasLockRows = (roundLockRows ?? []).length > 0
@@ -93,10 +98,15 @@ export async function POST(request: NextRequest) {
 
   const now = new Date(); const locked: number[] = []
   fixtures.forEach((fx: any) => {
-    const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
     const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
-    const hasResult     = fx.home_score !== null
-    if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
+    if (retroactive) {
+      // In retroactive mode only an active round lock blocks predictions
+      if (roundLocked) locked.push(fx.id)
+    } else {
+      const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
+      const hasResult     = fx.home_score !== null
+      if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
+    }
   })
   if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
 
