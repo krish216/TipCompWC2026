@@ -100,15 +100,17 @@ export interface MatchScore {
 }
 
 export interface Prediction {
-  fixture_id:     number
-  user_id:        string
-  home:           number
-  away:           number
-  outcome?:       'H' | 'D' | 'A' | null
-  pen_winner?:    string | null
-  created_at:     string
-  updated_at:     string
-  points_earned?: number
+  fixture_id:       number
+  user_id:          string
+  home:             number
+  away:             number
+  outcome?:         'H' | 'D' | 'A' | null
+  pen_winner?:      string | null
+  created_at:       string
+  updated_at:       string
+  points_earned?:   number
+  standard_points?: number
+  bonus_points?:    number
 }
 
 export interface User {
@@ -129,7 +131,8 @@ export interface ChatMessage {
 }
 export interface LeaderboardEntry {
   user_id: string; display_name: string; tribe_name?: string
-  total_points: number; bonus_count: number; correct_count: number
+  total_points: number; total_bonus_points?: number
+  bonus_count: number; correct_count: number
   predictions_made: number; rank?: number
   round_breakdown?: Record<RoundId, number>
 }

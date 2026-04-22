@@ -130,12 +130,28 @@ export function SectionHeading({ children }: { children: ReactNode }) {
 }
 
 // ── PointsBadge ───────────────────────────────────────────────────────────────
-export function PointsBadge({ pts, maxExact, penBonus }: {
+export function PointsBadge({ pts, standardPts, bonusPts, maxExact, penBonus }: {
   pts: number | null
+  standardPts?: number | null   // from DB standard_points
+  bonusPts?: number | null      // from DB bonus_points
   maxExact?: number
-  penBonus?: boolean   // true when pen winner bonus contributed to pts
+  penBonus?: boolean
 }) {
   if (pts === null) return null
+
+  // When DB breakdown is available, show split: "✓ 3 +3" or "★ 15 +5"
+  if (standardPts != null && bonusPts != null) {
+    if (standardPts === 0 && bonusPts === 0) return <span className="badge-wrong">✗ 0pts</span>
+    const isExact = maxExact != null && maxExact > 0 && bonusPts >= maxExact
+    if (bonusPts > 0) return (
+      <span className={isExact ? 'badge-exact' : 'badge-correct'}>
+        {isExact ? '★' : '✓'} {standardPts}<span className="opacity-60 mx-0.5 text-[10px]">+</span><span className="text-amber-500 font-semibold">{bonusPts}</span>
+      </span>
+    )
+    return <span className="badge-correct">✓ {standardPts}pts</span>
+  }
+
+  // Fallback: calculated pts (before result or DB columns not yet available)
   if (maxExact != null && pts === maxExact && maxExact > 0)
     return <span className="badge-exact">★ {pts}pts</span>
   if (pts > 0) return (

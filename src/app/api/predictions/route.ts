@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('predictions')
-    .select('id, fixture_id, home, away, outcome, pen_winner, points_earned, tournament_id, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score, pen_winner, result_outcome, tournament_id)')
+    .select('id, fixture_id, home, away, outcome, pen_winner, points_earned, standard_points, bonus_points, tournament_id, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score, pen_winner, result_outcome, tournament_id)')
     .eq('user_id', user.id)
     .order('fixture_id')
 

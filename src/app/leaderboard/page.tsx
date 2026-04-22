@@ -560,7 +560,7 @@ export default function LeaderboardPage() {
                   <span>#</span>
                   <span>Player</span>
                   <span className="text-right">Points</span>
-                  <span className="text-right">Bonus</span>
+                  <span className="text-right text-amber-600">+Bonus</span>
                   <span className="text-right">✓</span>
                 </div>
 
@@ -628,7 +628,11 @@ export default function LeaderboardPage() {
                           </span>
                         </div>
                         <div className="flex items-center justify-end">
-                          <span className="text-xs text-purple-700 font-medium">{entry.bonus_count}</span>
+                          <span className="text-xs text-amber-600 font-medium">
+                            {entry.total_bonus_points != null && entry.total_bonus_points > 0
+                              ? `+${entry.total_bonus_points}`
+                              : entry.bonus_count > 0 ? entry.bonus_count : '—'}
+                          </span>
                         </div>
                         <div className="flex items-center justify-end">
                           <span className="text-xs text-blue-700 font-medium">{entry.correct_count}</span>
@@ -674,8 +678,8 @@ export default function LeaderboardPage() {
               </Card>
 
               <div className="flex gap-4 mt-3 text-[11px] text-gray-400">
-                <span><span className="text-purple-600 font-medium">Bonus</span> = correct scoreline</span>
-                <span><span className="text-blue-600 font-medium">✓</span> = right result, wrong score</span>
+                <span><span className="text-amber-600 font-medium">+Bonus</span> = pts from exact score, pen winner &amp; fav team</span>
+                <span><span className="text-blue-600 font-medium">✓</span> = correct results</span>
               </div>
 
             </>

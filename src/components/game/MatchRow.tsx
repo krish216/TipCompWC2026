@@ -207,7 +207,13 @@ export function MatchRow({
               ✗ No Tip Entered
             </span>
           )}
-          {pts !== null && <PointsBadge pts={pts} maxExact={sc?.exact_bonus} penBonus={penBonusEarned} />}
+          {pts !== null && <PointsBadge
+            pts={pts}
+            standardPts={(prediction as any)?.standard_points ?? null}
+            bonusPts={(prediction as any)?.bonus_points ?? null}
+            maxExact={sc?.exact_bonus}
+            penBonus={penBonusEarned}
+          />}
         </div>
       </div>
 

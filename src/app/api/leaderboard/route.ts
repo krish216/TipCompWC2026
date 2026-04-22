@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // Query leaderboard view
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
+      .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
       .limit(limit)
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
       const myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, bonus_count, correct_count, predictions_made')
+        .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
