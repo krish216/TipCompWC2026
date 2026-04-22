@@ -314,23 +314,28 @@ export default function PredictPage() {
 
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
-    const sc  = getScoringForTab(activeRound, scoringConfig)
-    const fs  = (TAB_TO_ROUNDS[activeRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
-    let pts = 0, exactCt = 0, correctCt = 0, played = 0
+    const fs = (TAB_TO_ROUNDS[activeRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
+    let pts = 0, bonusPts = 0, correctCt = 0, played = 0, toPredict = 0
     for (const f of fs) {
-      const r = results[f.id]
-      if (!r) continue
-      played++
+      const r       = results[f.id]
       const p       = predictions[f.id]
-      const hasPred = p != null && p.home >= 0 && p.away >= 0
-      const isFav   = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-      const v       = hasPred ? (calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0) : 0
-      pts += v
-      if (v === sc.exact_bonus)            exactCt++
-      else if (v === sc.result_pts && v > 0)   correctCt++
+      const isOutcomeRound = scoringConfig.outcome_rounds.includes(f.round)
+      const hasPred = p != null && (isOutcomeRound ? (p as any).outcome != null : p.home >= 0 && p.away >= 0)
+      if (!hasPred && !r && isRoundOpen(f.round)) toPredict++
+      if (!r || !hasPred) continue
+      played++
+      if (p.standard_points != null && p.bonus_points != null) {
+        pts      += p.standard_points + p.bonus_points
+        bonusPts += p.bonus_points
+        if (p.standard_points > 0) correctCt++
+      } else {
+        const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+        const v = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
+        pts += v
+      }
     }
-    return { played, total: fs.length, pts, exactCount: exactCt, correctCount: correctCt }
-  }, [fixtures, activeRound, predictions, results])
+    return { played, total: fs.length, pts, bonusPts, correctCount: correctCt, toPredict }
+  }, [fixtures, activeRound, predictions, results, scoringConfig, isRoundOpen, favouriteTeam])
 
   // Fixtures sorted chronologically
   const visibleFixtures = useMemo(() => {
