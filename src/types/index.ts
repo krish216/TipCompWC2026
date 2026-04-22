@@ -176,7 +176,11 @@ export function calcPoints(
     const predOutcome   = getOutcome(pred.home ?? 0, pred.away ?? 0)
     const isExactScore  = pred.home === result.home && pred.away === result.away
 
-    if (isExactScore) return (rc.result_pts + rc.exact_bonus) * multiplier
+    if (isExactScore) {
+      const drewAndPens = result.home === result.away && !!result.pen_winner
+      const penCorrect  = drewAndPens && rc.pen_bonus > 0 && pred.pen_winner === result.pen_winner
+      return (rc.result_pts + rc.exact_bonus + (penCorrect ? rc.pen_bonus : 0)) * multiplier
+    }
     if (predOutcome !== resultOutcome) return 0
 
     const drewAndPens = result.home === result.away && !!result.pen_winner

@@ -315,7 +315,7 @@ export default function PredictPage() {
   // Score bar props for active tab
   const roundScoreBarProps = useMemo(() => {
     const fs = (TAB_TO_ROUNDS[activeRound] ?? []).flatMap(rid => fixtures[rid] ?? [])
-    let pts = 0, bonusPts = 0, correctCt = 0, played = 0, toPredict = 0
+    let pts = 0, bonusPts = 0, correctPts = 0, played = 0, toPredict = 0
     for (const f of fs) {
       const r       = results[f.id]
       const p       = predictions[f.id]
@@ -325,16 +325,16 @@ export default function PredictPage() {
       if (!r || !hasPred) continue
       played++
       if (p.standard_points != null && p.bonus_points != null) {
-        pts      += p.standard_points + p.bonus_points
-        bonusPts += p.bonus_points
-        if (p.standard_points > 0) correctCt++
+        pts        += p.standard_points + p.bonus_points
+        bonusPts   += p.bonus_points
+        correctPts += p.standard_points
       } else {
         const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
         const v = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
         pts += v
       }
     }
-    return { played, total: fs.length, pts, bonusPts, correctCount: correctCt, toPredict }
+    return { played, total: fs.length, pts, bonusPts, correctPts, toPredict }
   }, [fixtures, activeRound, predictions, results, scoringConfig, isRoundOpen, favouriteTeam])
 
   // Fixtures sorted chronologically
