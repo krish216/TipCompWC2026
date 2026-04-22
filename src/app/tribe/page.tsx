@@ -659,11 +659,12 @@ function TribeDropdown({ tribes, onJoin, onExpand, loading, membersMap }: {
 function SwitchTribePanel({
   currentTribeId, compId, onSwitch,
 }: { currentTribeId: string; compId: string | null; onSwitch: () => void }) {
-  const [tribes,    setTribes]    = useState<any[]>([])
-  const [expanded,  setExpanded]  = useState(false)
-  const [loading,   setLoading]   = useState(false)
-  const [selected,  setSelected]  = useState('')
-  const { session } = useSupabase()
+  const [tribes,          setTribes]          = useState<any[]>([])
+  const [expanded,        setExpanded]        = useState(false)
+  const [loading,         setLoading]         = useState(false)
+  const [selected,        setSelected]        = useState('')
+  const [tribeMembersMap, setTribeMembersMap] = useState<Record<string, any[]>>({})
+  const { supabase } = useSupabase()
 
   useEffect(() => {
     if (!compId) return
@@ -671,6 +672,15 @@ function SwitchTribePanel({
       .then(r => r.json())
       .then(d => setTribes((d.data ?? []).filter((t: any) => t.id !== currentTribeId)))
   }, [compId, currentTribeId])
+
+  const fetchTribeMembers = async (tribe: { id: string; member_ids?: string[] }) => {
+    if (tribeMembersMap[tribe.id] || !tribe.member_ids?.length) return
+    try {
+      const { data } = await supabase
+        .from('users').select('id, display_name').in('id', tribe.member_ids)
+      setTribeMembersMap(prev => ({ ...prev, [tribe.id]: data ?? [] }))
+    } catch { /* silent */ }
+  }
 
   const switchTribe = async () => {
     if (!selected) return
@@ -712,7 +722,7 @@ function SwitchTribePanel({
 
       {expanded && (
         <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code); }} onExpand={() => {}} loading={loading} membersMap={{}} />
+          <TribeDropdown tribes={tribes} onJoin={(code) => { setSelected(code); }} onExpand={fetchTribeMembers} loading={loading} membersMap={tribeMembersMap} />
           {selected && (
             <button onClick={switchTribe} disabled={loading}
               style={{
