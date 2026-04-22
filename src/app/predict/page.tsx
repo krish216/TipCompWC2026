@@ -429,7 +429,7 @@ export default function PredictPage() {
           <span className="text-base flex-shrink-0">🧪</span>
           <div>
             <span className="font-bold">Practice Mode active for testing</span>
-            <span className="text-blue-600"> — You can predict any match, including ones with results already entered. Points are earned as normal.</span>
+            <span className="text-blue-600"> — Before the Tournament begins, you can predict any match, including ones with results already entered. Points are earned as normal.</span>
           </div>
         </div>
       )}
