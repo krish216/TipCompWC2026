@@ -139,9 +139,9 @@ export function PointsBadge({ pts, standardPts, bonusPts, maxExact, penBonus }: 
 }) {
   if (pts === null) return null
 
-  // When DB breakdown is available, show split: "✓ 3 +3" or "★ 15 +5"
-  if (standardPts != null && bonusPts != null) {
-    if (standardPts === 0 && bonusPts === 0) return <span className="badge-wrong">✗ 0pts</span>
+  // When DB breakdown is available and at least one is non-zero, show split: "✓ 3 +3" or "★ 15 +5"
+  // Guard: if both are 0 but pts>0, the DB trigger hasn't run yet — fall through to calcPoints display
+  if (standardPts != null && bonusPts != null && (standardPts > 0 || bonusPts > 0)) {
     const isExact = maxExact != null && maxExact > 0 && bonusPts >= maxExact
     if (bonusPts > 0) return (
       <span className={isExact ? 'badge-exact' : 'badge-correct'}>

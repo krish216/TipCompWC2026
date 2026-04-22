@@ -274,15 +274,16 @@ export default function PredictPage() {
       const hasPred = p != null && p.home >= 0 && p.away >= 0
 
       if (r && hasPred) {
-        // Prefer DB-stored split; fall back to calcPoints for totals only
-        if (p.standard_points != null && p.bonus_points != null) {
+        const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
+        // Use DB split only when at least one value is non-zero (guards against old schema where
+        // standard_points/bonus_points columns exist but were never populated by the scoring trigger)
+        if (p.standard_points != null && p.bonus_points != null && (p.standard_points > 0 || p.bonus_points > 0)) {
           correctPts += p.standard_points
           bonusPts   += p.bonus_points
           totalPts   += p.standard_points + p.bonus_points
         } else {
-          const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
-          const pts   = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
-          totalPts   += pts
+          const pts = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
+          totalPts += pts
         }
       }
 
@@ -324,7 +325,7 @@ export default function PredictPage() {
       if (!hasPred && !r && isRoundOpen(f.round)) toPredict++
       if (!r || !hasPred) continue
       played++
-      if (p.standard_points != null && p.bonus_points != null) {
+      if (p.standard_points != null && p.bonus_points != null && (p.standard_points > 0 || p.bonus_points > 0)) {
         pts        += p.standard_points + p.bonus_points
         bonusPts   += p.bonus_points
         correctPts += p.standard_points
