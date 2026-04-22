@@ -69,7 +69,9 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
  */
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
-    { id: 'gs',  tournament_id: 'default', round_code: 'gs',  is_knockout: false,  round_name: 'Group Stage',    round_order: 1, tab_group: 'gs',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'gs1',  tournament_id: 'default', round_code: 'gs1',  is_knockout: false,  round_name: 'Group Stage1',    round_order: 1, tab_group: 'gs1',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'gs2',  tournament_id: 'default', round_code: 'gs2',  is_knockout: false,  round_name: 'Group Stage2',    round_order: 1, tab_group: 'gs2',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
+    { id: 'gs3',  tournament_id: 'default', round_code: 'gs3',  is_knockout: false,  round_name: 'Group Stage3',    round_order: 1, tab_group: 'gs3',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
     { id: 'r32', tournament_id: 'default', round_code: 'r32', is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',    predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: true  },
     { id: 'r16', tournament_id: 'default', round_code: 'r16', is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',    predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
     { id: 'qf',  tournament_id: 'default', round_code: 'qf',  is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',     predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
