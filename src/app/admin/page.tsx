@@ -160,6 +160,7 @@ export default function AdminPage() {
   }, [scoringConfig])
 
   const KNOCKOUT_ROUNDS = useMemo(() => scoringConfig.knockout_rounds, [scoringConfig])
+  const [isAdmin,     setIsAdmin]     = useState<boolean | null>(null)  // null = checking
   const [fixtures,    setFixtures]    = useState<FixtureMap>({})
   const [results,     setResults]     = useState<ResultMap>({})
   const [locks,       setLocks]       = useState<LockMap>({})
@@ -184,8 +185,17 @@ export default function AdminPage() {
     }
   }, [ALL_ROUNDS, activeRound])
 
+  // Check admin access before loading any data
   useEffect(() => {
-    if (!session) return
+    if (!session) { setIsAdmin(false); return }
+    fetch('/api/admin')
+      .then(r => r.json())
+      .then(d => setIsAdmin(!!d.is_admin))
+      .catch(() => setIsAdmin(false))
+  }, [session])
+
+  useEffect(() => {
+    if (!isAdmin) return
     setLoading(true)
     Promise.all([fetch('/api/fixtures'), fetch('/api/results'), fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks')])
       .then(rs => Promise.all(rs.map(r => r.json())))
@@ -204,7 +214,7 @@ export default function AdminPage() {
         setLocks(locksData.data ?? {})
       })
       .finally(() => setLoading(false))
-  }, [session])
+  }, [isAdmin, selectedTournId])
 
   // Load tournament details
   useEffect(() => {
@@ -327,6 +337,16 @@ export default function AdminPage() {
   }, [activeRound, visibleFixtures])
 
   const sc = (scoringConfig ?? getDefaultScoringConfig()).rounds[activeRound]
+
+  if (isAdmin === null) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
+
+  if (!isAdmin) return (
+    <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+      <p className="text-4xl mb-4">🔒</p>
+      <h1 className="text-lg font-semibold text-gray-800 mb-2">Access Denied</h1>
+      <p className="text-sm text-gray-500">You don&apos;t have tournament admin access.</p>
+    </div>
+  )
 
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
