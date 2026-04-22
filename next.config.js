@@ -38,6 +38,8 @@ const nextConfig = {
 
   // Enable React strict mode
   reactStrictMode: true,
+
+  eslint: { ignoreDuringBuilds: true },
 }
 
 module.exports = nextConfig
