@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: locks })
 }
 
-// POST /api/round-locks — admin only, open or close a round for a tournament
+// POST /api/round-locks — global admin or comp admin for the tournament
 // Body: { tournament_id, round, is_open }
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
@@ -28,13 +28,24 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const adminClient = createAdminClient()
-  const { data: adminRow } = await adminClient
-    .from('admin_users').select('user_id').eq('user_id', user.id).single()
-  if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const body = await request.json()
+  const { tournament_id, round, is_open } = body
 
-  const { tournament_id, round, is_open } = await request.json()
   if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
   if (!round)         return NextResponse.json({ error: 'round required' },         { status: 400 })
+
+  // Allow global admin OR comp admin for a comp that belongs to this tournament
+  const [{ data: globalAdmin }, { data: compAdminRow }] = await Promise.all([
+    adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single(),
+    (adminClient.from('comp_admins') as any)
+      .select('user_id')
+      .eq('user_id', user.id)
+      .in('comp_id',
+        (adminClient.from('comps') as any).select('id').eq('tournament_id', tournament_id)
+      )
+      .limit(1).maybeSingle(),
+  ])
+  if (!globalAdmin && !compAdminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Validate that this round_code exists in tournament_rounds for this tournament
   const { data: trRow } = await (adminClient.from('tournament_rounds') as any)
