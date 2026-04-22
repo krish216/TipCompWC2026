@@ -57,6 +57,28 @@ export default function PredictPage() {
   const tabCompletionFired     = useRef<Set<string>>(new Set())
   const prevRoundPredCountsRef = useRef<Record<string, { entered: number; total: number }>>({})
 
+  // ── Refresh a single prediction from the server (gets DB-trigger-computed scores) ─
+  const refreshPrediction = useCallback(async (fixtureId: number) => {
+    try {
+      const res = await fetch(`/api/predictions?fixture_id=${fixtureId}`)
+      const { data } = await res.json()
+      if (data?.[0]) {
+        const saved = data[0]
+        setPredictions(prev => ({
+          ...prev,
+          [fixtureId]: {
+            home:            saved.home,
+            away:            saved.away,
+            outcome:         saved.outcome    ?? null,
+            pen_winner:      saved.pen_winner ?? null,
+            standard_points: saved.standard_points ?? null,
+            bonus_points:    saved.bonus_points    ?? null,
+          },
+        }))
+      }
+    } catch { /* optimistic state still valid */ }
+  }, [])
+
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
     if (!session) return
@@ -122,6 +144,29 @@ export default function PredictPage() {
     load()
   }, [session, selectedTournId])
 
+  // Re-fetch results when the window regains focus so scores entered by admin show up
+  useEffect(() => {
+    if (!session) return
+    const refresh = async () => {
+      try {
+        const res = await fetch('/api/results')
+        const { data } = await res.json()
+        const rm: ResultMap = {}
+        for (const r of (data ?? []) as any[]) {
+          if (r.home_score != null) rm[r.id] = {
+            home:           r.home_score,
+            away:           r.away_score,
+            pen_winner:     r.pen_winner     ?? null,
+            result_outcome: r.result_outcome ?? null,
+          }
+        }
+        setResults(rm)
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [session])
+
   const triggerCelebration = useCallback((fixtureId: number) => {
     setCelebrating(prev => new Set(prev).add(fixtureId))
     setTimeout(() => setCelebrating(prev => { const s = new Set(prev); s.delete(fixtureId); return s }), 1800)
@@ -136,7 +181,7 @@ export default function PredictPage() {
   const onPenWinner = useCallback(async (fixtureId: number, team: string) => {
     setPredictions(prev => ({
       ...prev,
-      [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), pen_winner: team }
+      [fixtureId]: { ...(prev[fixtureId] ?? { home: 0, away: 0 }), pen_winner: team, standard_points: null, bonus_points: null }
     }))
     const p = predictions[fixtureId]
     if (!p) return
@@ -152,8 +197,9 @@ export default function PredictPage() {
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
       triggerCelebration(fixtureId)
+      refreshPrediction(fixtureId)
     }
-  }, [predictions, triggerCelebration])
+  }, [predictions, triggerCelebration, refreshPrediction])
 
   const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
     // Look up round for this fixture
@@ -162,13 +208,15 @@ export default function PredictPage() {
     const isKnockout = fx ? scoringConfig.knockout_rounds.includes(fx.round) : false
     const needsPen = isKnockout && outcome === 'D'
 
-    // Always update local state immediately
+    // Always update local state immediately; reset scoring so calcPoints is used for fresh feedback
     setPredictions(prev => ({
       ...prev,
       [fixtureId]: {
         ...(prev[fixtureId] ?? { home: 0, away: 0 }),
         outcome,
-        pen_winner: outcome !== 'D' ? null : prev[fixtureId]?.pen_winner ?? null,
+        pen_winner:      outcome !== 'D' ? null : prev[fixtureId]?.pen_winner ?? null,
+        standard_points: null,
+        bonus_points:    null,
       }
     }))
 
@@ -186,8 +234,9 @@ export default function PredictPage() {
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
       triggerCelebration(fixtureId)
+      refreshPrediction(fixtureId)
     }
-  }, [fixtures, triggerCelebration])
+  }, [fixtures, scoringConfig, triggerCelebration, refreshPrediction])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
     setSaving(prev => new Set(prev).add(fixtureId))
@@ -201,13 +250,15 @@ export default function PredictPage() {
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
       triggerCelebration(fixtureId)
+      refreshPrediction(fixtureId)
     }
-  }, [triggerCelebration])
+  }, [triggerCelebration, refreshPrediction])
 
   const onPredict = useCallback((fixtureId: number, side: 'home' | 'away', value: number) => {
     setPredictions(prev => {
       const current = prev[fixtureId] ?? { home: -1, away: -1 }
-      const updated  = { ...current, [side]: value }
+      // Reset scoring columns so calcPoints is used for immediate feedback on the new values
+      const updated  = { ...current, [side]: value, standard_points: null, bonus_points: null }
       if (updated.home >= 0 && updated.away >= 0) {
         const timer = saveTimers.current.get(fixtureId)
         if (timer) clearTimeout(timer)
@@ -283,7 +334,9 @@ export default function PredictPage() {
           totalPts   += p.standard_points + p.bonus_points
         } else {
           const pts = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
-          totalPts += pts
+          totalPts   += pts
+          correctPts += pts > 0 ? Math.min(pts, scoringConfig.rounds[f.round]?.result_pts ?? pts) : 0
+          bonusPts   += pts > 0 ? Math.max(0, pts - (scoringConfig.rounds[f.round]?.result_pts ?? pts)) : 0
         }
       }
 
@@ -332,7 +385,9 @@ export default function PredictPage() {
       } else {
         const isFav = !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam))
         const v = calcPoints(p, r, f.round, isFav, scoringConfig) ?? 0
-        pts += v
+        pts        += v
+        correctPts += v > 0 ? Math.min(v, scoringConfig.rounds[f.round]?.result_pts ?? v) : 0
+        bonusPts   += v > 0 ? Math.max(0, v - (scoringConfig.rounds[f.round]?.result_pts ?? v)) : 0
       }
     }
     return { played, total: fs.length, pts, bonusPts, correctPts, toPredict }
