@@ -98,12 +98,13 @@ export async function POST(request: NextRequest) {
 
   const now = new Date(); const locked: number[] = []
   fixtures.forEach((fx: any) => {
-    const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
     if (retroactive) {
-      // In retroactive mode only an active round lock blocks predictions
-      if (roundLocked) locked.push(fx.id)
+      // In retroactive mode: only an explicit closed round lock blocks predictions
+      const explicitlyLocked = hasLockRows && !openRounds.has(fx.round)
+      if (explicitlyLocked) locked.push(fx.id)
     } else {
       const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
+      const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
       const hasResult     = fx.home_score !== null
       if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
     }
