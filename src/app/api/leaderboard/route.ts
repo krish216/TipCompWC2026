@@ -3,6 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import type { RoundId } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/leaderboard?scope=tribe|org|global
 export async function GET(request: NextRequest) {
   try {
