@@ -6,17 +6,6 @@ import { z } from 'zod'
 const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().optional(), tournament_id: z.string().uuid().optional() })
 const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCase() })
 
-// Helper — check if user is a comp admin (for any comp)
-async function getUserOrgInfo(userId: string) {
-  const adminClient = createAdminClient()
-  const { data: compAdmin } = await (adminClient.from('comp_admins') as any)
-    .select('comp_id').eq('user_id', userId).limit(1).single()
-  return {
-    comp_id:      (compAdmin as any)?.comp_id ?? null,
-    is_org_admin: !!compAdmin,
-  }
-}
-
 // GET /api/tribes?comp_id= — get current user's tribe for the given comp
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
@@ -27,19 +16,21 @@ export async function GET(request: NextRequest) {
 
   // Get tribe from tribe_members scoped to the selected comp
   let tribeId: string | null = null
+  const adminClientLookup = createAdminClient()
   if (compId) {
-    // Find the tribe the user is in that belongs to this comp
-    const adminClient = createAdminClient()
-    const { data: rows } = await (adminClient.from('tribe_members') as any)
-      .select('tribe_id, tribes!inner(comp_id)')
-      .eq('user_id', user.id)
-      .eq('tribes.comp_id', compId)
-      .limit(1)
-    tribeId = (rows?.[0] as any)?.tribe_id ?? null
+    // Two-step lookup — avoids unreliable embedded-resource filter syntax
+    const { data: memberRows } = await (adminClientLookup.from('tribe_members') as any)
+      .select('tribe_id').eq('user_id', user.id)
+    const tribeIds = (memberRows ?? []).map((r: any) => r.tribe_id).filter(Boolean)
+    if (tribeIds.length > 0) {
+      const { data: tribeRows } = await (adminClientLookup.from('tribes') as any)
+        .select('id').eq('comp_id', compId).in('id', tribeIds).limit(1)
+      tribeId = (tribeRows?.[0] as any)?.id ?? null
+    }
   } else {
-    // Fallback: first tribe membership
-    const { data: membership } = await supabase
-      .from('tribe_members').select('tribe_id').eq('user_id', user.id).limit(1).single()
+    // Fallback: first tribe membership (admin client to bypass RLS)
+    const { data: membership } = await (adminClientLookup.from('tribe_members') as any)
+      .select('tribe_id').eq('user_id', user.id).limit(1).maybeSingle()
     tribeId = (membership as any)?.tribe_id ?? null
   }
 
@@ -57,23 +48,29 @@ export async function GET(request: NextRequest) {
     .select('user_id, joined_at').eq('tribe_id', tribeId)
   const memberIds = (memberRows ?? []).map((m: any) => m.user_id)
 
-  const { data: userRows } = await (adminClientGet.from('users') as any)
-    .select('id, display_name, avatar_url').in('id', memberIds)
+  const [userResult, activeTidResult] = await Promise.all([
+    memberIds.length > 0
+      ? (adminClientGet.from('users') as any).select('id, display_name, avatar_url').in('id', memberIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from('user_preferences').select('tournament_id').eq('user_id', user.id).maybeSingle(),
+  ])
+  const userRows = (userResult as any)?.data ?? []
 
-  // Get active tournament from user_preferences
-  const { data: userPrefs } = await supabase
-    .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
-  let activeTid = (userPrefs as any)?.tournament_id ?? null
+  let activeTid = (activeTidResult.data as any)?.tournament_id ?? null
   if (!activeTid) {
     const { data: setting } = await (adminClientGet.from('app_settings') as any)
       .select('value').eq('key', 'active_tournament_id').single()
     activeTid = (setting as any)?.value ?? null
   }
 
-  let lbQ = (adminClientGet.from('leaderboard') as any)
-    .select('user_id, total_points, bonus_count, correct_count').in('user_id', memberIds)
-  if (activeTid) lbQ = lbQ.eq('tournament_id', activeTid)
-  const { data: lbRows } = await lbQ
+  let lbRows: any[] | null = null
+  if (memberIds.length > 0) {
+    let lbQ = (adminClientGet.from('leaderboard') as any)
+      .select('user_id, total_points, bonus_count, correct_count').in('user_id', memberIds)
+    if (activeTid) lbQ = lbQ.eq('tournament_id', activeTid)
+    const { data } = await lbQ
+    lbRows = data
+  }
 
   const userMap: Record<string, any> = {}
   ;(userRows ?? []).forEach((u: any) => { userMap[u.id] = u })
@@ -100,8 +97,7 @@ export async function GET(request: NextRequest) {
 }
 
 // GET /api/tribes/list — list all tribes in the user's org
-export async function HEAD(request: NextRequest) {
-  // Used as /api/tribes?list=true
+export async function HEAD(_request: NextRequest) {
   return NextResponse.json({})
 }
 
@@ -207,15 +203,17 @@ export async function DELETE(request: NextRequest) {
 
   let tribeId: string | null = null
   if (compId) {
-    const { data: rows } = await (adminClient.from('tribe_members') as any)
-      .select('tribe_id, tribes!inner(comp_id)')
-      .eq('user_id', user.id)
-      .eq('tribes.comp_id', compId)
-      .limit(1)
-    tribeId = (rows?.[0] as any)?.tribe_id ?? null
+    const { data: memberRows } = await (adminClient.from('tribe_members') as any)
+      .select('tribe_id').eq('user_id', user.id)
+    const tribeIds = (memberRows ?? []).map((r: any) => r.tribe_id).filter(Boolean)
+    if (tribeIds.length > 0) {
+      const { data: tribeRows } = await (adminClient.from('tribes') as any)
+        .select('id').eq('comp_id', compId).in('id', tribeIds).limit(1)
+      tribeId = (tribeRows?.[0] as any)?.id ?? null
+    }
   } else {
     const { data: tmbr } = await (adminClient.from('tribe_members') as any)
-      .select('tribe_id').eq('user_id', user.id).limit(1).single()
+      .select('tribe_id').eq('user_id', user.id).limit(1).maybeSingle()
     tribeId = (tmbr as any)?.tribe_id ?? null
   }
   if (!tribeId) return NextResponse.json({ error: 'Not in a tribe' }, { status: 400 })
