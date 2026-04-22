@@ -187,7 +187,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!session) return
     setLoading(true)
-    Promise.all([fetch('/api/fixtures'), fetch('/api/results'), fetch('/api/round-locks')])
+    Promise.all([fetch('/api/fixtures'), fetch('/api/results'), fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks')])
       .then(rs => Promise.all(rs.map(r => r.json())))
       .then(([fxData, resData, locksData]) => {
         const byRound: FixtureMap = {}
@@ -244,7 +244,7 @@ export default function AdminPage() {
   const handleToggleLock = async (round: string, open: boolean) => {
     const res = await fetch('/api/round-locks', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ round, is_open: open }),
+      body: JSON.stringify({ tournament_id: selectedTournId, round, is_open: open }),
     })
     if (res.ok) {
       setLocks(prev => ({ ...prev, [round]: open }))

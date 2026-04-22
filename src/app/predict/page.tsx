@@ -22,7 +22,7 @@ type RoundTab = string
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
-  const { selectedTourn, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const { selectedTourn, selectedTournId, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
@@ -67,7 +67,7 @@ export default function PredictPage() {
           fetch('/api/fixtures'),
           fetch('/api/predictions'),
           fetch('/api/results'),
-          fetch('/api/round-locks'),
+          fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks'),
           fetch('/api/user-tournaments'),
         ])
 

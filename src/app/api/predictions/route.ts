@@ -91,10 +91,11 @@ export async function POST(request: NextRequest) {
     .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
   const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
 
-  const { data: roundLockRows } = await supabase
-    .from('round_locks').select('round, is_open')
+  let lockQuery = (supabase.from('round_locks') as any).select('round_code, is_open')
+  if (tournamentId) lockQuery = lockQuery.eq('tournament_id', tournamentId)
+  const { data: roundLockRows } = await lockQuery
   const hasLockRows = (roundLockRows ?? []).length > 0
-  const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round))
+  const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round_code))
 
   const now = new Date(); const locked: number[] = []
   fixtures.forEach((fx: any) => {
