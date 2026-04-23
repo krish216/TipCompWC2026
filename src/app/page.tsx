@@ -286,9 +286,10 @@ export default function HomePage() {
   const {
     activeTournaments, tournsComps,
     selectedTournId, selectedCompId,
-    selectedTourn, selectedComp,
+    selectedTourn,
     isCompAdmin,
     pickTournament, pickComp, refreshComps,
+    hasTribe, refreshHasTribe,
     loading: contextLoading,
   } = useUserPrefs()
 
@@ -298,6 +299,10 @@ export default function HomePage() {
   const [hoveredComp, setHoveredComp] = useState<string | null>(null)
 
   const started = Date.now() >= KICKOFF.getTime()
+
+  // Onboarding step completion — fully derived from context, no DB flag needed
+  const step2Done = !contextLoading && selectedCompId !== null
+  const step3Done = hasTribe === true
 
   // ── Load on session ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -353,6 +358,13 @@ export default function HomePage() {
     if (session && selectedTournId) loadFavTeam(selectedTournId)
   }, [session, selectedTournId])
 
+  // Refresh tribe status when the tab regains focus (user returns after joining a tribe)
+  useEffect(() => {
+    if (!session) return
+    window.addEventListener('focus', refreshHasTribe)
+    return () => window.removeEventListener('focus', refreshHasTribe)
+  }, [session, refreshHasTribe])
+
   const NavCard = ({ href, icon, title, description, accent = false }: {
     href: string; icon: string; title: string; description: string; accent?: boolean
   }) => (
@@ -397,11 +409,30 @@ export default function HomePage() {
 
       {/* ── Not logged in hero ── */}
       {!session && (
-        <div className="mb-8 text-center">
-          <img src="/wc2026-logo.png" alt="FIFA World Cup 2026" width={80} height={120}
-            className="w-20 h-auto mx-auto mb-3 drop-shadow-md object-contain" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">World Cup 2026 Tipping Comp</h1>
-          <p className="text-sm text-gray-500">Predict every match. Compete with your tribe.</p>
+        <div style={{
+          background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
+          borderRadius: 20, padding: '28px 24px', marginBottom: 24, textAlign: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)', position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Subtle texture */}
+          <div style={{
+            position: 'absolute', inset: 0, opacity: 0.04,
+            backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',
+            backgroundSize: '12px 12px',
+          }} />
+          <div style={{ position: 'relative' }}>
+            <img src="/wc2026-logo.png" alt="World Cup 2026" width={60} height={90}
+              style={{ width: 56, height: 'auto', margin: '0 auto 12px', display: 'block', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
+            <h1 style={{ margin: '0 0 6px', fontSize: 30, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+              TribePicks
+            </h1>
+            <p style={{ margin: '0 0 4px', fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
+              Predict every match. Compete with your tribe.
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(74,222,128,0.8)', fontWeight: 500 }}>
+              ⚽ FIFA World Cup 2026
+            </p>
+          </div>
         </div>
       )}
 
@@ -409,50 +440,155 @@ export default function HomePage() {
       {session && (
         <div style={{ marginBottom: 20 }}>
 
-          {/* ── Welcome bar ─────────────────────────────────────────── */}
-          {displayName && (
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                {avatar
-                  ? <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #bbf7d0' }} />
-                  : <div style={{
-                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                      background: 'linear-gradient(135deg, #153d26, #16a34a)',
+          {(loading || contextLoading) ? (
+            <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
+          ) : !step2Done ? (
+
+            /* ── Onboarding hero — shown until user joins or creates a comp ── */
+            <div style={{
+              background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
+              borderRadius: 20, padding: '24px 20px', marginBottom: 16,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18)', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '12px 12px' }} />
+              <div style={{ position: 'relative' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+                  Hey {displayName ? `${displayName}!` : 'there!'} 👋
+                </p>
+                <p style={{ margin: '0 0 20px', fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                  {selectedTourn
+                    ? `Predict every ${selectedTourn.name} match and compete with your tribe.`
+                    : 'Predict every match and compete with your tribe.'}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  {/* Step 1 — always done */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, color: '#fff',
+                    }}>✓</span>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
+                      Join TribePicks
+                    </p>
+                  </div>
+
+                  {/* Step 2 — active: join or create comp */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                      background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.4)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, fontWeight: 700, color: '#fff',
-                    }}>
-                      {displayName.charAt(0).toUpperCase()}
+                      fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)',
+                    }}>2</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#fff' }}>
+                        Join or create a comp
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <button onClick={() => setModal('join')} style={{
+                          padding: '12px 8px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
+                          background: 'rgba(255,255,255,0.08)', cursor: 'pointer', textAlign: 'center',
+                        }}>
+                          <p style={{ margin: '0 0 3px', fontSize: 20 }}>🔑</p>
+                          <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#fff' }}>Join a comp</p>
+                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Have a code</p>
+                        </button>
+                        <button onClick={() => setModal('create')} style={{
+                          padding: '12px 8px', borderRadius: 12, border: '1px solid rgba(74,222,128,0.35)',
+                          background: 'rgba(74,222,128,0.12)', cursor: 'pointer', textAlign: 'center',
+                        }}>
+                          <p style={{ margin: '0 0 3px', fontSize: 20 }}>🏆</p>
+                          <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#4ade80' }}>Create a comp</p>
+                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(74,222,128,0.55)' }}>For my group</p>
+                        </button>
+                      </div>
                     </div>
-                }
-                <span className="text-sm font-semibold text-gray-800">
-                  {displayName}
-                </span>
+                  </div>
+
+                  {/* Step 3 — locked until step 2 done */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.4 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)',
+                    }}>3</span>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
+                      Join a tribe
+                    </p>
+                  </div>
+
+                </div>
               </div>
-              {(totalPts !== null || myRank !== null) && (
-                <div className="flex items-center gap-3">
-                  {totalPts !== null && (
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-green-600 leading-none">{totalPts}<span className="text-xs font-normal text-gray-400 ml-0.5">pts</span></p>
-                      <p className="text-[10px] text-gray-400">global</p>
-                    </div>
-                  )}
-                  {myRank !== null && (
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-800 leading-none">#{myRank}</p>
-                      <p className="text-[10px] text-gray-400">rank</p>
+            </div>
+
+          ) : (
+
+            /* ── Main view — comp is selected ── */
+            <>
+
+              {/* Welcome bar */}
+              {displayName && (
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    {avatar
+                      ? <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #bbf7d0' }} />
+                      : <div style={{
+                          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                          background: 'linear-gradient(135deg, #153d26, #16a34a)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 13, fontWeight: 700, color: '#fff',
+                        }}>
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                    }
+                    <span className="text-sm font-semibold text-gray-800">
+                      {displayName}
+                    </span>
+                  </div>
+                  {(totalPts !== null || myRank !== null) && (
+                    <div className="flex items-center gap-3">
+                      {totalPts !== null && (
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-green-600 leading-none">{totalPts}<span className="text-xs font-normal text-gray-400 ml-0.5">pts</span></p>
+                          <p className="text-[10px] text-gray-400">global</p>
+                        </div>
+                      )}
+                      {myRank !== null && (
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-800 leading-none">#{myRank}</p>
+                          <p className="text-[10px] text-gray-400">rank</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
-            </div>
-          )}
 
-          {(loading || contextLoading) ? (
-            <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
-          ) : (
-            <>
+              {/* Compact tribe progress — shown until tribe is joined */}
+              {!step3Done && (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800 mb-1">Almost there!</p>
+                    <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                      <span className="text-green-600 font-medium">✅ TribePicks</span>
+                      <span className="text-gray-300">·</span>
+                      <span className="text-green-600 font-medium">✅ Comp</span>
+                      <span className="text-gray-300">·</span>
+                      <span className="text-amber-700 font-medium">○ Tribe</span>
+                    </div>
+                  </div>
+                  <Link href="/tribe"
+                    className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    Find a tribe →
+                  </Link>
+                </div>
+              )}
 
-              {/* ── Tournament context ─────────────────────────────────── */}
+              {/* Tournament context */}
               {activeTournaments.length > 1 && (
                 <div className="flex flex-wrap gap-2 mb-3">
                   {activeTournaments.map(t => {
@@ -477,7 +613,7 @@ export default function HomePage() {
                 </p>
               )}
 
-              {/* ── Fav team picker ── */}
+              {/* Fav team picker */}
               {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                   <div className="flex items-center justify-between mb-1.5">
@@ -509,153 +645,127 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* ── Comp section ──────────────────────────────────────────── */}
-              {selectedTournId && (
+              {/* Comp cards */}
+              {tournsComps.length > 0 && selectedTournId && (
                 <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm mb-3">
+                  {tournsComps.map((c, idx) => {
+                    const isSel = selectedCompId === c.id
+                    const rank  = compRanks[c.id]
+                    const isAdm = isCompAdmin && isSel
+                    return (
+                      <Link key={c.id} href="/predict"
+                        onClick={() => { if (!isSel) pickComp(c) }}
+                        className="block no-underline"
+                        style={{ textDecoration: 'none' }}>
+                        <div
+                          onMouseEnter={() => setHoveredComp(c.id)}
+                          onMouseLeave={() => setHoveredComp(null)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 14,
+                            padding: isSel ? '16px 16px 16px 0' : '13px 14px',
+                            borderBottom: idx < tournsComps.length - 1 ? '1px solid #f3f4f6' : 'none',
+                            background: isSel ? '#f0fdf4' : hoveredComp === c.id ? '#f9fafb' : 'transparent',
+                            borderLeft: isSel ? '4px solid #16a34a' : hoveredComp === c.id ? '4px solid #d1fae5' : '4px solid transparent',
+                            transition: 'all 0.15s', cursor: 'pointer',
+                            paddingLeft: isSel ? 16 : 14,
+                            transform: hoveredComp === c.id && !isSel ? 'translateX(2px)' : 'none',
+                            boxShadow: hoveredComp === c.id && !isSel ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                          }}>
+                          {/* Logo */}
+                          <div style={{
+                            width: isSel ? 48 : 36, height: isSel ? 48 : 36,
+                            borderRadius: isSel ? 12 : 9, flexShrink: 0,
+                            overflow: 'hidden', border: isSel ? '2px solid #bbf7d0' : '1px solid #e5e7eb',
+                            background: '#f9fafb',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.15s',
+                          }}>
+                            {c.logo_url
+                              ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <span style={{ fontSize: isSel ? 22 : 16, fontWeight: 700, color: isSel ? '#16a34a' : '#9ca3af' }}>
+                                  {c.name.charAt(0).toUpperCase()}
+                                </span>
+                            }
+                          </div>
 
-                  {tournsComps.length === 0 ? (
-                    /* No comps — invitation */
-                    <div className="p-5">
-                      <p className="text-sm font-semibold text-gray-800 mb-1">No comp yet</p>
-                      <p className="text-xs text-gray-500 mb-4">Join a friend's comp with an invite code, or create one for your group.</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => setModal('join')}
-                          className="flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 transition-colors bg-gray-50 hover:bg-green-50">
-                          <span className="text-xl">🔑</span>
-                          <span className="text-xs font-semibold text-gray-700">Join a comp</span>
-                          <span className="text-[10px] text-gray-400">Have an invite code</span>
-                        </button>
-                        <button onClick={() => setModal('create')}
-                          className="flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 border-transparent transition-all"
-                          style={{ background: 'linear-gradient(160deg, #0a2e1c, #166534)' }}>
-                          <span className="text-xl">🏆</span>
-                          <span className="text-xs font-semibold text-white">Create a comp</span>
-                          <span className="text-[10px] text-white opacity-60">For my group</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {tournsComps.map((c, idx) => {
-                        const isSel = selectedCompId === c.id
-                        const rank  = compRanks[c.id]
-                        const isAdm = isCompAdmin && isSel
-                        return (
-                          <Link key={c.id} href="/predict"
-                            onClick={() => { if (!isSel) pickComp(c) }}
-                            className="block no-underline"
-                            style={{ textDecoration: 'none' }}>
-                            <div
-                              onMouseEnter={() => setHoveredComp(c.id)}
-                              onMouseLeave={() => setHoveredComp(null)}
-                              style={{
-                              display: 'flex', alignItems: 'center', gap: 14,
-                              padding: isSel ? '16px 16px 16px 0' : '13px 14px',
-                              borderBottom: idx < tournsComps.length - 1 ? '1px solid #f3f4f6' : 'none',
-                              background: isSel ? '#f0fdf4' : hoveredComp === c.id ? '#f9fafb' : 'transparent',
-                              borderLeft: isSel ? '4px solid #16a34a' : hoveredComp === c.id ? '4px solid #d1fae5' : '4px solid transparent',
-                              transition: 'all 0.15s', cursor: 'pointer',
-                              paddingLeft: isSel ? 16 : 14,
-                              transform: hoveredComp === c.id && !isSel ? 'translateX(2px)' : 'none',
-                              boxShadow: hoveredComp === c.id && !isSel ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-                            }}>
-                              {/* Logo */}
-                              <div style={{
-                                width: isSel ? 48 : 36, height: isSel ? 48 : 36,
-                                borderRadius: isSel ? 12 : 9, flexShrink: 0,
-                                overflow: 'hidden', border: isSel ? '2px solid #bbf7d0' : '1px solid #e5e7eb',
-                                background: '#f9fafb',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                transition: 'all 0.15s',
+                          {/* Name + badge */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <p style={{
+                                margin: 0,
+                                fontSize: isSel ? 15 : 13,
+                                fontWeight: isSel ? 700 : 500,
+                                color: isSel ? '#15803d' : '#374151',
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                lineHeight: 1.2,
                               }}>
-                                {c.logo_url
-                                  ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  : <span style={{ fontSize: isSel ? 22 : 16, fontWeight: 700, color: isSel ? '#16a34a' : '#9ca3af' }}>
-                                      {c.name.charAt(0).toUpperCase()}
-                                    </span>
-                                }
-                              </div>
-
-                              {/* Name + badge */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <p style={{
-                                    margin: 0,
-                                    fontSize: isSel ? 15 : 13,
-                                    fontWeight: isSel ? 700 : 500,
-                                    color: isSel ? '#15803d' : '#374151',
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    lineHeight: 1.2,
+                                {c.name}
+                              </p>
+                              {isAdm && (
+                                <Link
+                                  href="/comp-admin"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{
+                                    fontSize: 10, fontWeight: 700, color: '#1d4ed8',
+                                    background: '#eff6ff', border: '1px solid #bfdbfe',
+                                    padding: '2px 8px', borderRadius: 99,
+                                    flexShrink: 0, whiteSpace: 'nowrap',
+                                    textDecoration: 'none', display: 'inline-flex',
+                                    alignItems: 'center', gap: 3,
                                   }}>
-                                    {c.name}
-                                  </p>
-                                  {isAdm && (
-                                    <Link
-                                      href="/comp-admin"
-                                      onClick={e => e.stopPropagation()}
-                                      style={{
-                                        fontSize: 10, fontWeight: 700, color: '#1d4ed8',
-                                        background: '#eff6ff', border: '1px solid #bfdbfe',
-                                        padding: '2px 8px', borderRadius: 99,
-                                        flexShrink: 0, whiteSpace: 'nowrap',
-                                        textDecoration: 'none', display: 'inline-flex',
-                                        alignItems: 'center', gap: 3,
-                                      }}>
-                                      ⚙️ Manage
-                                    </Link>
-                                  )}
-                                </div>
-                                {isSel && (
-                                  <p style={{ margin: '3px 0 0', fontSize: 11, color: '#16a34a', fontWeight: 500 }}>
-                                    Tap to predict →
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* Rank — prominent when selected */}
-                              {rank && (
-                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                  <p style={{
-                                    margin: 0, lineHeight: 1,
-                                    fontSize: isSel ? 18 : 13,
-                                    fontWeight: 700,
-                                    color: isSel ? '#15803d' : '#374151',
-                                  }}>
-                                    {rank.pts}
-                                    <span style={{ fontSize: isSel ? 11 : 10, fontWeight: 400, color: isSel ? '#86efac' : '#9ca3af', marginLeft: 2 }}>pts</span>
-                                  </p>
-                                  <p style={{ margin: '2px 0 0', fontSize: 10, color: isSel ? '#4ade80' : '#9ca3af' }}>
-                                    #{rank.rank} in comp
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Active indicator */}
-                              {isSel && (
-                                <div style={{
-                                  width: 8, height: 8, borderRadius: '50%',
-                                  background: '#16a34a', flexShrink: 0,
-                                  boxShadow: '0 0 0 3px #bbf7d0',
-                                }} />
+                                  ⚙️ Manage
+                                </Link>
                               )}
                             </div>
-                          </Link>
-                        )
-                      })}
+                            {isSel && (
+                              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#16a34a', fontWeight: 500 }}>
+                                Tap to predict →
+                              </p>
+                            )}
+                          </div>
 
-                      {/* Footer actions */}
-                      <div className="flex border-t border-gray-100">
-                        <button onClick={() => setModal('join')}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border-r border-gray-100">
-                          🔑 Join another
-                        </button>
-                        <button onClick={() => setModal('create')}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">
-                          + Create new
-                        </button>
-                      </div>
-                    </>
-                  )}
+                          {/* Rank */}
+                          {rank && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <p style={{
+                                margin: 0, lineHeight: 1,
+                                fontSize: isSel ? 18 : 13,
+                                fontWeight: 700,
+                                color: isSel ? '#15803d' : '#374151',
+                              }}>
+                                {rank.pts}
+                                <span style={{ fontSize: isSel ? 11 : 10, fontWeight: 400, color: isSel ? '#86efac' : '#9ca3af', marginLeft: 2 }}>pts</span>
+                              </p>
+                              <p style={{ margin: '2px 0 0', fontSize: 10, color: isSel ? '#4ade80' : '#9ca3af' }}>
+                                #{rank.rank} in comp
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Active indicator */}
+                          {isSel && (
+                            <div style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: '#16a34a', flexShrink: 0,
+                              boxShadow: '0 0 0 3px #bbf7d0',
+                            }} />
+                          )}
+                        </div>
+                      </Link>
+                    )
+                  })}
+
+                  {/* Footer actions */}
+                  <div className="flex border-t border-gray-100">
+                    <button onClick={() => setModal('join')}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border-r border-gray-100">
+                      🔑 Join another
+                    </button>
+                    <button onClick={() => setModal('create')}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+                      + Create new
+                    </button>
+                  </div>
                 </div>
               )}
 
