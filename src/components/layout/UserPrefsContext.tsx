@@ -30,6 +30,9 @@ export interface Comp {
   tournament_id?: string | null
 }
 
+export type TeamEntry = { fifa_code: string; flag_emoji: string }
+export type TeamsMap  = Record<string, TeamEntry>
+
 interface UserPrefsCtx {
   activeTournaments:  Tournament[]
   tournsComps:        Comp[]
@@ -41,6 +44,9 @@ interface UserPrefsCtx {
   adminComps:         { id: string; name: string; logo_url?: string | null; invite_code?: string }[]
   roundConfigs:       RoundConfig[]
   scoringConfig:      TournamentScoringConfig
+  teamsMap:           TeamsMap
+  flag:               (name: string) => string
+  code:               (name: string) => string
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
   updateComp:         (id: string, patch: Partial<Comp>) => void
@@ -69,6 +75,20 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   // Admin comp IDs fetched once at load — isCompAdmin is derived from selectedCompId
   const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
   const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
+  const [teamsMap,      setTeamsMap]      = useState<TeamsMap>({})
+
+  const loadTeams = useCallback(async (tournId: string) => {
+    try {
+      const res  = await fetch(`/api/tournament-teams?tournament_id=${tournId}`)
+      const data = await res.json()
+      const map: TeamsMap = {}
+      for (const t of data.teams ?? []) map[t.name] = { fifa_code: t.fifa_code, flag_emoji: t.flag_emoji }
+      setTeamsMap(map)
+    } catch { /* non-critical — UI falls back to '🏳️' / 3-letter abbrev */ }
+  }, [])
+
+  const flag = useCallback((name: string) => teamsMap[name]?.flag_emoji ?? '🏳️', [teamsMap])
+  const code = useCallback((name: string) => teamsMap[name]?.fifa_code  ?? name.slice(0, 3).toUpperCase(), [teamsMap])
 
   // Load comps for a given tournament — filtered server-side via ?tournament_id=
   const loadComps = useCallback(async (
@@ -128,7 +148,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         : activeTourns[0]?.id ?? null
       setSelectedTournId(startTournId)
 
-      // 3. Load round configs for starting tournament
+      // 3. Load teams + round configs for starting tournament
+      if (startTournId) { loadTeams(startTournId) }
+
       if (startTournId) {
         try {
           const rr = await fetch(`/api/tournament-rounds?tournament_id=${startTournId}`)
@@ -191,6 +213,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         setScoringConfig(buildScoringConfig(merged))
       }
     } catch { /* use default */ }
+    loadTeams(id)
     if (session) await loadComps(id, session.user.id, null)
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -238,6 +261,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       selectedTourn, selectedComp, updateComp,
       isCompAdmin, adminComps,
       roundConfigs, scoringConfig,
+      teamsMap, flag, code,
       pickTournament, pickComp, refreshComps,
       loading,
     }}>

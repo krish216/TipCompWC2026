@@ -50,22 +50,6 @@ interface Fixture {
   result?: { home: number; away: number } | null
 }
 
-const FLAGS: Record<string, string> = {
-  Algeria:'🇩🇿', Argentina:'🇦🇷', Australia:'🇦🇺', Austria:'🇦🇹',
-  Belgium:'🇧🇪', 'Bosnia and Herzegovina':'🇧🇦', Brazil:'🇧🇷',
-  Canada:'🇨🇦', 'Cape Verde':'🇨🇻', Colombia:'🇨🇴', Croatia:'🇭🇷',
-  Curacao:'🏝️', Czechia:'🇨🇿', 'DR Congo':'🇨🇩',
-  Ecuador:'🇪🇨', Egypt:'🇪🇬', England:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', France:'🇫🇷',
-  Germany:'🇩🇪', Ghana:'🇬🇭', Haiti:'🇭🇹', Iran:'🇮🇷',
-  Iraq:'🇮🇶', 'Ivory Coast':'🇨🇮', Japan:'🇯🇵', Jordan:'🇯🇴',
-  Mexico:'🇲🇽', Morocco:'🇲🇦', Netherlands:'🇳🇱', 'New Zealand':'🇳🇿',
-  Norway:'🇳🇴', Panama:'🇵🇦', Paraguay:'🇵🇾', Portugal:'🇵🇹',
-  Qatar:'🇶🇦', 'Saudi Arabia':'🇸🇦', Scotland:'🏴󠁧󠁢󠁳󠁣󠁴󠁿', Senegal:'🇸🇳',
-  'South Africa':'🇿🇦', 'South Korea':'🇰🇷', Spain:'🇪🇸', Sweden:'🇸🇪',
-  Switzerland:'🇨🇭', Tunisia:'🇹🇳', Turkey:'🇹🇷', Uruguay:'🇺🇾',
-  USA:'🇺🇸', Uzbekistan:'🇺🇿',
-}
-const flag = (t: string) => FLAGS[t] ?? '🏳️'
 
 type MainTab   = 'leaderboard' | 'picks' | 'chat'
 type ChatTopic = 'general' | number   // number = fixture_id
@@ -105,6 +89,7 @@ function MatchTopicList({
   onSelect: (topic: ChatTopic) => void
   timezone: string
 }) {
+  const { flag } = useUserPrefs()
   const now = new Date()
 
   // Group fixtures: recent (past 3 days) + upcoming (next 3 days) shown first
@@ -243,6 +228,7 @@ function ChatPanel({
   fixtures: Fixture[]
   timezone: string
 }) {
+  const { flag } = useUserPrefs()
   const { supabase } = useSupabase()
   const [messages,  setMessages]  = useState<Message[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -1390,7 +1376,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tr
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
   tribeId: string; compId: string | null; activeTournamentId: string | null
 }) {
-  const { scoringConfig } = useUserPrefs()
+  const { scoringConfig, flag, code } = useUserPrefs()
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
   const [activePickRound, setActivePickRound] = useState<string>('gs')
   const [scope,           setScope]           = useState<'tribe' | 'comp'>('tribe')
@@ -1565,6 +1551,9 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tr
                               <span className="text-[8px] text-gray-300">v</span>
                               <span>{flag(fx.away)}</span>
                             </div>
+                            <span className="text-[9px] font-semibold text-gray-500 tracking-wide">
+                              {code(fx.home)} v {code(fx.away)}
+                            </span>
                             {rh !== null
                               ? <span className="text-[10px] font-bold text-gray-700 tabular-nums">{rh}–{ra}</span>
                               : <span className="text-[9px] text-gray-300">TBC</span>}

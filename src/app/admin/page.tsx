@@ -8,19 +8,6 @@ import { getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 
-// ── Flag map ──────────────────────────────────────────────────────────────────
-const FLAGS: Record<string, string> = {
-  Mexico: '🇲🇽', 'South Africa': '🇿🇦', 'South Korea': '🇰🇷', Brazil: '🇧🇷', Morocco: '🇲🇦',
-  Haiti: '🇭🇹', Scotland: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', USA: '🇺🇸', Paraguay: '🇵🇾', Australia: '🇦🇺',
-  Germany: '🇩🇪', Ecuador: '🇪🇨', Netherlands: '🇳🇱', Japan: '🇯🇵', Tunisia: '🇹🇳',
-  Belgium: '🇧🇪', Egypt: '🇪🇬', Iran: '🇮🇷', 'New Zealand': '🇳🇿', Spain: '🇪🇸',
-  'Saudi Arabia': '🇸🇦', Uruguay: '🇺🇾', France: '🇫🇷', Senegal: '🇸🇳', Norway: '🇳🇴',
-  Argentina: '🇦🇷', Algeria: '🇩🇿', Austria: '🇦🇹', Jordan: '🇯🇴', Portugal: '🇵🇹',
-  Uzbekistan: '🇺🇿', Colombia: '🇨🇴', England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', Croatia: '🇭🇷', Ghana: '🇬🇭',
-  Panama: '🇵🇦', Canada: '🇨🇦', Switzerland: '🇨🇭', Qatar: '🇶🇦', 'Cabo Verde': '🇨🇻',
-  "Côte d'Ivoire": '🇨🇮', 'Curaçao': '🏝️',
-}
-const flag = (t: string) => FLAGS[t] ?? '🏳️'
 
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
@@ -38,6 +25,7 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
   onSave:  (id: number, home: number, away: number, penWinner?: string | null) => Promise<void>
   onClear: (id: number) => Promise<void>
 }) {
+  const { flag } = useUserPrefs()
   const [saving,    setSaving]    = useState(false)
   const [homeVal,   setHomeVal]   = useState(result?.home?.toString() ?? '')
   const [awayVal,   setAwayVal]   = useState(result?.away?.toString() ?? '')
@@ -142,7 +130,7 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
 // ─── Admin Page ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, selectedTournId, activeTournaments } = useUserPrefs()
+  const { scoringConfig, selectedTournId, activeTournaments, flag } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<AdminTab>('results')
 

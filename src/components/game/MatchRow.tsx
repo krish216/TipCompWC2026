@@ -7,23 +7,8 @@ import { PointsBadge } from '@/components/ui'
 import type { Fixture, MatchScore, RoundId } from '@/types'
 import { calcPoints, getDefaultScoringConfig, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-const FLAGS: Record<string, string> = {
-  Algeria:'🇩🇿', Argentina:'🇦🇷', Australia:'🇦🇺', Austria:'🇦🇹',
-  Belgium:'🇧🇪', 'Bosnia and Herzegovina':'🇧🇦', Brazil:'🇧🇷',
-  Canada:'🇨🇦', 'Cape Verde':'🇨🇻', Colombia:'🇨🇴', Croatia:'🇭🇷',
-  Curacao:'🏝️', Czechia:'🇨🇿', 'DR Congo':'🇨🇩',
-  Ecuador:'🇪🇨', Egypt:'🇪🇬', England:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', France:'🇫🇷',
-  Germany:'🇩🇪', Ghana:'🇬🇭', Haiti:'🇭🇹', Iran:'🇮🇷',
-  Iraq:'🇮🇶', 'Ivory Coast':'🇨🇮', Japan:'🇯🇵', Jordan:'🇯🇴',
-  Mexico:'🇲🇽', Morocco:'🇲🇦', Netherlands:'🇳🇱', 'New Zealand':'🇳🇿',
-  Norway:'🇳🇴', Panama:'🇵🇦', Paraguay:'🇵🇾', Portugal:'🇵🇹',
-  Qatar:'🇶🇦', 'Saudi Arabia':'🇸🇦', Scotland:'🏴󠁧󠁢󠁳󠁣󠁴󠁿', Senegal:'🇸🇳',
-  'South Africa':'🇿🇦', 'South Korea':'🇰🇷', Spain:'🇪🇸', Sweden:'🇸🇪',
-  Switzerland:'🇨🇭', Tunisia:'🇹🇳', Turkey:'🇹🇷', Uruguay:'🇺🇾',
-  USA:'🇺🇸', Uzbekistan:'🇺🇿',
-}
-const flag = (t: string) => FLAGS[t] ?? '🏳️'
 const short = (t: string) => t.length > 14 ? t.replace('and ', '& ').split(' ').map((w,i) => i === 0 ? w : w[0]+'.').join(' ') : t
 
 interface Props {
@@ -52,6 +37,7 @@ export function MatchRow({
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore,
 }: Props) {
+  const { flag } = useUserPrefs()
   const [localHome, setLocalHome] = useState<string>(
     prediction && prediction.home >= 0 ? String(prediction.home) : ''
   )

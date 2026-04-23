@@ -1,30 +1,12 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
-import type { RoundId } from '@/types'
-
-// ── Flag emoji map ─────────────────────────────────────────────────────────
-const FLAGS: Record<string, string> = {
-  Algeria:'🇩🇿', Argentina:'🇦🇷', Australia:'🇦🇺', Austria:'🇦🇹',
-  Belgium:'🇧🇪', 'Bosnia and Herzegovina':'🇧🇦', Brazil:'🇧🇷',
-  Canada:'🇨🇦', 'Cape Verde':'🇨🇻', Colombia:'🇨🇴', Croatia:'🇭🇷',
-  Curacao:'🏝️', Czechia:'🇨🇿', 'DR Congo':'🇨🇩',
-  Ecuador:'🇪🇨', Egypt:'🇪🇬', England:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', France:'🇫🇷',
-  Germany:'🇩🇪', Ghana:'🇬🇭', Haiti:'🇭🇹', Iran:'🇮🇷',
-  Iraq:'🇮🇶', 'Ivory Coast':'🇨🇮', Japan:'🇯🇵', Jordan:'🇯🇴',
-  Mexico:'🇲🇽', Morocco:'🇲🇦', Netherlands:'🇳🇱', 'New Zealand':'🇳🇿',
-  Norway:'🇳🇴', Panama:'🇵🇦', Paraguay:'🇵🇾', Portugal:'🇵🇹',
-  Qatar:'🇶🇦', 'Saudi Arabia':'🇸🇦', Scotland:'🏴󠁧󠁢󠁳󠁣󠁴󠁿', Senegal:'🇸🇳',
-  'South Africa':'🇿🇦', 'South Korea':'🇰🇷', Spain:'🇪🇸', Sweden:'🇸🇪',
-  Switzerland:'🇨🇭', Tunisia:'🇹🇳', Turkey:'🇹🇷', Uruguay:'🇺🇾',
-  USA:'🇺🇸', Uzbekistan:'🇺🇿',
-}
-const flag = (t: string) => FLAGS[t] ?? '🏳️'
+import { useCallback, useState } from 'react'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tip-comp-wc-2026.vercel.app'
 
 // ── Draw a share card onto a canvas ───────────────────────────────────────
-function drawCard(canvas: HTMLCanvasElement, payload: SharePayload) {
+function drawCard(canvas: HTMLCanvasElement, payload: SharePayload, flagFn: (name: string) => string) {
   const W = 600, H = 315
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d')!
@@ -57,7 +39,7 @@ function drawCard(canvas: HTMLCanvasElement, payload: SharePayload) {
   ctx.beginPath(); ctx.moveTo(28, 68); ctx.lineTo(W - 28, 68); ctx.stroke()
 
   if (payload.type === 'prediction') {
-    drawPredictionCard(ctx, W, H, payload)
+    drawPredictionCard(ctx, W, H, payload, flagFn)
   } else if (payload.type === 'rank') {
     drawRankCard(ctx, W, H, payload)
   } else if (payload.type === 'achievement') {
@@ -75,7 +57,7 @@ function drawCard(canvas: HTMLCanvasElement, payload: SharePayload) {
   ctx.textAlign = 'left'
 }
 
-function drawPredictionCard(ctx: CanvasRenderingContext2D, W: number, H: number, p: PredictionPayload) {
+function drawPredictionCard(ctx: CanvasRenderingContext2D, W: number, H: number, p: PredictionPayload, flagFn: (name: string) => string) {
   // Round badge
   ctx.fillStyle = 'rgba(52,211,153,0.3)'
   roundRect(ctx, 28, 80, 120, 22, 4); ctx.fill()
@@ -99,9 +81,9 @@ function drawPredictionCard(ctx: CanvasRenderingContext2D, W: number, H: number,
   ctx.font = 'bold 20px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.9)'
   ctx.textAlign = 'right'
-  ctx.fillText(`${flag(p.home)} ${p.home}`, W / 2 - 55, 225)
+  ctx.fillText(`${flagFn(p.home)} ${p.home}`, W / 2 - 55, 225)
   ctx.textAlign = 'left'
-  ctx.fillText(`${flag(p.away)} ${p.away}`, W / 2 + 55, 225)
+  ctx.fillText(`${flagFn(p.away)} ${p.away}`, W / 2 + 55, 225)
   ctx.textAlign = 'left'
 
   // Favourite star
@@ -207,7 +189,7 @@ interface ShareButtonProps {
 }
 
 export function ShareButton({ payload, label, className = '', compact = false }: ShareButtonProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { flag } = useUserPrefs()
   const [sharing, setSharing] = useState(false)
   const [copied, setCopied]   = useState(false)
 
@@ -217,7 +199,7 @@ export function ShareButton({ payload, label, className = '', compact = false }:
 
     try {
       const canvas = document.createElement('canvas')
-      drawCard(canvas, payload)
+      drawCard(canvas, payload, flag)
 
       // Build share text
       let text = ''
