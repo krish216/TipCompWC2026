@@ -1,8 +1,8 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
+import { Avatar, Medal, Spinner, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import toast from 'react-hot-toast'
 import type { RoundId } from '@/types'
@@ -402,89 +402,6 @@ function ChatPanel({
 }
 
 // ── No tribe panel ────────────────────────────────────────────────────────────
-// ── Announcements feed (shown to PUBLIC org members) ─────────────────────────
-function AnnouncementsFeed() {
-  const [announcements, setAnnouncements] = useState<any[]>([])
-
-  useEffect(() => {
-    fetch('/api/announcements').then(r => r.json()).then(d => setAnnouncements(d.data ?? []))
-  }, [])
-
-  if (announcements.length === 0) return null
-  return (
-    <div className="mb-5">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">📢 Comp announcements</p>
-      <div className="space-y-2">
-        {announcements.map((a: any) => {
-          const orgRaw = a.comps
-          const org    = Array.isArray(orgRaw) ? orgRaw[0] : orgRaw
-          return (
-            <div key={a.id} className="bg-white border border-blue-200 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-1">
-                {org?.logo_url && <img src={org.logo_url} alt={org.name} className="w-5 h-5 rounded object-cover" />}
-                <p className="text-[11px] font-medium text-blue-700">{org?.name ?? 'Comp'}</p>
-              </div>
-              <p className="text-xs font-semibold text-gray-900">{a.title}</p>
-              <p className="text-xs text-gray-600 mt-0.5">{a.body}</p>
-              <p className="text-[10px] text-gray-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ── Tribe dropdown with member count ─────────────────────────────────────────
-// ── Tribe Dropdown ────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// TribeCard — single selectable tribe in the picker
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// TribeCard
-// ─────────────────────────────────────────────────────────────────────────────
-function TribeCard({ tribe, selected, onSelect }: {
-  tribe: { id:string; name:string; description?:string|null; invite_code:string; member_count?:number }
-  selected: boolean
-  onSelect: () => void
-}) {
-  const count = tribe.member_count ?? 0
-  return (
-    <button type="button" onClick={onSelect} style={{
-      width:'100%', textAlign:'left', padding:'12px 14px',
-      borderRadius:'var(--border-radius-lg)',
-      border: selected ? '2px solid var(--color-border-success)' : '1.5px solid var(--color-border-tertiary)',
-      background: selected ? 'var(--color-background-success)' : 'var(--color-background-primary)',
-      display:'flex', alignItems:'center', gap:12,
-      cursor:'pointer', transition:'border-color 0.15s, background 0.15s',
-    }}>
-      <div style={{
-        width:18, height:18, borderRadius:'50%', flexShrink:0,
-        border: selected ? '5px solid var(--color-border-success)' : '1.5px solid var(--color-border-secondary)',
-        background:'var(--color-background-primary)', transition:'border 0.15s',
-      }}/>
-      <div style={{flex:1, minWidth:0}}>
-        <p style={{margin:0, fontSize:14, fontWeight:500, color:'var(--color-text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-          {tribe.name}
-        </p>
-        {tribe.description && (
-          <p style={{margin:'2px 0 0', fontSize:12, color:'var(--color-text-secondary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-            {tribe.description}
-          </p>
-        )}
-      </div>
-      <div style={{
-        flexShrink:0, fontSize:12, fontWeight:500,
-        padding:'3px 10px', borderRadius:99,
-        background: selected ? 'var(--color-background-primary)' : 'var(--color-background-secondary)',
-        color: selected ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-        border:'0.5px solid var(--color-border-tertiary)',
-      }}>
-        {count} {count === 1 ? 'member' : 'members'}
-      </div>
-    </button>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TribeDropdown
@@ -1099,41 +1016,6 @@ export default function TribePage() {
     ? [...tribe.members].sort((a, b) => b.total_points - a.total_points)
     : []
 
-  // ── Context bar — shown at top of every state ──────────────────────────────
-  const ContextBar = () => {
-    if (!selectedTourn && !selectedComp) return null
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 16px', marginBottom: 16,
-        background: 'var(--color-background-secondary)',
-        border: '0.5px solid var(--color-border-tertiary)',
-        borderRadius: 'var(--border-radius-lg)',
-      }}>
-        {selectedComp?.logo_url && (
-          <img src={selectedComp.logo_url} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {selectedComp && (
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-              {selectedComp.name}
-            </span>
-          )}
-          {selectedTourn && (
-            <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginLeft: selectedComp ? 8 : 0 }}>
-              {selectedTourn.name}
-            </span>
-          )}
-        </div>
-        {!selectedComp && (
-          <a href="/" style={{ fontSize: 12, color: 'var(--color-text-info)', textDecoration: 'none', flexShrink: 0 }}>
-            Select comp on Home →
-          </a>
-        )}
-      </div>
-    )
-  }
-
   if (loading) return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
@@ -1319,6 +1201,9 @@ export default function TribePage() {
             myId={myId}
             onRefresh={loadPicks}
             timezone={timezone}
+            tribeId={tribe.id}
+            compId={(tribe as any).comp_id ?? null}
+            activeTournamentId={activeTournamentId}
           />
         )}
 
@@ -1435,8 +1320,6 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
             {members.map((member, i) => {
               const isMe  = member.user_id === myId
               const breakdown = roundBreakdown[member.user_id] ?? {}
-              const totalFromBreakdown = Object.values(breakdown).reduce((s, v) => s + v, 0)
-              // Use member.total_points as source of truth; breakdown may differ slightly due to filter timing
               const displayTotal = member.total_points
 
               return (
@@ -1503,77 +1386,31 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
 }
 
 // ── Tribe Picks View ──────────────────────────────────────────────────────────
-function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: {
+function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tribeId: _tribeId, compId, activeTournamentId }: {
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void; timezone: string
+  tribeId: string; compId: string | null; activeTournamentId: string | null
 }) {
   const { scoringConfig } = useUserPrefs()
   const [expandedFixture, setExpandedFixture] = useState<number | null>(null)
   const [activePickRound, setActivePickRound] = useState<string>('gs')
+  const [scope,           setScope]           = useState<'tribe' | 'comp'>('tribe')
+  const [compPicksData,   setCompPicksData]   = useState<any>(null)
+  const [compPicksLoading, setCompPicksLoading] = useState(false)
 
-  if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+  // Active data depends on scope
+  const activeData = scope === 'comp' ? compPicksData : tribePicksData
 
-  if (!tribePicksData) return (
-    <div className="text-center py-12">
-      <p className="text-sm text-gray-500 mb-3">Load tribe picks to see how everyone predicted.</p>
-      <button onClick={onRefresh} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
-        Load picks
-      </button>
-    </div>
-  )
-
-  const { fixtures, members, picks } = tribePicksData
-  if (!fixtures?.length) return (
-    <div className="text-center py-12">
-      <p className="text-gray-400 text-sm">No locked fixtures yet — picks will appear here once matches kick off.</p>
-    </div>
-  )
-
-  const picksMap: Record<number, Record<string, any>> = picks ?? {}
-
-  const OUTCOME_ROUNDS_SET = new Set(['gs','r32','r16','qf'])
-  const EXACT_ROUNDS_SET   = new Set(['sf','tp','f'])
-
-  // Map outcome code to display label
-  const outcomeLabel = (o: string | null) =>
-    o === 'H' ? '1' : o === 'D' ? 'X' : o === 'A' ? '2' : null
-
-  // Colour and label derived from prediction vs result
-  const cellInfo = (fx: any, userId: string) => {
-    const pick = picksMap[fx.id]?.[userId]
-    if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
-
-    const isOutcomeRound = OUTCOME_ROUNDS_SET.has(fx.round)
-    const isBonusRound   = EXACT_ROUNDS_SET.has(fx.round)
-
-    // Build display label
-    const label = isOutcomeRound
-      ? (outcomeLabel(pick.outcome) ?? '—')  // show 1 / X / 2
-      : `${pick.home}–${pick.away}`           // show score for sf/tp/f
-
-    // No result yet — amber awaiting
-    if (!fx.result) {
-      const needsPen = fx.round !== 'gs' && !['gs'].includes(fx.round) && pick.outcome === 'D' && !pick.pen_winner
-      if (needsPen) return { colour: 'bg-amber-50 text-amber-700 border border-amber-300', label: `${label} 🥅?` }
-      return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
-    }
-
-    // Compute outcomes for comparison
-    const rh = Number(fx.result.home); const ra = Number(fx.result.away)
-    const resultOutcome = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
-
-    if (isOutcomeRound) {
-      if (!pick.outcome) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
-      if (pick.outcome === resultOutcome) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
-      return { colour: 'bg-red-100 text-red-700', label }
-    } else {
-      // Bonus score round
-      const ph = Number(pick.home); const pa = Number(pick.away)
-      const predOutcome = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
-      if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
-      if (predOutcome === resultOutcome) return { colour: 'bg-blue-100 text-blue-800', label }
-      return { colour: 'bg-red-100 text-red-700', label }
-    }
-  }
+  // Load comp-scope picks when user switches to "Whole Comp"
+  useEffect(() => {
+    if (scope !== 'comp' || !compId || compPicksData) return
+    setCompPicksLoading(true)
+    const tidParam = activeTournamentId ? `&tournament_id=${activeTournamentId}` : ''
+    fetch(`/api/tribes/picks?comp_id=${compId}${tidParam}`)
+      .then(r => r.json())
+      .then(d => setCompPicksData(d))
+      .catch(() => {})
+      .finally(() => setCompPicksLoading(false))
+  }, [scope, compId, activeTournamentId, compPicksData])
 
   const roundOrder = useMemo(() =>
     Object.values(scoringConfig.rounds)
@@ -1587,238 +1424,351 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone }: 
     return map
   }, [scoringConfig])
 
+  const OUTCOME_ROUNDS_SET = useMemo(() => new Set(scoringConfig.outcome_rounds), [scoringConfig])
+  const outcomeLabel = (o: string | null) => o === 'H' ? '1' : o === 'D' ? 'X' : o === 'A' ? '2' : null
+
+  // Colour + label for a fixture cell in the results grid
+  const cellInfo = (picksMap: Record<number, Record<string, any>>, fx: any, userId: string) => {
+    const pick = picksMap[fx.id]?.[userId]
+    if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '?' }
+    const isOutcomeRound = OUTCOME_ROUNDS_SET.has(fx.round)
+    const label = isOutcomeRound ? (outcomeLabel(pick.outcome) ?? '?') : `${pick.home}–${pick.away}`
+    if (!fx.result) return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
+    const rh = Number(fx.result.home); const ra = Number(fx.result.away)
+    const resultOutcome = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
+    if (isOutcomeRound) {
+      if (!pick.outcome) return { colour: 'bg-gray-100 text-gray-400', label: '—' }
+      if (pick.outcome === resultOutcome) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
+      return { colour: 'bg-red-100 text-red-700', label }
+    }
+    const ph = Number(pick.home); const pa = Number(pick.away)
+    const predOutcome = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
+    if (ph === rh && pa === ra) return { colour: 'bg-green-100 text-green-800 font-semibold', label }
+    if (predOutcome === resultOutcome) return { colour: 'bg-blue-100 text-blue-800', label }
+    return { colour: 'bg-red-100 text-red-700', label }
+  }
+
+  if (loading || (scope === 'comp' && compPicksLoading)) {
+    return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+  }
+
+  if (!tribePicksData && scope === 'tribe') return (
+    <div className="text-center py-12">
+      <p className="text-sm text-gray-500 mb-3">Load tribe picks to see how everyone predicted.</p>
+      <button onClick={onRefresh} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
+        Load picks
+      </button>
+    </div>
+  )
+
+  const { fixtures = [], members = [], picks = {}, tipping_closed: tippingClosedMap = {} } = activeData ?? {}
+  const picksMap: Record<number, Record<string, any>> = picks
+
   const byRound: Record<string, any[]> = {}
   for (const f of fixtures) {
     if (!byRound[f.round]) byRound[f.round] = []
     byRound[f.round].push(f)
   }
+
+  // All rounds that have fixtures OR are available from scoring config
   const availableRounds = roundOrder.filter(r => byRound[r]?.length)
-  // Auto-select first available round if current selection has no data
-  const effectiveRound = byRound[activePickRound]?.length ? activePickRound : (availableRounds[0] ?? 'gs')
+  const effectiveRound  = byRound[activePickRound]?.length ? activePickRound : (availableRounds[0] ?? 'gs')
+  const isClosedRound   = !!(tippingClosedMap as Record<string, boolean>)[effectiveRound]
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[11px] text-gray-500">Locked fixtures — picks colour coded once results are in</p>
-        <button onClick={onRefresh} className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-3 flex-wrap mb-4 text-[11px] text-gray-500">
-        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-green-400"/><span>Correct</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-red-300"/><span>Wrong</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-amber-300"/><span>Awaiting result</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-gray-200"/><span>No pick</span></div>
-      </div>
-
-      {/* Round filter tabs — always shown, empty rounds disabled */}
-      <div className="flex gap-1 flex-wrap mb-4">
-        {roundOrder.map(r => {
-          const hasFixtures = !!byRound[r]?.length
-          const isActive    = effectiveRound === r
-          return (
-            <button key={r}
-              disabled={!hasFixtures}
-              onClick={() => { setActivePickRound(r); setExpandedFixture(null) }}
+      {/* ── Scope toggle: My Tribe / Whole Comp ── */}
+      {compId && (
+        <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl border border-gray-200 w-fit">
+          {(['tribe', 'comp'] as const).map(s => (
+            <button key={s} onClick={() => { setScope(s); setExpandedFixture(null) }}
               className={clsx(
-                'px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
-                isActive && hasFixtures  && 'bg-green-600 border-green-700 text-white',
-                !isActive && hasFixtures && 'border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400',
-                !hasFixtures             && 'border-gray-200 text-gray-300 cursor-not-allowed',
+                'px-4 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                scope === s ? 'bg-white text-green-800 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
               )}>
-              {roundLabels[r]}
-              {hasFixtures && (
-                <span className={clsx(
-                  'ml-1 text-[10px] font-semibold',
-                  isActive ? 'text-green-200' : 'text-gray-400'
-                )}>
-                  {byRound[r].length}
-                </span>
-              )}
+              {s === 'tribe' ? '🏕️ My Tribe' : '🏆 Whole Comp'}
             </button>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Fixtures for selected round */}
-      {[effectiveRound].filter(r => byRound[r]?.length).map(round => (
-        <div key={round} className="space-y-3">
-          {byRound[round].map((fx: any) => {
-            const isExpanded = expandedFixture === fx.id
-            const roundPicks = picksMap[fx.id] ?? {}
-            const isORound   = OUTCOME_ROUNDS_SET.has(fx.round)
-            const rh2 = fx.result ? Number(fx.result.home) : null
-            const ra2 = fx.result ? Number(fx.result.away) : null
-            const ro2 = rh2 !== null && ra2 !== null ? (rh2 > ra2 ? 'H' : ra2 > rh2 ? 'A' : 'D') : null
-            const correctCount = !fx.result ? 0 : Object.values(roundPicks).filter((p: any) => {
-              if (isORound) return p.outcome === ro2
-              const ph = Number(p.home); const pa = Number(p.away)
-              const po = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
-              return po === ro2
-            }).length
-            const bonusCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) =>
-              Number(p.home) === rh2 && Number(p.away) === ra2
-            ).length
-            const pickCount  = Object.keys(roundPicks).length
-            const pctCorrect = fx.result && pickCount > 0 ? Math.round(correctCount / pickCount * 100) : null
-
+      {/* ── Round pills — predict-page style ── */}
+      <div className="mb-4 -mx-1 px-1 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
+          {roundOrder.map(r => {
+            const hasFixtures = !!byRound[r]?.length
+            const isActive    = effectiveRound === r
+            const isClosed    = !!(tippingClosedMap as Record<string, boolean>)[r]
             return (
-              <div key={fx.id} className={clsx(
-                'rounded-2xl border overflow-hidden transition-all',
-                fx.result ? 'border-gray-200 bg-white' : 'border-gray-200 bg-white'
-              )}>
-                {/* ── Fixture header ── */}
-                <button
-                  onClick={() => setExpandedFixture(isExpanded ? null : fx.id)}
-                  className="w-full text-left px-4 pt-3 pb-3 hover:bg-gray-50/80 transition-colors"
-                >
-                  {/* Teams row */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-xl">{flag(fx.home)}</span>
-                    <span className={clsx('text-sm font-bold flex-1', !fx.result ? 'text-gray-800' : ro2 === 'H' ? 'text-gray-900' : 'text-gray-400')}>
-                      {fx.home}
-                    </span>
-                    {fx.result ? (
-                      <span className="px-3 py-1 bg-gray-900 text-white text-sm font-bold rounded-lg tabular-nums">
-                        {fx.result.home} – {fx.result.away}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-300 font-medium px-2">vs</span>
-                    )}
-                    <span className={clsx('text-sm font-bold flex-1 text-right', !fx.result ? 'text-gray-800' : ro2 === 'A' ? 'text-gray-900' : 'text-gray-400')}>
-                      {fx.away}
-                    </span>
-                    <span className="text-xl">{flag(fx.away)}</span>
-                  </div>
-
-                  {/* Meta + stats row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                      <span>{formatKickoff(fx.kickoff_utc, timezone, { date: true, time: false })}</span>
-                      {fx.pen_winner && (
-                        <span className="text-amber-600 font-medium">🥅 {fx.pen_winner} (pens)</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {fx.result && pctCorrect !== null && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-green-400 rounded-full transition-all"
-                              style={{ width: `${pctCorrect}%` }} />
-                          </div>
-                          <span className="text-[11px] font-semibold text-green-600">{pctCorrect}%</span>
-                        </div>
-                      )}
-                      <span className="text-[11px] text-gray-400">{pickCount}/{members.length} picked</span>
-                      <span className="text-gray-300 text-xs ml-1">{isExpanded ? '▲' : '▼'}</span>
-                    </div>
-                  </div>
-                </button>
-
-                {/* ── Member picks grid — expanded ── */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-50">
-                    {members.map((member: any) => {
-                      const pick  = roundPicks[member.user_id]
-                      const isMe  = member.user_id === myId
-
-                      // Determine pick display and state
-                      let pickDisplay: React.ReactNode = (
-                        <span className="text-[11px] text-gray-300 italic">No pick</span>
-                      )
-                      let rowState: 'correct' | 'wrong' | 'pending' | 'none' = 'none'
-
-                      if (pick) {
-                        if (!fx.result) {
-                          rowState = 'pending'
-                          if (isORound) {
-                            const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
-                            pickDisplay = pick.outcome === 'D'
-                              ? <span className="flex items-center gap-1 text-xs font-semibold text-gray-700">
-                                  {flag(fx.home)} <span className="text-gray-400 mx-0.5">—</span> {flag(fx.away)}
-                                  <span className="ml-1 text-[10px] text-gray-400">Draw</span>
-                                </span>
-                              : <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
-                                  {flag(teamPicked!)} {teamPicked}
-                                </span>
-                          } else {
-                            pickDisplay = <span className="text-xs font-bold text-gray-700 tabular-nums">{pick.home} – {pick.away}</span>
-                          }
-                        } else {
-                          // Result is in — colour by correctness
-                          const isCorrect = isORound
-                            ? pick.outcome === ro2
-                            : (Number(pick.home) > Number(pick.away) ? 'H' : Number(pick.away) > Number(pick.home) ? 'A' : 'D') === ro2
-                          const isBonus = !isORound && Number(pick.home) === rh2 && Number(pick.away) === ra2
-                          rowState = isCorrect ? 'correct' : 'wrong'
-
-                          if (isORound) {
-                            const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
-                            pickDisplay = pick.outcome === 'D'
-                              ? <span className={clsx('flex items-center gap-1 text-xs font-semibold',
-                                  isCorrect ? 'text-green-800' : 'text-red-700')}>
-                                  {flag(fx.home)} <span className="mx-0.5 opacity-60">—</span> {flag(fx.away)}
-                                  <span className="ml-1 text-[10px]">Draw</span>
-                                </span>
-                              : <span className={clsx('flex items-center gap-1.5 text-xs font-semibold',
-                                  isCorrect ? 'text-green-800' : 'text-red-700')}>
-                                  {flag(teamPicked!)} {teamPicked}
-                                </span>
-                          } else {
-                            pickDisplay = (
-                              <span className={clsx('flex items-center gap-1 text-xs font-bold tabular-nums',
-                                isBonus ? 'text-green-800' : isCorrect ? 'text-blue-800' : 'text-red-700')}>
-                                {pick.home} – {pick.away}
-                                {isBonus && <span className="text-[10px] ml-0.5">★</span>}
-                              </span>
-                            )
-                          }
-                        }
-                      }
-
-                      return (
-                        <div key={member.user_id}
-                          className={clsx(
-                            'flex items-center gap-3 px-4 py-2.5 transition-colors',
-                            isMe && 'bg-green-50/60',
-                            rowState === 'correct' && 'bg-green-50/40',
-                            rowState === 'wrong'   && 'bg-red-50/30',
-                          )}>
-                          {/* Left indicator bar */}
-                          <div className={clsx('w-0.5 h-6 rounded-full flex-shrink-0',
-                            rowState === 'correct' ? 'bg-green-400' :
-                            rowState === 'wrong'   ? 'bg-red-300' :
-                            rowState === 'pending' ? 'bg-amber-300' : 'bg-gray-200'
-                          )} />
-
-                          <Avatar name={member.display_name} size="xs" />
-
-                          <span className={clsx('text-xs font-medium flex-1 truncate',
-                            isMe ? 'text-green-700' : 'text-gray-700')}>
-                            {member.display_name}{isMe && ' (you)'}
-                          </span>
-
-                          <div className="flex-shrink-0">
-                            {pickDisplay}
-                          </div>
-
-                          {/* Result icon */}
-                          {fx.result && pick && (
-                            <span className={clsx('text-sm flex-shrink-0',
-                              rowState === 'correct' ? 'text-green-500' : 'text-red-400')}>
-                              {rowState === 'correct' ? '✓' : '✗'}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+              <button key={r}
+                disabled={!hasFixtures}
+                onClick={() => { setActivePickRound(r); setExpandedFixture(null) }}
+                className={clsx(
+                  'relative flex flex-col items-center justify-center',
+                  'px-3.5 py-2 rounded-lg transition-all duration-200 whitespace-nowrap',
+                  'text-xs font-semibold min-w-[64px]',
+                  isActive && hasFixtures   ? 'bg-white text-green-800 shadow-sm border border-gray-200' : '',
+                  !isActive && hasFixtures  ? 'text-gray-500 hover:text-gray-700 hover:bg-white/60' : '',
+                  !hasFixtures              ? 'text-gray-300 cursor-not-allowed' : '',
+                )}>
+                <span>{roundLabels[r] ?? r}</span>
+                {hasFixtures && (
+                  <span className={clsx('text-[9px] font-medium mt-0.5 leading-none',
+                    isClosed ? (isActive ? 'text-blue-500' : 'text-blue-400') : (isActive ? 'text-green-500' : 'text-gray-400')
+                  )}>
+                    {isClosed ? '📊 results' : `${byRound[r].length} fixtures`}
+                  </span>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
-      ))}
+      </div>
+
+      {/* ── Comp scope: show message if no closed rounds yet ── */}
+      {scope === 'comp' && fixtures.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-400 text-sm">No published results yet — check back after the admin closes a round.</p>
+        </div>
+      )}
+
+      {/* ── Results grid — shown for tipping_closed rounds ── */}
+      {isClosedRound && fixtures.length > 0 && (() => {
+        const roundFixtures = byRound[effectiveRound] ?? []
+        const memberRoundTotal = (userId: string) =>
+          roundFixtures.reduce((sum: number, fx: any) => sum + (picksMap[fx.id]?.[userId]?.points_earned ?? 0), 0)
+        const sortedMembers = [...members].sort((a: any, b: any) =>
+          memberRoundTotal(b.user_id) - memberRoundTotal(a.user_id))
+
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-medium text-gray-500">Match results · {roundLabels[effectiveRound]}</p>
+              <button onClick={scope === 'tribe' ? onRefresh : () => { setCompPicksData(null) }}
+                className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
+            </div>
+            <div className="overflow-x-auto -mx-1 pb-1">
+              <table className="min-w-full text-xs border-separate" style={{ borderSpacing: 0 }}>
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-gray-50 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 border-b border-gray-100 min-w-[110px] rounded-tl-lg">
+                      Player
+                    </th>
+                    {roundFixtures.map((fx: any) => {
+                      const rh = fx.result ? Number(fx.result.home) : null
+                      const ra = fx.result ? Number(fx.result.away) : null
+                      return (
+                        <th key={fx.id} className="text-center border-b border-gray-100 bg-gray-50 px-1 py-2 min-w-[58px]">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="flex items-center gap-0.5 text-base leading-none">
+                              <span>{flag(fx.home)}</span>
+                              <span className="text-[8px] text-gray-300">v</span>
+                              <span>{flag(fx.away)}</span>
+                            </div>
+                            {rh !== null
+                              ? <span className="text-[10px] font-bold text-gray-700 tabular-nums">{rh}–{ra}</span>
+                              : <span className="text-[9px] text-gray-300">TBC</span>}
+                          </div>
+                        </th>
+                      )
+                    })}
+                    <th className="text-center border-b border-gray-100 bg-gray-50 px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide min-w-[44px] rounded-tr-lg">
+                      Pts
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedMembers.map((member: any, rowIdx: number) => {
+                    const isMe      = member.user_id === myId
+                    const roundPts  = memberRoundTotal(member.user_id)
+                    const rowBg     = rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                    return (
+                      <tr key={member.user_id} className={clsx(rowBg, isMe && 'ring-1 ring-inset ring-green-200')}>
+                        <td className={clsx('sticky left-0 z-10 px-3 py-2 font-medium whitespace-nowrap border-b border-gray-50', rowBg,
+                          isMe ? 'text-green-700' : 'text-gray-700')}>
+                          {member.display_name}
+                          {isMe && <span className="ml-1 text-[10px] text-green-500">(you)</span>}
+                        </td>
+                        {roundFixtures.map((fx: any) => {
+                          const { colour, label } = cellInfo(picksMap, fx, member.user_id)
+                          const pick = picksMap[fx.id]?.[member.user_id]
+                          const bonusPts = pick?.bonus_points ?? 0
+                          return (
+                            <td key={fx.id} className="text-center px-1 py-1.5 border-b border-gray-50">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className={clsx('inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums', colour)}>
+                                  {label}
+                                </span>
+                                {bonusPts > 0 && (
+                                  <span className="text-[9px] font-semibold text-blue-500">+{bonusPts}</span>
+                                )}
+                              </div>
+                            </td>
+                          )
+                        })}
+                        <td className="text-center px-2 py-2 border-b border-gray-50">
+                          <span className={clsx('text-sm font-bold tabular-nums', roundPts > 0 ? 'text-gray-800' : 'text-gray-300')}>
+                            {roundPts}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Legend */}
+            <div className="flex items-center gap-3 flex-wrap mt-3 text-[10px] text-gray-400">
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-green-100 border border-green-200"/><span>Correct</span></div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-200"/><span>Wrong</span></div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-200"/><span>Correct result (score round)</span></div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200"/><span>Awaiting</span></div>
+              <div className="flex items-center gap-1"><span className="text-[9px] font-semibold text-blue-500">+N</span><span>Bonus pts</span></div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Accordion — shown for non-closed rounds in tribe scope ── */}
+      {!isClosedRound && scope === 'tribe' && (() => {
+        if (!fixtures.length) return (
+          <div className="text-center py-12">
+            <p className="text-gray-400 text-sm">No locked fixtures yet — picks will appear here once matches kick off.</p>
+          </div>
+        )
+        return (
+          <div>
+            {/* Legend */}
+            <div className="flex items-center gap-3 flex-wrap mb-4 text-[11px] text-gray-500">
+              <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-green-400"/><span>Correct</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-red-300"/><span>Wrong</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-amber-300"/><span>Awaiting</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-1 h-4 rounded-full bg-gray-200"/><span>No pick</span></div>
+            </div>
+            <div className="space-y-3">
+              {(byRound[effectiveRound] ?? []).map((fx: any) => {
+                const isExpanded = expandedFixture === fx.id
+                const roundPicks = picksMap[fx.id] ?? {}
+                const isORound   = OUTCOME_ROUNDS_SET.has(fx.round)
+                const rh2 = fx.result ? Number(fx.result.home) : null
+                const ra2 = fx.result ? Number(fx.result.away) : null
+                const ro2 = rh2 !== null && ra2 !== null ? (rh2 > ra2 ? 'H' : ra2 > rh2 ? 'A' : 'D') : null
+                const correctCount = !fx.result ? 0 : Object.values(roundPicks).filter((p: any) => {
+                  if (isORound) return p.outcome === ro2
+                  const ph = Number(p.home); const pa = Number(p.away)
+                  return (ph > pa ? 'H' : pa > ph ? 'A' : 'D') === ro2
+                }).length
+                const bonusCount = !fx.result || isORound ? 0 : Object.values(roundPicks).filter((p: any) =>
+                  Number(p.home) === rh2 && Number(p.away) === ra2
+                ).length
+                const pickCount  = Object.keys(roundPicks).length
+                const pctCorrect = fx.result && pickCount > 0 ? Math.round(correctCount / pickCount * 100) : null
+
+                return (
+                  <div key={fx.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden transition-all">
+                    <button onClick={() => setExpandedFixture(isExpanded ? null : fx.id)}
+                      className="w-full text-left px-4 pt-3 pb-3 hover:bg-gray-50/80 transition-colors">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xl">{flag(fx.home)}</span>
+                        <span className={clsx('text-sm font-bold flex-1', !fx.result ? 'text-gray-800' : ro2 === 'H' ? 'text-gray-900' : 'text-gray-400')}>{fx.home}</span>
+                        {fx.result
+                          ? <span className="px-3 py-1 bg-gray-900 text-white text-sm font-bold rounded-lg tabular-nums">{fx.result.home} – {fx.result.away}</span>
+                          : <span className="text-xs text-gray-300 font-medium px-2">vs</span>}
+                        <span className={clsx('text-sm font-bold flex-1 text-right', !fx.result ? 'text-gray-800' : ro2 === 'A' ? 'text-gray-900' : 'text-gray-400')}>{fx.away}</span>
+                        <span className="text-xl">{flag(fx.away)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                          <span>{formatKickoff(fx.kickoff_utc, timezone, { date: true, time: false })}</span>
+                          {fx.pen_winner && <span className="text-amber-600 font-medium">🥅 {fx.pen_winner} (pens)</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {fx.result && bonusCount > 0 && (
+                            <span className="text-[11px] font-semibold text-blue-500">★ {bonusCount}</span>
+                          )}
+                          {fx.result && pctCorrect !== null && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-400 rounded-full" style={{ width: `${pctCorrect}%` }} />
+                              </div>
+                              <span className="text-[11px] font-semibold text-green-600">{pctCorrect}%</span>
+                            </div>
+                          )}
+                          <span className="text-[11px] text-gray-400">{pickCount}/{members.length} picked</span>
+                          <span className="text-gray-300 text-xs ml-1">{isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 divide-y divide-gray-50">
+                        {members.map((member: any) => {
+                          const pick  = roundPicks[member.user_id]
+                          const isMe  = member.user_id === myId
+                          let pickDisplay: React.ReactNode = <span className="text-[11px] text-gray-300 italic">No pick</span>
+                          let rowState: 'correct' | 'wrong' | 'pending' | 'none' = 'none'
+
+                          if (pick) {
+                            if (!fx.result) {
+                              rowState = 'pending'
+                              if (isORound) {
+                                const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
+                                pickDisplay = pick.outcome === 'D'
+                                  ? <span className="flex items-center gap-1 text-xs font-semibold text-gray-700">{flag(fx.home)} <span className="text-gray-400 mx-0.5">—</span> {flag(fx.away)} <span className="ml-1 text-[10px] text-gray-400">Draw</span></span>
+                                  : <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">{flag(teamPicked!)} {teamPicked}</span>
+                              } else {
+                                pickDisplay = <span className="text-xs font-bold text-gray-700 tabular-nums">{pick.home} – {pick.away}</span>
+                              }
+                            } else {
+                              const isCorrect = isORound ? pick.outcome === ro2
+                                : (Number(pick.home) > Number(pick.away) ? 'H' : Number(pick.away) > Number(pick.home) ? 'A' : 'D') === ro2
+                              const isBonus = !isORound && Number(pick.home) === rh2 && Number(pick.away) === ra2
+                              rowState = isCorrect ? 'correct' : 'wrong'
+                              if (isORound) {
+                                const teamPicked = pick.outcome === 'H' ? fx.home : pick.outcome === 'A' ? fx.away : null
+                                pickDisplay = pick.outcome === 'D'
+                                  ? <span className={clsx('flex items-center gap-1 text-xs font-semibold', isCorrect ? 'text-green-800' : 'text-red-700')}>{flag(fx.home)} <span className="mx-0.5 opacity-60">—</span> {flag(fx.away)} <span className="ml-1 text-[10px]">Draw</span></span>
+                                  : <span className={clsx('flex items-center gap-1.5 text-xs font-semibold', isCorrect ? 'text-green-800' : 'text-red-700')}>{flag(teamPicked!)} {teamPicked}</span>
+                              } else {
+                                pickDisplay = <span className={clsx('flex items-center gap-1 text-xs font-bold tabular-nums', isBonus ? 'text-green-800' : isCorrect ? 'text-blue-800' : 'text-red-700')}>{pick.home} – {pick.away}{isBonus && <span className="text-[10px] ml-0.5">★</span>}</span>
+                              }
+                            }
+                          }
+
+                          return (
+                            <div key={member.user_id} className={clsx('flex items-center gap-3 px-4 py-2.5 transition-colors',
+                              isMe && 'bg-green-50/60', rowState === 'correct' && 'bg-green-50/40', rowState === 'wrong' && 'bg-red-50/30')}>
+                              <div className={clsx('w-0.5 h-6 rounded-full flex-shrink-0',
+                                rowState === 'correct' ? 'bg-green-400' : rowState === 'wrong' ? 'bg-red-300' : rowState === 'pending' ? 'bg-amber-300' : 'bg-gray-200')} />
+                              <Avatar name={member.display_name} size="xs" />
+                              <span className={clsx('text-xs font-medium flex-1 truncate', isMe ? 'text-green-700' : 'text-gray-700')}>
+                                {member.display_name}{isMe && ' (you)'}
+                              </span>
+                              <div className="flex-shrink-0">{pickDisplay}</div>
+                              {fx.result && pick && (
+                                <span className={clsx('text-sm flex-shrink-0', rowState === 'correct' ? 'text-green-500' : 'text-red-400')}>
+                                  {rowState === 'correct' ? '✓' : '✗'}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Comp scope non-closed round ── */}
+      {!isClosedRound && scope === 'comp' && (
+        <div className="text-center py-12">
+          <p className="text-gray-400 text-sm">Results for this round haven&apos;t been published yet.</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -9,15 +9,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const tournamentId = searchParams.get('tournament_id')
 
-  let query = (supabase.from('round_locks') as any).select('round_code, is_open, opened_at')
+  let query = (supabase.from('round_locks') as any).select('round_code, is_open, opened_at, tipping_closed')
   if (tournamentId) query = query.eq('tournament_id', tournamentId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const locks: Record<string, boolean> = {}
-  ;(data ?? []).forEach((r: any) => { locks[r.round_code] = r.is_open })
-  return NextResponse.json({ data: locks })
+  const tippingClosed: Record<string, boolean> = {}
+  ;(data ?? []).forEach((r: any) => {
+    locks[r.round_code]         = r.is_open
+    tippingClosed[r.round_code] = r.tipping_closed ?? false
+  })
+  return NextResponse.json({ data: locks, tipping_closed: tippingClosed })
 }
 
 // POST /api/round-locks — global admin or comp admin for the tournament
@@ -29,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const adminClient = createAdminClient()
   const body = await request.json()
-  const { tournament_id, round, is_open } = body
+  const { tournament_id, round, is_open, tipping_closed } = body
 
   if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
   if (!round)         return NextResponse.json({ error: 'round required' },         { status: 400 })
@@ -52,14 +56,23 @@ export async function POST(request: NextRequest) {
     .select('id').eq('tournament_id', tournament_id).eq('round_code', round).maybeSingle()
   if (!trRow) return NextResponse.json({ error: `Round '${round}' not found for this tournament` }, { status: 400 })
 
-  const { error } = await (adminClient.from('round_locks') as any).upsert({
+  const patch: Record<string, any> = {
     tournament_id,
-    round_code:  round,
-    is_open,
-    opened_at:   is_open ? new Date().toISOString() : null,
-    opened_by:   is_open ? user.id : null,
-  }, { onConflict: 'tournament_id,round_code' })
+    round_code: round,
+  }
+  if (is_open !== undefined) {
+    patch.is_open    = is_open
+    patch.opened_at  = is_open ? new Date().toISOString() : null
+    patch.opened_by  = is_open ? user.id : null
+  }
+  if (tipping_closed !== undefined) {
+    patch.tipping_closed = tipping_closed
+  }
+
+  const { error } = await (adminClient.from('round_locks') as any).upsert(
+    patch, { onConflict: 'tournament_id,round_code' }
+  )
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true, round, is_open })
+  return NextResponse.json({ success: true, round, is_open, tipping_closed })
 }

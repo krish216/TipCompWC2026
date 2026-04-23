@@ -163,7 +163,8 @@ export default function AdminPage() {
   const [isAdmin,     setIsAdmin]     = useState<boolean | null>(null)  // null = checking
   const [fixtures,    setFixtures]    = useState<FixtureMap>({})
   const [results,     setResults]     = useState<ResultMap>({})
-  const [locks,       setLocks]       = useState<LockMap>({})
+  const [locks,         setLocks]         = useState<LockMap>({})
+  const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
   const [loading,     setLoading]     = useState(true)
   const [activeRound, setActiveRound] = useState<string>('')
   const [activeGroup, setActiveGroup] = useState('all')
@@ -212,6 +213,7 @@ export default function AdminPage() {
         })
         setResults(rm)
         setLocks(locksData.data ?? {})
+        setTippingClosed(locksData.tipping_closed ?? {})
       })
       .finally(() => setLoading(false))
   }, [isAdmin, selectedTournId])
@@ -261,6 +263,19 @@ export default function AdminPage() {
       toast.success(`${ROUND_LABELS[round] ?? round} ${open ? 'opened' : 'closed'} for predictions`)
     } else {
       toast.error('Failed to update lock')
+    }
+  }
+
+  const handleToggleTippingClosed = async (round: string, closed: boolean) => {
+    const res = await fetch('/api/round-locks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, round, tipping_closed: closed }),
+    })
+    if (res.ok) {
+      setTippingClosed(prev => ({ ...prev, [round]: closed }))
+      toast.success(`${ROUND_LABELS[round] ?? round} results ${closed ? 'published' : 'hidden'}`)
+    } else {
+      toast.error('Failed to update')
     }
   }
 
@@ -545,16 +560,17 @@ export default function AdminPage() {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            {ALL_ROUNDS.map((r, i) => {
-              const prog   = roundProgress.find(x => x.id === r)!
-              const isOpen = locks[r] ?? false
+            {ALL_ROUNDS.map((r) => {
+              const prog     = roundProgress.find(x => x.id === r)!
+              const isOpen   = locks[r] ?? false
+              const isClosed = tippingClosed[r] ?? false
               return (
                 <div key={r} className={clsx(
                   'flex items-center gap-4 px-4 py-4 border-b border-gray-100 last:border-0',
                   isOpen ? 'bg-emerald-50/40' : ''
                 )}>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-gray-800">{ROUND_LABELS[r] ?? r}</span>
                       <span className={clsx(
                         'text-[10px] font-bold px-2 py-0.5 rounded-full',
@@ -562,13 +578,18 @@ export default function AdminPage() {
                       )}>
                         {isOpen ? '🟢 OPEN' : '🔴 LOCKED'}
                       </span>
+                      {isClosed && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          📊 Results Published
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">
                       {prog.entered}/{prog.total} results entered
                       {prog.entered === prog.total && prog.total > 0 && ' · ✓ Complete'}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-end">
                     <button
                       onClick={() => handleToggleLock(r, !isOpen)}
                       className={clsx(
@@ -578,6 +599,16 @@ export default function AdminPage() {
                           : 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
                       )}>
                       {isOpen ? '🔒 Lock round' : '🔓 Open round'}
+                    </button>
+                    <button
+                      onClick={() => handleToggleTippingClosed(r, !isClosed)}
+                      className={clsx(
+                        'px-4 py-1.5 rounded-lg text-xs font-semibold transition-all border',
+                        isClosed
+                          ? 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          : 'bg-white border-blue-300 text-blue-600 hover:bg-blue-50'
+                      )}>
+                      {isClosed ? '🙈 Hide Results' : '📊 Publish Results'}
                     </button>
                   </div>
                 </div>
