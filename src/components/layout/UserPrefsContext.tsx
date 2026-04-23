@@ -51,6 +51,8 @@ interface UserPrefsCtx {
   pickComp:           (comp: Comp) => Promise<void>
   updateComp:         (id: string, patch: Partial<Comp>) => void
   refreshComps:       () => Promise<void>
+  hasTribe:           boolean | null   // null = loading, true/false = resolved
+  refreshHasTribe:    () => Promise<void>
   loading:            boolean
 }
 
@@ -76,6 +78,25 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
   const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
   const [teamsMap,      setTeamsMap]      = useState<TeamsMap>({})
+  const [hasTribe,      setHasTribe]      = useState<boolean | null>(null)
+
+  const fetchHasTribe = useCallback(async (compId: string) => {
+    try {
+      const res = await fetch(`/api/tribes?comp_id=${compId}`)
+      const d   = await res.json()
+      setHasTribe(!!d.data)
+    } catch { setHasTribe(false) }
+  }, [])
+
+  // Reactively re-check tribe membership whenever the selected comp changes
+  useEffect(() => {
+    if (!session || !selectedCompId) { setHasTribe(null); return }
+    fetchHasTribe(selectedCompId)
+  }, [session, selectedCompId, fetchHasTribe])
+
+  const refreshHasTribe = useCallback(async () => {
+    if (selectedCompId) await fetchHasTribe(selectedCompId)
+  }, [selectedCompId, fetchHasTribe])
 
   const loadTeams = useCallback(async (tournId: string) => {
     try {
@@ -263,6 +284,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       roundConfigs, scoringConfig,
       teamsMap, flag, code,
       pickTournament, pickComp, refreshComps,
+      hasTribe, refreshHasTribe,
       loading,
     }}>
       {children}
