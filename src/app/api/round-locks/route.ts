@@ -39,18 +39,21 @@ export async function POST(request: NextRequest) {
     if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
     if (!round)         return NextResponse.json({ error: 'round required' },         { status: 400 })
 
-    // Allow global admin OR comp admin for a comp that belongs to this tournament
-    const [{ data: globalAdmin }, { data: compAdminRow }] = await Promise.all([
-      (adminClient.from('admin_users') as any).select('user_id').eq('user_id', user.id).maybeSingle(),
-      (adminClient.from('comp_admins') as any)
-        .select('user_id')
-        .eq('user_id', user.id)
-        .in('comp_id',
-          (adminClient.from('comps') as any).select('id').eq('tournament_id', tournament_id)
-        )
-        .limit(1).maybeSingle(),
-    ])
-    if (!globalAdmin && !compAdminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Check global admin first; only hit comp_admins if needed
+    const { data: globalAdmin } = await (adminClient.from('admin_users') as any)
+      .select('user_id').eq('user_id', user.id).maybeSingle()
+
+    if (!globalAdmin) {
+      // Resolve comp IDs for this tournament, then check comp_admins
+      const { data: compRows } = await (adminClient.from('comps') as any)
+        .select('id').eq('tournament_id', tournament_id)
+      const compIds = (compRows ?? []).map((r: any) => r.id)
+      if (compIds.length === 0) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      const { data: compAdminRow } = await (adminClient.from('comp_admins') as any)
+        .select('user_id').eq('user_id', user.id).in('comp_id', compIds).limit(1).maybeSingle()
+      if (!compAdminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Validate that this round_code exists in tournament_rounds for this tournament
     const { data: trRow } = await (adminClient.from('tournament_rounds') as any)
