@@ -262,7 +262,8 @@ export default function AdminPage() {
       setLocks(prev => ({ ...prev, [round]: open }))
       toast.success(`${ROUND_LABELS[round] ?? round} ${open ? 'opened' : 'closed'} for predictions`)
     } else {
-      toast.error('Failed to update lock')
+      const body = await res.json().catch(() => ({}))
+      toast.error(`Lock failed: ${body.error ?? res.status}`)
     }
   }
 
@@ -275,7 +276,8 @@ export default function AdminPage() {
       setTippingClosed(prev => ({ ...prev, [round]: closed }))
       toast.success(`${ROUND_LABELS[round] ?? round} results ${closed ? 'published' : 'hidden'}`)
     } else {
-      toast.error('Failed to update')
+      const body = await res.json().catch(() => ({}))
+      toast.error(`Failed: ${body.error ?? body.hint ?? res.status}`)
     }
   }
 
