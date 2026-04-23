@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
-const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().optional(), tournament_id: z.string().uuid().optional() })
+const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().nullish(), tournament_id: z.string().uuid().optional() })
 const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCase() })
 
 // GET /api/tribes?comp_id= — get current user's tribe for the given comp
