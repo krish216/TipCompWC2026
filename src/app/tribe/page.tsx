@@ -1046,88 +1046,62 @@ export default function TribePage() {
           backgroundSize: '12px 12px',
         }} />
 
-        <div style={{ position: 'relative', padding: '22px 22px 0' }}>
-          {/* Comp breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            {org?.logo_url && (
-              <img src={org.logo_url} alt="" style={{ width: 20, height: 20, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-            )}
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.02em' }}>
-              {org?.name}
-            </span>
-            {selectedTourn && (
-              <>
-                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>·</span>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{selectedTourn.name}</span>
-              </>
-            )}
-          </div>
+        <div style={{ position: 'relative', padding: '12px 16px 0' }}>
 
-          {/* Tribe identity row */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
+          {/* Single compact row: identity left, actions right */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+
+            {/* Left — micro breadcrumb + tribe name */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{
-                margin: 0, fontSize: 26, fontWeight: 800, color: '#ffffff',
-                letterSpacing: '-0.5px', lineHeight: 1.15,
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                {org?.logo_url && (
+                  <img src={org.logo_url} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {org?.name}{selectedTourn ? ` · ${selectedTourn.name}` : ''}
+                </span>
+              </div>
+              <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', lineHeight: 1.15 }}>
                 {tribe.name}
               </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-                {/* Member count */}
-                <span style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  fontSize: 12, color: 'rgba(255,255,255,0.5)',
-                }}>
-                  <span style={{ fontSize: 13 }}>👥</span>
-                  {tribe.members.length} member{tribe.members.length !== 1 ? 's' : ''}
-                </span>
-
-                {/* Invite code pill */}
-                <button onClick={copyCode} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
-                  background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.07)',
-                  border: copied ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.12)',
-                  color: copied ? '#4ade80' : 'rgba(255,255,255,0.5)',
-                  fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
-                  transition: 'all 0.15s', fontFamily: 'monospace',
-                }}>
-                  {tribe.invite_code}
-                  <span style={{ fontSize: 9, fontFamily: 'sans-serif', fontWeight: 400, opacity: 0.7 }}>
-                    {copied ? '✓' : 'copy'}
-                  </span>
-                </button>
-              </div>
             </div>
 
-            {/* Leave tribe — top right of hero, subtle destructive */}
-            <button
-              onClick={leaveTribe}
-              style={{
-                flexShrink: 0, marginTop: 2,
-                padding: '6px 14px', borderRadius: 99,
-                border: '1px solid rgba(255,100,100,0.35)',
-                background: 'rgba(255,80,80,0.08)',
-                color: 'rgba(255,160,160,0.9)',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.15s',
-                letterSpacing: '0.01em',
-              }}
-              onMouseEnter={e => {
-                (e.target as HTMLButtonElement).style.background = 'rgba(255,80,80,0.18)'
-                ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,100,100,0.6)'
-              }}
-              onMouseLeave={e => {
-                (e.target as HTMLButtonElement).style.background = 'rgba(255,80,80,0.08)'
-                ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,100,100,0.35)'
-              }}
-            >
-              Leave
-            </button>
+            {/* Right — member count, invite code, leave */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                  <span style={{ fontSize: 12 }}>👥</span>
+                  {tribe.members.length}
+                </span>
+                <button onClick={leaveTribe} style={{
+                  padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
+                  background: 'rgba(255,80,80,0.07)',
+                  border: '1px solid rgba(255,100,100,0.25)',
+                  color: 'rgba(255,160,160,0.7)',
+                  fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
+                }}>
+                  Leave
+                </button>
+              </div>
+              <button onClick={copyCode} style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '3px 9px', borderRadius: 99, cursor: 'pointer',
+                background: copied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.07)',
+                border: copied ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.1)',
+                color: copied ? '#4ade80' : 'rgba(255,255,255,0.45)',
+                fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
+                fontFamily: 'monospace', transition: 'all 0.15s',
+              }}>
+                {tribe.invite_code}
+                <span style={{ fontSize: 8, fontFamily: 'sans-serif', fontWeight: 400, opacity: 0.75 }}>
+                  {copied ? '✓' : '⎘'}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Tab bar */}
-          <div style={{ display: 'flex', marginTop: 4 }}>
+          <div style={{ display: 'flex' }}>
             {TAB_ITEMS.map(item => {
               const isActive = tab === item.id
               return (
@@ -1138,7 +1112,7 @@ export default function TribePage() {
                   }}
                   style={{
                     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 5, padding: '12px 4px', border: 'none', cursor: 'pointer',
+                    gap: 5, padding: '10px 4px', border: 'none', cursor: 'pointer',
                     background: 'transparent',
                     color: isActive ? '#ffffff' : 'rgba(255,255,255,0.4)',
                     fontSize: 12, fontWeight: isActive ? 600 : 400,
