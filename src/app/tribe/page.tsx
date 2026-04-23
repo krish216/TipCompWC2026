@@ -1425,14 +1425,14 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tr
   }, [scoringConfig])
 
   const OUTCOME_ROUNDS_SET = useMemo(() => new Set(scoringConfig.outcome_rounds), [scoringConfig])
-  const outcomeLabel = (o: string | null) => o === 'H' ? '1' : o === 'D' ? 'X' : o === 'A' ? '2' : null
 
   // Colour + label for a fixture cell in the results grid
   const cellInfo = (picksMap: Record<number, Record<string, any>>, fx: any, userId: string) => {
     const pick = picksMap[fx.id]?.[userId]
     if (!pick) return { colour: 'bg-gray-100 text-gray-400', label: '?' }
     const isOutcomeRound = OUTCOME_ROUNDS_SET.has(fx.round)
-    const label = isOutcomeRound ? (outcomeLabel(pick.outcome) ?? '?') : `${pick.home}–${pick.away}`
+    const outcomeFlag = !pick.outcome ? '?' : pick.outcome === 'D' ? 'X' : pick.outcome === 'H' ? flag(fx.home) : flag(fx.away)
+    const label = isOutcomeRound ? outcomeFlag : `${pick.home}–${pick.away}`
     if (!fx.result) return { colour: 'bg-amber-50 text-amber-800 border border-amber-200', label }
     const rh = Number(fx.result.home); const ra = Number(fx.result.away)
     const resultOutcome = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
@@ -1596,7 +1596,9 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tr
                           return (
                             <td key={fx.id} className="text-center px-1 py-1.5 border-b border-gray-50">
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className={clsx('inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums', colour)}>
+                                <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold leading-none', colour,
+                                  label === 'X' || label === '?' || label === '—' ? 'text-[11px] tabular-nums' : 'text-base'
+                                )}>
                                   {label}
                                 </span>
                                 {bonusPts > 0 && (
