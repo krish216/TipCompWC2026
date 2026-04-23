@@ -57,22 +57,21 @@ export async function POST(request: NextRequest) {
       .select('id').eq('tournament_id', tournament_id).eq('round_code', round).maybeSingle()
     if (!trRow) return NextResponse.json({ error: `Round '${round}' not found for this tournament` }, { status: 400 })
 
-    const patch: Record<string, any> = {
-      tournament_id,
-      round_code: round,
-    }
+    const updates: Record<string, any> = {}
     if (is_open !== undefined) {
-      patch.is_open    = is_open
-      patch.opened_at  = is_open ? new Date().toISOString() : null
-      patch.opened_by  = is_open ? user.id : null
+      updates.is_open   = is_open
+      updates.opened_at = is_open ? new Date().toISOString() : null
+      updates.opened_by = is_open ? user.id : null
     }
     if (tipping_closed !== undefined) {
-      patch.tipping_closed = tipping_closed
+      updates.tipping_closed = tipping_closed
     }
 
-    const { error } = await (adminClient.from('round_locks') as any).upsert(
-      patch, { onConflict: 'tournament_id,round_code' }
-    )
+    // Rows are always seeded when a tournament is created — use UPDATE, not upsert
+    const { error } = await (adminClient.from('round_locks') as any)
+      .update(updates)
+      .eq('tournament_id', tournament_id)
+      .eq('round_code', round)
 
     if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
     return NextResponse.json({ success: true, round, is_open, tipping_closed })
