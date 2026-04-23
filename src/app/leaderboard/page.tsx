@@ -159,9 +159,13 @@ export default function LeaderboardPage() {
       tabGroups[tab].maxOrder = Math.max(tabGroups[tab].maxOrder, r.round_order ?? 0)
     }
     const sortedTabs = Object.entries(tabGroups).sort(([,a],[,b]) => a.maxOrder - b.maxOrder)
-    const snapshots: { id: RoundView; label: string }[] = [
-      { id: 'all', label: 'Overall' },
-      ...sortedTabs.map(([tab, g]) => ({ id: tab as RoundView, label: 'After ' + g.label })),
+    const snapshots: { id: RoundView; label: string; shortLabel: string }[] = [
+      { id: 'all', label: 'Overall', shortLabel: 'Overall' },
+      ...sortedTabs.map(([tab, g]) => ({
+        id:         tab as RoundView,
+        label:      'After ' + g.label,
+        shortLabel: 'After ' + tab.toUpperCase(), // tab = tab_group from DB (e.g. 'gs' → 'After GS')
+      })),
     ]
     const snapshotToRounds: Record<string, RoundId[]> = {}
     let cumulative: RoundId[] = []
@@ -474,28 +478,34 @@ export default function LeaderboardPage() {
             ))}
           </div>
 
-          {/* Round snapshot pills */}
-          <div className="flex gap-1.5 flex-wrap mb-4">
-            {ROUND_SNAPSHOTS.map(r => {
-              const isLive = r.id === liveSnapshotId
-              return (
-                <button key={r.id} onClick={() => setRoundView(r.id)}
-                  className={clsx(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-full transition-colors whitespace-nowrap',
-                    roundView === r.id
-                      ? 'bg-green-600 border-green-700 text-white'
-                      : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-                  )}>
-                  {r.label}
-                  {isLive && (
-                    <span className={clsx('inline-flex items-center gap-0.5 text-[9px] font-semibold', roundView === r.id ? 'text-green-200' : 'text-green-600')}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                      live
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          {/* Round snapshot pills — segmented control, horizontal scroll, matches predict page */}
+          <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
+              {ROUND_SNAPSHOTS.map(r => {
+                const isActive = roundView === r.id
+                const isLive   = r.id === liveSnapshotId
+                return (
+                  <button key={r.id} onClick={() => setRoundView(r.id)}
+                    className={clsx(
+                      'relative flex flex-col items-center justify-center',
+                      'px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap',
+                      'text-xs font-semibold min-w-[56px]',
+                      isActive
+                        ? 'bg-white text-green-800 shadow-sm border border-gray-200'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
+                    )}>
+                    <span>{r.shortLabel}</span>
+                    {isLive && (
+                      <span className={clsx('flex items-center gap-0.5 text-[9px] font-semibold mt-0.5',
+                        isActive ? 'text-green-500' : 'text-green-600')}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                        live
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {loading ? (

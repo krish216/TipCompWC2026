@@ -1528,92 +1528,114 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, timezone, tr
 
         return (
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-medium text-gray-500">Match results · {roundLabels[effectiveRound]}</p>
+            {/* Table header */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-semibold text-gray-700">{roundLabels[effectiveRound]}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Sorted by round points · {sortedMembers.length} players</p>
+              </div>
               <button onClick={scope === 'tribe' ? onRefresh : () => { setCompPicksData(null) }}
-                className="text-xs text-blue-500 hover:text-blue-700">↻ Refresh</button>
+                className="text-[11px] text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                <span>↻</span><span>Refresh</span>
+              </button>
             </div>
-            <div className="overflow-x-auto -mx-1 pb-1">
-              <table className="min-w-full text-xs border-separate" style={{ borderSpacing: 0 }}>
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-10 bg-gray-50 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 border-b border-gray-100 min-w-[110px] rounded-tl-lg">
-                      Player
-                    </th>
-                    {roundFixtures.map((fx: any) => {
-                      const rh = fx.result ? Number(fx.result.home) : null
-                      const ra = fx.result ? Number(fx.result.away) : null
-                      return (
-                        <th key={fx.id} className="text-center border-b border-gray-100 bg-gray-50 px-1 py-2 min-w-[58px]">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <div className="flex items-center gap-0.5 text-base leading-none">
-                              <span>{flag(fx.home)}</span>
-                              <span className="text-[8px] text-gray-300">v</span>
-                              <span>{flag(fx.away)}</span>
+
+            {/* Picks grid */}
+            <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs border-separate" style={{ borderSpacing: 0 }}>
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-gray-50/95 backdrop-blur-sm text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 py-2.5 border-b border-gray-200 min-w-[108px]">
+                        Player
+                      </th>
+                      {roundFixtures.map((fx: any) => {
+                        const rh = fx.result ? Number(fx.result.home) : null
+                        const ra = fx.result ? Number(fx.result.away) : null
+                        return (
+                          <th key={fx.id} className="text-center border-b border-gray-200 bg-gray-50 px-1 py-1.5 min-w-[52px]">
+                            <div className="flex flex-col items-center gap-0">
+                              <div className="flex items-center gap-0.5 text-sm leading-tight">
+                                <span>{flag(fx.home)}</span>
+                                <span className="text-[7px] text-gray-300">v</span>
+                                <span>{flag(fx.away)}</span>
+                              </div>
+                              <span className="text-[8px] font-semibold text-gray-400 tracking-wide leading-tight">
+                                {code(fx.home)}·{code(fx.away)}
+                              </span>
+                              {rh !== null
+                                ? <span className="text-[9px] font-bold text-green-700 tabular-nums leading-tight">{rh}–{ra}</span>
+                                : <span className="text-[8px] text-gray-300 leading-tight">—</span>}
                             </div>
-                            <span className="text-[9px] font-semibold text-gray-500 tracking-wide">
-                              {code(fx.home)} v {code(fx.away)}
+                          </th>
+                        )
+                      })}
+                      <th className="text-center border-b border-gray-200 border-l border-gray-100 bg-gray-100 px-2 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide min-w-[44px]">
+                        Pts
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedMembers.map((member: any, rowIdx: number) => {
+                      const isMe     = member.user_id === myId
+                      const roundPts = memberRoundTotal(member.user_id)
+                      const rowBg    = rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
+                      return (
+                        <tr key={member.user_id} className={clsx(rowBg, isMe && 'ring-1 ring-inset ring-green-200')}>
+                          <td className={clsx('sticky left-0 z-10 px-2 py-2 whitespace-nowrap border-b border-gray-100', rowBg)}>
+                            <div className="flex items-center gap-1.5">
+                              <span className={clsx(
+                                'inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-bold shrink-0 tabular-nums',
+                                rowIdx === 0 ? 'bg-amber-100 text-amber-700' :
+                                rowIdx === 1 ? 'bg-gray-100 text-gray-500' :
+                                rowIdx === 2 ? 'bg-orange-50 text-orange-600' : 'text-gray-300 font-medium'
+                              )}>
+                                {rowIdx + 1}
+                              </span>
+                              <span className={clsx('text-xs font-medium truncate max-w-[76px]', isMe ? 'text-green-700' : 'text-gray-700')}>
+                                {member.display_name}
+                                {isMe && <span className="ml-0.5 text-[9px] text-green-400">(you)</span>}
+                              </span>
+                            </div>
+                          </td>
+                          {roundFixtures.map((fx: any) => {
+                            const { colour, label } = cellInfo(picksMap, fx, member.user_id)
+                            const pick = picksMap[fx.id]?.[member.user_id]
+                            const bonusPts = pick?.bonus_points ?? 0
+                            return (
+                              <td key={fx.id} className="text-center px-1 py-1.5 border-b border-gray-100">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold leading-none', colour,
+                                    label === 'X' || label === '?' || label === '—' ? 'text-[11px] tabular-nums' : 'text-base'
+                                  )}>
+                                    {label}
+                                  </span>
+                                  {bonusPts > 0 && (
+                                    <span className="text-[9px] font-semibold text-blue-500">+{bonusPts}</span>
+                                  )}
+                                </div>
+                              </td>
+                            )
+                          })}
+                          <td className="text-center px-2 py-2 border-b border-gray-100 border-l border-gray-100 bg-gray-50/60">
+                            <span className={clsx('text-sm font-bold tabular-nums', roundPts > 0 ? 'text-gray-800' : 'text-gray-300')}>
+                              {roundPts}
                             </span>
-                            {rh !== null
-                              ? <span className="text-[10px] font-bold text-gray-700 tabular-nums">{rh}–{ra}</span>
-                              : <span className="text-[9px] text-gray-300">TBC</span>}
-                          </div>
-                        </th>
+                          </td>
+                        </tr>
                       )
                     })}
-                    <th className="text-center border-b border-gray-100 bg-gray-50 px-2 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide min-w-[44px] rounded-tr-lg">
-                      Pts
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedMembers.map((member: any, rowIdx: number) => {
-                    const isMe      = member.user_id === myId
-                    const roundPts  = memberRoundTotal(member.user_id)
-                    const rowBg     = rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                    return (
-                      <tr key={member.user_id} className={clsx(rowBg, isMe && 'ring-1 ring-inset ring-green-200')}>
-                        <td className={clsx('sticky left-0 z-10 px-3 py-2 font-medium whitespace-nowrap border-b border-gray-50', rowBg,
-                          isMe ? 'text-green-700' : 'text-gray-700')}>
-                          {member.display_name}
-                          {isMe && <span className="ml-1 text-[10px] text-green-500">(you)</span>}
-                        </td>
-                        {roundFixtures.map((fx: any) => {
-                          const { colour, label } = cellInfo(picksMap, fx, member.user_id)
-                          const pick = picksMap[fx.id]?.[member.user_id]
-                          const bonusPts = pick?.bonus_points ?? 0
-                          return (
-                            <td key={fx.id} className="text-center px-1 py-1.5 border-b border-gray-50">
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold leading-none', colour,
-                                  label === 'X' || label === '?' || label === '—' ? 'text-[11px] tabular-nums' : 'text-base'
-                                )}>
-                                  {label}
-                                </span>
-                                {bonusPts > 0 && (
-                                  <span className="text-[9px] font-semibold text-blue-500">+{bonusPts}</span>
-                                )}
-                              </div>
-                            </td>
-                          )
-                        })}
-                        <td className="text-center px-2 py-2 border-b border-gray-50">
-                          <span className={clsx('text-sm font-bold tabular-nums', roundPts > 0 ? 'text-gray-800' : 'text-gray-300')}>
-                            {roundPts}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
+
             {/* Legend */}
             <div className="flex items-center gap-3 flex-wrap mt-3 text-[10px] text-gray-400">
               <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-green-100 border border-green-200"/><span>Correct</span></div>
               <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-200"/><span>Wrong</span></div>
               <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-200"/><span>Correct result (score round)</span></div>
-              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200"/><span>Awaiting</span></div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200"/><span>Awaiting result</span></div>
               <div className="flex items-center gap-1"><span className="text-[9px] font-semibold text-blue-500">+N</span><span>Bonus pts</span></div>
             </div>
           </div>
