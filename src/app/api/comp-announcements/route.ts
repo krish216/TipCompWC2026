@@ -1,53 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { Resend } from 'resend'
 
-// GET /api/announcements — public org announcements (shown to PUBLIC org members)
-export async function GET() {
-  const supabase = createServerSupabaseClient()
-  const { data, error } = await supabase
-    .from('org_announcements')
-    .select('id, title, body, created_at, organisations(name, logo_url)')
-    .eq('published', true)
-    .order('created_at', { ascending: false })
-    .limit(10)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: (data ?? []) as any[] })
-}
+const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 
-// POST /api/announcements — org admin posts announcement
+// POST /api/comp-announcements — comp admin emails all (or selected) tipsters
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { org_id, title, body } = await request.json()
-  if (!org_id || !title?.trim() || !body?.trim()) {
-    return NextResponse.json({ error: 'org_id, title and body required' }, { status: 400 })
+  const body = await request.json().catch(() => null)
+  const { comp_id, title, body: emailBody, recipients } = body ?? {}
+
+  if (!comp_id || !title?.trim() || !emailBody?.trim()) {
+    return NextResponse.json({ error: 'comp_id, title and body required' }, { status: 400 })
+  }
+  if (!Array.isArray(recipients) || recipients.length === 0) {
+    return NextResponse.json({ error: 'recipients array required' }, { status: 400 })
   }
 
-  const { data: isOrgAdmin } = await (adminClient.from('org_admins') as any)
-    .select('user_id').eq('user_id', user.id).eq('org_id', org_id).single()
-  if (!isOrgAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Verify caller is an admin for this comp
+  const { data: adminRow } = await (adminClient.from('comp_admins') as any)
+    .select('comp_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
+  if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { data, error } = await (adminClient.from('org_announcements') as any)
-    .insert({ org_id, author_id: user.id, title: title.trim(), body: body.trim() })
-    .select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json({ error: 'Email service not configured — set RESEND_API_KEY' }, { status: 503 })
+  }
+
+  // Fetch comp name for email footer branding
+  const { data: comp } = await (adminClient.from('comps') as any)
+    .select('name').eq('id', comp_id).single()
+  const compName = (comp as any)?.name ?? 'Your comp'
+
+  const resend  = new Resend(process.env.RESEND_API_KEY)
+  const html    = buildHtml(compName, emailBody.trim())
+  const subject = title.trim()
+
+  // Batch-send individually so each recipient only sees their own address.
+  // Resend batch endpoint accepts up to 100 messages per call.
+  const BATCH = 100
+  let sent = 0
+  for (let i = 0; i < recipients.length; i += BATCH) {
+    const slice    = (recipients as string[]).slice(i, i + BATCH)
+    const messages = slice.map(to => ({ from: FROM, to, subject, html }))
+    const { error } = await resend.batch.send(messages)
+    if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
+    sent += slice.length
+  }
+
+  return NextResponse.json({ sent })
 }
 
-// DELETE /api/announcements?id= — org admin deletes
-export async function DELETE(request: NextRequest) {
-  const supabase    = createServerSupabaseClient()
-  const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const id = new URL(request.url).searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-
-  await (adminClient.from('org_announcements') as any).delete().eq('id', id).eq('author_id', user.id)
-  return NextResponse.json({ success: true })
+function buildHtml(compName: string, body: string): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
+  const lines  = body
+    .split('\n')
+    .map(l => `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${l || '&nbsp;'}</p>`)
+    .join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">
+  <div style="margin-bottom:20px;">
+    <p style="margin:0;font-size:20px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks</p>
+    <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">${compName}</p>
+  </div>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;"/>
+  ${lines}
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;"/>
+  <p style="font-size:11px;color:#9ca3af;margin:0;">
+    Message sent by your comp admin via <a href="${appUrl}" style="color:#6b7280;">TribePicks</a>.
+    &nbsp;·&nbsp;
+    <a href="${appUrl}/settings" style="color:#9ca3af;">Manage notifications</a>
+  </p>
+</body>
+</html>`
 }

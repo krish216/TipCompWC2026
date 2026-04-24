@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
       if (resend && prefs?.email_enabled && user.email) {
         await resend.emails.send({
-          from:    'TipComp 2026 <reminders@tip-comp-wc-2026.vercel.app>',
+          from:    process.env.RESEND_FROM ?? 'TribePicks <reminders@mail.tribepicks.com>',
           to:      user.email,
           subject: `⚽ ${window.label} reminder — ${unpredicted.length} match${unpredicted.length > 1 ? 'es' : ''} need your prediction`,
           html:    buildEmailHtml(user.display_name, unpredicted.length, matchList, window.label),
