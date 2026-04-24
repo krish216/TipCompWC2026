@@ -73,18 +73,27 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Fixtures ───────────────────────────────────────────────────────────────
-  // For comp scope: only return fixtures from closed rounds (tips are private until then)
-  const cutoff = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-  let fixturesQ = (adminClient.from('fixtures') as any)
-    .select('id, round, home, away, kickoff_utc, venue, home_score, away_score, pen_winner')
-    .or(`kickoff_utc.lte.${cutoff},home_score.not.is.null`)
-    .order('kickoff_utc', { ascending: true })
-  if (tournamentId) fixturesQ = fixturesQ.eq('tournament_id', tournamentId)
-  const { data: fixtureRows } = await fixturesQ
-
   const closedRounds = new Set(
     Object.entries(tippingClosedMap).filter(([, v]) => v).map(([k]) => k)
   )
+
+  // Closed rounds: return ALL fixtures (picks are visible regardless of kickoff).
+  // Non-closed rounds: only return fixtures that have already kicked off so picks
+  // stay private until the deadline.
+  const cutoff = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+  const closedRoundsArr = [...closedRounds]
+  let fixturesQ = (adminClient.from('fixtures') as any)
+    .select('id, round, home, away, kickoff_utc, venue, home_score, away_score, pen_winner')
+    .order('kickoff_utc', { ascending: true })
+  if (tournamentId) fixturesQ = fixturesQ.eq('tournament_id', tournamentId)
+  if (closedRoundsArr.length > 0) {
+    fixturesQ = fixturesQ.or(
+      `round.in.(${closedRoundsArr.join(',')}),kickoff_utc.lte.${cutoff},home_score.not.is.null`
+    )
+  } else {
+    fixturesQ = fixturesQ.or(`kickoff_utc.lte.${cutoff},home_score.not.is.null`)
+  }
+  const { data: fixtureRows } = await fixturesQ
 
   const fixtures = (fixtureRows ?? [])
     .filter((f: any) => !compId || closedRounds.has(f.round)) // comp scope: closed rounds only
