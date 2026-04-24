@@ -73,23 +73,43 @@ function Section({ title, sub, right, children }: { title: string; sub?: string;
 }
 
 // ─── Tab: Tipsters ─────────────────────────────────────────────────────────────
-function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations, currentUserId }: {
+const DEFAULT_INVITE_SUBJECT = `You've been invited to join {comp_name}`
+const DEFAULT_INVITE_BODY =
+`Hi {name},
+
+You've been invited to join {comp_name} for {tournament_name}.
+
+Your join code is: {join_code}
+
+How to join in 3 steps:
+1. Go to www.tribepicks.com and create a free account
+2. Tap "Join Comp" on the home screen
+3. Enter {join_code} and tap Join — you're in!
+
+Good luck! 🏆
+The {comp_name} team`
+
+function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations, currentUserId, tournamentName }: {
   comp:           any
   tipsters:       Tipster[]
   setTipsters:    React.Dispatch<React.SetStateAction<Tipster[]>>
   invitations:    Invitation[]
   setInvitations: React.Dispatch<React.SetStateAction<Invitation[]>>
   currentUserId:  string
+  tournamentName: string
 }) {
-  const [emailInput,      setEmailInput]      = useState('')
-  const [bulkInput,       setBulkInput]       = useState('')
-  const [showBulk,        setShowBulk]        = useState(false)
-  const [sending,         setSending]         = useState(false)
-  const [removing,        setRemoving]        = useState<string | null>(null)
-  const [filter,          setFilter]          = useState<'all' | 'joined' | 'registered' | 'invited'>('all')
-  const [search,          setSearch]          = useState('')
-  const [showEmailDraft,  setShowEmailDraft]  = useState(false)
-  const [customMessage,   setCustomMessage]   = useState('')
+  const [inviteStep,    setInviteStep]    = useState<1|2|3>(1)
+  const [inviteSubject, setInviteSubject] = useState(DEFAULT_INVITE_SUBJECT)
+  const [inviteBody,    setInviteBody]    = useState(DEFAULT_INVITE_BODY)
+  const [recipients,    setRecipients]    = useState<string[]>([])
+  const [emailInput,    setEmailInput]    = useState('')
+  const [bulkInput,     setBulkInput]     = useState('')
+  const [showBulk,      setShowBulk]      = useState(false)
+  const [sending,       setSending]       = useState(false)
+  const [removing,      setRemoving]      = useState<string | null>(null)
+  const [filter,        setFilter]        = useState<'all' | 'joined' | 'registered' | 'invited'>('all')
+  const [search,        setSearch]        = useState('')
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   // Merged view: tipsters (joined) + invitations (pending/registered)
   // A person appears once: joined tipsters take precedence over invitations
@@ -130,13 +150,40 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
     invited:    mergedList.filter(r => !r.registered && !r.joined).length,
   }), [mergedList])
 
-  const sendInvites = async (emails: string[]) => {
-    const valid = emails.map(e => e.trim().toLowerCase()).filter(e => /\S+@\S+\.\S+/.test(e))
-    if (!valid.length) { toast.error('No valid email addresses'); return }
+  const insertToken = (token: string) => {
+    const ta = bodyRef.current
+    if (!ta) { setInviteBody(prev => prev + token); return }
+    const start = ta.selectionStart ?? inviteBody.length
+    const end   = ta.selectionEnd   ?? inviteBody.length
+    setInviteBody(inviteBody.slice(0, start) + token + inviteBody.slice(end))
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + token.length, start + token.length) })
+  }
+
+  const applyTokens = (template: string, name: string) =>
+    template
+      .replace(/\{name\}/g, name)
+      .replace(/\{comp_name\}/g, comp.name ?? 'My Comp')
+      .replace(/\{join_code\}/g, comp.invite_code ?? '—')
+      .replace(/\{tournament_name\}/g, tournamentName)
+
+  const addRecipients = (raw: string) => {
+    const emails = raw.split(/[\n,;]+/).map(e => e.trim().toLowerCase()).filter(e => /\S+@\S+\.\S+/.test(e))
+    if (!emails.length) { toast.error('No valid email addresses'); return }
+    setRecipients(prev => {
+      const existing = new Set(prev)
+      const added = emails.filter(e => !existing.has(e))
+      if (added.length < emails.length) toast(`${emails.length - added.length} already added`, { icon: 'ℹ️' })
+      return [...prev, ...added]
+    })
+    setEmailInput(''); setBulkInput(''); setShowBulk(false)
+  }
+
+  const sendInvites = async () => {
+    if (!recipients.length) { toast.error('Add at least one recipient'); return }
     setSending(true)
     const res = await fetch('/api/comp-invitations', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, emails: valid, customMessage }),
+      body: JSON.stringify({ comp_id: comp.id, emails: recipients, subject: inviteSubject, bodyTemplate: inviteBody }),
     })
     const { results, invited, already } = await res.json()
     setSending(false)
@@ -145,7 +192,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       .filter((r: any) => r.status === 'invited')
       .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: null, display_name: null, joined: false }))
     setInvitations(prev => [...newInvs, ...prev])
-    setEmailInput(''); setBulkInput(''); setShowBulk(false)
+    setRecipients([]); setInviteStep(1)
     toast.success(`${invited} invite${invited !== 1 ? 's' : ''} sent${already ? ` · ${already} already invited` : ''}`)
   }
 
@@ -207,87 +254,167 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
         </div>
       </Section>
 
-      {/* Send invites */}
-      <Section title="Invite by email" sub="Send an email invitation with join instructions">
-        <div className="p-4 space-y-3">
+      {/* Invite by email — 3-step stepper */}
+      <Section title="Invite by email">
+        {/* Step progress bar */}
+        <div className="flex items-center gap-1 px-4 py-3 border-b border-gray-100">
+          {[
+            { step: 1 as const, label: 'Compose'    },
+            { step: 2 as const, label: 'Recipients' },
+            { step: 3 as const, label: 'Preview'    },
+          ].map(({ step, label }, i) => {
+            const active = inviteStep === step
+            const done   = inviteStep > step
+            return (
+              <div key={step} className="flex items-center gap-1">
+                {i > 0 && <span className="text-gray-200 text-xs mx-0.5">›</span>}
+                <button
+                  onClick={() => { if (done) setInviteStep(step) }}
+                  className={clsx('flex items-center gap-1.5 text-[11px] font-bold py-1 px-2 rounded-lg transition-colors',
+                    active ? 'bg-gray-900 text-white' : done ? 'text-gray-600 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-default')}>
+                  <span className={clsx('w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0',
+                    active ? 'bg-white text-gray-900' : done ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-400')}>
+                    {done ? '✓' : step}
+                  </span>
+                  {label}
+                </button>
+              </div>
+            )
+          })}
+        </div>
 
-          {/* Recipient input */}
-          <div className="flex gap-2">
-            <input type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendInvites([emailInput])}
-              placeholder="tipster@example.com"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
-            />
-            <button onClick={() => sendInvites([emailInput])} disabled={sending || !emailInput.trim()}
-              className="px-4 py-2 bg-gray-900 disabled:opacity-40 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center gap-1.5">
-              {sending ? <Spinner className="w-3 h-3 text-white" /> : null}
-              Send invite
-            </button>
-          </div>
+        <div className="p-4">
 
-          {/* Bulk import */}
-          <button onClick={() => setShowBulk(v => !v)} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 font-medium">
-            {showBulk ? 'Hide bulk import ↑' : '+ Bulk import multiple emails'}
-          </button>
-          {showBulk && (
-            <div className="space-y-2">
-              <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={4}
-                placeholder={"Paste emails — one per line, or comma/semicolon separated:\n\nalice@example.com\nbob@example.com, charlie@example.com"}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none font-mono"
-              />
-              <button onClick={() => sendInvites(bulkInput.split(/[\n,;]+/))} disabled={sending || !bulkInput.trim()}
-                className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
-                {(() => {
-                  const n = bulkInput.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length
-                  return sending ? 'Sending…' : `Send ${n} invite${n !== 1 ? 's' : ''}`
-                })()}
-              </button>
+          {/* ── Step 1: Compose ─────────────────────────────────────────── */}
+          {inviteStep === 1 && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Subject</label>
+                <input type="text" value={inviteSubject} onChange={e => setInviteSubject(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Insert variable</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['{name}','{comp_name}','{join_code}','{tournament_name}'].map(tok => (
+                    <button key={tok} onClick={() => insertToken(tok)}
+                      className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-mono font-semibold rounded-lg transition-colors border border-gray-200">
+                      {tok}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Body</label>
+                <textarea ref={bodyRef} value={inviteBody} onChange={e => setInviteBody(e.target.value)} rows={12}
+                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none font-mono bg-white" />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button onClick={() => { setInviteSubject(DEFAULT_INVITE_SUBJECT); setInviteBody(DEFAULT_INVITE_BODY) }}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 underline underline-offset-2">
+                  ↺ Reset to default
+                </button>
+                <button onClick={() => setInviteStep(2)}
+                  className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
+                  Next: Add recipients →
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Email draft / preview */}
-          <button onClick={() => setShowEmailDraft(v => !v)}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 font-medium">
-            ✉️ {showEmailDraft ? 'Hide email preview ↑' : 'Preview / customise invitation email ↓'}
-          </button>
-          {showEmailDraft && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
-              {/* Static template preview */}
-              <div className="px-4 pt-4 pb-3 space-y-2 text-xs text-gray-600 border-b border-gray-200">
-                <p className="font-bold text-gray-800 text-sm">📧 What the recipient receives</p>
-                <p><span className="text-gray-400">Subject:</span> You&apos;ve been invited to join <strong>{comp.name}</strong></p>
-                <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2 text-[12px] leading-relaxed">
-                  <p>Hi [name],</p>
-                  <p>You&apos;ve been invited to join <strong>{comp.name}</strong>{comp.tournament_id ? ' for the tournament' : ''}.</p>
-                  {customMessage.trim() && (
-                    <p className="text-gray-700 italic whitespace-pre-wrap">{customMessage}</p>
-                  )}
-                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 my-2">
-                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Your join code</p>
-                    <p className="font-mono font-black text-green-900 text-lg tracking-widest">{comp.invite_code}</p>
-                  </div>
-                  <p className="font-semibold text-gray-700">How to join in 3 steps:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-gray-600">
-                    <li>Go to <span className="text-green-700 font-medium">www.tribepicks.com</span> and create a free account</li>
-                    <li>Tap <strong>Join Comp</strong> on the home screen</li>
-                    <li>Enter code <strong className="font-mono tracking-wider">{comp.invite_code}</strong> and tap Join — you&apos;re in!</li>
-                  </ol>
-                  <p>Good luck! 🏆</p>
-                  <p className="text-gray-400">The <strong>{comp.name}</strong> team</p>
-                </div>
+          {/* ── Step 2: Recipients ──────────────────────────────────────── */}
+          {inviteStep === 2 && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { addRecipients(emailInput); e.preventDefault() } }}
+                  placeholder="tipster@example.com"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+                <button onClick={() => addRecipients(emailInput)} disabled={!emailInput.trim()}
+                  className="px-3 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                  Add
+                </button>
               </div>
-              {/* Personal note editor */}
-              <div className="px-4 py-3">
-                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Add a personal note <span className="text-gray-400 font-normal">(optional — inserted after the opening line)</span>
-                </label>
-                <textarea
-                  value={customMessage}
-                  onChange={e => setCustomMessage(e.target.value)}
-                  rows={3}
-                  placeholder={`e.g. "We're running a $10 entry fee this year — details to follow. Can't wait to compete!"`}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none bg-white"
-                />
+
+              <button onClick={() => setShowBulk(v => !v)} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 font-medium">
+                {showBulk ? 'Hide bulk ↑' : '+ Bulk import multiple emails'}
+              </button>
+              {showBulk && (
+                <div className="space-y-2">
+                  <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={4}
+                    placeholder={"Paste emails — one per line, or comma/semicolon separated:\n\nalice@example.com\nbob@example.com"}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none font-mono" />
+                  <button onClick={() => addRecipients(bulkInput)} disabled={!bulkInput.trim()}
+                    className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                    {`Add ${bulkInput.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length} emails`}
+                  </button>
+                </div>
+              )}
+
+              {recipients.length > 0 ? (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                      {recipients.length} recipient{recipients.length !== 1 ? 's' : ''}
+                    </span>
+                    <button onClick={() => setRecipients([])} className="text-[10px] text-red-400 hover:text-red-600">Clear all</button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-gray-50">
+                    {recipients.map(email => (
+                      <div key={email} className="flex items-center justify-between px-3 py-1.5">
+                        <span className="text-[11px] text-gray-700 font-mono truncate">{email}</span>
+                        <button onClick={() => setRecipients(prev => prev.filter(e => e !== email))}
+                          className="text-gray-300 hover:text-red-500 text-xs p-0.5 flex-shrink-0 ml-2">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-400 text-center py-3">No recipients added yet</p>
+              )}
+
+              <div className="flex justify-between pt-1">
+                <button onClick={() => setInviteStep(1)} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+                  ← Back
+                </button>
+                <button onClick={() => setInviteStep(3)} disabled={recipients.length === 0}
+                  className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                  Preview →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Preview & Send ──────────────────────────────────── */}
+          {inviteStep === 3 && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 space-y-1">
+                  <p className="text-[11px] text-gray-400">To: <span className="text-gray-700">{recipients.length} recipient{recipients.length !== 1 ? 's' : ''}</span></p>
+                  <p className="text-[11px] text-gray-400">Subject: <span className="text-gray-700 font-medium">{applyTokens(inviteSubject, 'Alex')}</span></p>
+                </div>
+                <div className="px-4 pt-3 pb-2">
+                  <div className="border-b border-gray-100 mb-3 pb-2">
+                    <span className="text-base font-black text-emerald-800">TribePicks ⚽</span>
+                  </div>
+                  <pre className="text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap font-sans">
+                    {applyTokens(inviteBody, 'Alex')}
+                  </pre>
+                </div>
+                <p className="px-4 pb-3 text-[10px] text-gray-400 border-t border-gray-100 pt-2">
+                  Preview uses &quot;Alex&quot; as a sample name — each recipient will see their own.
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center pt-1">
+                <button onClick={() => setInviteStep(2)} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+                  ← Back
+                </button>
+                <button onClick={sendInvites} disabled={sending}
+                  className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 transition-colors flex items-center gap-1.5">
+                  {sending ? <Spinner className="w-3 h-3 text-white" /> : null}
+                  ✉️ Send {recipients.length} invite{recipients.length !== 1 ? 's' : ''}
+                </button>
               </div>
             </div>
           )}
@@ -1090,7 +1217,7 @@ function ChallengesTab({ comp }: { comp: any }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function CompAdminPage() {
   const { session }                                         = useSupabase()
-  const { selectedComp, isCompAdmin, loading: ctxLoading, updateComp } = useUserPrefs()
+  const { selectedComp, selectedTourn, isCompAdmin, loading: ctxLoading, updateComp } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<Tab>('tipsters')
   const [loading,     setLoading]     = useState(false)
@@ -1194,7 +1321,7 @@ export default function CompAdminPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'tipsters'   && <TipstersTab   comp={comp} tipsters={tipsters} setTipsters={setTipsters} invitations={invitations} setInvitations={setInvitations} currentUserId={session?.user.id ?? ''} />}
+      {activeTab === 'tipsters'   && <TipstersTab   comp={comp} tipsters={tipsters} setTipsters={setTipsters} invitations={invitations} setInvitations={setInvitations} currentUserId={session?.user.id ?? ''} tournamentName={(selectedTourn as any)?.name ?? 'the tournament'} />}
       {activeTab === 'payments'   && (
         requiresFee
           ? <PaymentsTab comp={comp} tipsters={tipsters} setTipsters={setTipsters} entryFeeDefault={entryFee} />

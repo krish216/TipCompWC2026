@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
-  const { comp_id, emails, customMessage } = body
+  const { comp_id, emails, subject, bodyTemplate } = body
   if (!comp_id || !Array.isArray(emails) || emails.length === 0)
     return NextResponse.json({ error: 'comp_id and emails[] required' }, { status: 400 })
 
@@ -112,17 +112,15 @@ export async function POST(request: NextRequest) {
     // Send invitation email
     if (resend) {
       const recipientName = matchedUser?.user_metadata?.display_name ?? 'there'
+      const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: (comp as any).invite_code, tournament_name: tournamentName }
+      const emailSubject = subject
+        ? subject.replace(/\{comp_name\}/g, tokens.comp_name).replace(/\{tournament_name\}/g, tokens.tournament_name)
+        : `You've been invited to join ${tokens.comp_name}`
+      const emailHtml = bodyTemplate
+        ? buildTemplateHtml(bodyTemplate, tokens)
+        : buildInviteHtml({ recipientName, compName: tokens.comp_name, inviteCode: tokens.join_code, tournamentName, customMessage: '' })
       await resend.emails.send({
-        from:    FROM,
-        to:      email,
-        subject: `You've been invited to join ${(comp as any).name}`,
-        html:    buildInviteHtml({
-          recipientName,
-          compName:      (comp as any).name,
-          inviteCode:    (comp as any).invite_code,
-          tournamentName,
-          customMessage: customMessage ?? '',
-        }),
+        from: FROM, to: email, subject: emailSubject, html: emailHtml,
       }).catch(() => { /* non-fatal — invitation row already created */ })
     }
 
@@ -188,6 +186,36 @@ function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, 
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">
     This invite was sent by your comp admin via <a href="${APP_URL}" style="color:#9ca3af;">TribePicks</a>.
+  </p>
+</body>
+</html>`
+}
+
+function buildTemplateHtml(
+  template: string,
+  tokens: { name: string; comp_name: string; join_code: string; tournament_name: string }
+): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const body = template
+    .replace(/\{name\}/g,            esc(tokens.name))
+    .replace(/\{comp_name\}/g,       esc(tokens.comp_name))
+    .replace(/\{join_code\}/g,       esc(tokens.join_code))
+    .replace(/\{tournament_name\}/g, esc(tokens.tournament_name))
+  const lines = body.split('\n').map(line =>
+    `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${line || '&nbsp;'}</p>`
+  ).join('')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;padding:32px 24px;background:#ffffff;">
+  <div style="margin-bottom:24px;">
+    <p style="margin:0;font-size:22px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks ⚽</p>
+  </div>
+  ${lines}
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;"/>
+  <p style="font-size:11px;color:#9ca3af;margin:0;">
+    This invite was sent by your comp admin via <a href="${appUrl}" style="color:#9ca3af;">TribePicks</a>.
   </p>
 </body>
 </html>`
