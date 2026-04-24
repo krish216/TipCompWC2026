@@ -81,13 +81,15 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
   setInvitations: React.Dispatch<React.SetStateAction<Invitation[]>>
   currentUserId:  string
 }) {
-  const [emailInput, setEmailInput]   = useState('')
-  const [bulkInput,  setBulkInput]    = useState('')
-  const [showBulk,   setShowBulk]     = useState(false)
-  const [sending,    setSending]      = useState(false)
-  const [removing,   setRemoving]     = useState<string | null>(null)
-  const [filter,     setFilter]       = useState<'all' | 'joined' | 'registered' | 'invited'>('all')
-  const [search,     setSearch]       = useState('')
+  const [emailInput,      setEmailInput]      = useState('')
+  const [bulkInput,       setBulkInput]       = useState('')
+  const [showBulk,        setShowBulk]        = useState(false)
+  const [sending,         setSending]         = useState(false)
+  const [removing,        setRemoving]        = useState<string | null>(null)
+  const [filter,          setFilter]          = useState<'all' | 'joined' | 'registered' | 'invited'>('all')
+  const [search,          setSearch]          = useState('')
+  const [showEmailDraft,  setShowEmailDraft]  = useState(false)
+  const [customMessage,   setCustomMessage]   = useState('')
 
   // Merged view: tipsters (joined) + invitations (pending/registered)
   // A person appears once: joined tipsters take precedence over invitations
@@ -134,12 +136,11 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
     setSending(true)
     const res = await fetch('/api/comp-invitations', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, emails: valid }),
+      body: JSON.stringify({ comp_id: comp.id, emails: valid, customMessage }),
     })
     const { results, invited, already } = await res.json()
     setSending(false)
     if (!res.ok) { toast.error('Failed to send invitations'); return }
-    // Add new invitations to state
     const newInvs: Invitation[] = (results ?? [])
       .filter((r: any) => r.status === 'invited')
       .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: null, display_name: null, joined: false }))
@@ -207,8 +208,10 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       </Section>
 
       {/* Send invites */}
-      <Section title="Invite by email" sub="Send an email invitation with a join link">
+      <Section title="Invite by email" sub="Send an email invitation with join instructions">
         <div className="p-4 space-y-3">
+
+          {/* Recipient input */}
           <div className="flex gap-2">
             <input type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendInvites([emailInput])}
@@ -221,6 +224,8 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
               Send invite
             </button>
           </div>
+
+          {/* Bulk import */}
           <button onClick={() => setShowBulk(v => !v)} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 font-medium">
             {showBulk ? 'Hide bulk import ↑' : '+ Bulk import multiple emails'}
           </button>
@@ -239,6 +244,54 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
               </button>
             </div>
           )}
+
+          {/* Email draft / preview */}
+          <button onClick={() => setShowEmailDraft(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 font-medium">
+            ✉️ {showEmailDraft ? 'Hide email preview ↑' : 'Preview / customise invitation email ↓'}
+          </button>
+          {showEmailDraft && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+              {/* Static template preview */}
+              <div className="px-4 pt-4 pb-3 space-y-2 text-xs text-gray-600 border-b border-gray-200">
+                <p className="font-bold text-gray-800 text-sm">📧 What the recipient receives</p>
+                <p><span className="text-gray-400">Subject:</span> You&apos;ve been invited to join <strong>{comp.name}</strong></p>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-2 text-[12px] leading-relaxed">
+                  <p>Hi [name],</p>
+                  <p>You&apos;ve been invited to join <strong>{comp.name}</strong>{comp.tournament_id ? ' for the tournament' : ''}.</p>
+                  {customMessage.trim() && (
+                    <p className="text-gray-700 italic whitespace-pre-wrap">{customMessage}</p>
+                  )}
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 my-2">
+                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Your join code</p>
+                    <p className="font-mono font-black text-green-900 text-lg tracking-widest">{comp.invite_code}</p>
+                  </div>
+                  <p className="font-semibold text-gray-700">How to join in 3 steps:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-gray-600">
+                    <li>Go to <span className="text-green-700 font-medium">www.tribepicks.com</span> and create a free account</li>
+                    <li>Tap <strong>Join Comp</strong> on the home screen</li>
+                    <li>Enter code <strong className="font-mono tracking-wider">{comp.invite_code}</strong> and tap Join — you&apos;re in!</li>
+                  </ol>
+                  <p>Good luck! 🏆</p>
+                  <p className="text-gray-400">The <strong>{comp.name}</strong> team</p>
+                </div>
+              </div>
+              {/* Personal note editor */}
+              <div className="px-4 py-3">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Add a personal note <span className="text-gray-400 font-normal">(optional — inserted after the opening line)</span>
+                </label>
+                <textarea
+                  value={customMessage}
+                  onChange={e => setCustomMessage(e.target.value)}
+                  rows={3}
+                  placeholder={`e.g. "We're running a $10 entry fee this year — details to follow. Can't wait to compete!"`}
+                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none bg-white"
+                />
+              </div>
+            </div>
+          )}
+
         </div>
       </Section>
 

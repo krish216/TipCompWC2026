@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { Resend } from 'resend'
+
+const FROM     = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
+const APP_URL  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
 
 // Helper: verify caller is comp admin (or tournament admin)
 async function verifyCompAdmin(userId: string, compId: string) {
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/comp-invitations — create invitation(s) and send email
-// Body: { comp_id, emails: string[] }
+// Body: { comp_id, emails: string[], customMessage?: string }
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
-  const { comp_id, emails } = body
+  const { comp_id, emails, customMessage } = body
   if (!comp_id || !Array.isArray(emails) || emails.length === 0)
     return NextResponse.json({ error: 'comp_id and emails[] required' }, { status: 400 })
 
@@ -69,15 +73,19 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Get comp details for the invite email
+  // Get comp + tournament details for the invite email
   const { data: comp } = await (admin.from('comps') as any)
-    .select('id, name, invite_code').eq('id', comp_id).single()
+    .select('id, name, invite_code, tournament_id').eq('id', comp_id).single()
   if (!comp) return NextResponse.json({ error: 'Comp not found' }, { status: 404 })
 
-  // Get inviter's display name
-  const { data: inviter } = await (admin.from('users') as any)
-    .select('display_name').eq('id', user.id).single()
-  const inviterName = (inviter as any)?.display_name ?? 'A comp admin'
+  let tournamentName = 'the tournament'
+  if ((comp as any).tournament_id) {
+    const { data: tourn } = await (admin.from('tournaments') as any)
+      .select('name').eq('id', (comp as any).tournament_id).single()
+    if (tourn) tournamentName = (tourn as any).name
+  }
+
+  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
   const results: { email: string; status: 'invited' | 'already_invited' | 'error'; id?: string }[] = []
 
@@ -96,20 +104,28 @@ export async function POST(request: NextRequest) {
 
     // Insert invitation row
     const { data: inv, error: invErr } = await (admin.from('comp_invitations') as any)
-      .insert({
-        comp_id,
-        email,
-        invited_by: user.id,
-        user_id: matchedUser?.id ?? null,
-      })
-      .select('id')
-      .single()
+      .insert({ comp_id, email, invited_by: user.id, user_id: matchedUser?.id ?? null })
+      .select('id').single()
 
     if (invErr) { results.push({ email, status: 'error' }); continue }
 
-    // Send invitation email via announcements API (or direct via Supabase mailer)
-    // For now we store the invite and note whether the user exists on the app
-    // Email delivery can be wired to Resend/SendGrid via a separate service
+    // Send invitation email
+    if (resend) {
+      const recipientName = matchedUser?.user_metadata?.display_name ?? 'there'
+      await resend.emails.send({
+        from:    FROM,
+        to:      email,
+        subject: `You've been invited to join ${(comp as any).name}`,
+        html:    buildInviteHtml({
+          recipientName,
+          compName:      (comp as any).name,
+          inviteCode:    (comp as any).invite_code,
+          tournamentName,
+          customMessage: customMessage ?? '',
+        }),
+      }).catch(() => { /* non-fatal — invitation row already created */ })
+    }
+
     results.push({ email, status: 'invited', id: (inv as any).id })
   }
 
@@ -117,6 +133,64 @@ export async function POST(request: NextRequest) {
   const already = results.filter(r => r.status === 'already_invited').length
 
   return NextResponse.json({ results, invited, already })
+}
+
+function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, customMessage }: {
+  recipientName: string; compName: string; inviteCode: string
+  tournamentName: string; customMessage: string
+}): string {
+  const customPara = customMessage.trim()
+    ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">${customMessage.trim().replace(/\n/g, '<br/>')}</p>`
+    : ''
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;padding:32px 24px;background:#ffffff;">
+
+  <!-- Header -->
+  <div style="margin-bottom:24px;">
+    <p style="margin:0;font-size:22px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks ⚽</p>
+  </div>
+
+  <p style="margin:0 0 16px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
+
+  <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
+    You've been invited to join <strong>${compName}</strong> for the <strong>${tournamentName}</strong>.
+  </p>
+
+  ${customPara}
+
+  <!-- Join code callout -->
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Your join code</p>
+    <p style="margin:0;font-size:28px;font-weight:900;color:#065f46;letter-spacing:0.25em;font-family:monospace;">${inviteCode}</p>
+  </div>
+
+  <!-- Step-by-step instructions -->
+  <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#111827;">How to join in 3 steps:</p>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+    ${[
+      ['1', `Go to <a href="${APP_URL}" style="color:#065f46;font-weight:600;">${APP_URL.replace('https://', '')}</a> and create a free account`],
+      ['2', 'Once registered, tap <strong>Join Comp</strong> on the home screen'],
+      ['3', `Enter comp code <strong style="font-family:monospace;letter-spacing:0.1em;">${inviteCode}</strong> and tap <strong>Join</strong> — you\'re in!`],
+    ].map(([n, text]) => `
+    <tr>
+      <td style="width:32px;padding:6px 12px 6px 0;vertical-align:top;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#065f46;color:#fff;font-size:12px;font-weight:700;">${n}</span>
+      </td>
+      <td style="padding:6px 0;font-size:13px;line-height:1.6;color:#374151;">${text}</td>
+    </tr>`).join('')}
+  </table>
+
+  <p style="margin:0 0 24px;font-size:14px;color:#374151;">Good luck! 🏆</p>
+  <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">The <strong>${compName}</strong> team</p>
+
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
+  <p style="font-size:11px;color:#9ca3af;margin:0;">
+    This invite was sent by your comp admin via <a href="${APP_URL}" style="color:#9ca3af;">TribePicks</a>.
+  </p>
+</body>
+</html>`
 }
 
 // DELETE /api/comp-invitations?id=  — remove an invitation
