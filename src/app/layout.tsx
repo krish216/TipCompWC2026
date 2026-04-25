@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
@@ -9,6 +9,13 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 const inter = Inter({ subsets: ['latin'] })
+
+// viewportFit=cover lets env(safe-area-inset-bottom) work on iPhone notch/home bar
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
 
 export const metadata: Metadata = {
   title: 'TribePicks',
@@ -43,7 +50,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SupabaseProvider initialSession={session}>
           <UserPrefsProvider>
             <Navbar isAdmin={isAdmin} />
-            <main className="min-h-screen bg-gray-50">
+            {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
+            <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}
             </main>
             <Toaster
