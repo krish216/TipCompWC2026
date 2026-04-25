@@ -8,9 +8,6 @@ import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-const KICKOFF = new Date('2026-06-11T19:00:00Z')
-
-
 // ── CompModal ─────────────────────────────────────────────────────────────────
 // Step-based flow matching the login/onboarding page pattern.
 // Steps: choose → join | create
@@ -277,11 +274,9 @@ export default function HomePage() {
   const [totalPts,    setTotalPts]    = useState<number | null>(null)
   const [myRank,      setMyRank]      = useState<number | null>(null)
   const [loading,     setLoading]     = useState(true)
-  const [isAdmin,     setIsAdmin]     = useState(false)
   const [avatar,       setAvatar]       = useState<string | null>(null)
   const [modal,       setModal]       = useState<'join' | 'create' | null>(null)
-  // Per-comp rank: { [compId]: { pts, rank } }
-  const [compRanks,   setCompRanks]   = useState<Record<string, { pts: number; rank: number }>>({})
+  const [predCount,   setPredCount]   = useState<number | null>(null)
 
   const {
     activeTournaments, tournsComps,
@@ -295,10 +290,6 @@ export default function HomePage() {
 
   // favourite_team is per-tournament, stored in user_tournaments
   const [favTeam,     setFavTeam]     = useState<string>('')
-  const [savingFav,   setSavingFav]   = useState(false)
-  const [hoveredComp, setHoveredComp] = useState<string | null>(null)
-
-  const started = Date.now() >= KICKOFF.getTime()
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -316,10 +307,10 @@ export default function HomePage() {
 
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
-      const [userRes, lbRes, adminRes] = await Promise.all([
+      const [userRes, lbRes, predRes] = await Promise.all([
         supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&limit=200'),
-        fetch('/api/admin'),
+        fetch('/api/predictions'),
       ])
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
@@ -329,27 +320,10 @@ export default function HomePage() {
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
 
-      const adminData = await adminRes.json()
-      setIsAdmin(adminData.is_admin === true)
+      const predData = await predRes.json()
+      setPredCount((predData.data ?? []).length)
 
-      // Tournaments + comps are managed by UserPrefsContext
-      // Just set loading false once profile is done
       setLoading(false)
-    }
-    load()
-
-    // Fetch per-comp ranks when tournsComps changes
-    const loadCompRanks = async (comps: typeof tournsComps) => {
-      if (!session || comps.length === 0) return
-      const results: Record<string, { pts: number; rank: number }> = {}
-      await Promise.all(comps.map(async c => {
-        try {
-          const d = await fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&limit=200`).then(r => r.json())
-          const me = d.my_entry ?? (d.data ?? []).find((e: any) => e.user_id === session.user.id)
-          if (me) results[c.id] = { pts: me.total_points, rank: me.rank ?? 0 }
-        } catch { /* ignore */ }
-      }))
-      setCompRanks(results)
     }
     load()
   }, [session, supabase])
@@ -388,19 +362,6 @@ export default function HomePage() {
       .eq('tournament_id', tournId)
       .maybeSingle()
     setFavTeam((data as any)?.favourite_team ?? '')
-  }
-
-  // Save fav team to user_tournaments for the selected tournament
-  const saveFavTeam = async (team: string) => {
-    if (!selectedTournId) return
-    setSavingFav(true)
-    setFavTeam(team)
-    await fetch('/api/user-tournaments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
-    })
-    setSavingFav(false)
   }
 
   return (
@@ -613,159 +574,51 @@ export default function HomePage() {
                 </p>
               )}
 
-              {/* Fav team picker */}
-              {selectedTournId && selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
-                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-semibold text-amber-800">⭐ Pick your favourite team</p>
-                    {started
-                      ? <span className="text-[10px] font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">Locked — tournament started</span>
-                      : <span className="text-[10px] text-amber-600">Locks at kickoff · Jun 11</span>
-                    }
-                  </div>
-                  <select
-                    value={favTeam}
-                    onChange={e => !started && saveFavTeam(e.target.value)}
-                    disabled={savingFav || started}
-                    className={`w-full px-3 py-2 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors ${
-                      started
-                        ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed opacity-60'
-                        : favTeam
-                        ? 'border-amber-300 text-amber-800 font-medium bg-white'
-                        : 'border-amber-200 text-gray-400 bg-white'
-                    }`}>
-                    <option value="">Choose a team…</option>
-                    {(selectedTourn.teams as string[]).sort().map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-amber-700 mt-1.5">
-                    Earns you <strong>2× points</strong> on all Group Stage &amp; Round of 32 matches for your chosen team.
-                  </p>
-                </div>
-              )}
-
-              {/* Comp cards */}
+              {/* Comp radio list */}
               {tournsComps.length > 0 && selectedTournId && (
-                <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm mb-3">
-                  {tournsComps.map((c, idx) => {
+                <div className="rounded-xl border border-gray-200 bg-white overflow-hidden mb-3">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">My Comps</p>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setModal('join')}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
+                        🔑 Join
+                      </button>
+                      <button onClick={() => setModal('create')}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
+                        + Create
+                      </button>
+                    </div>
+                  </div>
+                  {tournsComps.map(c => {
                     const isSel = selectedCompId === c.id
-                    const rank  = compRanks[c.id]
                     const isAdm = isCompAdmin && isSel
                     return (
-                      <Link key={c.id} href="/predict"
-                        onClick={() => { if (!isSel) pickComp(c) }}
-                        className="block no-underline"
-                        style={{ textDecoration: 'none' }}>
-                        <div
-                          onMouseEnter={() => setHoveredComp(c.id)}
-                          onMouseLeave={() => setHoveredComp(null)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 14,
-                            padding: isSel ? '16px 16px 16px 0' : '13px 14px',
-                            borderBottom: idx < tournsComps.length - 1 ? '1px solid #f3f4f6' : 'none',
-                            background: isSel ? '#f0fdf4' : hoveredComp === c.id ? '#f9fafb' : 'transparent',
-                            borderLeft: isSel ? '4px solid #16a34a' : hoveredComp === c.id ? '4px solid #d1fae5' : '4px solid transparent',
-                            transition: 'all 0.15s', cursor: 'pointer',
-                            paddingLeft: isSel ? 16 : 14,
-                            transform: hoveredComp === c.id && !isSel ? 'translateX(2px)' : 'none',
-                            boxShadow: hoveredComp === c.id && !isSel ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-                          }}>
-                          {/* Logo */}
-                          <div style={{
-                            width: isSel ? 48 : 36, height: isSel ? 48 : 36,
-                            borderRadius: isSel ? 12 : 9, flexShrink: 0,
-                            overflow: 'hidden', border: isSel ? '2px solid #bbf7d0' : '1px solid #e5e7eb',
-                            background: '#f9fafb',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            transition: 'all 0.15s',
-                          }}>
-                            {c.logo_url
-                              ? <img src={c.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <span style={{ fontSize: isSel ? 22 : 16, fontWeight: 700, color: isSel ? '#16a34a' : '#9ca3af' }}>
-                                  {c.name.charAt(0).toUpperCase()}
-                                </span>
-                            }
-                          </div>
-
-                          {/* Name + badge */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <p style={{
-                                margin: 0,
-                                fontSize: isSel ? 15 : 13,
-                                fontWeight: isSel ? 700 : 500,
-                                color: isSel ? '#15803d' : '#374151',
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                lineHeight: 1.2,
-                              }}>
-                                {c.name}
-                              </p>
-                              {isAdm && (
-                                <Link
-                                  href="/comp-admin"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{
-                                    fontSize: 10, fontWeight: 700, color: '#1d4ed8',
-                                    background: '#eff6ff', border: '1px solid #bfdbfe',
-                                    padding: '2px 8px', borderRadius: 99,
-                                    flexShrink: 0, whiteSpace: 'nowrap',
-                                    textDecoration: 'none', display: 'inline-flex',
-                                    alignItems: 'center', gap: 3,
-                                  }}>
-                                  ⚙️ Manage
-                                </Link>
-                              )}
-                            </div>
-                            {isSel && (
-                              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#16a34a', fontWeight: 500 }}>
-                                Tap to predict →
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Rank */}
-                          {rank && (
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <p style={{
-                                margin: 0, lineHeight: 1,
-                                fontSize: isSel ? 18 : 13,
-                                fontWeight: 700,
-                                color: isSel ? '#15803d' : '#374151',
-                              }}>
-                                {rank.pts}
-                                <span style={{ fontSize: isSel ? 11 : 10, fontWeight: 400, color: isSel ? '#86efac' : '#9ca3af', marginLeft: 2 }}>pts</span>
-                              </p>
-                              <p style={{ margin: '2px 0 0', fontSize: 10, color: isSel ? '#4ade80' : '#9ca3af' }}>
-                                #{rank.rank} in comp
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Active indicator */}
-                          {isSel && (
-                            <div style={{
-                              width: 8, height: 8, borderRadius: '50%',
-                              background: '#16a34a', flexShrink: 0,
-                              boxShadow: '0 0 0 3px #bbf7d0',
-                            }} />
-                          )}
-                        </div>
-                      </Link>
+                      <button key={c.id}
+                        onClick={() => pickComp(c)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
+                          isSel ? 'bg-green-50' : 'hover:bg-gray-50'
+                        }`}>
+                        <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                          isSel ? 'border-green-600 bg-green-600' : 'border-gray-300'
+                        }`}>
+                          {isSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                        <span className={`flex-1 text-sm truncate ${isSel ? 'font-semibold text-green-700' : 'font-medium text-gray-700'}`}>
+                          {c.name}
+                        </span>
+                        {isAdm && (
+                          <Link href="/comp-admin" onClick={e => e.stopPropagation()}
+                            className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                            ⚙️ Manage
+                          </Link>
+                        )}
+                        <span className="text-sm flex-shrink-0">
+                          {predCount === null ? '' : predCount > 0 ? '✅' : '⏳'}
+                        </span>
+                      </button>
                     )
                   })}
-
-                  {/* Footer actions */}
-                  <div className="flex border-t border-gray-100">
-                    <button onClick={() => setModal('join')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border-r border-gray-100">
-                      🔑 Join another
-                    </button>
-                    <button onClick={() => setModal('create')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">
-                      + Create new
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -774,35 +627,15 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Action grid ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2.5 mb-6">
-        {session ? (
-          <>
-            {selectedCompId
-              ? <NavCard href="/predict" icon="🎯" title="My Tips" description={started ? "Enter your tips before kickoff" : "Tippings open — get ahead"} accent />
-              : <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 cursor-not-allowed opacity-50 col-span-2">
-                  <span className="text-xl flex-shrink-0">🎯</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-400">My Tips</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Join or create a comp above to start tipping</p>
-                  </div>
-                </div>
-            }
-            <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard"  description="Rankings and standings" />
-            <NavCard href="/tribe"       icon="👥" title="Tribe"        description="Compete with friends" />
-            <NavCard href="/rules"       icon="📖" title="How to play"  description="Scoring guide and rules" />
-            <NavCard href="/settings"    icon="⚙️" title="Settings"     description="Profile and preferences" />
-            {isAdmin && <NavCard href="/admin" icon="🔧" title="Admin" description="Manage the tournament" />}
-          </>
-        ) : (
-          <>
-            <NavCard href="/login?tab=register" icon="🚀" title="Join free"    description="Register in 30 seconds" accent />
-            <NavCard href="/login"              icon="🔑" title="Sign in"      description="Already have an account" />
-            <NavCard href="/leaderboard"        icon="🏆" title="ScoreBoard"   description="See the current standings" />
-            <NavCard href="/rules"              icon="📖" title="How to play"  description="Scoring guide" />
-          </>
-        )}
-      </div>
+      {/* ── Action grid — logged-out only ──────────────────────── */}
+      {!session && (
+        <div className="grid grid-cols-2 gap-2.5 mb-6">
+          <NavCard href="/login?tab=register" icon="🚀" title="Join free"    description="Register in 30 seconds" accent />
+          <NavCard href="/login"              icon="🔑" title="Sign in"      description="Already have an account" />
+          <NavCard href="/leaderboard"        icon="🏆" title="ScoreBoard"   description="See the current standings" />
+          <NavCard href="/rules"              icon="📖" title="How to play"  description="Scoring guide" />
+        </div>
+      )}
 
       {/* Comp modal */}
       {modal && (
