@@ -11,19 +11,26 @@ import { detectTimezone } from '@/lib/timezone'
  */
 export function useTimezone() {
   const { session, supabase } = useSupabase()
-  const [timezone, setTimezoneState] = useState<string>(detectTimezone())
+  // Start with 'UTC' on both server and client to avoid hydration mismatch.
+  // detectTimezone() calls Intl.DateTimeFormat which returns the browser TZ on
+  // the client but 'UTC' on the server — using it as initial state causes #418.
+  const [timezone, setTimezoneState] = useState<string>('UTC')
   const [loaded,   setLoaded]        = useState(false)
 
-  // Load from profile on mount
+  // Load from profile on mount; fall back to browser-detected timezone
   useEffect(() => {
-    if (!session) { setLoaded(true); return }
+    if (!session) {
+      setTimezoneState(detectTimezone())
+      setLoaded(true)
+      return
+    }
     supabase
       .from('users')
       .select('timezone')
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => {
-        if ((data as any)?.timezone) setTimezoneState((data as any).timezone)
+        setTimezoneState((data as any)?.timezone || detectTimezone())
         setLoaded(true)
       })
   }, [session, supabase])
