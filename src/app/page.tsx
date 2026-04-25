@@ -316,8 +316,7 @@ export default function HomePage() {
     return { predCount: allPredictions.length, fixtureCount: allFixtures.length }
   }, [currentRoundCode, allPredictions, allFixtures])
 
-  // favourite_team is per-tournament, stored in user_tournaments
-  const [favTeam,     setFavTeam]     = useState<string>('')
+  const [compRanks, setCompRanks] = useState<Record<string, number | null>>({})
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -367,9 +366,23 @@ export default function HomePage() {
       .catch(() => {})
   }, [session, selectedTournId])
 
+  // Fetch comp ranks in parallel for all comps the user belongs to
   useEffect(() => {
-    if (session && selectedTournId) loadFavTeam(selectedTournId)
-  }, [session, selectedTournId])
+    if (!session || !tournsComps.length) return
+    const tid = selectedTournId ? `&tournament_id=${selectedTournId}` : ''
+    Promise.all(
+      tournsComps.map(c =>
+        fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&limit=500${tid}`)
+          .then(r => r.json())
+          .then(d => ({ id: c.id, rank: (d.my_entry?.rank ?? null) as number | null }))
+          .catch(() => ({ id: c.id, rank: null as number | null }))
+      )
+    ).then(results => {
+      const map: Record<string, number | null> = {}
+      results.forEach(({ id, rank }) => { map[id] = rank })
+      setCompRanks(map)
+    })
+  }, [session, tournsComps, selectedTournId])
 
   // Refresh tribe status when the tab regains focus (user returns after joining a tribe)
   useEffect(() => {
@@ -389,19 +402,6 @@ export default function HomePage() {
       </div>
     </Link>
   )
-
-  // pickTournament and pickComp come from useUserPrefs()
-
-  // Load fav team for the selected tournament from user_tournaments
-  const loadFavTeam = async (tournId: string) => {
-    const { data } = await supabase
-      .from('user_tournaments')
-      .select('favourite_team')
-      .eq('user_id', session!.user.id)
-      .eq('tournament_id', tournId)
-      .maybeSingle()
-    setFavTeam((data as any)?.favourite_team ?? '')
-  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -589,29 +589,42 @@ export default function HomePage() {
               )}
 
               {/* Tournament context */}
-              {activeTournaments.length > 1 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {activeTournaments.map(t => {
-                    const isSel = selectedTournId === t.id
-                    return (
-                      <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                          isSel
-                            ? 'bg-green-600 text-white shadow-sm'
-                            : 'bg-white border border-gray-200 text-gray-500 hover:border-green-400'
-                        }`}>
-                        ⚽ {t.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-              {activeTournaments.length === 1 && selectedTourn && (
-                <p className="text-xs text-gray-400 mb-3 flex items-center gap-1.5">
-                  <span>⚽</span>{selectedTourn.name}
-                  {favTeam && <><span className="text-gray-300">·</span><span className="text-green-600 font-medium">⭐ {favTeam}</span></>}
-                </p>
-              )}
+              {(() => {
+                const roundName = currentRoundCode ? scoringConfig.rounds[currentRoundCode]?.round_name ?? currentRoundCode : null
+                const tippedLine = roundName
+                  ? `${roundName}  ${predCount}/${fixtureCount} tipped`
+                  : null
+                return (
+                  <>
+                    {activeTournaments.length > 1 && (
+                      <div className="flex flex-wrap gap-2 mb-1.5">
+                        {activeTournaments.map(t => {
+                          const isSel = selectedTournId === t.id
+                          return (
+                            <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                                isSel
+                                  ? 'bg-green-600 text-white shadow-sm'
+                                  : 'bg-white border border-gray-200 text-gray-500 hover:border-green-400'
+                              }`}>
+                              ⚽ {t.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {activeTournaments.length === 1 && selectedTourn && (
+                      <p className="text-xs text-gray-400 mb-0.5 flex items-center gap-1.5">
+                        <span>⚽</span>{selectedTourn.name}
+                      </p>
+                    )}
+                    {tippedLine && (
+                      <p className="text-xs text-gray-500 mb-3">{tippedLine}</p>
+                    )}
+                    {!tippedLine && <div className="mb-3" />}
+                  </>
+                )
+              })()}
 
               {/* Comp radio list */}
               {tournsComps.length > 0 && selectedTournId && (
@@ -632,6 +645,7 @@ export default function HomePage() {
                   {tournsComps.map(c => {
                     const isSel = selectedCompId === c.id
                     const isAdm = isCompAdmin && isSel
+                    const rank  = compRanks[c.id]
                     return (
                       <button key={c.id}
                         onClick={() => pickComp(c)}
@@ -652,9 +666,9 @@ export default function HomePage() {
                             ⚙️ Manage
                           </Link>
                         )}
-                        <span className="text-sm flex-shrink-0">
-                          {predCount === null || fixtureCount === null ? '' : predCount >= fixtureCount && fixtureCount > 0 ? '✅' : predCount > 0 ? `${predCount}/${fixtureCount}` : '⏳'}
-                        </span>
+                        {rank != null && (
+                          <span className="text-xs text-gray-400 flex-shrink-0">#{rank}</span>
+                        )}
                       </button>
                     )
                   })}
