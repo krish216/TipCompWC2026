@@ -7,7 +7,7 @@ import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
-import { StatCard, EmptyState, Spinner } from '@/components/ui'
+import { EmptyState, Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
@@ -18,6 +18,18 @@ type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
 type RoundTab = string
+
+const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
+
+function abbreviateRound(name: string): string {
+  const m: Record<string, string> = {
+    'Group Stage': 'GS', 'Round of 32': 'R32', 'Round of 16': 'R16',
+    'Quarter-Final': 'QF', 'Quarter Final': 'QF', 'Quarterfinal': 'QF',
+    'Semi-Final': 'SF', 'Semi Final': 'SF', 'Semifinal': 'SF',
+    'Final': 'F', 'Third-Place Play-off': '3rd', 'Third Place': '3rd',
+  }
+  return m[name] ?? name
+}
 
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
@@ -46,6 +58,7 @@ export default function PredictPage() {
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
+  const [savingFav,     setSavingFav]     = useState(false)
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
@@ -467,6 +480,20 @@ export default function PredictPage() {
     />
   )
 
+  const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
+
+  const saveFavTeam = async (team: string) => {
+    if (!selectedTournId || tournamentStarted) return
+    setSavingFav(true)
+    setFavouriteTeam(team || null)
+    await fetch('/api/user-tournaments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
+    })
+    setSavingFav(false)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-24">
       <Spinner className="w-8 h-8" />
@@ -490,33 +517,6 @@ export default function PredictPage() {
         </div>
       )}
 
-      {/* Tournament metadata footer */}
-      {selectedTourn && (selectedTourn.kickoff_venue || selectedTourn.final_venue || selectedTourn.total_matches) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 px-1 text-xs text-gray-400">
-          {selectedTourn.total_matches != null && (
-            <span>📅 {selectedTourn.total_matches} matches</span>
-          )}
-          {selectedTourn.kickoff_venue && (
-            <span>🏟 {selectedTourn.kickoff_venue}</span>
-          )}
-          {selectedTourn.final_date && selectedTourn.final_venue && (
-            <span>🏆 Final: {new Date(selectedTourn.final_date + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short' })}, {selectedTourn.final_venue}</span>
-          )}
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        <StatCard label="Total pts"    value={globalStats.totalPts}   accent="green" />
-        <StatCard label="Correct pts"  value={globalStats.correctPts} accent="blue"  />
-        <StatCard label="Bonus pts"    value={globalStats.bonusPts}   accent="amber" />
-        <StatCard
-          label={`To predict (${ROUND_TAB_LABEL[currentRoundTab]})`}
-          value={globalStats.notEnteredCt}
-          accent={globalStats.notEnteredCt > 0 ? 'amber' : undefined}
-        />
-      </div>
-
       {/* Not entered banner */}
       {globalStats.notEnteredCt > 0 && (
         <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
@@ -529,18 +529,36 @@ export default function PredictPage() {
       )}
 
 
-      {/* Favourite team banner */}
-      {favouriteTeam && (
-        <div className="mb-3 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-          <span className="text-base">⭐</span>
-          <span>
-            Double points on <strong>{favouriteTeam}</strong> matches
-            {scoringConfig.fav_team_rounds.length > 0 && (
-              <span> — {scoringConfig.fav_team_rounds
-                .map(r => scoringConfig.rounds[r]?.round_name ?? r)
-                .join(' & ')} only</span>
-            )}
+      {/* Fav team picker + info */}
+      {selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+        <div className="mb-3 flex items-center gap-2.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2.5">
+          <span className="text-base flex-shrink-0">⭐</span>
+          <select
+            value={favouriteTeam ?? ''}
+            onChange={e => saveFavTeam(e.target.value)}
+            disabled={savingFav || tournamentStarted}
+            className={`text-xs font-medium rounded-lg border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 flex-shrink-0 ${
+              tournamentStarted
+                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                : 'border-purple-300 bg-white text-purple-800'
+            }`}>
+            <option value="">Pick a team…</option>
+            {(selectedTourn.teams as string[]).sort().map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <span className="text-xs text-purple-700 flex-1 min-w-0">
+            {favouriteTeam
+              ? <>Double pts on <strong>{favouriteTeam}</strong>
+                  {scoringConfig.fav_team_rounds.length > 0 && (
+                    <> — {scoringConfig.fav_team_rounds.map(r => abbreviateRound(scoringConfig.rounds[r]?.round_name ?? r)).join(' & ')} only</>
+                  )}
+                </>
+              : 'Pick a team for 2× bonus pts on their matches'}
           </span>
+          {tournamentStarted && (
+            <span className="text-[10px] text-red-500 flex-shrink-0">Locked</span>
+          )}
         </div>
       )}
 
