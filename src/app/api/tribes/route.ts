@@ -191,12 +191,37 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ data: tribe })
 }
 
-// DELETE /api/tribes — leave current tribe
+// DELETE /api/tribes — leave current tribe, or delete a tribe entirely (comp admin only)
+// If body contains tribe_id → admin deletes the whole tribe
+// If query param comp_id → user leaves their tribe in that comp
 export async function DELETE(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Admin tribe deletion: DELETE /api/tribes with body { tribe_id }
+  const contentType = request.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    const body    = await request.json().catch(() => null)
+    const tribeId = body?.tribe_id as string | undefined
+    if (tribeId) {
+      // Verify tribe exists and caller is comp admin for it
+      const { data: tribe } = await (adminClient.from('tribes') as any)
+        .select('id, comp_id').eq('id', tribeId).single()
+      if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+
+      const { data: adminRow } = await (adminClient.from('comp_admins') as any)
+        .select('comp_id').eq('user_id', user.id).eq('comp_id', (tribe as any).comp_id).single()
+      if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      // Remove all members first, then delete the tribe
+      await (adminClient.from('tribe_members') as any).delete().eq('tribe_id', tribeId)
+      const { error } = await (adminClient.from('tribes') as any).delete().eq('id', tribeId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true })
+    }
+  }
 
   // comp_id scopes which tribe to leave (a user can be in one tribe per comp)
   const compId = new URL(request.url).searchParams.get('comp_id')

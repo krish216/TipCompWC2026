@@ -13,10 +13,12 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router   = useRouter()
   const { supabase, session } = useSupabase()
   const { isCompAdmin, selectedCompId } = useUserPrefs()
-  const [mounted, setMounted] = useState(false)
+  const [mounted,      setMounted]      = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   useEffect(() => setMounted(true), [])
 
   const signOut = async () => {
+    setUserMenuOpen(false)
     await supabase.auth.signOut()
     router.push('/')
     router.refresh()
@@ -36,7 +38,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   // Mobile bottom tab items (4 always + optional Manage)
   const bottomTabs = [
     { href: '/',            icon: '🏠', label: 'Home',   disabled: false           },
-    { href: '/predict',     icon: '🎯', label: 'My Tip', disabled: !selectedCompId },
+    { href: '/predict',     icon: '🎯', label: 'My Tips', disabled: !selectedCompId },
     { href: '/leaderboard', icon: '🏆', label: 'Scores', disabled: false           },
     { href: '/tribe',       icon: '👥', label: 'Tribe',  disabled: false           },
     ...(isCompAdmin && selectedCompId
@@ -104,8 +106,20 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
 
             {/* User section */}
             {session ? (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Link href="/settings">
+              <div className="relative flex items-center gap-2 flex-shrink-0">
+                {/* Avatar button — toggles dropdown on mobile, links to /settings on desktop */}
+                <button
+                  onClick={() => setUserMenuOpen(o => !o)}
+                  className="sm:hidden focus:outline-none"
+                  aria-label="Account menu">
+                  <Avatar
+                    name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
+                    src={session.user.user_metadata?.avatar_url}
+                    size="xs"
+                    className="hover:ring-2 hover:ring-green-400 transition-all cursor-pointer"
+                  />
+                </button>
+                <Link href="/settings" className="hidden sm:block">
                   <Avatar
                     name={session.user.user_metadata?.display_name ?? session.user.email ?? '?'}
                     src={session.user.user_metadata?.avatar_url}
@@ -113,11 +127,28 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                     className="hover:ring-2 hover:ring-green-400 transition-all cursor-pointer"
                   />
                 </Link>
-                {/* Sign out only visible on desktop — mobile users sign out via Settings */}
                 <button onClick={signOut}
                   className="hidden sm:block text-xs text-gray-400 hover:text-gray-600 transition-colors">
                   Sign out
                 </button>
+
+                {/* Mobile dropdown menu */}
+                {userMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-100 z-50 py-1 overflow-hidden">
+                      <Link href="/settings"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <span>⚙️</span> Settings
+                      </Link>
+                      <button onClick={signOut}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <span>🚪</span> Sign out
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2">

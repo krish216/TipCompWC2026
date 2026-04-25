@@ -1077,6 +1077,7 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [error,    setError]    = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const create = async () => {
     if (!name.trim()) return
@@ -1086,6 +1087,24 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     setCreating(false)
     if (err) { setError(res.status === 409 ? `"${name.trim()}" already exists` : err) }
     else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [data, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
+  }
+
+  const deleteTribe = async (tribe: Tribe) => {
+    if (!confirm(`Delete tribe "${tribe.name}"? All ${tribe.member_count ?? 0} members will be removed. This cannot be undone.`)) return
+    setDeleting(tribe.id)
+    const res = await fetch('/api/tribes', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tribe_id: tribe.id }),
+    })
+    setDeleting(null)
+    if (res.ok) {
+      toast.success(`Tribe "${tribe.name}" deleted`)
+      setTribes(prev => prev.filter(t => t.id !== tribe.id))
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? 'Failed to delete tribe')
+    }
   }
 
   return (
@@ -1130,6 +1149,12 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
                   <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{t.member_count ?? 0} members</span>
                   <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
                     className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">{t.invite_code}</button>
+                  <button
+                    onClick={() => deleteTribe(t)}
+                    disabled={deleting === t.id}
+                    className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors disabled:opacity-40">
+                    {deleting === t.id ? '…' : 'Delete'}
+                  </button>
                 </div>
               </div>
               <p className="text-xs text-gray-400 italic px-4 py-3">Share the tribe code for members to join this tribe.</p>
