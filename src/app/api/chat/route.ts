@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { z } from 'zod'
 
 const PostSchema = z.object({
@@ -11,7 +11,7 @@ const PostSchema = z.object({
 // GET /api/chat?tribe_id=&fixture_id=&limit=60&before=
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 // POST /api/chat
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body   = await request.json().catch(() => null)

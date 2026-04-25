@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 const TIERS = {
@@ -13,7 +13,7 @@ const TIERS = {
 // GET /api/comp-subscriptions?comp_id= — get subscription for org
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const compId = new URL(request.url).searchParams.get('comp_id')
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { comp_id, tier, payment_ref } = await request.json()

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/admin — check if current user is admin
 export async function GET() {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ is_admin: false })
 
   // Use service-role client to bypass RLS on admin_users
@@ -25,7 +25,7 @@ export async function GET() {
 // POST /api/admin — grant admin to a user by email
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Verify caller is admin (using service role to bypass RLS)

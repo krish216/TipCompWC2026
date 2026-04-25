@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 // POST /api/results — admin: enter or update a match result
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Check admin_users table (service role — bypasses RLS)
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/results                — clear ALL results (no fixture_id param)
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (!await isAdmin(user.id)) {

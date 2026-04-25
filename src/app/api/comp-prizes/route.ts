@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/comp-prizes?comp_id= — get prizes for an org
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { comp_id, place, description, sponsor } = await request.json()
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)

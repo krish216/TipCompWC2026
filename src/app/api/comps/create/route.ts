@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { z } from 'zod'
 
 const CreateSchema = z.object({
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/comps/create — update comp settings
 export async function PATCH(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -142,7 +142,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/comps/create — comp admin permanently deletes their comp
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { comp_id } = await request.json().catch(() => ({}))

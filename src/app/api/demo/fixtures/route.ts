@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 
 // GET /api/demo/fixtures?tournament_id=
 // Returns demo fixtures. For each fixture:
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   // Get current user (optional)
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   const userId = user?.id ?? null
 
   // Fetch fixtures + results

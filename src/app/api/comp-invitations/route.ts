@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { Resend } from 'resend'
 
@@ -19,7 +19,7 @@ async function verifyCompAdmin(userId: string, compId: string) {
 // GET /api/comp-invitations?comp_id=  — list all invitations for a comp
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const compId = new URL(request.url).searchParams.get('comp_id')
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 // Body: { comp_id, emails: string[], customMessage?: string }
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -230,7 +230,7 @@ function buildTemplateHtml(
 // DELETE /api/comp-invitations?id=  — remove an invitation
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const id = new URL(request.url).searchParams.get('id')

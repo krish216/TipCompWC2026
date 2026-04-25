@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/user-comps?tournament_id=  — list comps the user has joined
@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase'
 export async function GET(request: NextRequest) {
   const supabase      = createServerSupabaseClient()
   const adminClient   = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const tournamentId = new URL(request.url).searchParams.get('tournament_id')
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { comp_id } = await request.json().catch(() => ({}))
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const comp_id = new URL(request.url).searchParams.get('comp_id')

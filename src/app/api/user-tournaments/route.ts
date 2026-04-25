@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 
 // GET /api/user-tournaments — list tournaments the current user is enrolled in
 export async function GET() {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, error } = await supabase
@@ -20,7 +20,7 @@ export async function GET() {
 // POST /api/user-tournaments — enrol in a tournament (or update fav team)
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournament_id, favourite_team } = await request.json().catch(() => ({}))
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/user-tournaments?tournament_id=X — leave a tournament
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const tournament_id = new URL(request.url).searchParams.get('tournament_id')

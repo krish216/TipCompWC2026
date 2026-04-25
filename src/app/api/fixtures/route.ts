@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/fixtures — returns fixtures for the player's active tournament
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   let activeTournamentId = tournament_id
 
   if (!activeTournamentId) {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getSessionUser()
     if (user) {
       const { data: prefs } = await supabase
         .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()

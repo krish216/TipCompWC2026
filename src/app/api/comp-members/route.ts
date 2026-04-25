@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 async function verifyCompAdmin(admin: any, userId: string, compId: string) {
@@ -14,7 +14,7 @@ async function verifyCompAdmin(admin: any, userId: string, compId: string) {
 // Returns all tipsters in a comp with their fee_paid status
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const compId = new URL(request.url).searchParams.get('comp_id')
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 // Body: { comp_id, user_id, fee_paid, fee_paid_amount?, fee_notes? }
 export async function PATCH(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -81,7 +81,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/comp-members?comp_id=X&user_id=Y — remove a tipster from a comp
 export async function DELETE(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)

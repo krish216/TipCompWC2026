@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
@@ -9,7 +9,7 @@ const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCa
 // GET /api/tribes?comp_id= — get current user's tribe for the given comp
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const compId = new URL(request.url).searchParams.get('comp_id')
@@ -105,7 +105,7 @@ export async function HEAD(_request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase   = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body   = await request.json().catch(() => null)
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const supabase     = createServerSupabaseClient()
   const adminClient  = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body   = await request.json().catch(() => null)
@@ -197,7 +197,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Admin tribe deletion: DELETE /api/tribes with body { tribe_id }

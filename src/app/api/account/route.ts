@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // DELETE /api/account — permanently delete the calling user's account
@@ -8,7 +8,7 @@ export async function DELETE() {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const uid = user.id
