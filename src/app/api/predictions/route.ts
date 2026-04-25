@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
-  const user = await getSessionUser()
+  const admin = createAdminClient()
+  const user  = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -73,32 +73,25 @@ export async function POST(request: NextRequest) {
   const { predictions } = parsed.data
   const fixtureIds = predictions.map(p => p.fixture_id)
 
-  // Get active tournament for this user
   const tournamentId = await getActiveTournamentId(user.id)
   if (!tournamentId) return NextResponse.json({ error: 'No active tournament found' }, { status: 400 })
 
-  // Validate fixtures belong to the active tournament and check lockout
-  const { data: fixturesRaw } = await (supabase.from('fixtures') as any)
+  const { data: fixturesRaw } = await (admin.from('fixtures') as any)
     .select('id, round, kickoff_utc, home_score, tournament_id')
     .in('id', fixtureIds)
   const fixtures = (fixturesRaw ?? []) as any[]
 
-  // Reject if any fixture is from a different tournament
-  if (tournamentId) {
-    const wrongTourn = fixtures.filter((f: any) => f.tournament_id && f.tournament_id !== tournamentId)
-    if (wrongTourn.length > 0) {
-      return NextResponse.json({ error: 'Fixture does not belong to your active tournament' }, { status: 409 })
-    }
+  const wrongTourn = fixtures.filter((f: any) => f.tournament_id && f.tournament_id !== tournamentId)
+  if (wrongTourn.length > 0) {
+    return NextResponse.json({ error: 'Fixture does not belong to your active tournament' }, { status: 409 })
   }
 
-  // Check retroactive mode — bypasses kickoff and result locks when enabled
-  const { data: tournRow } = await (supabase.from('tournaments') as any)
+  const { data: tournRow } = await (admin.from('tournaments') as any)
     .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
   const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
 
-  let lockQuery = (supabase.from('round_locks') as any).select('round_code, is_open')
-  if (tournamentId) lockQuery = lockQuery.eq('tournament_id', tournamentId)
-  const { data: roundLockRows } = await lockQuery
+  const { data: roundLockRows } = await (admin.from('round_locks') as any)
+    .select('round_code, is_open').eq('tournament_id', tournamentId)
   const hasLockRows = (roundLockRows ?? []).length > 0
   const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round_code))
 
@@ -118,7 +111,7 @@ export async function POST(request: NextRequest) {
     return {
       user_id:       user.id,
       fixture_id:    p.fixture_id,
-      tournament_id: tournamentId,   // ← link to active tournament
+      tournament_id: tournamentId,
       home:          isOutcome ? 0 : (p.home ?? 0),
       away:          isOutcome ? 0 : (p.away ?? 0),
       outcome:       p.outcome ?? null,
@@ -127,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
   })
 
-  const { data, error } = await (supabase.from('predictions') as any)
+  const { data, error } = await (admin.from('predictions') as any)
     .upsert(rows, { onConflict: 'user_id,fixture_id', ignoreDuplicates: false })
     .select()
 

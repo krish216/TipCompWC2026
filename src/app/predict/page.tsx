@@ -59,6 +59,7 @@ export default function PredictPage() {
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [savingFav,     setSavingFav]     = useState(false)
+  const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string}[]>([])
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
@@ -98,12 +99,13 @@ export default function PredictPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [fxRes, predRes, resRes, locksRes, userRes] = await Promise.all([
+        const [fxRes, predRes, resRes, locksRes, userRes, teamsRes] = await Promise.all([
           fetch('/api/fixtures'),
           fetch('/api/predictions'),
           fetch('/api/results'),
           fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks'),
           fetch('/api/user-tournaments'),
+          selectedTournId ? fetch(`/api/tournament-teams?tournament_id=${selectedTournId}`) : Promise.resolve(null),
         ])
 
         const [fxData, predData, resData, locksData] = await Promise.all([
@@ -146,6 +148,12 @@ export default function PredictPage() {
         if (userTournData?.data?.length) {
           const ut = userTournData.data[0]
           setFavouriteTeam((ut as any).favourite_team ?? null)
+        }
+
+        // Teams list for fav picker
+        if (teamsRes) {
+          const teamsData = await teamsRes.json().catch(() => ({}))
+          setTeamsList(teamsData.teams ?? [])
         }
 
       } catch (e) {
@@ -530,7 +538,7 @@ export default function PredictPage() {
 
 
       {/* Fav team picker + info */}
-      {selectedTourn?.teams && (selectedTourn.teams as string[]).length > 0 && (
+      {teamsList.length > 0 && (
         <div className="mb-3 flex items-center gap-2.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2.5">
           <span className="text-base flex-shrink-0">⭐</span>
           <select
@@ -543,8 +551,8 @@ export default function PredictPage() {
                 : 'border-purple-300 bg-white text-purple-800'
             }`}>
             <option value="">Pick a team…</option>
-            {(selectedTourn.teams as string[]).sort().map(t => (
-              <option key={t} value={t}>{t}</option>
+            {teamsList.map(t => (
+              <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
             ))}
           </select>
           <span className="text-xs text-purple-700 flex-1 min-w-0">

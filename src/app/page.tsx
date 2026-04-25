@@ -276,7 +276,8 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [avatar,       setAvatar]       = useState<string | null>(null)
   const [modal,       setModal]       = useState<'join' | 'create' | null>(null)
-  const [predCount,   setPredCount]   = useState<number | null>(null)
+  const [predCount,     setPredCount]     = useState<number | null>(null)
+  const [fixtureCount,  setFixtureCount]  = useState<number | null>(null)
 
   const {
     activeTournaments, tournsComps,
@@ -307,10 +308,11 @@ export default function HomePage() {
 
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
-      const [userRes, lbRes, predRes] = await Promise.all([
+      const [userRes, lbRes, predRes, fxRes] = await Promise.all([
         supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&limit=200'),
         fetch('/api/predictions'),
+        fetch('/api/fixtures'),
       ])
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
@@ -320,8 +322,9 @@ export default function HomePage() {
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
 
-      const predData = await predRes.json()
+      const [predData, fxData] = await Promise.all([predRes.json(), fxRes.json()])
       setPredCount((predData.data ?? []).length)
+      setFixtureCount((fxData.data ?? []).length)
 
       setLoading(false)
     }
@@ -614,7 +617,7 @@ export default function HomePage() {
                           </Link>
                         )}
                         <span className="text-sm flex-shrink-0">
-                          {predCount === null ? '' : predCount > 0 ? '✅' : '⏳'}
+                          {predCount === null || fixtureCount === null ? '' : predCount >= fixtureCount && fixtureCount > 0 ? '✅' : predCount > 0 ? `${predCount}/${fixtureCount}` : '⏳'}
                         </span>
                       </button>
                     )
