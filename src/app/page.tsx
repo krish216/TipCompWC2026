@@ -316,6 +316,53 @@ export default function HomePage() {
     return { predCount: allPredictions.length, fixtureCount: allFixtures.length }
   }, [currentRoundCode, allPredictions, allFixtures])
 
+  // Ticks every 30s so deadline labels stay fresh without a full reload
+  const [tickNow, setTickNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setTickNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Earliest upcoming (unscored, > 5 min away) fixture kickoff in the current round
+  const nextKickoff = useMemo(() => {
+    if (!currentRoundCode) return null
+    const cutoff = tickNow + 5 * 60 * 1000
+    const times = allFixtures
+      .filter(f => f.round === currentRoundCode && f.result == null)
+      .map(f => new Date(f.kickoff_utc).getTime())
+      .filter(t => t > cutoff)
+      .sort((a, b) => a - b)
+    return times[0] ?? null
+  }, [currentRoundCode, allFixtures, tickNow])
+
+  // Deadline label + urgency level derived from time to next kickoff
+  const { deadlineLabel, urgencyLevel } = useMemo(() => {
+    if (!nextKickoff) return { deadlineLabel: null, urgencyLevel: 'none' as const }
+    const msLeft  = nextKickoff - tickNow
+    const hrsLeft = msLeft / 3_600_000
+    if (hrsLeft > 48) {
+      const d   = new Date(nextKickoff)
+      const day = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+      const hr  = d.getHours()
+      const min = d.getMinutes()
+      const ampm = hr >= 12 ? 'pm' : 'am'
+      const h12  = hr % 12 || 12
+      const time = min ? `${h12}:${String(min).padStart(2, '0')}${ampm}` : `${h12}${ampm}`
+      return { deadlineLabel: `Closing ${day} ${time}`, urgencyLevel: 'none' as const }
+    }
+    if (hrsLeft > 6) {
+      const h = Math.floor(hrsLeft)
+      return { deadlineLabel: `Closing in ${h}h`, urgencyLevel: 'amber' as const }
+    }
+    if (hrsLeft > 1) {
+      const h = Math.floor(hrsLeft)
+      const m = Math.floor((hrsLeft - h) * 60)
+      return { deadlineLabel: `Closing in ${h}h ${m}m`, urgencyLevel: 'orange' as const }
+    }
+    const m = Math.floor(hrsLeft * 60)
+    return { deadlineLabel: `Closing in ${m}m`, urgencyLevel: 'red' as const }
+  }, [nextKickoff, tickNow])
+
   const [compRanks, setCompRanks] = useState<Record<string, number | null>>({})
 
   // Onboarding step completion — fully derived from context, no DB flag needed
@@ -590,10 +637,18 @@ export default function HomePage() {
 
               {/* Tournament context */}
               {(() => {
-                const roundName = currentRoundCode ? scoringConfig.rounds[currentRoundCode]?.round_name ?? currentRoundCode : null
-                const tippedLine = roundName
-                  ? `${roundName}  ${predCount}/${fixtureCount} tipped`
+                const roundName = currentRoundCode
+                  ? scoringConfig.rounds[currentRoundCode]?.round_name ?? currentRoundCode
                   : null
+                const pct = fixtureCount > 0
+                  ? Math.round((predCount / fixtureCount) * 100)
+                  : null
+                const allTipped = pct === 100
+                const urgencyColor =
+                  urgencyLevel === 'red'    ? 'text-red-600' :
+                  urgencyLevel === 'orange' ? 'text-orange-500' :
+                  urgencyLevel === 'amber'  ? 'text-amber-600' :
+                  'text-gray-500'
                 return (
                   <>
                     {activeTournaments.length > 1 && (
@@ -618,10 +673,28 @@ export default function HomePage() {
                         <span>⚽</span>{selectedTourn.name}
                       </p>
                     )}
-                    {tippedLine && (
-                      <p className="text-xs text-gray-500 mb-3">{tippedLine}</p>
+                    {roundName && pct !== null && (
+                      <p className={`text-xs mb-3 flex items-center gap-1 ${urgencyColor}`}>
+                        <span className="text-gray-500">{roundName}</span>
+                        <span className="text-gray-300 mx-0.5">·</span>
+                        {allTipped
+                          ? <span className="text-green-600 font-medium">✅ all tipped</span>
+                          : <>
+                              <span>{pct}% tipped</span>
+                              {deadlineLabel && (
+                                <>
+                                  <span className="text-gray-300 mx-0.5">·</span>
+                                  <span className={urgencyColor}>{deadlineLabel}</span>
+                                  {urgencyLevel === 'red' && (
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 ml-1 animate-pulse flex-shrink-0" />
+                                  )}
+                                </>
+                              )}
+                            </>
+                        }
+                      </p>
                     )}
-                    {!tippedLine && <div className="mb-3" />}
+                    {(!roundName || pct === null) && <div className="mb-3" />}
                   </>
                 )
               })()}
