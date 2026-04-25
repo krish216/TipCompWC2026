@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -276,18 +276,45 @@ export default function HomePage() {
   const [loading,     setLoading]     = useState(true)
   const [avatar,       setAvatar]       = useState<string | null>(null)
   const [modal,       setModal]       = useState<'join' | 'create' | null>(null)
-  const [predCount,     setPredCount]     = useState<number | null>(null)
-  const [fixtureCount,  setFixtureCount]  = useState<number | null>(null)
+  const [allPredictions, setAllPredictions] = useState<any[]>([])
+  const [allFixtures,    setAllFixtures]    = useState<any[]>([])
+  const [roundLocks,     setRoundLocks]     = useState<Record<string, boolean>>({})
 
   const {
     activeTournaments, tournsComps,
     selectedTournId, selectedCompId,
     selectedTourn,
     isCompAdmin,
+    scoringConfig,
     pickTournament, pickComp, refreshComps,
     hasTribe, refreshHasTribe,
     loading: contextLoading,
   } = useUserPrefs()
+
+  // Current round = the open round with the lowest round_order.
+  // Used to scope the tip completion flag to the round that matters now.
+  const currentRoundCode = useMemo(() => {
+    const openCodes = Object.entries(roundLocks)
+      .filter(([, isOpen]) => isOpen)
+      .map(([code]) => code)
+    if (!openCodes.length) return null
+    return openCodes.sort((a, b) => {
+      const oA = (scoringConfig.rounds as any)[a]?.round_order ?? 999
+      const oB = (scoringConfig.rounds as any)[b]?.round_order ?? 999
+      return oA - oB
+    })[0] ?? null
+  }, [roundLocks, scoringConfig])
+
+  // Per-round completion counts (falls back to totals if no open round)
+  const { predCount, fixtureCount } = useMemo(() => {
+    if (currentRoundCode) {
+      return {
+        predCount:    allPredictions.filter(p => p.fixtures?.round === currentRoundCode).length,
+        fixtureCount: allFixtures.filter(f => f.round === currentRoundCode).length,
+      }
+    }
+    return { predCount: allPredictions.length, fixtureCount: allFixtures.length }
+  }, [currentRoundCode, allPredictions, allFixtures])
 
   // favourite_team is per-tournament, stored in user_tournaments
   const [favTeam,     setFavTeam]     = useState<string>('')
@@ -323,13 +350,22 @@ export default function HomePage() {
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
 
       const [predData, fxData] = await Promise.all([predRes.json(), fxRes.json()])
-      setPredCount((predData.data ?? []).length)
-      setFixtureCount((fxData.data ?? []).length)
+      setAllPredictions(predData.data ?? [])
+      setAllFixtures(fxData.data ?? [])
 
       setLoading(false)
     }
     load()
   }, [session, supabase])
+
+  // Fetch round-locks whenever the selected tournament changes
+  useEffect(() => {
+    if (!session || !selectedTournId) return
+    fetch(`/api/round-locks?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(d => setRoundLocks(d.data ?? {}))
+      .catch(() => {})
+  }, [session, selectedTournId])
 
   useEffect(() => {
     if (session && selectedTournId) loadFavTeam(selectedTournId)

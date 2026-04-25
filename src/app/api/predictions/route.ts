@@ -59,73 +59,80 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = createAdminClient()
-  const user  = await getSessionUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const admin = createAdminClient()
+    const user  = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    const body = await request.json().catch(() => null)
+    if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
-  const isBulk = Array.isArray(body?.predictions)
-  const parsed = isBulk ? BulkSchema.safeParse(body) : BulkSchema.safeParse({ predictions: [body] })
-  if (!parsed.success) return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
+    const isBulk = Array.isArray(body?.predictions)
+    const parsed = isBulk ? BulkSchema.safeParse(body) : BulkSchema.safeParse({ predictions: [body] })
+    if (!parsed.success) return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
 
-  const { predictions } = parsed.data
-  const fixtureIds = predictions.map(p => p.fixture_id)
+    const { predictions } = parsed.data
+    const fixtureIds = predictions.map(p => p.fixture_id)
 
-  const tournamentId = await getActiveTournamentId(user.id)
-  if (!tournamentId) return NextResponse.json({ error: 'No active tournament found' }, { status: 400 })
+    const tournamentId = await getActiveTournamentId(user.id)
+    if (!tournamentId) return NextResponse.json({ error: 'No active tournament found' }, { status: 400 })
 
-  const { data: fixturesRaw } = await (admin.from('fixtures') as any)
-    .select('id, round, kickoff_utc, home_score, tournament_id')
-    .in('id', fixtureIds)
-  const fixtures = (fixturesRaw ?? []) as any[]
+    const { data: fixturesRaw } = await (admin.from('fixtures') as any)
+      .select('id, round, kickoff_utc, home_score, tournament_id')
+      .in('id', fixtureIds)
+    const fixtures = (fixturesRaw ?? []) as any[]
 
-  const wrongTourn = fixtures.filter((f: any) => f.tournament_id && f.tournament_id !== tournamentId)
-  if (wrongTourn.length > 0) {
-    return NextResponse.json({ error: 'Fixture does not belong to your active tournament' }, { status: 409 })
-  }
-
-  const { data: tournRow } = await (admin.from('tournaments') as any)
-    .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
-  const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
-
-  const { data: roundLockRows } = await (admin.from('round_locks') as any)
-    .select('round_code, is_open').eq('tournament_id', tournamentId)
-  const hasLockRows = (roundLockRows ?? []).length > 0
-  const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round_code))
-
-  const now = new Date(); const locked: number[] = []
-  if (!retroactive) {
-    fixtures.forEach((fx: any) => {
-      const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
-      const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
-      const hasResult     = fx.home_score !== null
-      if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
-    })
-  }
-  if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
-
-  const rows = predictions.map((p: any) => {
-    const isOutcome = p.outcome != null
-    return {
-      user_id:       user.id,
-      fixture_id:    p.fixture_id,
-      tournament_id: tournamentId,
-      home:          isOutcome ? 0 : (p.home ?? 0),
-      away:          isOutcome ? 0 : (p.away ?? 0),
-      outcome:       p.outcome ?? null,
-      pen_winner:    p.pen_winner ?? null,
-      points_earned: null,
+    const wrongTourn = fixtures.filter((f: any) => f.tournament_id && f.tournament_id !== tournamentId)
+    if (wrongTourn.length > 0) {
+      return NextResponse.json({ error: 'Fixture does not belong to your active tournament' }, { status: 409 })
     }
-  })
 
-  const { data, error } = await (admin.from('predictions') as any)
-    .upsert(rows, { onConflict: 'user_id,fixture_id', ignoreDuplicates: false })
-    .select()
+    const { data: tournRow } = await (admin.from('tournaments') as any)
+      .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
+    const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data, count: data?.length }, { status: 201 })
+    const { data: roundLockRows } = await (admin.from('round_locks') as any)
+      .select('round_code, is_open').eq('tournament_id', tournamentId)
+    const hasLockRows = (roundLockRows ?? []).length > 0
+    const openRounds  = new Set((roundLockRows ?? []).filter((r: any) => r.is_open).map((r: any) => r.round_code))
+
+    const now = new Date(); const locked: number[] = []
+    if (!retroactive) {
+      fixtures.forEach((fx: any) => {
+        const kickoffLocked = (new Date(fx.kickoff_utc).getTime() - now.getTime()) / 60000 <= 5
+        const roundLocked   = hasLockRows ? !openRounds.has(fx.round) : fx.round !== 'gs'
+        const hasResult     = fx.home_score !== null
+        if (kickoffLocked || roundLocked || hasResult) locked.push(fx.id)
+      })
+    }
+    if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
+
+    const rows = predictions.map((p: any) => {
+      const isOutcome = p.outcome != null
+      return {
+        user_id:       user.id,
+        fixture_id:    p.fixture_id,
+        tournament_id: tournamentId,
+        home:          isOutcome ? 0 : (p.home ?? 0),
+        away:          isOutcome ? 0 : (p.away ?? 0),
+        outcome:       p.outcome ?? null,
+        pen_winner:    p.pen_winner ?? null,
+        // Do NOT include points_earned — the DB trigger owns scoring.
+        // Setting it to null on UPDATE fires trg_refresh_lb which can fail
+        // if the leaderboard view has constraint violations.
+      }
+    })
+
+    const { data, error } = await (admin.from('predictions') as any)
+      .upsert(rows, { onConflict: 'user_id,fixture_id', ignoreDuplicates: false })
+      .select()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data, count: data?.length }, { status: 201 })
+  } catch (err: any) {
+    console.error('[predictions POST]', err)
+    return NextResponse.json({ error: err?.message ?? 'Internal server error' }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {
