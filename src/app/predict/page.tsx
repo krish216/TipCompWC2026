@@ -484,8 +484,8 @@ export default function PredictPage() {
         <div className="mb-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
           <span className="text-base flex-shrink-0">🧪</span>
           <div>
-            <span className="font-bold">Practice Mode active for testing</span>
-            <span className="text-blue-600"> — Before the Tournament begins, you can predict any match, including ones with results already entered. Points are earned as normal.</span>
+            <span className="font-bold">Pre-Tournament Warm-Up Practice Mode Active </span>
+            <span className="text-blue-600"> — Before the Tournament begins, you can experience live scoring, including fixtures with hypothetical results already entered. Points are earned as normal.</span>
           </div>
         </div>
       )}

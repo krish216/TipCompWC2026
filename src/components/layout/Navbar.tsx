@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
@@ -12,6 +13,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router   = useRouter()
   const { supabase, session } = useSupabase()
   const { isCompAdmin, selectedCompId } = useUserPrefs()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -130,10 +133,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
       </nav>
 
       {/* ── Bottom tab bar — mobile only (hidden on sm+) ─────────── */}
-      {session && (
-        <nav
-          className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {mounted && session && (
+        <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-100 shadow-[0_-1px_8px_rgba(0,0,0,0.06)] pb-safe">
           <div className="flex">
             {bottomTabs.map(tab => {
               const active = isActive(tab.href)
