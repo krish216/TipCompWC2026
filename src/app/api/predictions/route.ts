@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
 const PredictionSchema = z.object({
@@ -12,18 +13,21 @@ const PredictionSchema = z.object({
 const BulkSchema = z.object({ predictions: z.array(PredictionSchema).min(1).max(20) })
 
 // Helper: get user's active tournament from preferences
-async function getActiveTournamentId(supabase: any, userId: string): Promise<string | null> {
-  const { data: prefs } = await supabase
-    .from('user_preferences').select('tournament_id').eq('user_id', userId).single()
+// Uses admin client to bypass RLS — tournament_id is NOT NULL on predictions,
+// so returning null would cause a constraint error on insert.
+async function getActiveTournamentId(userId: string): Promise<string | null> {
+  const admin = createAdminClient()
+  const { data: prefs } = await (admin.from('user_preferences') as any)
+    .select('tournament_id').eq('user_id', userId).maybeSingle()
   if ((prefs as any)?.tournament_id) return (prefs as any).tournament_id
 
-  // Fall back to first active tournament, then app_settings
-  const { data: active } = await supabase
-    .from('tournaments').select('id').eq('is_active', true)
+  const { data: active } = await (admin.from('tournaments') as any)
+    .select('id').eq('is_active', true)
     .order('start_date', { ascending: true }).limit(1)
   if ((active as any)?.[0]?.id) return (active as any)[0].id
-  const { data: setting } = await supabase
-    .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+
+  const { data: setting } = await (admin.from('app_settings') as any)
+    .select('value').eq('key', 'active_tournament_id').maybeSingle()
   return (setting as any)?.value ?? null
 }
 
@@ -35,7 +39,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const round        = searchParams.get('round')
   const fixture_id   = searchParams.get('fixture_id')
-  const tournament_id = searchParams.get('tournament_id') ?? await getActiveTournamentId(supabase, user.id)
+  const tournament_id = searchParams.get('tournament_id') ?? await getActiveTournamentId(user.id)
 
   let query = supabase
     .from('predictions')
@@ -70,7 +74,8 @@ export async function POST(request: NextRequest) {
   const fixtureIds = predictions.map(p => p.fixture_id)
 
   // Get active tournament for this user
-  const tournamentId = await getActiveTournamentId(supabase, user.id)
+  const tournamentId = await getActiveTournamentId(user.id)
+  if (!tournamentId) return NextResponse.json({ error: 'No active tournament found' }, { status: 400 })
 
   // Validate fixtures belong to the active tournament and check lockout
   const { data: fixturesRaw } = await (supabase.from('fixtures') as any)
