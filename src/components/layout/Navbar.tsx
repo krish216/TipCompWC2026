@@ -32,9 +32,10 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="max-w-3xl mx-auto px-4">
         <div className="flex items-center justify-between h-12">
           {/* Logo — links to home */}
-          <Link href="/" className="flex items-center gap-2 font-semibold text-sm text-gray-900 hover:text-green-700 transition-colors">
-            <span className="text-lg">⚽</span>
-            <span className="hidden sm:inline">TipComp</span>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="TribePicks" className="h-7 w-auto" onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
+            <span className="hidden sm:inline font-black text-emerald-800 text-sm tracking-tight">TribePicks</span>
           </Link>
 
           {/* Nav links — only shown when logged in */}

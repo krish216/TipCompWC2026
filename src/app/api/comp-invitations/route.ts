@@ -30,15 +30,21 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient()
   const { data, error } = await (admin.from('comp_invitations') as any)
-    .select('id, email, invited_at, joined_at, user_id, users(display_name)')
+    .select('id, email, invited_at, joined_at, user_id')
     .eq('comp_id', compId)
     .order('invited_at', { ascending: false })
 
   if (error) {
-    // Return empty list if table doesn't exist yet (migration 053 pending)
-    // or any other non-critical error on page load
     console.warn('[comp-invitations GET]', error.message)
     return NextResponse.json({ data: [] })
+  }
+
+  // Fetch display names for invited users who have registered accounts
+  const userIds = (data ?? []).filter((r: any) => r.user_id).map((r: any) => r.user_id)
+  const displayNames: Record<string, string> = {}
+  if (userIds.length > 0) {
+    const { data: userRows } = await admin.from('users').select('id, display_name').in('id', userIds)
+    ;(userRows ?? []).forEach((u: any) => { displayNames[u.id] = u.display_name })
   }
 
   return NextResponse.json({
@@ -48,7 +54,7 @@ export async function GET(request: NextRequest) {
       invited_at:   row.invited_at,
       joined_at:    row.joined_at,
       user_id:      row.user_id,
-      display_name: row.users?.display_name ?? null,
+      display_name: row.user_id ? (displayNames[row.user_id] ?? null) : null,
       joined:       !!row.joined_at,
     }))
   })

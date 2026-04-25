@@ -779,12 +779,12 @@ export default function HomePage() {
         {session ? (
           <>
             {selectedCompId
-              ? <NavCard href="/predict" icon="🎯" title="Predict" description={started ? "Enter your scores before kickoff" : "Predictions open — get ahead"} accent />
+              ? <NavCard href="/predict" icon="🎯" title="My Tip" description={started ? "Enter your tips before kickoff" : "Tippings open — get ahead"} accent />
               : <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 cursor-not-allowed opacity-50 col-span-2">
                   <span className="text-xl flex-shrink-0">🎯</span>
                   <div>
-                    <p className="text-sm font-semibold text-gray-400">Predict</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Join or create a comp above to start predicting</p>
+                    <p className="text-sm font-semibold text-gray-400">My Tip</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Join or create a comp above to start tipping</p>
                   </div>
                 </div>
             }

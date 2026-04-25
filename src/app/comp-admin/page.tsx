@@ -82,7 +82,7 @@ You've been invited to join {comp_name} for {tournament_name}.
 Your join code is: {join_code}
 
 How to join in 3 steps:
-1. Go to www.tribepicks.com and create a free account
+1. Go to https://www.tribepicks.com/login?tab=register and create a free account
 2. Tap "Join Comp" on the home screen
 3. Enter {join_code} and tap Join — you're in!
 
@@ -884,6 +884,7 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
   const [newMinAge,    setNewMinAge]    = useState(minAge ? String(minAge) : '')
   const [adminEmail,   setAdminEmail]   = useState('')
   const [grantingAdmin,setGrantingAdmin]= useState(false)
+  const [deletingComp, setDeletingComp] = useState(false)
 
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
@@ -908,6 +909,21 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
     setGrantingAdmin(false)
     const d = await res.json()
     if (d.success) { toast.success(`Admin access granted to ${adminEmail}`); setAdminEmail('') } else toast.error(d.error ?? 'Failed')
+  }
+
+  const deleteComp = async () => {
+    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters, tribes, predictions and data will be lost.`)) return
+    if (!confirm(`Final confirmation: delete ${comp?.name}?`)) return
+    setDeletingComp(true)
+    const res = await fetch('/api/comps/create', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id }) })
+    setDeletingComp(false)
+    if (res.ok) {
+      toast.success('Comp deleted')
+      window.location.href = '/'
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? 'Failed to delete comp')
+    }
   }
 
   const saveFeeSettings = async (enabled: boolean, amount: string) => {
@@ -1031,6 +1047,25 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
       ].map(s => (
         <Section key={s.title} title={s.title} sub={(s as any).sub}>{s.content}</Section>
       ))}
+
+      {/* ── Danger zone ───────────────────────────────────────── */}
+      <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm mb-4">
+        <div className="px-4 py-3 border-b border-red-100 bg-red-50/50">
+          <p className="text-xs font-bold text-red-700 uppercase tracking-wider">Danger zone</p>
+          <p className="text-[11px] text-red-400 mt-0.5">These actions are permanent and cannot be undone</p>
+        </div>
+        <div className="p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-gray-800">Delete this comp</p>
+            <p className="text-xs text-gray-400 mt-0.5">Permanently removes all tipsters, tribes, and predictions</p>
+          </div>
+          <button onClick={deleteComp} disabled={deletingComp}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl disabled:opacity-40 transition-colors flex-shrink-0 flex items-center gap-1.5">
+            {deletingComp ? <Spinner className="w-3 h-3 text-white" /> : null}
+            Delete comp
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

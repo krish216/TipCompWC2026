@@ -96,16 +96,22 @@ export default function LoginPage() {
   useEffect(() => {
     fetch('/api/tournaments')
       .then(r => r.json())
-      .then(({ data }) => {
-        const active = (data ?? []).filter((t: any) => t.is_active === true)
+      .then(async ({ data }) => {
+        const active = (data ?? []).filter((t: any) => t.is_active === true && t.status !== 'ended')
         setTournaments(active)
-        // Pre-select the only tournament if there's just one
         if (active.length === 1) setSelectedTourn(active[0].id)
-        // Build teams map per tournament
+        // Fetch teams from tournament_teams table for each active tournament
         const tmap: Record<string, string[]> = {}
-        active.forEach((t: any) => {
-          if (t.teams?.length) tmap[t.id] = [...t.teams].sort()
-        })
+        await Promise.all(active.map(async (t: any) => {
+          try {
+            const res  = await fetch(`/api/tournament-teams?tournament_id=${t.id}`)
+            const json = await res.json()
+            const teams = (json.teams ?? []).map((tm: any) => tm.name ?? tm).filter(Boolean).sort() as string[]
+            tmap[t.id] = teams.length > 0 ? teams : [...(t.teams ?? [])].sort()
+          } catch {
+            tmap[t.id] = [...(t.teams ?? [])].sort()
+          }
+        }))
         setTournTeamsMap(tmap)
       })
       .catch(() => {})
@@ -391,7 +397,7 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">{orgStep === 'choose' ? '🎉' : orgStep === 'join' ? '🔑' : '✨'}</div>
           <h1 className="text-xl font-semibold text-gray-900">
-            {orgStep === 'choose' ? "Welcome to TipComp 2026!" : orgStep === 'join' ? 'Join a Comp' : 'Create a Comp'}
+            {orgStep === 'choose' ? "Welcome to TribePicks!" : orgStep === 'join' ? 'Join a Comp' : 'Create a Comp'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             {orgStep === 'choose'
@@ -527,7 +533,7 @@ export default function LoginPage() {
       <div className="max-w-sm w-full">
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">⚽</div>
-          <h1 className="text-xl font-semibold text-gray-900">TipComp 2026</h1>
+          <h1 className="text-xl font-semibold text-gray-900">TribePicks</h1>
           <p className="text-sm text-gray-500 mt-1">Predict every match. Beat your tribe.</p>
         </div>
 

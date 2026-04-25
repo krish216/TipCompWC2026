@@ -1023,7 +1023,7 @@ export default function TribePage() {
 
   const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = [
     { id: 'leaderboard', label: 'Standings', icon: '🏅' },
-    { id: 'picks',       label: 'Picks',     icon: '⚽' },
+    { id: 'picks',       label: 'Team Picks', icon: '⚽' },
     { id: 'chat',        label: 'Chat',      icon: '💬' },
   ]
 

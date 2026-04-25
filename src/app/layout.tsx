@@ -11,10 +11,10 @@ import { createAdminClient } from '@/lib/supabase'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TipComp 2026',
+  title: 'TribePicks',
   description: 'Predict every match of the 2026 FIFA World Cup. Compete with your tribe.',
   openGraph: {
-    title: 'TipComp 2026',
+    title: 'TribePicks',
     description: 'Predict every match. Beat your tribe. Win bragging rights.',
   },
 }
@@ -52,7 +52,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             />
             <footer className="border-t border-gray-200 bg-white mt-8 py-4 px-4">
               <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2 text-[11px] text-gray-400">
-                <span>TipComp 2026 — unofficial fan competition, not affiliated with FIFA</span>
+                <span>TribePicks — unofficial fan competition, not affiliated with FIFA</span>
                 <div className="flex items-center gap-4">
                   <a href="/privacy" className="hover:text-gray-600 underline transition-colors">Privacy Policy</a>
                   <a href="/rules"   className="hover:text-gray-600 transition-colors">Rules</a>

@@ -95,7 +95,7 @@ function buildEmailHtml(name: string, count: number, matches: string, window: st
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px;">
-  <h2 style="color:#085041;">⚽ TipComp 2026</h2>
+  <h2 style="color:#085041;">⚽ TribePicks</h2>
   <p>Hi ${name},</p>
   <p>Kickoff is in <strong>${window}</strong> and you still have <strong>${count} unpredicted match${count > 1 ? 'es' : ''}</strong>:</p>
   <p style="background:#FAEEDA;padding:12px;border-radius:8px;color:#633806;">${matches}</p>

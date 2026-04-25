@@ -138,3 +138,25 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ success: true })
 }
+
+// DELETE /api/comps/create — comp admin permanently deletes their comp
+export async function DELETE(request: NextRequest) {
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { comp_id } = await request.json().catch(() => ({}))
+  if (!comp_id) return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
+
+  const adminClient = createAdminClient()
+
+  const [{ data: compAdminRow }, { data: tournAdmin }] = await Promise.all([
+    (adminClient.from('comp_admins') as any).select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single(),
+    adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single(),
+  ])
+  if (!compAdminRow && !tournAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { error } = await (adminClient.from('comps') as any).delete().eq('id', comp_id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}

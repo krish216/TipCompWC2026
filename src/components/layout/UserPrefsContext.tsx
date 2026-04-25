@@ -145,6 +145,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
   // Initial load
   useEffect(() => {
+    // Always reset admin state when session changes (prevents stale comp-admin
+    // access when a different user logs in after a comp-admin logs out)
+    setAdminCompIds(new Set())
+    setAdminComps([])
     if (!session) { setLoading(false); return }
     ;(async () => {
       // 1. Active tournaments (is_active flag)
@@ -209,7 +213,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           setAdminCompIds(new Set((adminData.comps as any[]).map((c: any) => c.id)))
           setAdminComps(adminData.comps)
         }
-      } catch { /* non-admin — leave defaults */ }
+        // else: already reset above — user is not a comp admin
+      } catch { /* non-admin or fetch failed — adminCompIds already reset above */ }
 
       setLoading(false)
     })()
