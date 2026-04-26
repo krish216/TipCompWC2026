@@ -100,6 +100,25 @@ export async function POST(request: NextRequest) {
     ),
   ])
 
+  // Step 5: auto-create a default tribe named "{Comp Name} Tribe" and add the creator
+  const tribeCode = Math.random().toString(36).substring(2, 10).toUpperCase()
+  const { data: tribe, error: tribeError } = await (adminClient.from('tribes') as any)
+    .insert({
+      name:          `${name} Tribe`,
+      created_by:    user_id,
+      invite_code:   tribeCode,
+      comp_id:       compId,
+      tournament_id: parsed.data.tournament_id ?? null,
+    })
+    .select('id').single()
+
+  if (tribeError) {
+    console.error('[comps/create] tribe auto-create failed (non-fatal):', tribeError)
+  } else if (tribe) {
+    await (adminClient.from('tribe_members') as any)
+      .insert({ user_id, tribe_id: (tribe as any).id })
+  }
+
   return NextResponse.json({ data: org }, { status: 201 })
 }
 
