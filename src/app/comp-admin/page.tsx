@@ -27,14 +27,14 @@ interface Invitation {
   display_name: string | null   // set if user has joined
   joined:       boolean
 }
-interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; member_count?: number }
+interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; member_count?: number; member_ids?: string[] }
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
 type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'tipsters',   icon: '👥', label: 'Tipsters'   },
+  { id: 'tipsters',   icon: '🙋', label: 'Tipsters'   },
   { id: 'payments',   icon: '💳', label: 'Payments'   },
   { id: 'email',      icon: '✉️',  label: 'Email'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
@@ -194,6 +194,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
     const invData = await invRes.json()
     setSending(false)
     setInvitations(invData.data ?? [])
+    setSearch('')
 
     setRecipients([]); setInviteStep(1)
     const skipped = [
@@ -877,17 +878,24 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
 }
 
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
-function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; onUpdate: (k: string, v: any) => void }) {
-  const [name,         setName]         = useState(comp?.name ?? '')
-  const [feeEnabled,   setFeeEnabled]   = useState(requiresFee)
-  const [feeAmount,    setFeeAmount]    = useState(entryFee != null ? String(entryFee) : '')
-  const [savingFee,    setSavingFee]    = useState(false)
-  const [savingName,   setSavingName]   = useState(false)
-  const [newDomain,    setNewDomain]    = useState(domain ?? '')
-  const [newMinAge,    setNewMinAge]    = useState(minAge ? String(minAge) : '')
-  const [adminEmail,   setAdminEmail]   = useState('')
-  const [grantingAdmin,setGrantingAdmin]= useState(false)
-  const [deletingComp, setDeletingComp] = useState(false)
+function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, currentUserId, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; currentUserId: string; onUpdate: (k: string, v: any) => void }) {
+  const [name,          setName]          = useState(comp?.name ?? '')
+  const [feeEnabled,    setFeeEnabled]    = useState(requiresFee)
+  const [feeAmount,     setFeeAmount]     = useState(entryFee != null ? String(entryFee) : '')
+  const [savingFee,     setSavingFee]     = useState(false)
+  const [savingName,    setSavingName]    = useState(false)
+  const [newDomain,     setNewDomain]     = useState(domain ?? '')
+  const [newMinAge,     setNewMinAge]     = useState(minAge ? String(minAge) : '')
+  const [adminEmail,    setAdminEmail]    = useState('')
+  const [grantingAdmin, setGrantingAdmin] = useState(false)
+  const [deletingComp,  setDeletingComp]  = useState(false)
+  const [compAdmins,    setCompAdmins]    = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
+  const [removingAdmin, setRemovingAdmin] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`)
+      .then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
+  }, [comp.id])
 
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
@@ -911,7 +919,20 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
     const res = await fetch('/api/comp-admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: adminEmail.trim(), comp_id: comp.id }) })
     setGrantingAdmin(false)
     const d = await res.json()
-    if (d.success) { toast.success(`Admin access granted to ${adminEmail}`); setAdminEmail('') } else toast.error(d.error ?? 'Failed')
+    if (d.success) {
+      toast.success(`Admin access granted to ${d.display_name ?? adminEmail}`)
+      setAdminEmail('')
+      fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`).then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
+    } else toast.error(d.error ?? 'Failed')
+  }
+
+  const removeAdmin = async (userId: string, displayName: string) => {
+    if (!confirm(`Remove ${displayName} as comp admin?`)) return
+    setRemovingAdmin(userId)
+    const res = await fetch('/api/comp-admins', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, user_id: userId }) })
+    setRemovingAdmin(null)
+    if (res.ok) { setCompAdmins(prev => prev.filter(a => a.user_id !== userId)); toast.success(`${displayName} removed as admin`) }
+    else { const d = await res.json(); toast.error(d.error ?? 'Failed') }
   }
 
   const deleteComp = async () => {
@@ -1039,17 +1060,44 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
             {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
           </div>
         )},
-        { title: 'Grant admin access', sub: 'Give another tipster comp admin rights', content: (
-          <div className="flex gap-2 p-4">
-            <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && grantAdmin()} placeholder="tipster@example.com" className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-            <button onClick={grantAdmin} disabled={grantingAdmin || !adminEmail.trim()} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5">
-              {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Grant
-            </button>
-          </div>
-        )},
       ].map(s => (
         <Section key={s.title} title={s.title} sub={(s as any).sub}>{s.content}</Section>
       ))}
+
+      {/* ── Admin management ──────────────────────────────────── */}
+      <Section title="Comp admins" sub="Admins can manage tipsters and tribes">
+        <div className="divide-y divide-gray-50">
+          {compAdmins.map(a => (
+            <div key={a.user_id} className="flex items-center gap-3 px-4 py-2.5">
+              <Avi name={a.display_name || a.email} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-800 truncate">{a.display_name}</p>
+                <p className="text-[11px] text-gray-400 truncate">{a.email}</p>
+              </div>
+              {a.is_owner
+                ? <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full flex-shrink-0">Owner</span>
+                : currentUserId !== a.user_id && (
+                  <button onClick={() => removeAdmin(a.user_id, a.display_name)}
+                    disabled={removingAdmin === a.user_id}
+                    className="text-[11px] text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40">
+                    {removingAdmin === a.user_id ? '…' : 'Remove'}
+                  </button>
+                )
+              }
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 px-4 pb-4 pt-2 border-t border-gray-100">
+          <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && grantAdmin()}
+            placeholder="tipster@example.com"
+            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+          <button onClick={grantAdmin} disabled={grantingAdmin || !adminEmail.trim()}
+            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5">
+            {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Add admin
+          </button>
+        </div>
+      </Section>
 
       {/* ── Danger zone ───────────────────────────────────────── */}
       <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm mb-4">
@@ -1075,12 +1123,31 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, onUpda
 
 // ─── Tab: Tribes ───────────────────────────────────────────────────────────────
 function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters: Tipster[]; tribes: Tribe[]; setTribes: React.Dispatch<React.SetStateAction<Tribe[]>> }) {
-  const [name,     setName]     = useState('')
-  const [desc,     setDesc]     = useState('')
-  const [creating, setCreating] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [name,           setName]           = useState('')
+  const [desc,           setDesc]           = useState('')
+  const [creating,       setCreating]       = useState(false)
+  const [showForm,       setShowForm]       = useState(false)
+  const [error,          setError]          = useState<string | null>(null)
+  const [deleting,       setDeleting]       = useState<string | null>(null)
+  const [expandedTribeId,setExpandedTribeId]= useState<string | null>(null)
+  const [removingMember, setRemovingMember] = useState<string | null>(null)
+  const [addingMember,   setAddingMember]   = useState<string | null>(null)   // user_id being added
+  const [targetTribeId,  setTargetTribeId]  = useState<Record<string, string>>({}) // user_id -> selected tribe_id
+
+  // user_id → tribe_id map for quick lookup
+  const userTribeMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    tribes.forEach(t => (t.member_ids ?? []).forEach(uid => { map[uid] = t.id }))
+    return map
+  }, [tribes])
+
+  const tipsterMap = useMemo(() => {
+    const m: Record<string, Tipster> = {}
+    tipsters.forEach(t => { m[t.user_id] = t })
+    return m
+  }, [tipsters])
+
+  const withoutTribe = useMemo(() => tipsters.filter(t => !userTribeMap[t.user_id]), [tipsters, userTribeMap])
 
   const create = async () => {
     if (!name.trim()) return
@@ -1089,31 +1156,51 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     const { data, error: err } = await res.json()
     setCreating(false)
     if (err) { setError(res.status === 409 ? `"${name.trim()}" already exists` : err) }
-    else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [data, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
+    else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [{ ...data, member_ids: [] }, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
   }
 
   const deleteTribe = async (tribe: Tribe) => {
     if (!confirm(`Delete tribe "${tribe.name}"? All ${tribe.member_count ?? 0} members will be removed. This cannot be undone.`)) return
     setDeleting(tribe.id)
-    const res = await fetch('/api/tribes', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tribe_id: tribe.id }),
-    })
+    const res = await fetch('/api/tribes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tribe_id: tribe.id }) })
     setDeleting(null)
+    if (res.ok) { toast.success(`Tribe "${tribe.name}" deleted`); setTribes(prev => prev.filter(t => t.id !== tribe.id)) }
+    else { const d = await res.json(); toast.error(d.error ?? 'Failed to delete tribe') }
+  }
+
+  const addToTribe = async (userId: string, tribeId: string) => {
+    setAddingMember(userId)
+    const res = await fetch('/api/tribes/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tribe_id: tribeId, user_id: userId }) })
+    setAddingMember(null)
     if (res.ok) {
-      toast.success(`Tribe "${tribe.name}" deleted`)
-      setTribes(prev => prev.filter(t => t.id !== tribe.id))
-    } else {
-      const d = await res.json()
-      toast.error(d.error ?? 'Failed to delete tribe')
-    }
+      setTribes(prev => prev.map(t => {
+        const ids = t.member_ids ?? []
+        if (t.id === tribeId)  return { ...t, member_ids: ids.includes(userId) ? ids : [...ids, userId], member_count: (t.member_count ?? 0) + 1 }
+        if (ids.includes(userId)) return { ...t, member_ids: ids.filter(id => id !== userId), member_count: Math.max((t.member_count ?? 0) - 1, 0) }
+        return t
+      }))
+      toast.success(`${tipsterMap[userId]?.display_name ?? 'User'} added to tribe`)
+    } else { const d = await res.json(); toast.error(d.error ?? 'Failed') }
+  }
+
+  const removeFromTribe = async (userId: string, tribeId: string) => {
+    setRemovingMember(userId)
+    const res = await fetch(`/api/tribes/members?tribe_id=${tribeId}&user_id=${userId}`, { method: 'DELETE' })
+    setRemovingMember(null)
+    if (res.ok) {
+      setTribes(prev => prev.map(t => {
+        if (t.id !== tribeId) return t
+        const ids = (t.member_ids ?? []).filter(id => id !== userId)
+        return { ...t, member_ids: ids, member_count: ids.length }
+      }))
+      toast.success(`${tipsterMap[userId]?.display_name ?? 'User'} removed from tribe`)
+    } else { const d = await res.json(); toast.error(d.error ?? 'Failed') }
   }
 
   return (
     <div>
       <div className="grid grid-cols-3 gap-2 mb-4">
-        {[{ label:'Tribes', v:tribes.length },{ label:'Tipsters', v:tipsters.length },{ label:'Avg size', v: tribes.length ? Math.round(tipsters.length / tribes.length) : 0 }].map(s => (
+        {[{ label:'Tribes', v:tribes.length },{ label:'Tipsters', v:tipsters.length },{ label:'No tribe', v:withoutTribe.length }].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-2.5 text-center shadow-sm">
             <p className="text-xl font-black text-gray-800">{s.v}</p>
             <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mt-0.5">{s.label}</p>
@@ -1141,30 +1228,87 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
 
       {tribes.length === 0 ? <EmptyState title="No tribes yet" description="Create a tribe to organise tipsters into groups." /> : (
         <div className="space-y-3">
-          {tribes.map(t => (
-            <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-start justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-800">{t.name}</p>
-                  {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{t.member_count ?? 0} members</span>
-                    <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
-                      className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
-                      {t.invite_code} · copy
+          {tribes.map(t => {
+            const members = (t.member_ids ?? []).map(uid => tipsterMap[uid]).filter(Boolean)
+            const expanded = expandedTribeId === t.id
+            return (
+              <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="flex items-start justify-between px-4 py-3 gap-2 bg-gray-50/50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-800">{t.name}</p>
+                    {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <button onClick={() => setExpandedTribeId(expanded ? null : t.id)}
+                        className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors">
+                        {t.member_count ?? 0} members {expanded ? '▲' : '▼'}
+                      </button>
+                      <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
+                        className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
+                        {t.invite_code} · copy
+                      </button>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteTribe(t)} disabled={deleting === t.id}
+                    className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
+                    {deleting === t.id ? '…' : 'Delete'}
+                  </button>
+                </div>
+
+                {expanded && (
+                  <div className="border-t border-gray-100">
+                    {members.length === 0
+                      ? <p className="text-xs text-gray-400 italic px-4 py-3">No members yet.</p>
+                      : members.map(m => (
+                        <div key={m.user_id} className="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0">
+                          <Avi name={m.display_name} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{m.display_name}</p>
+                            <p className="text-[11px] text-gray-400 truncate">{m.email}</p>
+                          </div>
+                          <button onClick={() => removeFromTribe(m.user_id, t.id)} disabled={removingMember === m.user_id}
+                            className="text-[11px] text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
+                            {removingMember === m.user_id ? '…' : 'Remove'}
+                          </button>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Tipsters without a tribe */}
+      {withoutTribe.length > 0 && tribes.length > 0 && (
+        <div className="mt-4">
+          <Section title="Not in a tribe" sub={`${withoutTribe.length} tipster${withoutTribe.length !== 1 ? 's' : ''} without a tribe`}>
+            <div className="divide-y divide-gray-50">
+              {withoutTribe.map(t => (
+                <div key={t.user_id} className="flex items-center gap-3 px-4 py-2.5">
+                  <Avi name={t.display_name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <select value={targetTribeId[t.user_id] ?? ''} onChange={e => setTargetTribeId(prev => ({ ...prev, [t.user_id]: e.target.value }))}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-gray-900">
+                      <option value="">Pick tribe…</option>
+                      {tribes.map(tr => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                    </select>
+                    <button
+                      onClick={() => { const tid = targetTribeId[t.user_id]; if (tid) addToTribe(t.user_id, tid) }}
+                      disabled={!targetTribeId[t.user_id] || addingMember === t.user_id}
+                      className="px-3 py-1.5 bg-gray-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 hover:bg-gray-800 transition-colors">
+                      {addingMember === t.user_id ? '…' : 'Add'}
                     </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => deleteTribe(t)}
-                  disabled={deleting === t.id}
-                  className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
-                  {deleting === t.id ? '…' : 'Delete'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 italic px-4 py-3">Share the tribe code for members to join this tribe.</p>
+              ))}
             </div>
-          ))}
+          </Section>
         </div>
       )}
     </div>
@@ -1400,7 +1544,7 @@ export default function CompAdminPage() {
             </div>
       )}
       {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} />}
-      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
     </div>

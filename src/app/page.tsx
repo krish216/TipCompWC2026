@@ -468,8 +468,8 @@ export default function HomePage() {
             backgroundSize: '12px 12px',
           }} />
           <div style={{ position: 'relative' }}>
-            <img src="/wc2026-logo.png" alt="World Cup 2026" width={60} height={90}
-              style={{ width: 56, height: 'auto', margin: '0 auto 12px', display: 'block', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
+            <img src="/logo.png" alt="TribePicks" width={72} height={72}
+              style={{ width: 72, height: 72, margin: '0 auto 12px', display: 'block', borderRadius: 16, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
             <h1 style={{ margin: '0 0 6px', fontSize: 30, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
               TribePicks
             </h1>
