@@ -40,14 +40,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Assign user to org as an ordinary member — no org admin role granted
-  await (adminClient.from('users') as any)
-
   // Enrol in user_comps (multi-comp membership table)
-  await (supabase.from('user_comps') as any).upsert(
+  await (adminClient.from('user_comps') as any).upsert(
     { user_id: user.id, comp_id },
     { onConflict: 'user_id,comp_id' }
   )
+
+  // Clean up any invitation row for this user's email — no longer needed
+  if (user.email) {
+    await (adminClient.from('comp_invitations') as any)
+      .delete()
+      .eq('comp_id', comp_id)
+      .ilike('email', user.email)
+  }
 
   return NextResponse.json({ success: true, comp_name: (org as any).name })
 }

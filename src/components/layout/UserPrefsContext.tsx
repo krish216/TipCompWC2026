@@ -50,7 +50,7 @@ interface UserPrefsCtx {
   pickTournament:     (id: string) => Promise<void>
   pickComp:           (comp: Comp) => Promise<void>
   updateComp:         (id: string, patch: Partial<Comp>) => void
-  refreshComps:       () => Promise<void>
+  refreshComps:       (preferredCompId?: string) => Promise<void>
   hasTribe:           boolean | null   // null = loading, true/false = resolved
   refreshHasTribe:    () => Promise<void>
   loading:            boolean
@@ -265,9 +265,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // refreshComps — re-fetches comps for the current tournament (called after joining/creating)
-  const refreshComps = useCallback(async () => {
+  // Pass preferredCompId to ensure the newly joined/created comp stays selected
+  const refreshComps = useCallback(async (preferredCompId?: string) => {
     if (!session || !selectedTournId) return
-    await loadComps(selectedTournId, session.user.id, selectedCompId)
+    await loadComps(selectedTournId, session.user.id, preferredCompId ?? selectedCompId)
   }, [session, selectedTournId, selectedCompId, loadComps])
 
   const selectedTourn = activeTournaments.find(t => t.id === selectedTournId) ?? null

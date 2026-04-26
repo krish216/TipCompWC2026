@@ -659,15 +659,15 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Favourite team for selected tournament */}
+              {/* Bonus team for selected tournament */}
               {(selectedTourn || tournaments.length === 1) && !tournamentStarted && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Favourite team <span className="text-gray-400 font-normal">(earn 2× points in early rounds)</span>
+                    Bonus Team <span className="text-gray-400 font-normal">(earn 2× points in early rounds)</span>
                   </label>
                   <select value={favTeamForTourn} onChange={e => setFavTeamForTourn(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                    <option value="">No favourite team</option>
+                    <option value="">No Bonus team</option>
                     {(tournTeamsMap[selectedTourn || tournaments[0]?.id] ?? ALL_TEAMS).map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}

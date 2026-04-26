@@ -773,8 +773,9 @@ export default function HomePage() {
             setModal(null)
             // Add to tournsComps list and select it
             await pickComp(comp as any)
-            // Re-fetch full comp list so any server-side data (invite code etc) is fresh
-            await refreshComps()
+            // Re-fetch full comp list — pass comp.id so the new comp stays selected
+            // (refreshComps closure may capture the old selectedCompId)
+            await refreshComps(comp.id)
           }}
         />
       )}
