@@ -425,20 +425,18 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       {/* Tipster list */}
       <Section
         title="All tipsters"
-        sub={`${mergedList.length} total · ${counts.joined} joined · ${counts.registered} registered · ${counts.invited} invited`}
-        right={
-          <div className="flex gap-1">
+        sub={`${mergedList.length} total · ${counts.joined} joined · ${counts.registered} registered · ${counts.invited} invited`}>
+        {/* Filters + Search */}
+        <div className="px-4 pt-3 pb-2 border-b border-gray-100 space-y-2">
+          <div className="flex gap-1 flex-wrap">
             {(['all','joined','registered','invited'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={clsx('px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-colors',
+                className={clsx('px-3 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-colors',
                   filter === f ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100')}>
                 {f}
               </button>
             ))}
           </div>
-        }>
-        {/* Search */}
-        <div className="px-4 pt-3 pb-2 border-b border-gray-100">
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or email…"
             className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white"
@@ -470,7 +468,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
                   {row.is_tipster && row.user_id !== currentUserId && (
                     <button onClick={() => removeTipster(row.user_id!, row.display_name ?? row.email)}
                       disabled={removing === row.user_id}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       title="Remove from comp">
                       {removing === row.user_id ? <Spinner className="w-3 h-3" /> : '✕'}
                     </button>
@@ -478,7 +476,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
                   {/* Revoke invitation (only for non-joined, non-member rows) */}
                   {!row.is_tipster && row.inv_id && (
                     <button onClick={() => revokeInvitation(row.inv_id!, row.email)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       title="Revoke invitation">
                       ✕
                     </button>
@@ -594,20 +592,18 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
       {/* List */}
       <Section
         title="Payment status"
-        sub="Saved to database on each change"
-        right={
-          <div className="flex gap-1">
+        sub="Saved to database on each change">
+
+        <div className="px-4 pt-3 pb-2 border-b border-gray-100 space-y-2">
+          <div className="flex gap-1 flex-wrap">
             {(['all', 'paid', 'unpaid'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={clsx('px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-colors',
+                className={clsx('px-3 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-colors',
                   filter === f ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100')}>
                 {f}
               </button>
             ))}
           </div>
-        }>
-
-        <div className="px-4 pt-3 pb-2 border-b border-gray-100">
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search tipster…"
             className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
@@ -642,7 +638,7 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
                       if (e.key === 'Escape') setEditingNote(null)
                     }}
                     placeholder="e.g. paid via bank transfer"
-                    className="mt-1.5 w-full px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
+                    className="mt-1.5 w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900"
                   />
                 )}
               </div>
@@ -660,13 +656,13 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
                           if (e.key === 'Enter')  saveAmount(t)
                           if (e.key === 'Escape') { setEditingAmt(null); setAmtDraft('') }
                         }}
-                        className="w-16 px-1.5 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 text-right font-mono"
+                        className="w-20 px-2 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 text-right font-mono"
                       />
                     </div>
                   ) : (
                     <button
                       onClick={() => { setEditingAmt(t.user_id); setAmtDraft(String(t.fee_paid_amount ?? entryFeeDefault ?? '')) }}
-                      className="text-xs font-semibold text-emerald-600 opacity-0 group-hover:opacity-100 transition-all hover:underline"
+                      className="text-xs font-semibold text-emerald-600 hover:underline transition-all"
                       title="Edit amount paid">
                       ${(t.fee_paid_amount ?? entryFeeDefault ?? 0).toFixed(2)}
                     </button>
@@ -676,7 +672,7 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
                 {/* Note add button */}
                 {!t.fee_notes && editingNote !== t.user_id && (
                   <button onClick={() => setEditingNote(t.user_id)}
-                    className="text-sm opacity-0 group-hover:opacity-100 transition-all text-gray-300 hover:text-gray-500"
+                    className="text-sm text-gray-300 hover:text-gray-500 transition-all"
                     title="Add note">📝</button>
                 )}
 
@@ -1140,22 +1136,24 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
         <div className="space-y-3">
           {tribes.map(t => (
             <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-                <div>
+              <div className="flex items-start justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 gap-2">
+                <div className="min-w-0">
                   <p className="text-sm font-bold text-gray-800">{t.name}</p>
                   {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{t.member_count ?? 0} members</span>
+                    <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
+                      className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
+                      {t.invite_code} · copy
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{t.member_count ?? 0} members</span>
-                  <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
-                    className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">{t.invite_code}</button>
-                  <button
-                    onClick={() => deleteTribe(t)}
-                    disabled={deleting === t.id}
-                    className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors disabled:opacity-40">
-                    {deleting === t.id ? '…' : 'Delete'}
-                  </button>
-                </div>
+                <button
+                  onClick={() => deleteTribe(t)}
+                  disabled={deleting === t.id}
+                  className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
+                  {deleting === t.id ? '…' : 'Delete'}
+                </button>
               </div>
               <p className="text-xs text-gray-400 italic px-4 py-3">Share the tribe code for members to join this tribe.</p>
             </div>
@@ -1265,7 +1263,7 @@ function ChallengesTab({ comp }: { comp: any }) {
                 <p className="text-xs text-emerald-700 font-semibold mt-0.5">🏆 {c.prize}</p>
                 {c.sponsor && <p className="text-[11px] text-gray-400 mt-0.5">Sponsored by {c.sponsor}</p>}
               </div>
-              <button onClick={() => del(c.id)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">✕</button>
+              <button onClick={() => del(c.id)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0">✕</button>
             </div>
           ))}
         </div>
@@ -1362,14 +1360,14 @@ export default function CompAdminPage() {
         </span>
       </div>
 
-      {/* Tab nav */}
-      <div className="grid grid-cols-6 gap-1 bg-gray-100 p-1 rounded-2xl mb-5">
+      {/* Tab nav — scrollable on mobile */}
+      <div className="flex overflow-x-auto gap-1 bg-gray-100 p-1 rounded-2xl mb-5 scrollbar-none">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={clsx('relative flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl transition-all',
+            className={clsx('relative flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all flex-shrink-0',
               activeTab === t.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600')}>
             <span className="text-base leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
-            <span className={clsx('text-[10px] font-bold leading-none hidden sm:block', tabLocked[t.id] && 'text-gray-300')}>{t.label}</span>
+            <span className={clsx('text-[10px] font-bold leading-none', tabLocked[t.id] && 'text-gray-300')}>{t.label}</span>
             {(badgeCounts[t.id] ?? 0) > 0 && (
               <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center',
                 activeTab === t.id ? 'bg-gray-900 text-white' : 'bg-gray-400 text-white')}>
