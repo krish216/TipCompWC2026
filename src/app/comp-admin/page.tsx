@@ -38,7 +38,7 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'payments',   icon: '💳', label: 'Payments'   },
   { id: 'email',      icon: '✉️',  label: 'Email'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
-  { id: 'tribes',     icon: '🏕️',  label: 'Tribes'     },
+  { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
   { id: 'challenges', icon: '⚡',  label: 'Challenges' },
 ]
 
@@ -185,7 +185,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comp_id: comp.id, emails: recipients, subject: inviteSubject, bodyTemplate: inviteBody }),
     })
-    const { results, invited, already } = await res.json()
+    const { results, invited, already, already_member } = await res.json()
     setSending(false)
     if (!res.ok) { toast.error('Failed to send invitations'); return }
     const newInvs: Invitation[] = (results ?? [])
@@ -193,7 +193,11 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: null, display_name: null, joined: false }))
     setInvitations(prev => [...newInvs, ...prev])
     setRecipients([]); setInviteStep(1)
-    toast.success(`${invited} invite${invited !== 1 ? 's' : ''} sent${already ? ` · ${already} already invited` : ''}`)
+    const skipped = [
+      already       ? `${already} already invited`        : '',
+      already_member ? `${already_member} already in comp` : '',
+    ].filter(Boolean).join(' · ')
+    toast.success(`${invited} invite${invited !== 1 ? 's' : ''} sent${skipped ? ` · ${skipped}` : ''}`)
   }
 
   const removeTipster = async (userId: string, displayName: string) => {

@@ -175,6 +175,15 @@ export async function DELETE(request: NextRequest) {
   ])
   if (!compAdminRow && !tournAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  // Cascade: remove tribe members then tribes before deleting the comp (FK constraints)
+  const { data: tribeRows } = await (adminClient.from('tribes') as any)
+    .select('id').eq('comp_id', comp_id)
+  const tribeIds = (tribeRows ?? []).map((t: any) => t.id)
+  if (tribeIds.length > 0) {
+    await (adminClient.from('tribe_members') as any).delete().in('tribe_id', tribeIds)
+    await (adminClient.from('tribes') as any).delete().eq('comp_id', comp_id)
+  }
+
   const { error } = await (adminClient.from('comps') as any).delete().eq('id', comp_id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

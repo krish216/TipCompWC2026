@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
-  const results: { email: string; status: 'invited' | 'already_invited' | 'error'; id?: string }[] = []
+  const results: { email: string; status: 'invited' | 'already_invited' | 'already_member' | 'error'; id?: string }[] = []
 
   for (const rawEmail of emails) {
     const email = rawEmail.trim().toLowerCase()
@@ -104,20 +104,27 @@ export async function POST(request: NextRequest) {
       .select('id').eq('comp_id', comp_id).eq('email', email).maybeSingle()
     if (existing) { results.push({ email, status: 'already_invited', id: existing.id }); continue }
 
-    // Check if already a registered user on the app
-    const authUsers = await admin.auth.admin.listUsers()
-    const matchedUser = authUsers.data?.users?.find((u: any) => u.email?.toLowerCase() === email)
+    // Look up registered user by email in the users table
+    const { data: registeredUser } = await (admin.from('users') as any)
+      .select('id, display_name').ilike('email', email).maybeSingle()
+
+    // Skip if user is already a member of this comp
+    if (registeredUser) {
+      const { data: membership } = await (admin.from('user_comps') as any)
+        .select('comp_id').eq('user_id', (registeredUser as any).id).eq('comp_id', comp_id).maybeSingle()
+      if (membership) { results.push({ email, status: 'already_member' }); continue }
+    }
 
     // Insert invitation row
     const { data: inv, error: invErr } = await (admin.from('comp_invitations') as any)
-      .insert({ comp_id, email, invited_by: user.id, user_id: matchedUser?.id ?? null })
+      .insert({ comp_id, email, invited_by: user.id, user_id: (registeredUser as any)?.id ?? null })
       .select('id').single()
 
     if (invErr) { results.push({ email, status: 'error' }); continue }
 
     // Send invitation email
     if (resend) {
-      const recipientName = matchedUser?.user_metadata?.display_name ?? 'there'
+      const recipientName = (registeredUser as any)?.display_name ?? 'there'
       const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: (comp as any).invite_code, tournament_name: tournamentName }
       const emailSubject = subject
         ? subject.replace(/\{comp_name\}/g, tokens.comp_name).replace(/\{tournament_name\}/g, tokens.tournament_name)
@@ -133,10 +140,11 @@ export async function POST(request: NextRequest) {
     results.push({ email, status: 'invited', id: (inv as any).id })
   }
 
-  const invited = results.filter(r => r.status === 'invited').length
-  const already = results.filter(r => r.status === 'already_invited').length
+  const invited       = results.filter(r => r.status === 'invited').length
+  const already       = results.filter(r => r.status === 'already_invited').length
+  const alreadyMember = results.filter(r => r.status === 'already_member').length
 
-  return NextResponse.json({ results, invited, already })
+  return NextResponse.json({ results, invited, already, already_member: alreadyMember })
 }
 
 function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, customMessage }: {
