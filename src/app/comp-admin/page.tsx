@@ -186,15 +186,18 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
       body: JSON.stringify({ comp_id: comp.id, emails: recipients, subject: inviteSubject, bodyTemplate: inviteBody }),
     })
     const { results, invited, already, already_member } = await res.json()
+    if (!res.ok) { setSending(false); toast.error('Failed to send invitations'); return }
+
+    // Re-fetch the full invitations list so successive sends and registered-status
+    // are always accurate — avoids stale state from incremental optimistic updates
+    const invRes  = await fetch(`/api/comp-invitations?comp_id=${comp.id}`)
+    const invData = await invRes.json()
     setSending(false)
-    if (!res.ok) { toast.error('Failed to send invitations'); return }
-    const newInvs: Invitation[] = (results ?? [])
-      .filter((r: any) => r.status === 'invited')
-      .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: r.user_id ?? null, display_name: r.display_name ?? null, joined: false }))
-    setInvitations(prev => [...newInvs, ...prev])
+    setInvitations(invData.data ?? [])
+
     setRecipients([]); setInviteStep(1)
     const skipped = [
-      already       ? `${already} already invited`        : '',
+      already        ? `${already} already invited`        : '',
       already_member ? `${already_member} already in comp` : '',
     ].filter(Boolean).join(' · ')
     toast.success(`${invited} invite${invited !== 1 ? 's' : ''} sent${skipped ? ` · ${skipped}` : ''}`)
