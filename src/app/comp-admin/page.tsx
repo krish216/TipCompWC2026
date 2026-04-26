@@ -190,7 +190,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
     if (!res.ok) { toast.error('Failed to send invitations'); return }
     const newInvs: Invitation[] = (results ?? [])
       .filter((r: any) => r.status === 'invited')
-      .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: null, display_name: null, joined: false }))
+      .map((r: any) => ({ id: r.id, email: r.email, invited_at: new Date().toISOString(), joined_at: null, user_id: r.user_id ?? null, display_name: r.display_name ?? null, joined: false }))
     setInvitations(prev => [...newInvs, ...prev])
     setRecipients([]); setInviteStep(1)
     const skipped = [

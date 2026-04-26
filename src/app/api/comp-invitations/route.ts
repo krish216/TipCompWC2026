@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
+import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { Resend } from 'resend'
 
@@ -18,7 +18,6 @@ async function verifyCompAdmin(userId: string, compId: string) {
 
 // GET /api/comp-invitations?comp_id=  — list all invitations for a comp
 export async function GET(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -63,7 +62,6 @@ export async function GET(request: NextRequest) {
 // POST /api/comp-invitations — create invitation(s) and send email
 // Body: { comp_id, emails: string[], customMessage?: string }
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -93,7 +91,7 @@ export async function POST(request: NextRequest) {
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
-  const results: { email: string; status: 'invited' | 'already_invited' | 'already_member' | 'error'; id?: string }[] = []
+  const results: { email: string; status: 'invited' | 'already_invited' | 'already_member' | 'error'; id?: string; user_id?: string | null; display_name?: string | null }[] = []
 
   for (const rawEmail of emails) {
     const email = rawEmail.trim().toLowerCase()
@@ -137,7 +135,13 @@ export async function POST(request: NextRequest) {
       }).catch(() => { /* non-fatal — invitation row already created */ })
     }
 
-    results.push({ email, status: 'invited', id: (inv as any).id })
+    results.push({
+      email,
+      status:       'invited',
+      id:           (inv as any).id,
+      user_id:      (registeredUser as any)?.id           ?? null,
+      display_name: (registeredUser as any)?.display_name ?? null,
+    })
   }
 
   const invited       = results.filter(r => r.status === 'invited').length
@@ -237,7 +241,6 @@ function buildTemplateHtml(
 
 // DELETE /api/comp-invitations?id=  — remove an invitation
 export async function DELETE(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
