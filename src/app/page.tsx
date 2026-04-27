@@ -438,14 +438,14 @@ export default function HomePage() {
     return () => window.removeEventListener('focus', refreshHasTribe)
   }, [session, refreshHasTribe])
 
-  const NavCard = ({ href, icon, title, description, accent = false }: {
-    href: string; icon: string; title: string; description: string; accent?: boolean
+  const NavCard = ({ href, icon, title, description }: {
+    href: string; icon: string; title: string; description: string
   }) => (
-    <Link href={href} className={`flex items-start gap-4 p-4 rounded-xl border transition-all hover:shadow-sm hover:-translate-y-0.5 ${accent ? 'bg-green-600 border-green-700 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
-      <span className="text-2xl flex-shrink-0 mt-0.5">{icon}</span>
+    <Link href={href} className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm transition-all group">
+      <span className="text-xl flex-shrink-0">{icon}</span>
       <div>
-        <p className={`text-sm font-semibold ${accent ? 'text-white' : 'text-gray-900'}`}>{title}</p>
-        <p className={`text-xs mt-0.5 ${accent ? 'text-green-100' : 'text-gray-500'}`}>{description}</p>
+        <p className="text-sm font-semibold text-gray-800 group-hover:text-gray-900">{title}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{description}</p>
       </div>
     </Link>
   )
@@ -457,28 +457,87 @@ export default function HomePage() {
       {/* ── Not logged in hero ── */}
       {!session && (
         <div style={{
-          background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
-          borderRadius: 20, padding: '28px 24px', marginBottom: 24, textAlign: 'center',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)', position: 'relative', overflow: 'hidden',
+          background: 'linear-gradient(160deg, #061a0e 0%, #0d3320 45%, #0a2e1c 100%)',
+          borderRadius: 24, marginBottom: 16, textAlign: 'center',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.28)', position: 'relative', overflow: 'hidden',
         }}>
-          {/* Subtle texture */}
+          {/* Diagonal texture */}
           <div style={{
-            position: 'absolute', inset: 0, opacity: 0.04,
+            position: 'absolute', inset: 0, opacity: 0.035,
             backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',
-            backgroundSize: '12px 12px',
+            backgroundSize: '10px 10px',
           }} />
-          <div style={{ position: 'relative' }}>
-            <img src="/logo.png" alt="TribePicks" width={72} height={72}
-              style={{ width: 72, height: 72, margin: '0 auto 12px', display: 'block', borderRadius: 16, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
-            <h1 style={{ margin: '0 0 6px', fontSize: 30, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+          {/* Glow behind logo */}
+          <div style={{
+            position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)',
+            width: 200, height: 200, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(74,222,128,0.15) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+
+          <div style={{ position: 'relative', padding: '36px 24px 32px' }}>
+            {/* Logo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="TribePicks"
+              style={{ width: 88, height: 88, margin: '0 auto 16px', display: 'block', borderRadius: 22,
+                filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))',
+                boxShadow: '0 0 40px rgba(74,222,128,0.18)' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+
+            {/* Tournament badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.28)',
+              borderRadius: 20, padding: '4px 12px', marginBottom: 14 }}>
+              <span style={{ fontSize: 12 }}>⚽</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', letterSpacing: '0.3px' }}>FIFA WORLD CUP 2026</span>
+            </div>
+
+            <h1 style={{ margin: '0 0 10px', fontSize: 36, fontWeight: 900, color: '#fff',
+              letterSpacing: '-0.8px', lineHeight: 1.05 }}>
               TribePicks
             </h1>
-            <p style={{ margin: '0 0 4px', fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
-              Predict every match. Compete with your tribe.
+            <p style={{ margin: '0 0 28px', fontSize: 15, color: 'rgba(255,255,255,0.58)',
+              lineHeight: 1.5, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
+              Predict every match. Compete with friends. Rise to the top.
             </p>
-            <p style={{ margin: 0, fontSize: 12, color: 'rgba(74,222,128,0.8)', fontWeight: 500 }}>
-              ⚽ FIFA World Cup 2026
-            </p>
+
+            {/* Primary CTAs */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 28 }}>
+              <Link href="/login?tab=register" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '12px 24px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                background: '#16a34a', color: '#fff', textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(22,163,74,0.45)',
+              }}>
+                Join free →
+              </Link>
+              <Link href="/login" style={{
+                display: 'inline-flex', alignItems: 'center',
+                padding: '12px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                background: 'rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.82)',
+                border: '1px solid rgba(255,255,255,0.18)', textDecoration: 'none',
+              }}>
+                Sign in
+              </Link>
+            </div>
+
+            {/* Feature chips */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {[
+                { icon: '🎯', label: 'Predict every match' },
+                { icon: '🏆', label: 'Compete in your comp' },
+                { icon: '👥', label: 'Chat with your tribe' },
+              ].map(f => (
+                <div key={f.label} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 20, padding: '5px 11px',
+                }}>
+                  <span style={{ fontSize: 12 }}>{f.icon}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{f.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -735,13 +794,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Action grid — logged-out only ──────────────────────── */}
+      {/* ── Utility links — logged-out only ─────────────────────── */}
       {!session && (
         <div className="grid grid-cols-2 gap-2.5 mb-6">
-          <NavCard href="/login?tab=register" icon="🚀" title="Join free"    description="Register in 30 seconds" accent />
-          <NavCard href="/login"              icon="🔑" title="Sign in"      description="Already have an account" />
-          <NavCard href="/leaderboard"        icon="🏆" title="ScoreBoard"   description="See the current standings" />
-          <NavCard href="/rules"              icon="📖" title="How to play"  description="Scoring guide" />
+          <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard"  description="See the current standings" />
+          <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring rules & guide" />
         </div>
       )}
 
