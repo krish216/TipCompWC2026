@@ -6,9 +6,7 @@ import { Avatar, Medal, Spinner, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import toast from 'react-hot-toast'
 import type { RoundId } from '@/types'
-import { formatKickoff } from '@/lib/timezone'
-import { useTimezone } from '@/hooks/useTimezone'
-import { getDefaultScoringConfig } from '@/types'
+
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -30,13 +28,16 @@ interface TribeData {
   members: Member[]
 }
 
+interface Reaction { emoji: string; count: number; users: string[] }
+
 interface Message {
   id: string
   user_id: string
   content: string
   created_at: string
-  fixture_id?: number | null
+  round_code?: string | null
   user: { display_name: string; avatar_url?: string | null }
+  reactions: Reaction[]
 }
 
 interface Fixture {
@@ -50,250 +51,165 @@ interface Fixture {
   result?: { home: number; away: number } | null
 }
 
-
 type MainTab   = 'leaderboard' | 'picks' | 'chat'
-type ChatTopic = 'general' | number   // number = fixture_id
+type ChatTopic = 'general' | string   // string = round_code
+
+const ROUND_LABELS: Partial<Record<RoundId, string>> = {
+  gs: 'Group Stage', r32: 'Round of 32', r16: 'Round of 16',
+  qf: 'Quarter Finals', sf: 'Semi Finals', tp: 'Third Place', f: 'Final',
+}
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
 // ── Chat bubble ───────────────────────────────────────────────────────────────
-function ChatBubble({ msg, myId }: { msg: Message; myId: string }) {
+function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReact: (msgId: string, emoji: string) => void }) {
   const isMe        = msg.user_id === myId
   const displayName = msg.user?.display_name ?? 'Unknown'
   const time        = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const [showPicker, setShowPicker] = useState(false)
 
   return (
-    <div className={clsx('flex gap-2 items-end', isMe && 'flex-row-reverse')}>
+    <div className={clsx('group flex gap-2 items-end', isMe && 'flex-row-reverse')}>
       {!isMe && <Avatar name={displayName} size="xs" className="flex-shrink-0 mb-0.5" />}
       <div className={clsx('max-w-[75%]', isMe && 'items-end flex flex-col')}>
         {!isMe && <p className="text-[10px] text-gray-400 mb-0.5 ml-1">{displayName}</p>}
-        <div className={clsx(
-          'px-3 py-2 rounded-xl text-sm leading-relaxed',
-          isMe ? 'bg-green-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-        )}>
-          {msg.content}
+        <div className="relative">
+          <div className={clsx(
+            'px-3 py-2 rounded-xl text-sm leading-relaxed',
+            isMe ? 'bg-green-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+          )}>
+            {msg.content}
+          </div>
+          {/* React button — appears on hover */}
+          <button onClick={() => setShowPicker(p => !p)}
+            className={clsx(
+              'absolute -bottom-2.5 text-sm px-1 py-0 rounded-full bg-white border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity leading-5',
+              isMe ? '-left-3' : '-right-3'
+            )}>
+            😊
+          </button>
+          {/* Emoji picker popover */}
+          {showPicker && (
+            <div className={clsx(
+              'absolute bottom-7 z-20 flex gap-0.5 bg-white rounded-full border border-gray-200 shadow-lg px-2 py-1',
+              isMe ? 'right-0' : 'left-0'
+            )}>
+              {REACTION_EMOJIS.map(e => (
+                <button key={e} onMouseDown={() => { onReact(msg.id, e); setShowPicker(false) }}
+                  className="text-base hover:scale-125 transition-transform px-0.5">
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        {/* Reaction pills */}
+        {msg.reactions.length > 0 && (
+          <div className={clsx('flex flex-wrap gap-1 mt-1.5', isMe && 'justify-end')}>
+            {msg.reactions.map(r => (
+              <button key={r.emoji} onClick={() => onReact(msg.id, r.emoji)}
+                className={clsx(
+                  'flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors',
+                  r.users.includes(myId)
+                    ? 'bg-green-50 border-green-300 text-green-700'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                )}>
+                {r.emoji} <span>{r.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <p className="text-[9px] text-gray-400 mt-0.5 mx-1">{time}</p>
       </div>
     </div>
   )
 }
 
-// ── Match topic selector ──────────────────────────────────────────────────────
-function MatchTopicList({
-  fixtures,
-  activeTopic,
-  onSelect,
-  timezone,
-}: {
-  fixtures: Fixture[]
+// ── Round topic pills ─────────────────────────────────────────────────────────
+function RoundTopicPills({ activeTopic, onSelect, availableRounds }: {
   activeTopic: ChatTopic
   onSelect: (topic: ChatTopic) => void
-  timezone: string
+  availableRounds: RoundId[]
 }) {
-  const { flag } = useUserPrefs()
-  const now = new Date()
-
-  // Group fixtures: recent (past 3 days) + upcoming (next 3 days) shown first
-  const recent   = fixtures.filter(f => {
-    const diff = (now.getTime() - new Date(f.kickoff_utc).getTime()) / 86400000
-    return diff >= 0 && diff <= 5
-  })
-  const upcoming = fixtures.filter(f => {
-    const diff = (new Date(f.kickoff_utc).getTime() - now.getTime()) / 86400000
-    return diff > 0 && diff <= 3
-  })
-  const featured = [...new Map([...upcoming, ...recent].map(f => [f.id, f])).values()]
-    .sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
-    .slice(0, 12)
-
   return (
-    <div className="flex flex-col gap-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-      {/* General chat */}
-      <button
-        onClick={() => onSelect('general')}
+    <div className="flex gap-1.5 overflow-x-auto px-3 py-2.5 scrollbar-none border-b border-gray-100 bg-gray-50/60">
+      <button onClick={() => onSelect('general')}
         className={clsx(
-          'flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors',
-          activeTopic === 'general'
-            ? 'bg-green-600 text-white'
-            : 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-900'
-        )}
-      >
-        <span className="text-base flex-shrink-0">💬</span>
-        <div>
-          <p className="text-xs font-semibold">General</p>
-          <p className={clsx('text-[10px]', activeTopic === 'general' ? 'text-green-100' : 'text-gray-400')}>
-            Tribe chat
-          </p>
-        </div>
+          'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
+          activeTopic === 'general' ? 'bg-green-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+        )}>
+        💬 General
       </button>
-
-      {/* Section: Featured matches */}
-      {featured.length > 0 && (
-        <>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1 px-1">
-            Recent &amp; upcoming
-          </p>
-          {featured.map(f => {
-            const isActive  = activeTopic === f.id
-            const kickoff   = new Date(f.kickoff_utc)
-            const started   = kickoff <= now
-            const kickoffLabel = formatKickoff(f.kickoff_utc, timezone)
-
-            return (
-              <button
-                key={f.id}
-                onClick={() => onSelect(f.id)}
-                className={clsx(
-                  'flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors',
-                  isActive
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white border border-gray-200 hover:bg-gray-50'
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className={clsx('text-xs font-semibold truncate', !isActive && 'text-gray-900')}>
-                    {flag(f.home)} {f.home} <span className={clsx('font-normal', isActive ? 'text-green-200' : 'text-gray-400')}>vs</span> {flag(f.away)} {f.away}
-                  </p>
-                  <p className={clsx('text-[10px] mt-0.5', isActive ? 'text-green-100' : 'text-gray-400')}>
-                    {f.result
-                      ? `FT: ${f.result.home}–${f.result.away}`
-                      : started ? 'In progress' : kickoffLabel}
-                  </p>
-                </div>
-                {f.result && (
-                  <span className={clsx('text-[10px] font-bold flex-shrink-0', isActive ? 'text-green-100' : 'text-green-700')}>
-                    FT
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </>
-      )}
-
-      {/* All matches by round */}
-      {(['gs','r32','r16','qf','sf','tp','f'] as RoundId[]).map(round => {
-        const roundFixtures = fixtures.filter(f => f.round === round)
-        if (!roundFixtures.length) return null
-        return (
-          <div key={round}>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1 px-1">
-              {getDefaultScoringConfig().rounds[round as RoundId]?.round_name ?? round}
-            </p>
-            {roundFixtures.map(f => {
-              const isActive    = activeTopic === f.id
-              const localDate   = formatKickoff(f.kickoff_utc, timezone)
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => onSelect(f.id)}
-                  className={clsx(
-                    'flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-colors mb-0.5 w-full',
-                    isActive ? 'bg-green-600 text-white' : 'hover:bg-gray-50 text-gray-600'
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className={clsx('text-xs truncate font-medium', isActive ? 'text-white' : 'text-gray-800')}>
-                      {flag(f.home)} {f.home} vs {flag(f.away)} {f.away}
-                    </p>
-                    <p className={clsx('text-[10px] mt-0.5', isActive ? 'text-green-100' : 'text-gray-400')}>
-                      {f.result ? `FT: ${f.result.home}–${f.result.away}` : localDate}
-                    </p>
-                  </div>
-                  {f.result && (
-                    <span className={clsx('text-[10px] font-bold flex-shrink-0 mt-0.5', isActive ? 'text-green-100' : 'text-green-600')}>
-                      FT
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )
-      })}
+      {availableRounds.map(r => (
+        <button key={r} onClick={() => onSelect(r)}
+          className={clsx(
+            'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap',
+            activeTopic === r ? 'bg-green-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          )}>
+          {ROUND_LABELS[r] ?? r.toUpperCase()}
+        </button>
+      ))}
     </div>
   )
 }
 
 // ── Chat panel ────────────────────────────────────────────────────────────────
-function ChatPanel({
-  tribeId,
-  topic,
-  myId,
-  fixtures,
-  timezone,
-}: {
+function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
   tribeId: string
   topic: ChatTopic
   myId: string
-  fixtures: Fixture[]
-  timezone: string
+  availableRounds: RoundId[]
+  onTopicChange: (t: ChatTopic) => void
 }) {
-  const { flag } = useUserPrefs()
   const { supabase } = useSupabase()
   const [messages,  setMessages]  = useState<Message[]>([])
   const [loading,   setLoading]   = useState(true)
   const [msgInput,  setMsgInput]  = useState('')
   const [sending,   setSending]   = useState(false)
-  const bottomRef  = useRef<HTMLDivElement>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const fixture = typeof topic === 'number'
-    ? fixtures.find(f => f.id === topic)
-    : null
+  const roundCode  = topic === 'general' ? null : topic
+  const topicLabel = topic === 'general' ? '💬 General chat' : (ROUND_LABELS[topic as RoundId] ?? topic.toUpperCase())
 
-  // ── Load messages for this topic ──────────────────────────────
+  // ── Load messages ─────────────────────────────────────────────
   useEffect(() => {
     setMessages([])
     setLoading(true)
-    const url = `/api/chat?tribe_id=${tribeId}&fixture_id=${topic}&limit=60`
+    const url = roundCode
+      ? `/api/chat?tribe_id=${tribeId}&round_code=${roundCode}&limit=60`
+      : `/api/chat?tribe_id=${tribeId}&limit=60`
     fetch(url)
       .then(r => r.json())
       .then(({ data }) => {
-        setMessages(data ?? [])
+        setMessages((data ?? []).map((m: any) => ({ ...m, reactions: m.reactions ?? [] })))
         setLoading(false)
         scrollToBottom(false)
       })
       .catch(() => setLoading(false))
   }, [tribeId, topic])
 
-  // ── Realtime subscription scoped to this topic ────────────────
+  // ── Realtime subscription ─────────────────────────────────────
   useEffect(() => {
-    const channelName = `chat-${tribeId}-${topic}`
-    const filter = typeof topic === 'number'
-      ? `tribe_id=eq.${tribeId}`
-      : `tribe_id=eq.${tribeId}`
-
     const channel = supabase
-      .channel(channelName)
+      .channel(`chat-${tribeId}-${topic}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'chat_messages',
-        filter,
+        filter: `tribe_id=eq.${tribeId}`,
       }, async payload => {
         const newMsg = payload.new as any
-
-        // Only show if it matches the current topic
-        const matchesTopic = typeof topic === 'number'
-          ? newMsg.fixture_id === topic
-          : newMsg.fixture_id === null
-
+        const matchesTopic = roundCode ? newMsg.round_code === roundCode : newMsg.round_code === null
         if (!matchesTopic) return
-
-        // Fetch with user join
-        const { data } = await supabase
-          .from('chat_messages')
-          .select('id, content, created_at, user_id, fixture_id, users(display_name, avatar_url)')
-          .eq('id', newMsg.id)
-          .single()
-
+        const { data } = await (supabase.from('chat_messages') as any)
+          .select('id, content, created_at, user_id, round_code, users(display_name, avatar_url)')
+          .eq('id', newMsg.id).single()
         if (data) {
           const raw = data as any
           const usr = Array.isArray(raw.users) ? raw.users[0] : raw.users
-          setMessages(prev => [...prev, { ...raw, user: usr ?? { display_name: 'Unknown', avatar_url: null } }])
+          setMessages(prev => [...prev, { ...raw, user: usr ?? { display_name: 'Unknown', avatar_url: null }, reactions: [] }])
           scrollToBottom(true)
         }
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [supabase, tribeId, topic])
 
@@ -304,38 +220,50 @@ function ChatPanel({
   const sendMessage = async () => {
     if (!msgInput.trim()) return
     setSending(true)
-    await (supabase.from('chat_messages') as any).insert({
-      tribe_id:   tribeId,
-      user_id:    myId,
-      content:    msgInput.trim(),
-      fixture_id: typeof topic === 'number' ? topic : null,
+    await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tribe_id: tribeId, content: msgInput.trim(), round_code: roundCode }),
     })
     setMsgInput('')
     setSending(false)
     textareaRef.current?.focus()
   }
 
-  // Topic header
-  const topicLabel = fixture
-    ? `${flag(fixture.home)} ${fixture.home} vs ${flag(fixture.away)} ${fixture.away}`
-    : '💬 General chat'
-  const topicSub = fixture
-    ? fixture.result
-        ? `Full time: ${fixture.result.home}–${fixture.result.away}`
-        : formatKickoff(fixture.kickoff_utc, timezone)
-    : 'Tribe-wide conversation'
+  const react = async (msgId: string, emoji: string) => {
+    await fetch('/api/chat/reactions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_id: msgId, emoji }),
+    })
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msgId) return m
+      const reactions = [...m.reactions]
+      const idx = reactions.findIndex(r => r.emoji === emoji)
+      if (idx >= 0) {
+        const r = { ...reactions[idx] }
+        if (r.users.includes(myId)) {
+          r.count--; r.users = r.users.filter(u => u !== myId)
+          if (r.count === 0) reactions.splice(idx, 1); else reactions[idx] = r
+        } else {
+          r.count++; r.users = [...r.users, myId]; reactions[idx] = r
+        }
+      } else {
+        reactions.push({ emoji, count: 1, users: [myId] })
+      }
+      return { ...m, reactions }
+    }))
+  }
 
   return (
     <div className="flex flex-col h-full">
-      {/* Topic header */}
-      <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50 rounded-t-xl">
-        <p className="text-sm font-semibold text-gray-900">{topicLabel}</p>
-        <p className="text-[11px] text-gray-500 mt-0.5">{topicSub}</p>
-        {fixture && !fixture.result && (
-          <p className="text-[10px] text-green-700 mt-0.5 font-medium">
-            🕐 {formatKickoff(fixture.kickoff_utc, timezone)} your time
-          </p>
-        )}
+      {/* Round topic pills */}
+      <RoundTopicPills activeTopic={topic} onSelect={onTopicChange} availableRounds={availableRounds} />
+
+      {/* Topic sub-label */}
+      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/40">
+        <p className="text-sm font-semibold text-gray-800">{topicLabel}</p>
+        <p className="text-[10px] text-gray-400 mt-0.5">
+          {topic === 'general' ? 'Tribe-wide conversation' : `Chat about the ${topicLabel}`}
+        </p>
       </div>
 
       {/* Messages */}
@@ -344,13 +272,12 @@ function ChatPanel({
           <div className="flex justify-center py-8"><Spinner className="w-5 h-5" /></div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
+            <p className="text-2xl mb-2">💬</p>
             <p className="text-sm text-gray-400">No messages yet</p>
-            <p className="text-xs text-gray-300 mt-1">
-              {fixture ? 'Start the match chat!' : 'Say something to your tribe!'}
-            </p>
+            <p className="text-xs text-gray-300 mt-1">Be the first to say something!</p>
           </div>
         ) : (
-          messages.map(msg => <ChatBubble key={msg.id} msg={msg} myId={myId} />)
+          messages.map(msg => <ChatBubble key={msg.id} msg={msg} myId={myId} onReact={react} />)
         )}
         <div ref={bottomRef} />
       </div>
@@ -358,26 +285,17 @@ function ChatPanel({
       {/* Input */}
       <div className="px-3 pb-3 pt-2 border-t border-gray-100">
         <div className="flex gap-2 items-end">
-          <textarea
-            ref={textareaRef}
-            value={msgInput}
+          <textarea ref={textareaRef} value={msgInput}
             onChange={e => setMsgInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder={fixture ? `Chat about ${fixture.home} vs ${fixture.away}…` : 'Message your tribe…'}
-            rows={1}
-            maxLength={1000}
+            placeholder="Message your tribe…" rows={1} maxLength={1000}
             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
             style={{ minHeight: '40px', maxHeight: '100px' }}
           />
-          <button
-            onClick={sendMessage}
-            disabled={sending || !msgInput.trim()}
-            className="w-10 h-10 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0"
-          >
+          <button onClick={sendMessage} disabled={sending || !msgInput.trim()}
+            className="w-10 h-10 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0">
             {sending ? <Spinner className="w-4 h-4 text-white" /> : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-              </svg>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             )}
           </button>
         </div>
@@ -898,7 +816,6 @@ function PrizesDisplay({ compId }: { compId: string }) {
 
 export default function TribePage() {
   const { session, supabase } = useSupabase()
-  const { timezone } = useTimezone()
   const { selectedComp, selectedTourn } = useUserPrefs()
 
   const [tribe,          setTribe]          = useState<TribeData | null>(null)
@@ -1167,27 +1084,21 @@ export default function TribePage() {
         )}
 
         {/* Chat */}
-        {tab === 'chat' && (
-          <div className="flex gap-3" style={{ height: 'calc(100vh - 260px)', minHeight: 480 }}>
-            <div className="w-56 flex-shrink-0 overflow-y-auto">
-              <MatchTopicList
-                fixtures={fixtures}
-                activeTopic={chatTopic}
-                onSelect={setChatTopic}
-                timezone={timezone}
-              />
-            </div>
-            <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
+        {tab === 'chat' && (() => {
+          const availableRounds = (['gs','r32','r16','qf','sf','tp','f'] as RoundId[])
+            .filter(r => fixtures.some(f => f.round === r))
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: 480 }}>
               <ChatPanel
                 tribeId={tribe.id}
                 topic={chatTopic}
                 myId={myId}
-                fixtures={fixtures}
-                timezone={timezone}
+                availableRounds={availableRounds}
+                onTopicChange={setChatTopic}
               />
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </div>
   )

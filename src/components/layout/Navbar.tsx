@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
@@ -8,14 +8,56 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
+const CHAT_SEEN_KEY = (tribeId: string) => `tc_chat_seen_${tribeId}`
+
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const { supabase, session } = useSupabase()
-  const { isCompAdmin, selectedCompId } = useUserPrefs()
+  const { isCompAdmin, selectedCompId, selectedTribeId } = useUserPrefs()
   const [mounted,      setMounted]      = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [hasUnread,    setHasUnread]    = useState(false)
+  const lastSeenRef = useRef<string | null>(null)
   useEffect(() => setMounted(true), [])
+
+  // Mark chat as seen when on /tribe
+  useEffect(() => {
+    if (pathname === '/tribe' && selectedTribeId) {
+      const now = new Date().toISOString()
+      localStorage.setItem(CHAT_SEEN_KEY(selectedTribeId), now)
+      lastSeenRef.current = now
+      setHasUnread(false)
+    }
+  }, [pathname, selectedTribeId])
+
+  // Subscribe to tribe chat for unread indicator
+  useEffect(() => {
+    if (!selectedTribeId || !session) return
+    const stored = localStorage.getItem(CHAT_SEEN_KEY(selectedTribeId))
+    lastSeenRef.current = stored
+
+    const channel = supabase
+      .channel(`navbar-chat-${selectedTribeId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chat_messages',
+        filter: `tribe_id=eq.${selectedTribeId}`,
+      }, payload => {
+        if (pathname === '/tribe') {
+          const now = new Date().toISOString()
+          localStorage.setItem(CHAT_SEEN_KEY(selectedTribeId), now)
+          lastSeenRef.current = now
+          return
+        }
+        const msgTime = (payload.new as any).created_at
+        if (!lastSeenRef.current || msgTime > lastSeenRef.current) {
+          setHasUnread(true)
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, session, selectedTribeId, pathname])
 
   const signOut = async () => {
     setUserMenuOpen(false)
@@ -67,12 +109,15 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                 {desktopItems.map(item => (
                   <Link key={item.href} href={item.href}
                     className={clsx(
-                      'px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
+                      'relative px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
                       isActive(item.href)
                         ? 'bg-green-50 text-green-700'
                         : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     )}>
                     {item.label}
+                    {item.href === '/tribe' && hasUnread && (
+                      <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-green-500 rounded-full" />
+                    )}
                   </Link>
                 ))}
                 {isCompAdmin && selectedCompId && (
@@ -107,6 +152,18 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
             {/* User section */}
             {session ? (
               <div className="relative flex items-center gap-2 flex-shrink-0">
+                {/* Chat icon with unread badge — mobile only, in header */}
+                <Link href="/tribe"
+                  className="sm:hidden relative w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                  aria-label="Tribe chat">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H7l-4 3V5z" fill="currentColor" fillOpacity=".15" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                  </svg>
+                  {hasUnread && (
+                    <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
+                  )}
+                </Link>
+
                 {/* Avatar button — toggles dropdown on mobile, links to /settings on desktop */}
                 <button
                   onClick={() => setUserMenuOpen(o => !o)}

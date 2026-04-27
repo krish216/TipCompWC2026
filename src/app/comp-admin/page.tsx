@@ -886,37 +886,24 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
   const [savingName,      setSavingName]      = useState(false)
   const [newDomain,       setNewDomain]       = useState(domain ?? '')
   const [newMinAge,       setNewMinAge]       = useState(minAge ? String(minAge) : '')
-  const [adminEmail,      setAdminEmail]      = useState('')
-  const [grantingAdmin,   setGrantingAdmin]   = useState(false)
-  const [deletingComp,    setDeletingComp]    = useState(false)
-  const [compAdmins,      setCompAdmins]      = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
-  const [removingAdmin,   setRemovingAdmin]   = useState<string | null>(null)
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const suggestRef = useRef<HTMLDivElement>(null)
+  const [selectedAdminUid, setSelectedAdminUid] = useState('')
+  const [grantingAdmin,    setGrantingAdmin]    = useState(false)
+  const [deletingComp,     setDeletingComp]     = useState(false)
+  const [compAdmins,       setCompAdmins]       = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
+  const [removingAdmin,    setRemovingAdmin]    = useState<string | null>(null)
 
-  const adminUserIds = useMemo(() => new Set(compAdmins.map(a => a.user_id)), [compAdmins])
-  const suggestions  = useMemo(() => {
-    if (!adminEmail.trim()) return []
-    const q = adminEmail.toLowerCase()
-    return tipsters.filter(t =>
-      !adminUserIds.has(t.user_id) &&
-      (t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q))
-    ).slice(0, 6)
-  }, [adminEmail, tipsters, adminUserIds])
+  const adminUserIds   = useMemo(() => new Set(compAdmins.map(a => a.user_id)), [compAdmins])
+  const eligibleAdmins = useMemo(() =>
+    tipsters
+      .filter(t => !adminUserIds.has(t.user_id))
+      .sort((a, b) => a.display_name.localeCompare(b.display_name)),
+    [tipsters, adminUserIds]
+  )
 
   useEffect(() => {
     fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`)
       .then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
   }, [comp.id])
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (suggestRef.current && !suggestRef.current.contains(e.target as Node))
-        setShowSuggestions(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
@@ -934,25 +921,18 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
     const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: comp.id, min_age: age }) })
     if (res.ok) { onUpdate('minAge', age); toast.success(age ? `Minimum age set to ${age}` : 'Age restriction removed') } else toast.error('Failed')
   }
-  const grantAdmin = async (emailOverride?: string) => {
-    const email = (emailOverride ?? adminEmail).trim()
-    if (!email) return
+  const grantAdmin = async () => {
+    const tipster = eligibleAdmins.find(t => t.user_id === selectedAdminUid)
+    if (!tipster) return
     setGrantingAdmin(true)
-    const res = await fetch('/api/comp-admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, comp_id: comp.id }) })
+    const res = await fetch('/api/comp-admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: tipster.email, comp_id: comp.id }) })
     setGrantingAdmin(false)
     const d = await res.json()
     if (d.success) {
-      toast.success(`Admin access granted to ${d.display_name ?? email}`)
-      setAdminEmail('')
-      setShowSuggestions(false)
+      toast.success(`Admin access granted to ${d.display_name ?? tipster.display_name}`)
+      setSelectedAdminUid('')
       fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`).then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
     } else toast.error(d.error ?? 'Failed')
-  }
-
-  const selectSuggestion = (tipster: Tipster) => {
-    setAdminEmail(tipster.email)
-    setShowSuggestions(false)
-    grantAdmin(tipster.email)
   }
 
   const removeAdmin = async (userId: string, displayName: string) => {
@@ -1116,35 +1096,18 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
             </div>
           ))}
         </div>
-        <div className="px-4 pb-4 pt-2 border-t border-gray-100" ref={suggestRef}>
-          <div className="relative flex gap-2">
-            <div className="flex-1 relative">
-              <input type="text" value={adminEmail}
-                onChange={e => { setAdminEmail(e.target.value); setShowSuggestions(true) }}
-                onFocus={() => setShowSuggestions(true)}
-                onKeyDown={e => e.key === 'Enter' && grantAdmin()}
-                placeholder="Search by name or email…"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                  {suggestions.map(t => (
-                    <button key={t.user_id} onMouseDown={() => selectSuggestion(t)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left transition-colors">
-                      <Avi name={t.display_name || t.email} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-800 truncate">{t.display_name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button onClick={() => grantAdmin()} disabled={grantingAdmin || !adminEmail.trim()}
-              className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5 flex-shrink-0">
-              {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Add
-            </button>
-          </div>
+        <div className="flex gap-2 px-4 pb-4 pt-2 border-t border-gray-100">
+          <select value={selectedAdminUid} onChange={e => setSelectedAdminUid(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white">
+            <option value="">Select a tipster…</option>
+            {eligibleAdmins.map(t => (
+              <option key={t.user_id} value={t.user_id}>{t.display_name}</option>
+            ))}
+          </select>
+          <button onClick={grantAdmin} disabled={grantingAdmin || !selectedAdminUid}
+            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5 flex-shrink-0">
+            {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Add
+          </button>
         </div>
       </Section>
 

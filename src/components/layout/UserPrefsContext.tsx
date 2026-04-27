@@ -52,6 +52,7 @@ interface UserPrefsCtx {
   updateComp:         (id: string, patch: Partial<Comp>) => void
   refreshComps:       (preferredCompId?: string) => Promise<void>
   hasTribe:           boolean | null   // null = loading, true/false = resolved
+  selectedTribeId:    string | null
   refreshHasTribe:    () => Promise<void>
   loading:            boolean
 }
@@ -78,14 +79,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [adminCompIds,  setAdminCompIds]  = useState<Set<string>>(new Set())
   const [adminComps,    setAdminComps]    = useState<{id:string;name:string;logo_url?:string|null;invite_code?:string}[]>([])
   const [teamsMap,      setTeamsMap]      = useState<TeamsMap>({})
-  const [hasTribe,      setHasTribe]      = useState<boolean | null>(null)
+  const [hasTribe,        setHasTribe]        = useState<boolean | null>(null)
+  const [selectedTribeId, setSelectedTribeId] = useState<string | null>(null)
 
   const fetchHasTribe = useCallback(async (compId: string) => {
     try {
       const res = await fetch(`/api/tribes?comp_id=${compId}`)
       const d   = await res.json()
       setHasTribe(!!d.data)
-    } catch { setHasTribe(false) }
+      setSelectedTribeId((d.data as any)?.id ?? null)
+    } catch { setHasTribe(false); setSelectedTribeId(null) }
   }, [])
 
   // Reactively re-check tribe membership whenever the selected comp changes
@@ -290,7 +293,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       roundConfigs, scoringConfig,
       teamsMap, flag, code,
       pickTournament, pickComp, refreshComps,
-      hasTribe, refreshHasTribe,
+      hasTribe, selectedTribeId, refreshHasTribe,
       loading,
     }}>
       {children}
