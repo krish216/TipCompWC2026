@@ -878,24 +878,45 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
 }
 
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
-function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, currentUserId, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; currentUserId: string; onUpdate: (k: string, v: any) => void }) {
-  const [name,          setName]          = useState(comp?.name ?? '')
-  const [feeEnabled,    setFeeEnabled]    = useState(requiresFee)
-  const [feeAmount,     setFeeAmount]     = useState(entryFee != null ? String(entryFee) : '')
-  const [savingFee,     setSavingFee]     = useState(false)
-  const [savingName,    setSavingName]    = useState(false)
-  const [newDomain,     setNewDomain]     = useState(domain ?? '')
-  const [newMinAge,     setNewMinAge]     = useState(minAge ? String(minAge) : '')
-  const [adminEmail,    setAdminEmail]    = useState('')
-  const [grantingAdmin, setGrantingAdmin] = useState(false)
-  const [deletingComp,  setDeletingComp]  = useState(false)
-  const [compAdmins,    setCompAdmins]    = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
-  const [removingAdmin, setRemovingAdmin] = useState<string | null>(null)
+function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
+  const [name,            setName]            = useState(comp?.name ?? '')
+  const [feeEnabled,      setFeeEnabled]      = useState(requiresFee)
+  const [feeAmount,       setFeeAmount]       = useState(entryFee != null ? String(entryFee) : '')
+  const [savingFee,       setSavingFee]       = useState(false)
+  const [savingName,      setSavingName]      = useState(false)
+  const [newDomain,       setNewDomain]       = useState(domain ?? '')
+  const [newMinAge,       setNewMinAge]       = useState(minAge ? String(minAge) : '')
+  const [adminEmail,      setAdminEmail]      = useState('')
+  const [grantingAdmin,   setGrantingAdmin]   = useState(false)
+  const [deletingComp,    setDeletingComp]    = useState(false)
+  const [compAdmins,      setCompAdmins]      = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
+  const [removingAdmin,   setRemovingAdmin]   = useState<string | null>(null)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestRef = useRef<HTMLDivElement>(null)
+
+  const adminUserIds = useMemo(() => new Set(compAdmins.map(a => a.user_id)), [compAdmins])
+  const suggestions  = useMemo(() => {
+    if (!adminEmail.trim()) return []
+    const q = adminEmail.toLowerCase()
+    return tipsters.filter(t =>
+      !adminUserIds.has(t.user_id) &&
+      (t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q))
+    ).slice(0, 6)
+  }, [adminEmail, tipsters, adminUserIds])
 
   useEffect(() => {
     fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`)
       .then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
   }, [comp.id])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestRef.current && !suggestRef.current.contains(e.target as Node))
+        setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
@@ -913,17 +934,25 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
     const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: comp.id, min_age: age }) })
     if (res.ok) { onUpdate('minAge', age); toast.success(age ? `Minimum age set to ${age}` : 'Age restriction removed') } else toast.error('Failed')
   }
-  const grantAdmin = async () => {
-    if (!adminEmail.trim()) return
+  const grantAdmin = async (emailOverride?: string) => {
+    const email = (emailOverride ?? adminEmail).trim()
+    if (!email) return
     setGrantingAdmin(true)
-    const res = await fetch('/api/comp-admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: adminEmail.trim(), comp_id: comp.id }) })
+    const res = await fetch('/api/comp-admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, comp_id: comp.id }) })
     setGrantingAdmin(false)
     const d = await res.json()
     if (d.success) {
-      toast.success(`Admin access granted to ${d.display_name ?? adminEmail}`)
+      toast.success(`Admin access granted to ${d.display_name ?? email}`)
       setAdminEmail('')
+      setShowSuggestions(false)
       fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`).then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
     } else toast.error(d.error ?? 'Failed')
+  }
+
+  const selectSuggestion = (tipster: Tipster) => {
+    setAdminEmail(tipster.email)
+    setShowSuggestions(false)
+    grantAdmin(tipster.email)
   }
 
   const removeAdmin = async (userId: string, displayName: string) => {
@@ -1087,15 +1116,35 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
             </div>
           ))}
         </div>
-        <div className="flex gap-2 px-4 pb-4 pt-2 border-t border-gray-100">
-          <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && grantAdmin()}
-            placeholder="tipster@example.com"
-            className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-          <button onClick={grantAdmin} disabled={grantingAdmin || !adminEmail.trim()}
-            className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5">
-            {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Add admin
-          </button>
+        <div className="px-4 pb-4 pt-2 border-t border-gray-100" ref={suggestRef}>
+          <div className="relative flex gap-2">
+            <div className="flex-1 relative">
+              <input type="text" value={adminEmail}
+                onChange={e => { setAdminEmail(e.target.value); setShowSuggestions(true) }}
+                onFocus={() => setShowSuggestions(true)}
+                onKeyDown={e => e.key === 'Enter' && grantAdmin()}
+                placeholder="Search by name or email…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  {suggestions.map(t => (
+                    <button key={t.user_id} onMouseDown={() => selectSuggestion(t)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left transition-colors">
+                      <Avi name={t.display_name || t.email} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-800 truncate">{t.display_name}</p>
+                        <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={() => grantAdmin()} disabled={grantingAdmin || !adminEmail.trim()}
+              className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex items-center gap-1.5 flex-shrink-0">
+              {grantingAdmin && <Spinner className="w-3 h-3 text-white" />}Add
+            </button>
+          </div>
         </div>
       </Section>
 
@@ -1428,16 +1477,19 @@ export default function CompAdminPage() {
   const { session }                                         = useSupabase()
   const { selectedComp, selectedTourn, isCompAdmin, loading: ctxLoading, updateComp } = useUserPrefs()
 
-  const [activeTab,   setActiveTab]   = useState<Tab>('tipsters')
-  const [loading,     setLoading]     = useState(false)
-  const [tipsters,    setTipsters]    = useState<Tipster[]>([])
-  const [invitations, setInvitations] = useState<Invitation[]>([])
-  const [tribes,      setTribes]      = useState<Tribe[]>([])
-  const [tier,        setTier]        = useState('trial')
-  const [requiresFee, setRequiresFee] = useState(false)
-  const [entryFee,    setEntryFee]    = useState<number | null>(null)
-  const [domain,      setDomain]      = useState<string | null>(null)
-  const [minAge,      setMinAge]      = useState<number | null>(null)
+  const [activeTab,    setActiveTab]    = useState<Tab>('tipsters')
+  const [loading,      setLoading]      = useState(false)
+  const [tipsters,     setTipsters]     = useState<Tipster[]>([])
+  const [invitations,  setInvitations]  = useState<Invitation[]>([])
+  const [tribes,       setTribes]       = useState<Tribe[]>([])
+  const [tier,         setTier]         = useState('trial')
+  const [requiresFee,  setRequiresFee]  = useState(false)
+  const [entryFee,     setEntryFee]     = useState<number | null>(null)
+  const [domain,       setDomain]       = useState<string | null>(null)
+  const [minAge,       setMinAge]       = useState<number | null>(null)
+  const [showKebab,    setShowKebab]    = useState(false)
+  const [deletingComp, setDeletingComp] = useState(false)
+  const kebabRef = useRef<HTMLDivElement>(null)
 
   const comp = selectedComp as any
 
@@ -1471,6 +1523,26 @@ export default function CompAdminPage() {
     if (k === 'requiresFee') { setRequiresFee(v); updateComp(comp?.id, { requires_payment_fee: v } as any) }
     if (k === 'entryFee')    { setEntryFee(v);    updateComp(comp?.id, { entry_fee_amount: v }    as any) }
   }, [comp?.id, updateComp])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node))
+        setShowKebab(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const deleteComp = async () => {
+    setShowKebab(false)
+    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters, tribes, predictions and data will be lost.`)) return
+    if (!confirm(`Final confirmation: delete ${comp?.name}?`)) return
+    setDeletingComp(true)
+    const res = await fetch('/api/comps/create', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id }) })
+    setDeletingComp(false)
+    if (res.ok) { toast.success('Comp deleted'); window.location.href = '/' }
+    else { const d = await res.json(); toast.error(d.error ?? 'Failed to delete comp') }
+  }
 
   if (ctxLoading || loading) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
@@ -1509,6 +1581,22 @@ export default function CompAdminPage() {
           tier === 'enterprise' ? 'bg-violet-100 text-violet-700' : tier === 'business' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>
           {tier}
         </span>
+        {/* Kebab menu */}
+        <div className="relative flex-shrink-0" ref={kebabRef}>
+          <button onClick={() => setShowKebab(v => !v)}
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-lg font-bold leading-none">
+            ···
+          </button>
+          {showKebab && (
+            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-30 min-w-[160px] overflow-hidden">
+              <button onClick={deleteComp} disabled={deletingComp}
+                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40 text-left">
+                {deletingComp ? <Spinner className="w-4 h-4 text-red-500" /> : <span className="text-base">🗑️</span>}
+                Delete comp
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab nav — scrollable on mobile */}
@@ -1544,7 +1632,7 @@ export default function CompAdminPage() {
             </div>
       )}
       {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} />}
-      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
     </div>
