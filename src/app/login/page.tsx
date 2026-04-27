@@ -42,6 +42,7 @@ export default function LoginPage() {
   }, [tabParam])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
+  const [sentMode, setSentMode] = useState<Mode>('register')
 
   // Registration fields
   const [email,    setEmail]    = useState('')
@@ -150,7 +151,7 @@ export default function LoginPage() {
       })
       setLoading(false)
       if (error) setError(error.message)
-      else setRegistered(true)  // reuse "check email" screen for magic link
+      else { setSentMode('magic'); setRegistered(true) }
       return
     }
 
@@ -162,7 +163,7 @@ export default function LoginPage() {
       setLoading(false)
       if (error) setError(error.message.toLowerCase().includes('rate limit')
         ? 'Too many attempts — please wait a few minutes.' : error.message)
-      else setRegistered(true)
+      else { setSentMode('reset'); setRegistered(true) }
       return
     }
 
@@ -289,7 +290,7 @@ export default function LoginPage() {
         }
 
         // Show "check your email" confirmation
-        setRegistered(true)
+        setSentMode('register'); setRegistered(true)
       }
     }
   }
@@ -370,29 +371,56 @@ export default function LoginPage() {
   }
 
   // ── Screen: Check email ───────────────────────────────────
-  if (registered) return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
-      <div className="max-w-sm w-full text-center">
-        <div className="text-6xl mb-5">📬</div>
-        <h1 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h1>
-        <p className="text-sm text-gray-600 mb-2">
-          We sent a verification link to <strong>{email}</strong>.
-        </p>
-        <p className="text-sm text-gray-500 mb-6">
-          Click the link in the email to verify your account, then come back here to sign in.
-        </p>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
-          <p className="text-xs font-semibold text-amber-800 mb-1">⚠️ Don't skip this step</p>
-          <p className="text-xs text-amber-700">You won't be able to sign in until your email is verified.</p>
+  if (registered) {
+    const emailScreenCopy = {
+      register: {
+        icon:    '📬',
+        title:   'Check your email',
+        body:    `We sent a verification link to`,
+        detail:  'Click the link to activate your account, then come back here to sign in.',
+        warning: true,
+      },
+      magic: {
+        icon:    '✨',
+        title:   'Magic link sent!',
+        body:    `We sent a sign-in link to`,
+        detail:  'Click the link to sign in instantly — it expires in 10 minutes.',
+        warning: false,
+      },
+      reset: {
+        icon:    '🔐',
+        title:   'Check your email',
+        body:    `We sent a password reset link to`,
+        detail:  'Click the link to choose a new password — it expires in 1 hour.',
+        warning: false,
+      },
+    } as const
+    const copy = emailScreenCopy[sentMode as keyof typeof emailScreenCopy] ?? emailScreenCopy.register
+
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+        <div className="max-w-sm w-full text-center">
+          <div className="text-6xl mb-5">{copy.icon}</div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">{copy.title}</h1>
+          <p className="text-sm text-gray-600 mb-2">
+            {copy.body} <strong>{email}</strong>.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">{copy.detail}</p>
+          {copy.warning && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
+              <p className="text-xs font-semibold text-amber-800 mb-1">⚠️ Don't skip this step</p>
+              <p className="text-xs text-amber-700">You won't be able to sign in until your email is verified.</p>
+            </div>
+          )}
+          <button onClick={() => { setRegistered(false); setMode('login'); setError(null) }}
+            className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl">
+            Back to sign in
+          </button>
+          <p className="text-xs text-gray-400 mt-4">Didn't receive it? Check your spam folder.</p>
         </div>
-        <button onClick={() => { setRegistered(false); setMode('login'); setError(null) }}
-          className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl">
-          Back to sign in
-        </button>
-        <p className="text-xs text-gray-400 mt-4">Didn't receive it? Check your spam folder.</p>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ── Screen: First-login onboarding ───────────────────────
   if (showOnboarding) return (

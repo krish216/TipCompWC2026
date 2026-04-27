@@ -492,83 +492,65 @@ export default function HomePage() {
           ) : !step2Done ? (
 
             /* ── Onboarding hero — shown until user joins or creates a comp ── */
-            <div style={{
-              background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
-              borderRadius: 20, padding: '24px 20px', marginBottom: 16,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18)', position: 'relative', overflow: 'hidden',
-            }}>
-              <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '12px 12px' }} />
-              <div style={{ position: 'relative' }}>
-                <p style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
-                  Hey {displayName ? `${displayName}!` : 'there!'} 👋
-                </p>
-                <p style={{ margin: '0 0 20px', fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
-                  {selectedTourn
-                    ? `Predict every ${selectedTourn.name} match and compete with your tribe.`
-                    : 'Predict every match and compete with your tribe.'}
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                  {/* Step 1 — always done */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                      background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, color: '#fff',
-                    }}>✓</span>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>
-                      Join TribePicks
-                    </p>
-                  </div>
-
-                  {/* Step 2 — active: join or create comp */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                      background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.4)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)',
-                    }}>2</span>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: '#fff' }}>
-                        Join or create a comp
-                      </p>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <button onClick={() => setModal('join')} style={{
-                          padding: '12px 8px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
-                          background: 'rgba(255,255,255,0.08)', cursor: 'pointer', textAlign: 'center',
-                        }}>
-                          <p style={{ margin: '0 0 3px', fontSize: 20 }}>🔑</p>
-                          <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#fff' }}>Join a comp</p>
-                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>Have a code</p>
-                        </button>
-                        <button onClick={() => setModal('create')} style={{
-                          padding: '12px 8px', borderRadius: 12, border: '1px solid rgba(74,222,128,0.35)',
-                          background: 'rgba(74,222,128,0.12)', cursor: 'pointer', textAlign: 'center',
-                        }}>
-                          <p style={{ margin: '0 0 3px', fontSize: 20 }}>🏆</p>
-                          <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#4ade80' }}>Create a comp</p>
-                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(74,222,128,0.55)' }}>For my group</p>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 3 — locked until step 2 done */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.4 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                      background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.25)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)',
-                    }}>3</span>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
-                      Join a tribe
-                    </p>
-                  </div>
-
+            <div className="rounded-2xl overflow-hidden mb-4 shadow-lg">
+              {/* Header band */}
+              <div style={{
+                background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)',
+                padding: '20px 20px 16px', position: 'relative', overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '12px 12px' }} />
+                <div style={{ position: 'relative' }}>
+                  <p style={{ margin: '0 0 2px', fontSize: 19, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px' }}>
+                    Welcome, {displayName ?? 'there'}! 👋
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                    One quick step before you start tipping.
+                  </p>
                 </div>
+              </div>
+
+              {/* Step list on white background */}
+              <div className="bg-white border border-t-0 border-gray-200 rounded-b-2xl divide-y divide-gray-100">
+
+                {/* Step 1 — done */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-700">Joined TribePicks</p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Done</span>
+                </div>
+
+                {/* Step 2 — active */}
+                <div className="px-4 py-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">2</span>
+                    <p className="text-sm font-semibold text-gray-900">Join or create a comp</p>
+                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-auto">Now</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setModal('join')}
+                      className="flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 border-gray-200 hover:border-green-400 hover:bg-green-50 transition-all text-center group">
+                      <span className="text-2xl">🔑</span>
+                      <p className="text-xs font-bold text-gray-800 group-hover:text-green-700">Join a comp</p>
+                      <p className="text-[10px] text-gray-400">Have an invite code</p>
+                    </button>
+                    <button onClick={() => setModal('create')}
+                      className="flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 border-emerald-400 bg-emerald-50 hover:bg-emerald-100 transition-all text-center">
+                      <span className="text-2xl">🏆</span>
+                      <p className="text-xs font-bold text-emerald-700">Create a comp</p>
+                      <p className="text-[10px] text-emerald-500">For my group</p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step 3 — locked */}
+                <div className="flex items-center gap-3 px-4 py-3 opacity-40">
+                  <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">3</span>
+                  <p className="text-sm font-semibold text-gray-500">Join a tribe</p>
+                  <span className="text-[11px] text-gray-400 ml-auto">Unlocks next</span>
+                </div>
+
               </div>
             </div>
 
