@@ -28,7 +28,7 @@ const FAQS = [
   { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team at registration or on the My Tips page. You earn double points on any match involving that team in the Group Stage only. For example, a correct result (Home team Win/Draw/Away team Win) in the group stage earns 6 pts instead of 3.' },
   { q: 'What happens if the Bonus Points team I picked lost?', a: 'You earn double points if you pick the correct result regarless of whether your Bonus Team wins, draws or loses.' },
   { q: 'Can I change my Bonus Points team?', a: 'Yes — go to Settings and update your Bonus Points team at any time before the tournament kicks off. The new team applies to all unscored matches going forward.' },
-  { q: 'How are leaderboard ties broken?', a: 'Tied players are ranked by bonus score count, then correct result count, then alphabetically.' },
+  { q: 'How are leaderboard ties broken?', a: 'Tied players are ranked by bonus score count, then base points earned, then alphabetically.' },
   { q: 'Can I see the leaderboard after each round?', a: 'Yes — the Leaderboard page has snapshot views showing standings after the Group Stage, Rd of 32, Rd of 16, Quarters, Semis, and Finals.' },
   { q: 'Can I be in multiple tribes?', a: 'No — you can only belong to one tribe at a time. Leave your current tribe to join another.' },
   { q: 'What happens to my tribe after the tournament?', a: "Tribes persist for future competitions. We'll add Premier League, Champions League and more after the World Cup." },
@@ -51,7 +51,7 @@ export default function RulesPage() {
           <div className="grid grid-cols-[1fr_70px_64px_80px] text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-4 py-2 bg-gray-50 border-b border-gray-200">
             <span>Round</span>
             <div className="text-center leading-tight"><span>Pick type</span></div>
-            <div className="text-right leading-tight"><span className="text-blue-600">✓</span><br/><span>Correct</span></div>
+            <div className="text-right leading-tight"><span className="text-green-700">Base</span><br/><span>pts</span></div>
             <div className="text-right leading-tight"><span className="text-amber-600">⚡</span><br/><span>Bonus pts</span></div>
           </div>
           {SCORING_ROWS.map(({ rid, label, badge, highlight }) => {
@@ -73,7 +73,7 @@ export default function RulesPage() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-semibold text-blue-700">{sc?.result_pts ?? 0}</span>
+                  <span className="text-sm font-semibold text-green-700">{sc?.result_pts ?? 0}</span>
                 </div>
                 <div className="text-right text-[11px] space-y-0.5">
                   {exactBonus > 0 && <div className="text-purple-600 font-semibold">+{exactBonus} exact score</div>}
@@ -86,7 +86,8 @@ export default function RulesPage() {
         </div>
         <div className="mt-3 flex gap-3 flex-wrap text-xs text-gray-500">
           <span><span className="font-medium text-blue-600">1/X/2</span> — Pick home win (1), draw (X), or away win (2)</span>
-          <span><span className="font-medium text-purple-700">★ Bonus</span> — exact score (+5 pts, Semi-finals, 3rd Place &amp; Final only)</span>
+          <span><span className="font-medium text-green-700">Base pts</span> — points earned for a correct result prediction</span>
+          <span><span className="font-medium text-purple-700">+Bonus</span> — extra pts for exact score, penalties &amp; fav team</span>
           <span><span className="font-medium text-gray-500">✗ Wrong</span> — 0 pts</span>
         </div>
         <p className="text-xs text-gray-400 mt-2">Semi-finals, 3rd place play-off and Final require a bonus score prediction. All other rounds use 1/X/2 outcome only.</p>

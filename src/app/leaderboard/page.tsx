@@ -192,7 +192,8 @@ export default function LeaderboardPage() {
   const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null)
   const [error,     setError]     = useState<string | null>(null)
   const [message,   setMessage]   = useState<string | null>(null)
-  const [expanded,  setExpanded]  = useState<string | null>(null)
+  const [expanded,   setExpanded]   = useState<string | null>(null)
+  const [sortRound,  setSortRound]  = useState<string | null>(null)
   const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
@@ -275,7 +276,19 @@ export default function LeaderboardPage() {
   }, [supabase, session, scope])
 
   const filteredEntries = useMemo(() => {
-    if (roundView === 'all') return entries.map((e, i) => ({ ...e, rank: i + 1 }))
+    if (roundView === 'all') {
+      const base = entries.filter(e => (e.total_points ?? 0) > 0)
+      if (sortRound) {
+        const sorted = [...base].sort((a, b) => {
+          const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
+          const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
+          return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
+        })
+        return sorted.map((e, i) => ({ ...e, rank: i + 1 }))
+      }
+      return base.map((e, i) => ({ ...e, rank: i + 1 }))
+    }
+
     const validRounds = new Set(
       SNAPSHOT_TO_ROUNDS[roundView as string] ??
       (ROUND_ORDER.includes(roundView as RoundId)
@@ -285,7 +298,6 @@ export default function LeaderboardPage() {
     return entries
       .map(e => {
         const rb  = e.round_breakdown ?? {}
-        // Ensure values are numbers (JSON may return strings)
         const pts = Object.entries(rb)
           .filter(([r]) => validRounds.has(r as RoundId))
           .reduce((sum, [, v]) => sum + Number(v), 0)
@@ -298,7 +310,7 @@ export default function LeaderboardPage() {
           : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
       )
       .map((e, i) => ({ ...e, rank: i + 1 }))
-  }, [entries, roundView])
+  }, [entries, roundView, sortRound, SNAPSHOT_TO_ROUNDS, ROUND_ORDER])
 
   // Previous snapshot rankings — for movement arrows (compare consecutive non-'all' snapshots)
   const prevFilteredEntries = useMemo(() => {
@@ -496,7 +508,7 @@ export default function LeaderboardPage() {
                 const isActive = roundView === r.id
                 const isLive   = r.id === liveSnapshotId
                 return (
-                  <button key={r.id} onClick={() => setRoundView(r.id)}
+                  <button key={r.id} onClick={() => { setRoundView(r.id); setSortRound(null) }}
                     className={clsx(
                       'relative flex flex-col items-center justify-center',
                       'px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap',
@@ -575,6 +587,33 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
+              {/* Sort by round — Overall view only */}
+              {roundView === 'all' && ROUND_SNAPSHOTS.length > 1 && (
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="text-[11px] text-gray-400 font-medium">Sort by</span>
+                  <div className="flex gap-1 flex-wrap bg-gray-100 p-0.5 rounded-lg">
+                    <button
+                      onClick={() => setSortRound(null)}
+                      className={clsx(
+                        'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors',
+                        sortRound === null ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      )}>
+                      Overall
+                    </button>
+                    {ROUND_SNAPSHOTS.filter(r => r.id !== 'all').map(r => (
+                      <button key={r.id}
+                        onClick={() => setSortRound(r.id)}
+                        className={clsx(
+                          'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors',
+                          sortRound === r.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        )}>
+                        {r.shortLabel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Table */}
               <Card className="overflow-hidden p-0">
                 <div className="grid grid-cols-[32px_1fr_80px_60px_60px] gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
@@ -582,7 +621,7 @@ export default function LeaderboardPage() {
                   <span>Player</span>
                   <span className="text-right">Points</span>
                   <span className="text-right text-amber-600">+Bonus</span>
-                  <span className="text-right">✓</span>
+                  <span className="text-right text-green-700">Base</span>
                 </div>
 
                 {filteredEntries.map((entry, i) => {
@@ -656,7 +695,9 @@ export default function LeaderboardPage() {
                           </span>
                         </div>
                         <div className="flex items-center justify-end">
-                          <span className="text-xs text-blue-700 font-medium">{entry.correct_count}</span>
+                          <span className="text-xs text-green-700 font-medium">
+                            {(entry.total_points ?? 0) - (entry.total_bonus_points ?? 0)}
+                          </span>
                         </div>
                       </button>
 
@@ -698,9 +739,9 @@ export default function LeaderboardPage() {
                 })}
               </Card>
 
-              <div className="flex gap-4 mt-3 text-[11px] text-gray-400">
-                <span><span className="text-amber-600 font-medium">+Bonus</span> = pts from exact score, pen winner &amp; fav team</span>
-                <span><span className="text-blue-600 font-medium">✓</span> = correct results</span>
+              <div className="flex gap-4 mt-3 text-[11px] text-gray-400 flex-wrap">
+                <span><span className="text-amber-600 font-medium">+Bonus</span> = exact score, pen winner &amp; fav team pts</span>
+                <span><span className="text-green-700 font-medium">Base</span> = pts for correct result (excl. bonus)</span>
               </div>
 
             </>
