@@ -1,7 +1,7 @@
 'use client'
 // v3 — roundview type fix
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -193,6 +193,7 @@ export default function LeaderboardPage() {
   const [error,     setError]     = useState<string | null>(null)
   const [message,   setMessage]   = useState<string | null>(null)
   const [expanded,  setExpanded]  = useState<string | null>(null)
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
     setLoading(true); setError(null); setMessage(null)
@@ -201,6 +202,10 @@ export default function LeaderboardPage() {
       const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}`
       const res  = await fetch(url)
       const json = await res.json().catch(() => ({}))
+      if (res.status === 401) {
+        setLoading(false)
+        return  // Session expired — silently bail; router guard will redirect
+      }
       if (!res.ok) {
         // Surface the API error message rather than a generic "Failed to fetch"
         setError(json?.error ?? `Error ${res.status} — please try refreshing`)
@@ -258,9 +263,15 @@ export default function LeaderboardPage() {
     if (!session) return
     const channel = supabase.channel('lb-realtime')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'predictions' },
-        () => fetchLeaderboard(scope))
+        () => {
+          if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current)
+          realtimeTimerRef.current = setTimeout(() => fetchLeaderboard(scope), 2000)
+        })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current)
+      supabase.removeChannel(channel)
+    }
   }, [supabase, session, scope])
 
   const filteredEntries = useMemo(() => {

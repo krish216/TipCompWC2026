@@ -1101,7 +1101,7 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
             className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white">
             <option value="">Select a tipster…</option>
             {eligibleAdmins.map(t => (
-              <option key={t.user_id} value={t.user_id}>{t.display_name}</option>
+              <option key={t.user_id} value={t.user_id}>{t.display_name} — {t.email}</option>
             ))}
           </select>
           <button onClick={grantAdmin} disabled={grantingAdmin || !selectedAdminUid}

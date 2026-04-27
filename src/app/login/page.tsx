@@ -532,7 +532,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50">
       <div className="max-w-sm w-full">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">⚽</div>
+          <div className="flex justify-center mb-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="TribePicks" className="h-16 w-auto"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          </div>
           <h1 className="text-xl font-semibold text-gray-900">TribePicks</h1>
           <p className="text-sm text-gray-500 mt-1">Predict every match. Beat your tribe.</p>
         </div>
