@@ -1,31 +1,34 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
-import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 
 // ── CompModal ─────────────────────────────────────────────────────────────────
-// Step-based flow matching the login/onboarding page pattern.
-// Steps: choose → join | create
+// Steps: choose → join | create → created
 function CompModal({
   mode: initialMode,
   tournamentId,
+  tournament,
   onSuccess,
+  onManageComp,
   onClose,
 }: {
-  mode:         'join' | 'create'
-  tournamentId: string | null
-  onSuccess:    (comp: { id: string; name: string; logo_url?: string | null }) => void
-  onClose:      () => void
+  mode:          'join' | 'create'
+  tournamentId:  string | null
+  tournament:    Tournament | null
+  onSuccess:     (comp: { id: string; name: string; logo_url?: string | null }) => void
+  onManageComp?: (comp: { id: string; name: string }) => void
+  onClose:       () => void
 }) {
-  const { session, supabase } = useSupabase()
-  const fileRef = useRef<HTMLInputElement>(null)
+  const { session } = useSupabase()
 
-  type Step = 'choose' | 'join' | 'create'
+  type Step = 'choose' | 'join' | 'create' | 'created'
   const [step,        setStep]        = useState<Step>(initialMode === 'create' ? 'create' : initialMode === 'join' ? 'join' : 'choose')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
@@ -38,10 +41,8 @@ function CompModal({
 
   // Create
   const [compName,    setCompName]    = useState('')
-  const [phone,       setPhone]       = useState('')
-  const [email,       setEmail]       = useState('')
-  const [logoFile,    setLogoFile]    = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [createdComp, setCreatedComp] = useState<{ id: string; name: string; invite_code?: string } | null>(null)
+  const [copied,      setCopied]      = useState(false)
 
   const lookupCode = async () => {
     if (code.length < 6) return
@@ -74,36 +75,15 @@ function CompModal({
     const { data: comp, error: err } = await fetch('/api/comps/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: compName.trim(), owner_phone: phone.trim(),
-        owner_email: email.trim(), owner_name: '',
+        name: compName.trim(), owner_name: '',
         user_id: session.user.id, email: session.user.email,
         tournament_id: tournamentId,
       }),
     }).then(r => r.json())
-    if (err || !comp) { setError(err ?? 'Failed to create comp'); setLoading(false); return }
-    let logoUrl: string | null = null
-    if (logoFile) {
-      const ext = logoFile.name.split('.').pop()
-      const p   = `${session.user.id}/logo.${ext}`
-      const { data: uploaded } = await supabase.storage.from('org-logos').upload(p, logoFile, { upsert: true })
-      if (uploaded) {
-        const { data: u } = supabase.storage.from('org-logos').getPublicUrl(p)
-        logoUrl = u.publicUrl
-        await fetch('/api/comps/create', {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ comp_id: comp.id, logo_url: logoUrl, user_id: session.user.id }),
-        })
-      }
-    }
     setLoading(false)
-    onSuccess({ id: comp.id, name: comp.name, logo_url: logoUrl })
-  }
-
-  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return
-    if (f.size > 2 * 1024 * 1024) { setError('Logo must be under 2MB'); return }
-    setLogoFile(f)
-    const r = new FileReader(); r.onloadend = () => setLogoPreview(r.result as string); r.readAsDataURL(f)
+    if (err || !comp) { setError(err ?? 'Failed to create comp'); return }
+    setCreatedComp({ id: comp.id, name: comp.name, invite_code: comp.invite_code })
+    setStep('created')
   }
 
   const content = (
@@ -120,24 +100,26 @@ function CompModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-3">
-            {step !== 'choose' && (
+            {step !== 'choose' && step !== 'created' && (
               <button onClick={() => { setStep('choose'); setError(null); setCodeErr(null) }}
                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
                 ← Back
               </button>
             )}
             <div className="text-2xl">
-              {step === 'choose' ? '🏆' : step === 'join' ? '🔑' : '✨'}
+              {step === 'choose' ? '🏆' : step === 'join' ? '🔑' : step === 'created' ? '✅' : '✨'}
             </div>
             <div>
               <h2 className="text-base font-semibold text-gray-900">
                 {step === 'choose' ? 'Join or create a comp'
                   : step === 'join' ? 'Join a comp'
+                  : step === 'created' ? 'Comp created!'
                   : 'Create a comp'}
               </h2>
               <p className="text-xs text-gray-500">
                 {step === 'choose' ? 'Choose an option below'
                   : step === 'join' ? 'Enter your invite code'
+                  : step === 'created' ? 'Invite your group to start competing'
                   : 'Set up your group competition'}
               </p>
             </div>
@@ -210,45 +192,63 @@ function CompModal({
           {/* ── CREATE ── */}
           {step === 'create' && (
             <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+              {tournament && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
+                  {tournament.logo_url
+                    ? <img src={tournament.logo_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                    : <span className="text-sm flex-shrink-0">⚽</span>}
+                  <span className="text-xs font-semibold text-green-800">{tournament.name}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name <span className="text-red-500">*</span></label>
                 <input type="text" value={compName} onChange={e => setCompName(e.target.value)}
                   placeholder="e.g. The Friday Five" autoFocus maxLength={60}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                    placeholder="+61 4xx"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Email <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Logo <span className="text-gray-400 font-normal">(optional, max 2MB)</span></label>
-                <div className="flex items-center gap-3">
-                  {logoPreview
-                    ? <img src={logoPreview} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-                    : <div className="w-10 h-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-xl flex-shrink-0">🏢</div>
-                  }
-                  <button type="button" onClick={() => fileRef.current?.click()}
-                    className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
-                    {logoFile ? 'Change logo' : 'Upload logo'}
-                  </button>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
-                </div>
-              </div>
               {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
               <button onClick={handleCreate} disabled={loading || !compName.trim()}
                 className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
                 {loading && <Spinner className="w-4 h-4 text-white" />}
                 {!compName.trim() ? 'Enter a comp name to continue' : `Create ${compName} →`}
+              </button>
+            </div>
+          )}
+
+          {/* ── CREATED ── */}
+          {step === 'created' && createdComp && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-900 mb-0.5">{createdComp.name}</p>
+                <p className="text-xs text-gray-500">Your comp is ready to go!</p>
+              </div>
+              {createdComp.invite_code && (
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1.5">Invite code</p>
+                  <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span className="flex-1 text-sm font-mono font-bold text-gray-800 tracking-widest">{createdComp.invite_code}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdComp.invite_code!)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                      }}
+                      className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 px-2 py-1 rounded transition-colors flex-shrink-0">
+                      {copied ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Share this code with your group to join</p>
+                </div>
+              )}
+              <button
+                onClick={() => onManageComp?.({ id: createdComp.id, name: createdComp.name })}
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl">
+                Manage comp &amp; invite tipsters →
+              </button>
+              <button
+                onClick={() => onSuccess({ id: createdComp.id, name: createdComp.name })}
+                className="w-full py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                Done
               </button>
             </div>
           )}
@@ -264,6 +264,7 @@ function CompModal({
 
 
 export default function HomePage() {
+  const router = useRouter()
   const { session, supabase } = useSupabase()
 
   // User profile
@@ -916,7 +917,10 @@ export default function HomePage() {
                                   ? 'bg-green-600 text-white shadow-sm'
                                   : 'bg-white border border-gray-200 text-gray-500 hover:border-green-400'
                               }`}>
-                              ⚽ {t.name}
+                              {t.logo_url
+                                ? <img src={t.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover flex-shrink-0" />
+                                : <span>⚽</span>}
+                              {t.name}
                             </button>
                           )
                         })}
@@ -924,7 +928,10 @@ export default function HomePage() {
                     )}
                     {activeTournaments.length === 1 && selectedTourn && (
                       <p className="text-xs text-gray-400 mb-0.5 flex items-center gap-1.5">
-                        <span>⚽</span>{selectedTourn.name}
+                        {selectedTourn.logo_url
+                          ? <img src={selectedTourn.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover flex-shrink-0" />
+                          : <span>⚽</span>}
+                        {selectedTourn.name}
                       </p>
                     )}
                     {roundName && pct !== null && (
@@ -1020,14 +1027,18 @@ export default function HomePage() {
         <CompModal
           mode={modal}
           tournamentId={selectedTournId}
+          tournament={selectedTourn}
           onClose={() => setModal(null)}
           onSuccess={async (comp) => {
             setModal(null)
-            // Add to tournsComps list and select it
             await pickComp(comp as any)
-            // Re-fetch full comp list — pass comp.id so the new comp stays selected
-            // (refreshComps closure may capture the old selectedCompId)
             await refreshComps(comp.id)
+          }}
+          onManageComp={async (comp) => {
+            setModal(null)
+            await pickComp(comp as any)
+            await refreshComps(comp.id)
+            router.push('/comp-admin')
           }}
         />
       )}
@@ -1049,9 +1060,14 @@ export default function HomePage() {
           : null
         return (
           <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              {t?.name ?? 'Tournament'}
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              {t?.logo_url
+                ? <img src={t.logo_url} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
+                : <span className="text-sm">⚽</span>}
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {t?.name ?? 'Tournament'}
+              </p>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               {stats.map(s => (
                 <div key={s.label} className="bg-white rounded-lg border border-gray-100 py-2.5 px-2">

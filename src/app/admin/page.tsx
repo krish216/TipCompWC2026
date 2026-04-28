@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Spinner, EmptyState, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -163,8 +163,10 @@ export default function AdminPage() {
   const [grantingAccess, setGrantingAccess] = useState(false)
 
   // Tournament tab state
-  const [tournLoading,   setTournLoading]   = useState(false)
-  const [tournamentData, setTournamentData] = useState<any>(null)
+  const [tournLoading,    setTournLoading]    = useState(false)
+  const [tournamentData,  setTournamentData]  = useState<any>(null)
+  const [logoUploading,   setLogoUploading]   = useState(false)
+  const logoFileRef = useRef<HTMLInputElement>(null)
 
   // ── Load ─────────────────────────────────────────────────
   // Set initial active round from DB when rounds load
@@ -288,6 +290,37 @@ export default function AdminPage() {
     const res = await fetch('/api/leaderboard/refresh', { method: 'POST' }).catch(() => null)
     if (res?.ok) toast.success('Leaderboard refreshed')
     else toast('Leaderboard auto-refreshes after each result save', { icon: 'ℹ️' })
+  }
+
+  // ── Tournament logo upload ────────────────────────────────────
+  const handleTournamentLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !tournamentData?.id) return
+    if (file.size > 5 * 1024 * 1024) { toast.error('Logo must be under 5 MB'); return }
+    setLogoUploading(true)
+    try {
+      const ext  = file.name.split('.').pop()
+      const path = `tournaments/${tournamentData.id}/logo.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('org-logos').upload(path, file, { upsert: true })
+      if (uploadError) { toast.error('Upload failed: ' + uploadError.message); return }
+      const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
+      const logoUrl = urlData.publicUrl
+      const res = await fetch('/api/tournaments', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tournamentData.id, logo_url: logoUrl }),
+      })
+      if (res.ok) {
+        setTournamentData((prev: any) => ({ ...prev, logo_url: logoUrl }))
+        toast.success('Tournament logo updated')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Failed to update logo')
+      }
+    } finally {
+      setLogoUploading(false)
+      if (logoFileRef.current) logoFileRef.current.value = ''
+    }
   }
 
   // ── Retroactive predictions toggle ───────────────────────────
@@ -675,6 +708,29 @@ export default function AdminPage() {
           {/* Tournament info */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Tournament Details</h3>
+
+            {/* Logo */}
+            <div className="flex items-center gap-4 pb-4 mb-4 border-b border-gray-100">
+              <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {tournamentData?.logo_url
+                  ? <img src={tournamentData.logo_url} alt="Tournament logo" className="w-full h-full object-cover" />
+                  : <span className="text-2xl">⚽</span>
+                }
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-700 mb-1.5">Tournament Logo</p>
+                <button
+                  onClick={() => logoFileRef.current?.click()}
+                  disabled={logoUploading || !tournamentData}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                  {logoUploading ? <Spinner className="w-3 h-3" /> : null}
+                  {tournamentData?.logo_url ? 'Change logo' : 'Upload logo'}
+                </button>
+                <p className="text-[10px] text-gray-400 mt-1">PNG, JPG or SVG · max 5 MB</p>
+                <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleTournamentLogoUpload} />
+              </div>
+            </div>
+
             {tournamentData ? (
               <div className="space-y-2">
                 {[

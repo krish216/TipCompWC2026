@@ -10,6 +10,7 @@ export interface Tournament {
   slug:           string
   status:         string
   is_active:      boolean
+  logo_url?:      string | null
   start_date?:    string | null
   end_date?:      string | null
   total_matches?: number | null
