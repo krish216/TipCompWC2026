@@ -25,9 +25,9 @@ const FAQS = [
   { q: 'When do predictions lock?', a: '5 minutes before the first match in the round kicks off. You can edit predictions right up until that point.' },
   { q: "What if I haven't entered a prediction?", a: 'Unpredicted matches earn 0 points regardless of the result. There is no default — blank means 0.' },
   { q: 'Do knockout matches count more?', a: 'Yes — points increase with every round. A correct result in the final is worth 25 pts vs 3 pts in the group stage. Note: the 3rd place play-off has lower points than the semi-finals.' },
-  { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team at registration or on the My Tips page. You earn double points on any match involving that team in the Group Stage only. For example, a correct result (Home team Win/Draw/Away team Win) in the group stage earns 6 pts instead of 3.' },
-  { q: 'What happens if the Bonus Points team I picked lost?', a: 'You earn double points if you pick the correct result regarless of whether your Bonus Team wins, draws or loses.' },
-  { q: 'Can I change my Bonus Points team?', a: 'Yes — go to Settings and update your Bonus Points team at any time before the tournament kicks off. The new team applies to all unscored matches going forward.' },
+  { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team on the My Tips page. You earn double base points on any match involving that team in the Group Stage only. For example, a correct result (Home/Draw/Away) in the Group Stage earns 6 pts instead of 3.' },
+  { q: 'What happens if the Bonus Points team I picked lost?', a: 'You earn double points if you pick the correct result regardless of whether your Bonus Team wins, draws or loses.' },
+  { q: 'Can I change my Bonus Points team?', a: 'Yes — go to My Tips and update your Bonus Points team at any time before the tournament kicks off. The new team applies to all unscored matches going forward.' },
   { q: 'How are leaderboard ties broken?', a: 'Tied players are ranked by bonus score count, then base points earned, then alphabetically.' },
   { q: 'Can I see the leaderboard after each round?', a: 'Yes — the Leaderboard page has snapshot views showing standings after the Group Stage, Rd of 32, Rd of 16, Quarters, Semis, and Finals.' },
   { q: 'Can I be in multiple tribes?', a: 'No — you can only belong to one tribe at a time. Leave your current tribe to join another.' },
@@ -41,7 +41,7 @@ export default function RulesPage() {
       <h1 className="text-lg font-semibold text-gray-900 mb-1">How to play</h1>
       <p className="text-sm text-gray-500 mb-6">
         Pick the winner or draw for every group stage and knockout match. For the Semi-finals, 3rd place play-off and Final, predict the exact score (for a bonus).
-        Earn more points in later rounds. Pick a Bonus Points team for double points in the Group Stage and Round of 32.
+        Earn more points in later rounds. Pick a Bonus Points team for double base points in the Group Stage only.
       </p>
 
       {/* Scoring table */}
@@ -83,7 +83,7 @@ export default function RulesPage() {
               </div>
             )
           })}
-        </div>
+        </div>r
         <div className="mt-3 flex gap-3 flex-wrap text-xs text-gray-500">
           <span><span className="font-medium text-blue-600">1/X/2</span> — Pick home win (1), draw (X), or away win (2)</span>
           <span><span className="font-medium text-green-700">Base pts</span> — points earned for a correct result prediction</span>
@@ -126,8 +126,8 @@ export default function RulesPage() {
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Bonus Points team ⭐</h2>
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700 mb-1">Pick one team at registration or on the My Tips page. You earn <strong className="text-purple-700">double points</strong> on any match involving your team when you tip the right result (H/D/A) — but only in the <strong>Group Stage</strong>.</p>
-          <p className="text-xs text-gray-500 mb-3">The bonus does not apply from the Round of 16 onwards.</p>
+          <p className="text-sm text-gray-700 mb-1">Pick one team on the My Tips page. You earn <strong className="text-purple-700">double base points</strong> on any match involving your team when you tip the right result (H/D/A) — but only in the <strong>Group Stage</strong>.</p>
+          <p className="text-xs text-gray-500 mb-3">The bonus does not apply from the Round of 32 onwards.</p>
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Group stage correct result', normal: 3, bonus: 6  },
@@ -170,7 +170,7 @@ export default function RulesPage() {
             { icon:'🔗', text:'Join a tribe from the My Tribe page' },
             { icon:'🏆', text:'Your tribe has its own private leaderboard updated in real time' },
             { icon:'💬', text:'Chat with your tribe — trash talk, predictions, and reactions' },
-            { icon:'⭐', text:'Bonus Points team points apply in tribe leaderboards too — use them wisely' },
+            { icon:'⭐', text:'Bonus Points team double points apply in tribe leaderboards too — use them wisely' },
           ].map(item => (
             <div key={item.icon} className="flex gap-3 items-start">
               <span className="text-base flex-shrink-0">{item.icon}</span>
