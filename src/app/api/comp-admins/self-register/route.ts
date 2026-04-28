@@ -54,5 +54,21 @@ export async function POST(request: NextRequest) {
       .ilike('email', user.email)
   }
 
+  // Auto-enrol in the comp's default tribe (if set and user not already in a tribe in this comp)
+  const { data: defaultTribe } = await (adminClient.from('tribes') as any)
+    .select('id').eq('comp_id', comp_id).eq('is_default', true).maybeSingle()
+  if (defaultTribe?.id) {
+    const { data: compTribes } = await (adminClient.from('tribes') as any).select('id').eq('comp_id', comp_id)
+    const compTribeIds = (compTribes ?? []).map((t: any) => t.id)
+    if (compTribeIds.length > 0) {
+      const { count: alreadyInTribe } = await (adminClient.from('tribe_members') as any)
+        .select('*', { count: 'exact', head: true }).eq('user_id', user.id).in('tribe_id', compTribeIds)
+      if (!alreadyInTribe) {
+        await (adminClient.from('tribe_members') as any)
+          .upsert({ user_id: user.id, tribe_id: defaultTribe.id }, { onConflict: 'user_id,tribe_id', ignoreDuplicates: true })
+      }
+    }
+  }
+
   return NextResponse.json({ success: true, comp_name: (org as any).name })
 }

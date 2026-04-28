@@ -155,7 +155,26 @@ export async function PATCH(request: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body   = await request.json().catch(() => null)
+  const body = await request.json().catch(() => null)
+
+  // Set-default path: body has { tribe_id, set_default: true } (no invite_code)
+  if (body?.set_default === true) {
+    const tribeId = body?.tribe_id as string | undefined
+    if (!tribeId) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
+    const { data: tribe } = await (adminClient.from('tribes') as any)
+      .select('id, comp_id').eq('id', tribeId).single()
+    if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+    const [{ data: ca }, { data: ta }] = await Promise.all([
+      (adminClient.from('comp_admins') as any).select('comp_id').eq('user_id', user.id).eq('comp_id', (tribe as any).comp_id).single(),
+      adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single(),
+    ])
+    if (!ca && !ta) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    await (adminClient.from('tribes') as any).update({ is_default: false }).eq('comp_id', (tribe as any).comp_id).eq('is_default', true)
+    await (adminClient.from('tribes') as any).update({ is_default: true }).eq('id', tribeId)
+    return NextResponse.json({ success: true })
+  }
+
+  // Join-by-invite-code path
   const parsed = JoinTribeSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid invite code' }, { status: 422 })
 
@@ -191,7 +210,6 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ data: tribe })
 }
 
-// DELETE /api/tribes — leave current tribe, or delete a tribe entirely (comp admin only)
 // If body contains tribe_id → admin deletes the whole tribe
 // If query param comp_id → user leaves their tribe in that comp
 export async function DELETE(request: NextRequest) {

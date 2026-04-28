@@ -8,20 +8,7 @@ import { Spinner } from '@/components/ui'
 type Mode    = 'login' | 'register' | 'magic' | 'reset'
 type OrgStep = 'choose' | 'join' | 'create'
 
-const ALL_TEAMS = [
-  'Algeria','Argentina','Australia','Austria','Belgium',
-  'Bosnia and Herzegovina','Brazil','Canada','Cape Verde',
-  'Colombia','Croatia','Curacao','Czechia','DR Congo',
-  'Ecuador','Egypt','England','France','Germany','Ghana',
-  'Haiti','Iran','Iraq','Ivory Coast','Japan','Jordan',
-  'Mexico','Morocco','Netherlands','New Zealand','Norway',
-  'Panama','Paraguay','Portugal','Qatar','Saudi Arabia',
-  'Scotland','Senegal','South Africa','South Korea','Spain',
-  'Sweden','Switzerland','Tunisia','Turkey','Uruguay',
-  'USA','Uzbekistan',
-].sort()
 
-const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
 
 export default function LoginPage() {
   const { supabase, session } = useSupabase()
@@ -54,11 +41,8 @@ export default function LoginPage() {
   const [captchaA]        = useState(() => Math.floor(Math.random() * 9) + 1)
   const [captchaB]        = useState(() => Math.floor(Math.random() * 9) + 1)
   const [captchaInput,    setCaptchaInput]    = useState('')
-  const [favTeam,      setFavTeam]      = useState('')
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string;start_date?:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
-  const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')
-  const [tournTeamsMap,  setTournTeamsMap]   = useState<Record<string, string[]>>({})
 
   // Post-registration screens
   const [registered, setRegistered] = useState(false)  // show "check email"
@@ -91,9 +75,6 @@ export default function LoginPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
-
-
   // Fetch active/upcoming tournaments for registration
   useEffect(() => {
     fetch('/api/tournaments')
@@ -102,19 +83,6 @@ export default function LoginPage() {
         const active = (data ?? []).filter((t: any) => t.is_active === true && t.status !== 'ended')
         setTournaments(active)
         if (active.length === 1) setSelectedTourn(active[0].id)
-        // Fetch teams from tournament_teams table for each active tournament
-        const tmap: Record<string, string[]> = {}
-        await Promise.all(active.map(async (t: any) => {
-          try {
-            const res  = await fetch(`/api/tournament-teams?tournament_id=${t.id}`)
-            const json = await res.json()
-            const teams = (json.teams ?? []).map((tm: any) => tm.name ?? tm).filter(Boolean).sort() as string[]
-            tmap[t.id] = teams.length > 0 ? teams : [...(t.teams ?? [])].sort()
-          } catch {
-            tmap[t.id] = [...(t.teams ?? [])].sort()
-          }
-        }))
-        setTournTeamsMap(tmap)
       })
       .catch(() => {})
   }, [])
@@ -280,7 +248,6 @@ export default function LoginPage() {
             body: JSON.stringify({
               user_id:        newUser.id,
               tournament_id:  tid,
-              favourite_team: favTeamForTourn || null,
             }),
           }).catch(() => {}) // fire-and-forget — row written before email confirmation
         }
@@ -779,26 +746,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Bonus team for selected tournament */}
-              {(selectedTourn || tournaments.length === 1) && !tournamentStarted && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Bonus Team <span className="text-gray-400 font-normal">(earn 2× points in early rounds)</span>
-                  </label>
-                  <select value={favTeamForTourn} onChange={e => setFavTeamForTourn(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                    <option value="">No Bonus team</option>
-                    {(tournTeamsMap[selectedTourn || tournaments[0]?.id] ?? ALL_TEAMS).map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  {favTeamForTourn && (
-                    <p className="text-[11px] text-purple-600 mt-1">
-                      ⭐ Double points on {favTeamForTourn} matches in Group Stage &amp; Rd of 32
-                    </p>
-                  )}
-                </div>
-              )}
 
             </>
           )}

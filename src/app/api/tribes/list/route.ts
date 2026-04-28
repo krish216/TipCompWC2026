@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const adminClient = createAdminClient()
 
   const { data, error } = await (adminClient.from('tribes') as any)
-    .select('id, name, description, invite_code').eq('comp_id', compId).order('name')
+    .select('id, name, description, invite_code, is_default').eq('comp_id', compId).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const tribes = (data ?? []) as any[]

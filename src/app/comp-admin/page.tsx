@@ -28,7 +28,7 @@ interface Invitation {
   display_name: string | null   // set if user has joined
   joined:       boolean
 }
-interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; member_count?: number; member_ids?: string[] }
+interface Tribe     { id: string; name: string; description?: string | null; invite_code: string; is_default: boolean; member_count?: number; member_ids?: string[] }
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
@@ -206,7 +206,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
   }
 
   const removeTipster = async (userId: string, displayName: string) => {
-    if (!confirm(`Remove ${displayName} from this comp? They will lose access to their predictions.`)) return
+    if (!confirm(`Remove ${displayName} from this comp? Their predictions are kept — they just won't appear in this comp's leaderboard.`)) return
     setRemoving(userId)
     const res = await fetch(`/api/comp-members?comp_id=${comp.id}&user_id=${userId}`, { method: 'DELETE' })
     setRemoving(null)
@@ -884,7 +884,7 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
 }
 
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
-function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
+function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; maxTribeSize: number; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
   const [name,            setName]            = useState(comp?.name ?? '')
   const [feeEnabled,      setFeeEnabled]      = useState(requiresFee)
   const [feeAmount,       setFeeAmount]       = useState(entryFee != null ? String(entryFee) : '')
@@ -892,6 +892,7 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
   const [savingName,      setSavingName]      = useState(false)
   const [newDomain,       setNewDomain]       = useState(domain ?? '')
   const [newMinAge,       setNewMinAge]       = useState(minAge ? String(minAge) : '')
+  const [newMaxTribeSize, setNewMaxTribeSize] = useState(String(maxTribeSize))
   const [selectedAdminUid, setSelectedAdminUid] = useState('')
   const [grantingAdmin,    setGrantingAdmin]    = useState(false)
   const [deletingComp,     setDeletingComp]     = useState(false)
@@ -927,6 +928,11 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
     const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: comp.id, min_age: age }) })
     if (res.ok) { onUpdate('minAge', age); toast.success(age ? `Minimum age set to ${age}` : 'Age restriction removed') } else toast.error('Failed')
   }
+  const saveMaxTribeSize = async () => {
+    const size = parseInt(newMaxTribeSize) || 15
+    const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, max_tribe_size: size }) })
+    if (res.ok) { onUpdate('maxTribeSize', size); toast.success(`Max tribe size set to ${size}`) } else toast.error('Failed')
+  }
   const grantAdmin = async () => {
     const tipster = eligibleAdmins.find(t => t.user_id === selectedAdminUid)
     if (!tipster) return
@@ -951,7 +957,7 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
   }
 
   const deleteComp = async () => {
-    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters, tribes, predictions and data will be lost.`)) return
+    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters and tribes will be removed. Predictions are linked to the tournament and will remain intact.`)) return
     if (!confirm(`Final confirmation: delete ${comp?.name}?`)) return
     setDeletingComp(true)
     const res = await fetch('/api/comps/create', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id }) })
@@ -1075,6 +1081,13 @@ function SettingsTab({ comp, tier, domain, minAge, requiresFee, entryFee, curren
             {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
           </div>
         )},
+        { title: 'Max tribe size', sub: 'Recommended members per tribe — used to prompt when to add more tribes', content: (
+          <div className="flex gap-2 items-center p-4">
+            <input type="number" min="2" max="200" value={newMaxTribeSize} onChange={e => setNewMaxTribeSize(e.target.value)} placeholder="15" className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+            <button onClick={saveMaxTribeSize} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
+            <span className="text-xs text-gray-400">members (default 15)</span>
+          </div>
+        )},
       ].map(s => (
         <Section key={s.title} title={s.title} sub={(s as any).sub}>{s.content}</Section>
       ))}
@@ -1149,8 +1162,9 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
   const [deleting,       setDeleting]       = useState<string | null>(null)
   const [expandedTribeId,setExpandedTribeId]= useState<string | null>(null)
   const [removingMember, setRemovingMember] = useState<string | null>(null)
-  const [addingMember,   setAddingMember]   = useState<string | null>(null)   // user_id being added
-  const [targetTribeId,  setTargetTribeId]  = useState<Record<string, string>>({}) // user_id -> selected tribe_id
+  const [addingMember,   setAddingMember]   = useState<string | null>(null)
+  const [targetTribeId,  setTargetTribeId]  = useState<Record<string, string>>({})
+  const [settingDefault, setSettingDefault] = useState<string | null>(null)
 
   // user_id → tribe_id map for quick lookup
   const userTribeMap = useMemo(() => {
@@ -1175,6 +1189,21 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     setCreating(false)
     if (err) { setError(res.status === 409 ? `"${name.trim()}" already exists` : err) }
     else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [{ ...data, member_ids: [] }, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
+  }
+
+  const setDefaultTribe = async (tribe: Tribe) => {
+    setSettingDefault(tribe.id)
+    const res = await fetch('/api/tribes', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tribe_id: tribe.id, set_default: true }),
+    })
+    setSettingDefault(null)
+    if (res.ok) {
+      setTribes(prev => prev.map(t => ({ ...t, is_default: t.id === tribe.id })))
+      toast.success(`"${tribe.name}" is now the default tribe`)
+    } else {
+      const d = await res.json(); toast.error(d.error ?? 'Failed')
+    }
   }
 
   const deleteTribe = async (tribe: Tribe) => {
@@ -1253,7 +1282,12 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
               <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="flex items-start justify-between px-4 py-3 gap-2 bg-gray-50/50">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-800">{t.name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-gray-800">{t.name}</p>
+                      {t.is_default && (
+                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Default</span>
+                      )}
+                    </div>
                     {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <button onClick={() => setExpandedTribeId(expanded ? null : t.id)}
@@ -1266,10 +1300,18 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
                       </button>
                     </div>
                   </div>
-                  <button onClick={() => deleteTribe(t)} disabled={deleting === t.id}
-                    className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
-                    {deleting === t.id ? '…' : 'Delete'}
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {!t.is_default && (
+                      <button onClick={() => setDefaultTribe(t)} disabled={settingDefault === t.id}
+                        className="text-[11px] text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40">
+                        {settingDefault === t.id ? '…' : 'Set default'}
+                      </button>
+                    )}
+                    <button onClick={() => deleteTribe(t)} disabled={deleting === t.id}
+                      className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40">
+                      {deleting === t.id ? '…' : 'Delete'}
+                    </button>
+                  </div>
                 </div>
 
                 {expanded && (
@@ -1456,6 +1498,7 @@ export default function CompAdminPage() {
   const [entryFee,     setEntryFee]     = useState<number | null>(null)
   const [domain,       setDomain]       = useState<string | null>(null)
   const [minAge,       setMinAge]       = useState<number | null>(null)
+  const [maxTribeSize, setMaxTribeSize] = useState<number>(15)
   const [showKebab,           setShowKebab]           = useState(false)
   const [deletingComp,        setDeletingComp]        = useState(false)
   const [freshBannerDismissed,setFreshBannerDismissed]= useState(false)
@@ -1484,14 +1527,16 @@ export default function CompAdminPage() {
       // Fee settings come from selectedComp which is loaded in UserPrefsContext
       setRequiresFee(comp.requires_payment_fee ?? false)
       setEntryFee(comp.entry_fee_amount ?? null)
+      setMaxTribeSize(comp.max_tribe_size ?? 15)
     }).finally(() => setLoading(false))
   }, [session, comp?.id])
 
   const handleSettingUpdate = useCallback((k: string, v: any) => {
     if (k === 'domain')      setDomain(v)
     if (k === 'minAge')      setMinAge(v)
-    if (k === 'requiresFee') { setRequiresFee(v); updateComp(comp?.id, { requires_payment_fee: v } as any) }
-    if (k === 'entryFee')    { setEntryFee(v);    updateComp(comp?.id, { entry_fee_amount: v }    as any) }
+    if (k === 'requiresFee')  { setRequiresFee(v);  updateComp(comp?.id, { requires_payment_fee: v } as any) }
+    if (k === 'entryFee')     { setEntryFee(v);     updateComp(comp?.id, { entry_fee_amount: v }    as any) }
+    if (k === 'maxTribeSize') setMaxTribeSize(v)
   }, [comp?.id, updateComp])
 
   useEffect(() => {
@@ -1505,7 +1550,7 @@ export default function CompAdminPage() {
 
   const deleteComp = async () => {
     setShowKebab(false)
-    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters, tribes, predictions and data will be lost.`)) return
+    if (!confirm(`Permanently delete "${comp?.name}"? This cannot be undone — all tipsters and tribes will be removed. Predictions are linked to the tournament and will remain intact.`)) return
     if (!confirm(`Final confirmation: delete ${comp?.name}?`)) return
     setDeletingComp(true)
     const res = await fetch('/api/comps/create', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id }) })
@@ -1569,7 +1614,7 @@ export default function CompAdminPage() {
         </div>
       </div>
 
-      {/* Fresh comp setup banner — shown until dismissed or a second tipster joins */}
+      {/* Fresh comp setup banner — shown until dismissed */}
       {tipsters.length === 1 && !freshBannerDismissed && (
         <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
           <div className="flex items-start justify-between px-4 pt-4 pb-2">
@@ -1588,11 +1633,11 @@ export default function CompAdminPage() {
               onClick={() => setActiveTab('tribes')}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${tribes.length > 1 ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
-                {tribes.length > 1 ? '✓' : '1'}
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${tipsters.length <= maxTribeSize ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
+                {tipsters.length <= maxTribeSize ? '✓' : '1'}
               </span>
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${tribes.length > 1 ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Add more Tribes</p>
+                <p className={`text-xs font-semibold ${tipsters.length <= maxTribeSize ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Add more Tribes</p>
                 <p className="text-[11px] text-gray-400">Group your tipsters into rivalry teams</p>
               </div>
               <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
@@ -1647,7 +1692,7 @@ export default function CompAdminPage() {
             </div>
       )}
       {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} />}
-      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
     </div>
