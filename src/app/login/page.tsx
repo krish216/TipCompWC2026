@@ -78,6 +78,9 @@ export default function LoginPage() {
   // Pending comp invitations for the logged-in user
   const [pendingInvites,    setPendingInvites]    = useState<any[]>([])
   const [joiningInviteId,   setJoiningInviteId]   = useState<string | null>(null)
+  const [decliningInviteId, setDecliningInviteId] = useState<string | null>(null)
+  const [blockFutureLogin,  setBlockFutureLogin]  = useState(false)
+  const [decliningLoginBusy,setDecliningLoginBusy]= useState(false)
 
   // Org join fields
   const [compCode,    setOrgCode]    = useState('')
@@ -324,6 +327,22 @@ export default function LoginPage() {
     finally { setJoiningInviteId(null) }
   }
 
+  // ── Onboarding: decline a pending invitation ─────────────
+  const declineInvitation = async (inv: any, block: boolean) => {
+    setDecliningLoginBusy(true)
+    try {
+      await fetch('/api/comp-invitations/pending', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitation_id: inv.invitation_id, block }),
+      })
+      setPendingInvites(prev => prev.filter(i => i.invitation_id !== inv.invitation_id))
+      setDecliningInviteId(null)
+      setBlockFutureLogin(false)
+    } finally {
+      setDecliningLoginBusy(false)
+    }
+  }
+
   // ── Onboarding: look up org code ──────────────────────────
   const lookupOrgCode = async () => {
     setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
@@ -487,25 +506,66 @@ export default function LoginPage() {
                   You've been invited to
                 </p>
                 {pendingInvites.map((inv: any) => (
-                  <button
-                    key={inv.invitation_id}
-                    onClick={() => acceptInvitation(inv)}
-                    disabled={joiningInviteId === inv.invitation_id || onboardingLoading}
-                    className="w-full flex items-center gap-3 bg-green-50 border-2 border-green-300 hover:border-green-500 rounded-xl p-4 text-left transition-colors disabled:opacity-60"
-                  >
-                    {inv.comp_logo_url
-                      ? <img src={inv.comp_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-green-200" />
-                      : <span className="text-2xl flex-shrink-0">🏆</span>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
-                      <p className="text-xs text-green-700 mt-0.5">Tap to join instantly — no code needed</p>
-                    </div>
-                    {joiningInviteId === inv.invitation_id
-                      ? <Spinner className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      : <span className="text-green-600 font-bold flex-shrink-0">Join →</span>
-                    }
-                  </button>
+                  <div key={inv.invitation_id} className="rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
+                    {decliningInviteId === inv.invitation_id ? (
+                      <div className="p-4 space-y-3">
+                        <p className="text-sm font-semibold text-gray-800">Decline <span className="text-green-700">{inv.comp_name}</span>?</p>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={blockFutureLogin}
+                            onChange={e => setBlockFutureLogin(e.target.checked)}
+                            className="mt-0.5 accent-red-500 flex-shrink-0"
+                          />
+                          <span className="text-xs text-gray-600">Don't show future invites from this comp</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => declineInvitation(inv, blockFutureLogin)}
+                            disabled={decliningLoginBusy}
+                            className="flex-1 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 rounded-lg transition-colors flex items-center justify-center gap-1"
+                          >
+                            {decliningLoginBusy ? <Spinner className="w-4 h-4 text-white" /> : 'Remove'}
+                          </button>
+                          <button
+                            onClick={() => { setDecliningInviteId(null); setBlockFutureLogin(false) }}
+                            disabled={decliningLoginBusy}
+                            className="flex-1 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-60 rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 p-4">
+                        {inv.comp_logo_url
+                          ? <img src={inv.comp_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-green-200" />
+                          : <span className="text-2xl flex-shrink-0">🏆</span>
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
+                          <p className="text-xs text-green-700 mt-0.5">Tap to join instantly — no code needed</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => acceptInvitation(inv)}
+                            disabled={joiningInviteId === inv.invitation_id || onboardingLoading}
+                            className="px-3 py-1.5 text-sm font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1"
+                          >
+                            {joiningInviteId === inv.invitation_id ? <Spinner className="w-4 h-4 text-green-600" /> : 'Join →'}
+                          </button>
+                          <button
+                            onClick={() => { setDecliningInviteId(inv.invitation_id); setBlockFutureLogin(false) }}
+                            disabled={!!joiningInviteId || onboardingLoading}
+                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-md transition-colors disabled:opacity-40 text-xs"
+                            title="Decline invitation"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
                 {onboardingError && (
                   <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>

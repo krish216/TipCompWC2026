@@ -366,6 +366,9 @@ export default function HomePage() {
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
+  const [decliningId,    setDecliningId]    = useState<string | null>(null)
+  const [blockFuture,    setBlockFuture]    = useState(false)
+  const [decliningBusy,  setDecliningBusy]  = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -456,6 +459,21 @@ export default function HomePage() {
       await refreshComps(inv.comp_id)
     } finally {
       setJoiningInvite(null)
+    }
+  }
+
+  const declineInvite = async (inv: any, block: boolean) => {
+    setDecliningBusy(true)
+    try {
+      await fetch('/api/comp-invitations/pending', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitation_id: inv.invitation_id, block }),
+      })
+      setPendingInvites(prev => prev.filter(i => i.invitation_id !== inv.invitation_id))
+      setDecliningId(null)
+      setBlockFuture(false)
+    } finally {
+      setDecliningBusy(false)
     }
   }
 
@@ -614,25 +632,66 @@ export default function HomePage() {
                     <div className="mb-3 space-y-2">
                       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">You've been invited to</p>
                       {pendingInvites.map((inv: any) => (
-                        <button
-                          key={inv.invitation_id}
-                          onClick={() => joinPendingInvite(inv)}
-                          disabled={joiningInvite === inv.invitation_id}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-green-300 bg-green-50 hover:border-green-500 hover:bg-green-100 transition-all text-left disabled:opacity-60"
-                        >
-                          {inv.comp_logo_url
-                            ? <img src={inv.comp_logo_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-green-200" />
-                            : <span className="text-xl flex-shrink-0">🏆</span>
-                          }
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
-                            <p className="text-[11px] text-green-700">Tap to join — no code needed</p>
-                          </div>
-                          {joiningInvite === inv.invitation_id
-                            ? <Spinner className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            : <span className="text-sm font-bold text-green-600 flex-shrink-0">Join →</span>
-                          }
-                        </button>
+                        <div key={inv.invitation_id} className="rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
+                          {decliningId === inv.invitation_id ? (
+                            <div className="p-3 space-y-2.5">
+                              <p className="text-xs font-semibold text-gray-800">Decline <span className="text-green-700">{inv.comp_name}</span>?</p>
+                              <label className="flex items-start gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={blockFuture}
+                                  onChange={e => setBlockFuture(e.target.checked)}
+                                  className="mt-0.5 accent-red-500 flex-shrink-0"
+                                />
+                                <span className="text-xs text-gray-600">Don't show future invites from this comp</span>
+                              </label>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => declineInvite(inv, blockFuture)}
+                                  disabled={decliningBusy}
+                                  className="flex-1 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 rounded-lg transition-colors flex items-center justify-center gap-1"
+                                >
+                                  {decliningBusy ? <Spinner className="w-3 h-3 text-white" /> : 'Remove'}
+                                </button>
+                                <button
+                                  onClick={() => { setDecliningId(null); setBlockFuture(false) }}
+                                  disabled={decliningBusy}
+                                  className="flex-1 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-60 rounded-lg transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 p-3">
+                              {inv.comp_logo_url
+                                ? <img src={inv.comp_logo_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-green-200" />
+                                : <span className="text-xl flex-shrink-0">🏆</span>
+                              }
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
+                                <p className="text-[11px] text-green-700">Tap to join — no code needed</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <button
+                                  onClick={() => joinPendingInvite(inv)}
+                                  disabled={joiningInvite === inv.invitation_id}
+                                  className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1"
+                                >
+                                  {joiningInvite === inv.invitation_id ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
+                                </button>
+                                <button
+                                  onClick={() => { setDecliningId(inv.invitation_id); setBlockFuture(false) }}
+                                  disabled={!!joiningInvite}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-md transition-colors disabled:opacity-40 text-xs"
+                                  title="Decline invitation"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ))}
                       <div className="flex items-center gap-2 pt-1">
                         <div className="flex-1 h-px bg-gray-100" />
@@ -728,6 +787,79 @@ export default function HomePage() {
                     className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                     Find a tribe →
                   </Link>
+                </div>
+              )}
+
+              {/* Pending invitations from other comps */}
+              {pendingInvites.length > 0 && (
+                <div className="mb-3 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comp Invitations</p>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {pendingInvites.map((inv: any) => (
+                      <div key={inv.invitation_id}>
+                        {decliningId === inv.invitation_id ? (
+                          <div className="p-3 space-y-2.5 bg-red-50">
+                            <p className="text-xs font-semibold text-gray-800">Decline <span className="text-red-700">{inv.comp_name}</span>?</p>
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={blockFuture}
+                                onChange={e => setBlockFuture(e.target.checked)}
+                                className="mt-0.5 accent-red-500 flex-shrink-0"
+                              />
+                              <span className="text-xs text-gray-600">Don't show future invites from this comp</span>
+                            </label>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => declineInvite(inv, blockFuture)}
+                                disabled={decliningBusy}
+                                className="flex-1 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 rounded-lg transition-colors flex items-center justify-center gap-1"
+                              >
+                                {decliningBusy ? <Spinner className="w-3 h-3 text-white" /> : 'Remove'}
+                              </button>
+                              <button
+                                onClick={() => { setDecliningId(null); setBlockFuture(false) }}
+                                disabled={decliningBusy}
+                                className="flex-1 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-60 rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            {inv.comp_logo_url
+                              ? <img src={inv.comp_logo_url} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-200" />
+                              : <span className="text-lg flex-shrink-0">🏆</span>
+                            }
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{inv.comp_name}</p>
+                              <p className="text-[11px] text-gray-400">You've been invited to join</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                onClick={() => joinPendingInvite(inv)}
+                                disabled={joiningInvite === inv.invitation_id}
+                                className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1"
+                              >
+                                {joiningInvite === inv.invitation_id ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
+                              </button>
+                              <button
+                                onClick={() => { setDecliningId(inv.invitation_id); setBlockFuture(false) }}
+                                disabled={!!joiningInvite}
+                                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-40 text-xs"
+                                title="Decline invitation"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
