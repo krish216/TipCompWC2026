@@ -364,6 +364,7 @@ export default function HomePage() {
   }, [nextKickoff, tickNow])
 
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
+  const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
   const [decliningId,    setDecliningId]    = useState<string | null>(null)
@@ -420,7 +421,7 @@ export default function HomePage() {
       .catch(() => {})
   }, [session, selectedTournId])
 
-  // Fetch comp ranks in parallel for all comps the user belongs to
+  // Fetch comp ranks and member counts in parallel for all comps the user belongs to
   useEffect(() => {
     if (!session || !tournsComps.length) return
     const tid = selectedTournId ? `&tournament_id=${selectedTournId}` : ''
@@ -428,13 +429,15 @@ export default function HomePage() {
       tournsComps.map(c =>
         fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&no_breakdown=true${tid}`)
           .then(r => r.json())
-          .then(d => ({ id: c.id, rank: (d.my_entry?.rank ?? null) as number | null }))
-          .catch(() => ({ id: c.id, rank: null as number | null }))
+          .then(d => ({ id: c.id, rank: (d.my_entry?.rank ?? null) as number | null, size: (d.data?.length ?? 0) as number }))
+          .catch(() => ({ id: c.id, rank: null as number | null, size: 0 }))
       )
     ).then(results => {
-      const map: Record<string, number | null> = {}
-      results.forEach(({ id, rank }) => { map[id] = rank })
-      setCompRanks(map)
+      const rankMap: Record<string, number | null> = {}
+      const sizeMap: Record<string, number> = {}
+      results.forEach(({ id, rank, size }) => { rankMap[id] = rank; sizeMap[id] = size })
+      setCompRanks(rankMap)
+      setCompSizes(sizeMap)
     })
   }, [session, tournsComps, selectedTournId])
 
@@ -796,6 +799,20 @@ export default function HomePage() {
                       Find a tribe →
                     </Link>
                   )}
+                </div>
+              )}
+
+              {/* Fresh comp prompt — shown to comp admin when no other tipsters have joined */}
+              {isCompAdmin && step3Done && selectedCompId && (compSizes[selectedCompId] ?? 2) <= 1 && (
+                <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-800 mb-0.5">Your comp is ready!</p>
+                    <p className="text-xs text-blue-600">Invite tipsters to join and compete.</p>
+                  </div>
+                  <Link href="/comp-admin"
+                    className="flex-shrink-0 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    Manage comp →
+                  </Link>
                 </div>
               )}
 

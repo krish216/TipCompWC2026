@@ -1,12 +1,11 @@
 'use client'
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 
-type Mode    = 'login' | 'register' | 'magic' | 'reset'
-type OrgStep = 'choose' | 'join' | 'create'
+type Mode = 'login' | 'register' | 'magic' | 'reset'
 
 
 
@@ -45,35 +44,9 @@ export default function LoginPage() {
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
 
   // Post-registration screens
-  const [registered, setRegistered] = useState(false)  // show "check email"
-
-  // Post-login onboarding (first login after verification)
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  const [orgStep,    setOrgStep]    = useState<OrgStep>('choose')
-  const [onboardingLoading, setOnboardingLoading] = useState(false)
-  const [onboardingError,   setOnboardingError]   = useState<string | null>(null)
-  const [onboardingUserId,  setOnboardingUserId]  = useState<string | null>(null)
-
-  // Pending comp invitations for the logged-in user
-  const [pendingInvites,    setPendingInvites]    = useState<any[]>([])
-  const [joiningInviteId,   setJoiningInviteId]   = useState<string | null>(null)
-  const [decliningInviteId, setDecliningInviteId] = useState<string | null>(null)
-  const [blockFutureLogin,  setBlockFutureLogin]  = useState(false)
-  const [decliningLoginBusy,setDecliningLoginBusy]= useState(false)
-
-  // Org join fields
-  const [compCode,    setOrgCode]    = useState('')
-  const [compLookup,  setOrgLookup]  = useState<{id:string;name:string} | null>(null)
-  const [compCodeErr, setOrgCodeErr] = useState<string | null>(null)
-  const [lookingUp,  setLookingUp]  = useState(false)
-
-  // Org create fields
-  const [newCompName,  setNewOrgName]  = useState('')
-  const [ownerPhone,  setOwnerPhone]  = useState('')
-  const [ownerEmail,  setOwnerEmail]  = useState('')
-  const [logoFile,    setLogoFile]    = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [registered,    setRegistered]    = useState(false)  // show "check email"
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendSent,    setResendSent]    = useState(false)
 
   // Fetch active/upcoming tournaments for registration
   useEffect(() => {
@@ -87,35 +60,12 @@ export default function LoginPage() {
       .catch(() => {})
   }, [])
 
-  // When session is established after verification, check onboarding status
+  // When session is established, redirect to home (comp setup is handled there)
   useEffect(() => {
     if (!session) return
-    const checkOnboarding = async () => {
-      const { data } = await supabase
-        .from('users')
-        .select('onboarding_complete, display_name, email')
-        .eq('id', session.user.id)
-        .single()
-      if (data && !(data as any).onboarding_complete) {
-        setOnboardingUserId(session.user.id)
-        setOwnerEmail((data as any).email ?? session.user.email ?? '')
-        setShowOnboarding(true)
-      } else {
-        router.push(redirect)
-        router.refresh()
-      }
-    }
-    checkOnboarding()
+    router.push(redirect)
+    router.refresh()
   }, [session])
-
-  // Fetch pending invitations when onboarding screen appears
-  useEffect(() => {
-    if (!showOnboarding || !session) return
-    fetch('/api/comp-invitations/pending')
-      .then(r => r.json())
-      .then(d => setPendingInvites(d.data ?? []))
-      .catch(() => {})
-  }, [showOnboarding, session])
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -258,111 +208,11 @@ export default function LoginPage() {
     }
   }
 
-  // ── Onboarding: accept a pending invitation in one tap ────
-  const acceptInvitation = async (invite: { comp_id: string; invite_code: string; invitation_id: string }) => {
-    setJoiningInviteId(invite.invitation_id)
-    setOnboardingError(null)
-    try {
-      const res = await fetch('/api/comp-admins/self-register', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comp_id: invite.comp_id, invite_code: invite.invite_code }),
-      })
-      const { success, error } = await res.json()
-      if (!success) { setOnboardingError(error ?? 'Failed to join comp') }
-      else await completeOnboarding()  // mark onboarding complete and redirect
-    } catch { setOnboardingError('Something went wrong — please try again') }
-    finally { setJoiningInviteId(null) }
-  }
-
-  // ── Onboarding: decline a pending invitation ─────────────
-  const declineInvitation = async (inv: any, block: boolean) => {
-    setDecliningLoginBusy(true)
-    try {
-      await fetch('/api/comp-invitations/pending', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invitation_id: inv.invitation_id, block }),
-      })
-      setPendingInvites(prev => prev.filter(i => i.invitation_id !== inv.invitation_id))
-      setDecliningInviteId(null)
-      setBlockFutureLogin(false)
-    } finally {
-      setDecliningLoginBusy(false)
-    }
-  }
-
-  // ── Onboarding: look up org code ──────────────────────────
-  const lookupOrgCode = async () => {
-    setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
-    const res = await fetch(`/api/comps?code=${compCode}`)
-    const { data, error } = await res.json()
-    setLookingUp(false)
-    if (error || !data) setOrgCodeErr('Code not found — check with your tournament admin')
-    else setOrgLookup(data)
-  }
-
-  // ── Onboarding: complete (marks onboarding_complete = true) ─
-  const completeOnboarding = async (compId?: string, inviteCode?: string, createPayload?: any) => {
-    setOnboardingLoading(true); setOnboardingError(null)
-    try {
-      if (compId && inviteCode) {
-        // Join existing org
-        const res = await fetch('/api/comp-admins/self-register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ comp_id: compId, invite_code: inviteCode }),
-        })
-        const { success, error } = await res.json()
-        if (!success) { setOnboardingError(error ?? 'Failed to join comp'); setOnboardingLoading(false); return }
-      }
-
-      if (createPayload) {
-        // Create new org
-        const res = await fetch('/api/comps/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(createPayload),
-        })
-        const { data: org, error: orgErr } = await res.json()
-        if (orgErr || !org) { setOnboardingError(orgErr ?? 'Failed to create comp'); setOnboardingLoading(false); return }
-
-        // Upload logo
-        if (logoFile && session?.user.id) {
-          const ext  = logoFile.name.split('.').pop()
-          const path = `${session.user.id}/logo.${ext}`
-          const { data: uploaded } = await supabase.storage
-            .from('org-logos').upload(path, logoFile, { upsert: true })
-          if (uploaded) {
-            const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
-            await fetch('/api/comps/create', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ comp_id: org.id, logo_url: urlData.publicUrl, user_id: session.user.id }),
-            })
-          }
-        }
-      }
-
-      // Tournament enrolment was already written at registration time via /api/user-tournaments/enrol
-      // No sessionStorage processing needed
-
-      // Mark onboarding complete
-      await (supabase.from('users') as any)
-        .update({ onboarding_complete: true })
-        .eq('id', session!.user.id)
-
-      router.push(redirect); router.refresh()
-    } catch { setOnboardingError('Something went wrong — please try again') }
-    finally { setOnboardingLoading(false) }
-  }
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 2 * 1024 * 1024) { setOnboardingError('Logo must be under 2MB'); return }
-    setLogoFile(file)
-    const reader = new FileReader()
-    reader.onload = ev => setLogoPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
+  const handleResend = async () => {
+    setResendLoading(true); setResendSent(false)
+    await supabase.auth.resend({ type: 'signup', email })
+    setResendSent(true); setResendLoading(false)
+    setTimeout(() => setResendSent(false), 8000)
   }
 
   // ── Screen: Check email ───────────────────────────────────
@@ -411,235 +261,26 @@ export default function LoginPage() {
             className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl">
             Back to sign in
           </button>
-          <p className="text-xs text-gray-400 mt-4">Didn't receive it? Check your spam folder.</p>
+          <div className="mt-4 space-y-1.5">
+            <p className="text-xs text-gray-400">Didn't receive it? Check your spam folder.</p>
+            {sentMode === 'register' && (
+              resendSent ? (
+                <p className="text-xs text-green-600 font-medium">✓ Verification email resent!</p>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendLoading}
+                  className="text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50 flex items-center justify-center gap-1 mx-auto">
+                  {resendLoading && <Spinner className="w-3 h-3" />}
+                  Resend verification email
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
     )
   }
-
-  // ── Screen: First-login onboarding ───────────────────────
-  if (showOnboarding) return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50">
-      <div className="max-w-sm w-full">
-        {orgStep !== 'choose' && (
-          <button onClick={() => { setOrgStep('choose'); setOnboardingError(null) }}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 mb-5">
-            ← Back
-          </button>
-        )}
-
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-3">{orgStep === 'choose' ? '🎉' : orgStep === 'join' ? '🔑' : '✨'}</div>
-          <h1 className="text-xl font-semibold text-gray-900">
-            {orgStep === 'choose' ? "Welcome to TribePicks!" : orgStep === 'join' ? 'Join a Comp' : 'Create a Comp'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {orgStep === 'choose'
-              ? 'Set up your comp to compete with your group'
-              : orgStep === 'join'
-              ? 'Enter the invite code shared by your Comp admin'
-              : 'Register your comp for the tournament'}
-          </p>
-        </div>
-
-        {/* Choose screen */}
-        {orgStep === 'choose' && (
-          <div className="space-y-3">
-
-            {/* Pending invitations — shown first when available */}
-            {pendingInvites.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                  You've been invited to
-                </p>
-                {pendingInvites.map((inv: any) => (
-                  <div key={inv.invitation_id} className="rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
-                    {decliningInviteId === inv.invitation_id ? (
-                      <div className="p-4 space-y-3">
-                        <p className="text-sm font-semibold text-gray-800">Decline <span className="text-green-700">{inv.comp_name}</span>?</p>
-                        <label className="flex items-start gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={blockFutureLogin}
-                            onChange={e => setBlockFutureLogin(e.target.checked)}
-                            className="mt-0.5 accent-red-500 flex-shrink-0"
-                          />
-                          <span className="text-xs text-gray-600">Don't show future invites from this comp</span>
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => declineInvitation(inv, blockFutureLogin)}
-                            disabled={decliningLoginBusy}
-                            className="flex-1 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 rounded-lg transition-colors flex items-center justify-center gap-1"
-                          >
-                            {decliningLoginBusy ? <Spinner className="w-4 h-4 text-white" /> : 'Remove'}
-                          </button>
-                          <button
-                            onClick={() => { setDecliningInviteId(null); setBlockFutureLogin(false) }}
-                            disabled={decliningLoginBusy}
-                            className="flex-1 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-60 rounded-lg transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-4">
-                        {inv.comp_logo_url
-                          ? <img src={inv.comp_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-green-200" />
-                          : <span className="text-2xl flex-shrink-0">🏆</span>
-                        }
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
-                          <p className="text-xs text-green-700 mt-0.5">Tap to join instantly — no code needed</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => acceptInvitation(inv)}
-                            disabled={joiningInviteId === inv.invitation_id || onboardingLoading}
-                            className="px-3 py-1.5 text-sm font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1"
-                          >
-                            {joiningInviteId === inv.invitation_id ? <Spinner className="w-4 h-4 text-green-600" /> : 'Join →'}
-                          </button>
-                          <button
-                            onClick={() => { setDecliningInviteId(inv.invitation_id); setBlockFutureLogin(false) }}
-                            disabled={!!joiningInviteId || onboardingLoading}
-                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-md transition-colors disabled:opacity-40 text-xs"
-                            title="Decline invitation"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {onboardingError && (
-                  <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>
-                )}
-                <div className="flex items-center gap-2 my-1">
-                  <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">or</span>
-                  <div className="flex-1 h-px bg-gray-200" />
-                </div>
-              </div>
-            )}
-
-            <button onClick={() => setOrgStep('join')}
-              className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
-              <span className="text-2xl">🔑</span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Join a Comp</p>
-                <p className="text-xs text-gray-500 mt-0.5">I have an invite code from my Comp admin</p>
-              </div>
-            </button>
-            <button onClick={() => setOrgStep('create')}
-              className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
-              <span className="text-2xl">✨</span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Create a Comp</p>
-                <p className="text-xs text-gray-500 mt-0.5">Set up a new Comp for my team</p>
-              </div>
-            </button>
-            <button onClick={() => completeOnboarding()}
-              disabled={onboardingLoading}
-              className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-gray-300 rounded-xl p-4 text-left transition-colors disabled:opacity-50">
-              <span className="text-2xl">⏭️</span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Skip for now</p>
-                <p className="text-xs text-gray-500 mt-0.5">You can join or create a comp from the home page</p>
-              </div>
-              {onboardingLoading && <Spinner className="w-4 h-4 ml-auto" />}
-            </button>
-          </div>
-        )}
-
-        {/* Join org screen */}
-        {orgStep === 'join' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp code</label>
-              <div className="flex gap-2">
-                <input type="text" value={compCode}
-                  onChange={e => { setOrgCode(e.target.value.toUpperCase()); setOrgLookup(null); setOrgCodeErr(null) }}
-                  placeholder="e.g. ACME1234" maxLength={8}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                <button type="button" onClick={lookupOrgCode}
-                  disabled={lookingUp || compCode.length < 6}
-                  className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50">
-                  {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
-                </button>
-              </div>
-              {compLookup && <p className="text-[11px] text-green-700 mt-1.5">✓ <strong>{compLookup.name}</strong> — you'll be added as org admin</p>}
-              {compCodeErr && <p className="text-[11px] text-red-600 mt-1.5">{compCodeErr}</p>}
-            </div>
-            {onboardingError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>}
-            <button
-              onClick={() => compLookup && completeOnboarding(compLookup.id, compCode)}
-              disabled={onboardingLoading || !compLookup}
-              className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2">
-              {onboardingLoading && <Spinner className="w-4 h-4 text-white" />}
-              Join comp →
-            </button>
-          </div>
-        )}
-
-        {/* Create org screen */}
-        {orgStep === 'create' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name <span className="text-red-500">*</span></label>
-              <input type="text" value={newCompName} onChange={e => setNewOrgName(e.target.value)}
-                placeholder="e.g. Acme Corp"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone number</label>
-              <input type="tel" value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)}
-                placeholder="+61 4XX XXX XXX"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Contact email</label>
-              <input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
-                placeholder="admin@acmecorp.com"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Logo <span className="text-gray-400 font-normal">(optional, max 2MB)</span></label>
-              <div className="flex items-center gap-3">
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-2xl flex-shrink-0">🏢</div>
-                )}
-                <button type="button" onClick={() => fileRef.current?.click()}
-                  className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
-                  {logoFile ? 'Change logo' : 'Upload logo'}
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-              </div>
-            </div>
-            {onboardingError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>}
-            <button
-              onClick={() => completeOnboarding(undefined, undefined, {
-                name:        newCompName.trim(),
-                owner_phone: ownerPhone.trim(),
-                owner_email: ownerEmail.trim(),
-                owner_name:  '',
-                user_id:     session!.user.id,
-                email:       session!.user.email ?? ownerEmail,
-              })}
-              disabled={onboardingLoading || !newCompName.trim()}
-              className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2">
-              {onboardingLoading && <Spinner className="w-4 h-4 text-white" />}
-              Create comp →
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
 
   // ── Main login/register form ──────────────────────────────
   return (
