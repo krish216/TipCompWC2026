@@ -363,7 +363,9 @@ export default function HomePage() {
     return { deadlineLabel: `Closing in ${m}m`, urgencyLevel: 'red' as const }
   }, [nextKickoff, tickNow])
 
-  const [compRanks, setCompRanks] = useState<Record<string, number | null>>({})
+  const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
+  const [pendingInvites, setPendingInvites] = useState<any[]>([])
+  const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -381,11 +383,12 @@ export default function HomePage() {
 
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
-      const [userRes, lbRes, predRes, fxRes] = await Promise.all([
+      const [userRes, lbRes, predRes, fxRes, invRes] = await Promise.all([
         supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&no_breakdown=true'),
         fetch('/api/predictions'),
         fetch('/api/fixtures'),
+        fetch('/api/comp-invitations/pending'),
       ])
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
@@ -395,9 +398,10 @@ export default function HomePage() {
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
 
-      const [predData, fxData] = await Promise.all([predRes.json(), fxRes.json()])
+      const [predData, fxData, invData] = await Promise.all([predRes.json(), fxRes.json(), invRes.json()])
       setAllPredictions(predData.data ?? [])
       setAllFixtures(fxData.data ?? [])
+      setPendingInvites(invData.data ?? [])
 
       setLoading(false)
     }
@@ -437,6 +441,23 @@ export default function HomePage() {
     window.addEventListener('focus', refreshHasTribe)
     return () => window.removeEventListener('focus', refreshHasTribe)
   }, [session, refreshHasTribe])
+
+  const joinPendingInvite = async (inv: { comp_id: string; invite_code: string; invitation_id: string; comp_name: string; comp_logo_url: string | null }) => {
+    setJoiningInvite(inv.invitation_id)
+    try {
+      const { success, error } = await fetch('/api/comp-admins/self-register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: inv.comp_id, invite_code: inv.invite_code }),
+      }).then(r => r.json())
+      if (!success) { alert(error ?? 'Failed to join comp'); return }
+      // Remove from pending list and select the newly joined comp
+      setPendingInvites(prev => prev.filter(i => i.invitation_id !== inv.invitation_id))
+      await pickComp({ id: inv.comp_id, name: inv.comp_name, logo_url: inv.comp_logo_url } as any)
+      await refreshComps(inv.comp_id)
+    } finally {
+      setJoiningInvite(null)
+    }
+  }
 
   const NavCard = ({ href, icon, title, description }: {
     href: string; icon: string; title: string; description: string
@@ -587,6 +608,40 @@ export default function HomePage() {
                     <p className="text-sm font-semibold text-gray-900">Join or create a comp</p>
                     <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-auto">Now</span>
                   </div>
+
+                  {/* Pending invitations — one-tap join */}
+                  {pendingInvites.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">You've been invited to</p>
+                      {pendingInvites.map((inv: any) => (
+                        <button
+                          key={inv.invitation_id}
+                          onClick={() => joinPendingInvite(inv)}
+                          disabled={joiningInvite === inv.invitation_id}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-green-300 bg-green-50 hover:border-green-500 hover:bg-green-100 transition-all text-left disabled:opacity-60"
+                        >
+                          {inv.comp_logo_url
+                            ? <img src={inv.comp_logo_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-green-200" />
+                            : <span className="text-xl flex-shrink-0">🏆</span>
+                          }
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
+                            <p className="text-[11px] text-green-700">Tap to join — no code needed</p>
+                          </div>
+                          {joiningInvite === inv.invitation_id
+                            ? <Spinner className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            : <span className="text-sm font-bold text-green-600 flex-shrink-0">Join →</span>
+                          }
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="flex-1 h-px bg-gray-100" />
+                        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">or</span>
+                        <div className="flex-1 h-px bg-gray-100" />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => setModal('join')}
                       className="flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 border-gray-200 hover:border-green-400 hover:bg-green-50 transition-all text-center group">

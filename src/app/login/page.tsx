@@ -75,6 +75,10 @@ export default function LoginPage() {
   const [onboardingError,   setOnboardingError]   = useState<string | null>(null)
   const [onboardingUserId,  setOnboardingUserId]  = useState<string | null>(null)
 
+  // Pending comp invitations for the logged-in user
+  const [pendingInvites,    setPendingInvites]    = useState<any[]>([])
+  const [joiningInviteId,   setJoiningInviteId]   = useState<string | null>(null)
+
   // Org join fields
   const [compCode,    setOrgCode]    = useState('')
   const [compLookup,  setOrgLookup]  = useState<{id:string;name:string} | null>(null)
@@ -138,6 +142,15 @@ export default function LoginPage() {
     }
     checkOnboarding()
   }, [session])
+
+  // Fetch pending invitations when onboarding screen appears
+  useEffect(() => {
+    if (!showOnboarding || !session) return
+    fetch('/api/comp-invitations/pending')
+      .then(r => r.json())
+      .then(d => setPendingInvites(d.data ?? []))
+      .catch(() => {})
+  }, [showOnboarding, session])
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -295,6 +308,22 @@ export default function LoginPage() {
     }
   }
 
+  // ── Onboarding: accept a pending invitation in one tap ────
+  const acceptInvitation = async (invite: { comp_id: string; invite_code: string; invitation_id: string }) => {
+    setJoiningInviteId(invite.invitation_id)
+    setOnboardingError(null)
+    try {
+      const res = await fetch('/api/comp-admins/self-register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: invite.comp_id, invite_code: invite.invite_code }),
+      })
+      const { success, error } = await res.json()
+      if (!success) { setOnboardingError(error ?? 'Failed to join comp') }
+      else await completeOnboarding()  // mark onboarding complete and redirect
+    } catch { setOnboardingError('Something went wrong — please try again') }
+    finally { setJoiningInviteId(null) }
+  }
+
   // ── Onboarding: look up org code ──────────────────────────
   const lookupOrgCode = async () => {
     setLookingUp(true); setOrgCodeErr(null); setOrgLookup(null)
@@ -450,6 +479,45 @@ export default function LoginPage() {
         {/* Choose screen */}
         {orgStep === 'choose' && (
           <div className="space-y-3">
+
+            {/* Pending invitations — shown first when available */}
+            {pendingInvites.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                  You've been invited to
+                </p>
+                {pendingInvites.map((inv: any) => (
+                  <button
+                    key={inv.invitation_id}
+                    onClick={() => acceptInvitation(inv)}
+                    disabled={joiningInviteId === inv.invitation_id || onboardingLoading}
+                    className="w-full flex items-center gap-3 bg-green-50 border-2 border-green-300 hover:border-green-500 rounded-xl p-4 text-left transition-colors disabled:opacity-60"
+                  >
+                    {inv.comp_logo_url
+                      ? <img src={inv.comp_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-green-200" />
+                      : <span className="text-2xl flex-shrink-0">🏆</span>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-green-900 truncate">{inv.comp_name}</p>
+                      <p className="text-xs text-green-700 mt-0.5">Tap to join instantly — no code needed</p>
+                    </div>
+                    {joiningInviteId === inv.invitation_id
+                      ? <Spinner className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      : <span className="text-green-600 font-bold flex-shrink-0">Join →</span>
+                    }
+                  </button>
+                ))}
+                {onboardingError && (
+                  <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{onboardingError}</p>
+                )}
+                <div className="flex items-center gap-2 my-1">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">or</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              </div>
+            )}
+
             <button onClick={() => setOrgStep('join')}
               className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
               <span className="text-2xl">🔑</span>
