@@ -295,13 +295,17 @@ export default function LeaderboardPage() {
         ? ROUND_ORDER.slice(0, ROUND_ORDER.indexOf(roundView as RoundId) + 1)
         : ROUND_ORDER)
     )
+    const sumForRounds = (map: Record<string, number>) =>
+      Object.entries(map)
+        .filter(([r]) => validRounds.has(r as RoundId))
+        .reduce((sum, [, v]) => sum + Number(v), 0)
+
     return entries
       .map(e => {
-        const rb  = e.round_breakdown ?? {}
-        const pts = Object.entries(rb)
-          .filter(([r]) => validRounds.has(r as RoundId))
-          .reduce((sum, [, v]) => sum + Number(v), 0)
-        return { ...e, total_points: pts }
+        const pts    = sumForRounds(e.round_breakdown    ?? {})
+        const stdPts = sumForRounds(e.standard_breakdown ?? {})
+        const bonPts = sumForRounds(e.bonus_breakdown    ?? {})
+        return { ...e, total_points: pts, round_standard_pts: stdPts, round_bonus_pts: bonPts }
       })
       .filter(e => e.total_points > 0)
       .sort((a, b) =>
@@ -769,14 +773,12 @@ export default function LeaderboardPage() {
                             </div>
                             <div className="flex items-center justify-end">
                               <span className="text-xs text-amber-600 font-medium">
-                                {entry.total_bonus_points != null && entry.total_bonus_points > 0
-                                  ? `+${entry.total_bonus_points}`
-                                  : entry.bonus_count > 0 ? entry.bonus_count : '—'}
+                                {(entry.round_bonus_pts ?? 0) > 0 ? `+${entry.round_bonus_pts}` : '—'}
                               </span>
                             </div>
                             <div className="flex items-center justify-end">
                               <span className="text-xs text-green-700 font-medium">
-                                {entry.total_standard_pts ?? (entry.total_points ?? 0) - (entry.total_bonus_points ?? 0)}
+                                {entry.round_standard_pts ?? 0}
                               </span>
                             </div>
                           </button>

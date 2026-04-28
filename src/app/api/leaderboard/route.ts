@@ -107,11 +107,12 @@ export async function GET(request: NextRequest) {
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
     const tabBreakdownMap: Record<string, Record<string, number>> = {}
 
-    const standardPtsMap: Record<string, number> = {}
+    const standardBreakdownMap: Record<string, Record<RoundId, number>> = {}
+    const bonusBreakdownMap:    Record<string, Record<RoundId, number>> = {}
 
     if (userIds.length > 0) {
       const { data: predRows } = await (adminClient.from('predictions') as any)
-        .select('user_id, fixture_id, points_earned')
+        .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
         .in('user_id', userIds)
         .not('points_earned', 'is', null)
         .gt('points_earned', 0)
@@ -119,19 +120,12 @@ export async function GET(request: NextRequest) {
       ;(predRows ?? []).forEach((p: any) => {
         const round = fixtureRoundMap[p.fixture_id]
         if (!round) return
-        if (!breakdownMap[p.user_id]) breakdownMap[p.user_id] = {} as Record<RoundId, number>
-        breakdownMap[p.user_id][round] = (breakdownMap[p.user_id][round] ?? 0) + (Number(p.points_earned) || 0)
-      })
-
-      // Sum standard_points per user (incl. predictions where points_earned may be null)
-      let stdQ = (adminClient.from('predictions') as any)
-        .select('user_id, standard_points')
-        .in('user_id', userIds)
-        .gt('standard_points', 0)
-      if (tournamentId) stdQ = stdQ.eq('tournament_id', tournamentId)
-      const { data: stdRows } = await stdQ
-      ;(stdRows ?? []).forEach((p: any) => {
-        standardPtsMap[p.user_id] = (standardPtsMap[p.user_id] ?? 0) + Number(p.standard_points ?? 0)
+        if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
+        if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
+        if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
+        breakdownMap[p.user_id][round]         = (breakdownMap[p.user_id][round]         ?? 0) + (Number(p.points_earned)    || 0)
+        standardBreakdownMap[p.user_id][round] = (standardBreakdownMap[p.user_id][round] ?? 0) + (Number(p.standard_points) || 0)
+        bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
       })
 
       const userTabBreakdowns = await Promise.allSettled(userIds.map(async (userId) => {
@@ -157,11 +151,12 @@ export async function GET(request: NextRequest) {
 
     const ranked = rows.map((row: any, i: number) => ({
       ...row,
-      rank:                i + 1,
-      is_me:               row.user_id === user.id,
-      round_breakdown:     breakdownMap[row.user_id] ?? {},
-      tab_breakdown:       tabBreakdownMap[row.user_id] ?? {},
-      total_standard_pts:  standardPtsMap[row.user_id] ?? 0,
+      rank:                 i + 1,
+      is_me:                row.user_id === user.id,
+      round_breakdown:      breakdownMap[row.user_id]         ?? {},
+      standard_breakdown:   standardBreakdownMap[row.user_id] ?? {},
+      bonus_breakdown:      bonusBreakdownMap[row.user_id]    ?? {},
+      tab_breakdown:        tabBreakdownMap[row.user_id]      ?? {},
     }))
 
     // Always return current user's entry even if outside top 50
