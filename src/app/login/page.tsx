@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
-import { TIMEZONES, COUNTRIES, detectTimezone, getTimezonesForCountry } from '@/lib/timezone'
 
 type Mode    = 'login' | 'register' | 'magic' | 'reset'
 type OrgStep = 'choose' | 'join' | 'create'
@@ -50,16 +49,12 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name,            setName]            = useState('')
   const [firstName,       setFirstName]       = useState('')
-  const [lastName,        setLastName]        = useState('')
   const [agreedToTerms,   setAgreedToTerms]   = useState(false)
   // Simple math captcha
   const [captchaA]        = useState(() => Math.floor(Math.random() * 9) + 1)
   const [captchaB]        = useState(() => Math.floor(Math.random() * 9) + 1)
   const [captchaInput,    setCaptchaInput]    = useState('')
-  const [country,  setCountry]  = useState('')
-  const [timezone, setTimezone] = useState('UTC')
   const [favTeam,      setFavTeam]      = useState('')
-  const [birthYear,    setBirthYear]    = useState('')
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string;start_date?:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
   const [favTeamForTourn,setFavTeamForTourn] = useState<string>('')
@@ -98,7 +93,6 @@ export default function LoginPage() {
 
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 
-  useEffect(() => { setTimezone(detectTimezone()) }, [])
 
   // Fetch active/upcoming tournaments for registration
   useEffect(() => {
@@ -205,19 +199,8 @@ export default function LoginPage() {
         return
       }
 
-      const currentYear = new Date().getFullYear()
-      const yearNum = birthYear ? parseInt(birthYear, 10) : NaN
-      if (birthYear && (isNaN(yearNum) || yearNum < 1920 || yearNum > currentYear - 5)) {
-        setError(`Year of birth must be between 1920 and ${currentYear - 5}`)
-        return
-      }
-
       if (!firstName.trim()) {
         setError('First name is required')
-        return
-      }
-      if (!lastName.trim()) {
-        setError('Last name is required')
         return
       }
       if (password !== confirmPassword) {
@@ -283,10 +266,7 @@ export default function LoginPage() {
           email:               newUser.email!,
           display_name:        displayName,
           first_name:          firstName.trim() || null,
-          last_name:           lastName.trim() || null,
-          country:             country || null,
-          timezone:            timezone || 'UTC',
-          date_of_birth:       birthYear ? `${birthYear}-01-01` : null,
+          timezone:            Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
@@ -738,44 +718,13 @@ export default function LoginPage() {
                   <p className="text-[11px] text-amber-600 mt-1">Minimum 3 characters</p>
                 )}
               </div>
-              {/* First name + Last name */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    First name <span className="text-red-500">*</span>
-                  </label>
-                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
-                    placeholder="Alex" maxLength={50} required
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Last name <span className="text-red-500">*</span>
-                  </label>
-                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)}
-                    placeholder="Smith" maxLength={50} required
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Country</label>
-                <select value={country} onChange={e => {
-                    setCountry(e.target.value)
-                    const tzs = getTimezonesForCountry(e.target.value)
-                    if (tzs.length > 0 && tzs.length < TIMEZONES.length) setTimezone(tzs[0].value)
-                  }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                  <option value="">Select your country</option>
-                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Timezone</label>
-                <select value={timezone} onChange={e => setTimezone(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                  {getTimezonesForCountry(country).map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
-                </select>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  First name <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
+                  placeholder="Alex" maxLength={50} required
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
               </div>
               {/* Tournament selection — single tournament */}
               {tournaments.length > 0 && (
@@ -851,43 +800,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Year of birth */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Year of birth <span className="text-gray-400 font-normal">(required for age-restricted comps)</span>
-                </label>
-                {(() => {
-                  const yr = birthYear ? parseInt(birthYear, 10) : NaN
-                  const maxYr = new Date().getFullYear() - 13
-                  const yearInvalid = birthYear.length === 4 && (isNaN(yr) || yr < 1920 || yr > maxYr)
-                  return (
-                    <>
-                      <input
-                        type="number"
-                        list="birth-year-list"
-                        value={birthYear}
-                        onChange={e => setBirthYear(e.target.value)}
-                        placeholder="e.g. 1990"
-                        min={1920}
-                        max={maxYr}
-                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
-                          yearInvalid ? 'border-red-400' : 'border-gray-300'
-                        }`}
-                      />
-                      <datalist id="birth-year-list">
-                        {Array.from({ length: maxYr - 1919 }, (_, i) => maxYr - i).map(y => (
-                          <option key={y} value={y} />
-                        ))}
-                      </datalist>
-                      {yearInvalid && (
-                        <p className="text-[11px] text-red-600 mt-1">
-                          Enter a year between 1920 and {maxYr}
-                        </p>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
             </>
           )}
 

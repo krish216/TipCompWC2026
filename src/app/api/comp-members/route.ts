@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data, error } = await (admin.from('user_comps') as any)
-    .select('user_id, joined_at, fee_paid, fee_paid_amount, fee_paid_at, fee_notes, users(id, display_name, email)')
+    .select('user_id, joined_at, fee_paid, fee_paid_amount, fee_paid_at, fee_notes, users(id, display_name, first_name, email)')
     .eq('comp_id', compId)
     .order('joined_at', { ascending: false })
 
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     data: (data ?? []).map((row: any) => ({
       user_id:         row.users?.id ?? row.user_id,
       display_name:    row.users?.display_name ?? 'Unknown',
+      first_name:      row.users?.first_name ?? null,
       email:           row.users?.email ?? '',
       joined_at:       row.joined_at,
       fee_paid:        row.fee_paid        ?? false,

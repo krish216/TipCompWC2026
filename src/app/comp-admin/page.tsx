@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 interface Tipster {
   user_id:         string
   display_name:    string
+  first_name:      string | null
   email:           string
   joined_at:       string | null
   fee_paid:        boolean
@@ -114,20 +115,20 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
   // Merged view: tipsters (joined) + invitations (pending/registered)
   // A person appears once: joined tipsters take precedence over invitations
   const mergedList = useMemo(() => {
-    type Row = { key: string; email: string; display_name: string | null; user_id: string | null; joined: boolean; registered: boolean; joined_at: string | null; invited_at: string | null; inv_id: string | null; is_tipster: boolean }
+    type Row = { key: string; email: string; display_name: string | null; first_name: string | null; user_id: string | null; joined: boolean; registered: boolean; joined_at: string | null; invited_at: string | null; inv_id: string | null; is_tipster: boolean }
     const rows: Row[] = []
     const seenEmails = new Set<string>()
 
     // First: all joined tipsters
     tipsters.forEach(t => {
       seenEmails.add(t.email.toLowerCase())
-      rows.push({ key: t.user_id, email: t.email, display_name: t.display_name, user_id: t.user_id, joined: true, registered: true, joined_at: t.joined_at, invited_at: null, inv_id: null, is_tipster: true })
+      rows.push({ key: t.user_id, email: t.email, display_name: t.display_name, first_name: t.first_name, user_id: t.user_id, joined: true, registered: true, joined_at: t.joined_at, invited_at: null, inv_id: null, is_tipster: true })
     })
     // Then: invitations whose email hasn't appeared yet
     invitations.forEach(inv => {
       if (seenEmails.has(inv.email.toLowerCase())) return
       seenEmails.add(inv.email.toLowerCase())
-      rows.push({ key: inv.id, email: inv.email, display_name: inv.display_name, user_id: inv.user_id, joined: false, registered: !!inv.user_id, joined_at: null, invited_at: inv.invited_at, inv_id: inv.id, is_tipster: false })
+      rows.push({ key: inv.id, email: inv.email, display_name: inv.display_name, first_name: null, user_id: inv.user_id, joined: false, registered: !!inv.user_id, joined_at: null, invited_at: inv.invited_at, inv_id: inv.id, is_tipster: false })
     })
     return rows
   }, [tipsters, invitations])
@@ -461,9 +462,14 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
               <div key={row.key} className={clsx('flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 group', i % 2 === 1 ? 'bg-gray-50/30' : '')}>
                 <Avi name={row.display_name || row.email} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-800 truncate">
-                    {row.display_name ?? <span className="text-gray-400 font-normal italic">Not registered yet</span>}
-                  </p>
+                  <div className="flex items-baseline gap-1.5 truncate">
+                    <p className="text-xs font-bold text-gray-800 truncate">
+                      {row.display_name ?? <span className="text-gray-400 font-normal italic">Not registered yet</span>}
+                    </p>
+                    {row.first_name && (
+                      <span className="text-[11px] text-gray-400 font-normal flex-shrink-0">{row.first_name}</span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-gray-500 truncate">{row.email}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
                     {row.joined && row.joined_at && `Joined ${new Date(row.joined_at).toLocaleDateString()}`}
@@ -1450,8 +1456,9 @@ export default function CompAdminPage() {
   const [entryFee,     setEntryFee]     = useState<number | null>(null)
   const [domain,       setDomain]       = useState<string | null>(null)
   const [minAge,       setMinAge]       = useState<number | null>(null)
-  const [showKebab,    setShowKebab]    = useState(false)
-  const [deletingComp, setDeletingComp] = useState(false)
+  const [showKebab,           setShowKebab]           = useState(false)
+  const [deletingComp,        setDeletingComp]        = useState(false)
+  const [freshBannerDismissed,setFreshBannerDismissed]= useState(false)
   const kebabRef = useRef<HTMLDivElement>(null)
 
   const comp = selectedComp as any
@@ -1561,6 +1568,51 @@ export default function CompAdminPage() {
           )}
         </div>
       </div>
+
+      {/* Fresh comp setup banner — shown until dismissed or a second tipster joins */}
+      {tipsters.length === 1 && !freshBannerDismissed && (
+        <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+          <div className="flex items-start justify-between px-4 pt-4 pb-2">
+            <div>
+              <p className="text-sm font-bold text-emerald-900">Your comp is live — let's set it up! 🎉</p>
+              <p className="text-xs text-emerald-700 mt-0.5">Complete these two steps to get your tipsters tipping.</p>
+            </div>
+            <button
+              onClick={() => setFreshBannerDismissed(true)}
+              className="w-6 h-6 flex items-center justify-center text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 rounded-md transition-colors text-xs flex-shrink-0 ml-2"
+              title="Dismiss"
+            >✕</button>
+          </div>
+          <div className="px-4 pb-4 space-y-2">
+            <button
+              onClick={() => setActiveTab('tribes')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${tribes.length > 1 ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
+                {tribes.length > 1 ? '✓' : '1'}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold ${tribes.length > 1 ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Add more Tribes</p>
+                <p className="text-[11px] text-gray-400">Group your tipsters into rivalry teams</p>
+              </div>
+              <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('tipsters')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${invitations.length > 0 ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
+                {invitations.length > 0 ? '✓' : '2'}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold ${invitations.length > 0 ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Invite Tipsters</p>
+                <p className="text-[11px] text-gray-400">Send invites so your group can join and tip</p>
+              </div>
+              <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tab nav — scrollable on mobile */}
       <div className="flex overflow-x-auto gap-1 bg-gray-100 p-1 rounded-2xl mb-5 scrollbar-none">

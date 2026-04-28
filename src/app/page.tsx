@@ -770,7 +770,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Compact tribe progress — shown until tribe is joined */}
+              {/* Compact progress nudge — shown until tribe joined (tipsters) or comp set up (admins) */}
               {!step3Done && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center justify-between gap-3">
                   <div>
@@ -780,13 +780,22 @@ export default function HomePage() {
                       <span className="text-gray-300">·</span>
                       <span className="text-green-600 font-medium">✅ Comp</span>
                       <span className="text-gray-300">·</span>
-                      <span className="text-amber-700 font-medium">○ Tribe</span>
+                      <span className="text-amber-700 font-medium">
+                        {isCompAdmin ? '○ Comp Setup' : '○ Tribe'}
+                      </span>
                     </div>
                   </div>
-                  <Link href="/tribe"
-                    className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                    Find a tribe →
-                  </Link>
+                  {isCompAdmin ? (
+                    <Link href="/comp-admin"
+                      className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                      Set up your comp →
+                    </Link>
+                  ) : (
+                    <Link href="/tribe"
+                      className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                      Find a tribe →
+                    </Link>
+                  )}
                 </div>
               )}
 
