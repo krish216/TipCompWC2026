@@ -827,6 +827,7 @@ export default function TribePage() {
   const [tab,            setTab]            = useState<MainTab>('leaderboard')
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
+  const [unreadChat,     setUnreadChat]     = useState(0)
   const myId = session?.user.id ?? ''
 
   const loadPicks = async () => {
@@ -899,6 +900,29 @@ export default function TribePage() {
   }, [session, supabase, selectedComp?.id])
 
   useEffect(() => { if (session) loadTribe() }, [session, selectedComp?.id, loadTribe])
+
+  // Persist realtime subscription for new chat messages regardless of active tab
+  useEffect(() => {
+    if (!tribe || !session) return
+    const channel = supabase
+      .channel(`tribe-chat-notify-${tribe.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chat_messages',
+        filter: `tribe_id=eq.${tribe.id}`,
+      }, (payload) => {
+        const newMsg = payload.new as any
+        if (newMsg.user_id === session.user.id) return  // ignore own messages
+        setTab(current => {
+          if (current !== 'chat') {
+            setUnreadChat(n => n + 1)
+            toast(`New message in tribe chat`, { icon: '💬', duration: 3000 })
+          }
+          return current
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [tribe?.id, session?.user.id, supabase])
 
   const leaveTribe = async () => {
     if (!confirm('Leave this tribe? Your predictions and points history are kept.')) return
@@ -1025,6 +1049,7 @@ export default function TribePage() {
                 <button key={item.id}
                   onClick={() => {
                     setTab(item.id)
+                    if (item.id === 'chat') setUnreadChat(0)
                     if (item.id === 'picks' && tribe && !tribePicksData) loadPicks()
                   }}
                   style={{
@@ -1038,6 +1063,17 @@ export default function TribePage() {
                   }}>
                   <span style={{ fontSize: 14 }}>{item.icon}</span>
                   <span>{item.label}</span>
+                  {item.id === 'chat' && unreadChat > 0 && (
+                    <span style={{
+                      minWidth: 16, height: 16, borderRadius: 99,
+                      background: '#ef4444', color: '#fff',
+                      fontSize: 9, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0 4px', lineHeight: 1,
+                    }}>
+                      {unreadChat > 9 ? '9+' : unreadChat}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -1161,6 +1197,16 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
     members.some(m => (roundBreakdown[m.user_id]?.[r] ?? 0) > 0)
   )
 
+  // Sort by computed displayTotal (picks-based), falling back to total_points while picks load
+  const sortedMembers = useMemo(() => {
+    if (!tribePicksData) return [...members].sort((a, b) => b.total_points - a.total_points)
+    return [...members].sort((a, b) => {
+      const aTotal = Object.values(roundBreakdown[a.user_id] ?? {}).reduce((s: number, v: number) => s + v, 0)
+      const bTotal = Object.values(roundBreakdown[b.user_id] ?? {}).reduce((s: number, v: number) => s + v, 0)
+      return bTotal - aTotal
+    })
+  }, [members, roundBreakdown, tribePicksData])
+
   if (picksLoading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
   if (members.length === 0) return (
@@ -1190,7 +1236,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
             </tr>
           </thead>
           <tbody>
-            {members.map((member, i) => {
+            {sortedMembers.map((member, i) => {
               const isMe  = member.user_id === myId
               const breakdown = roundBreakdown[member.user_id] ?? {}
               const displayTotal = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0)

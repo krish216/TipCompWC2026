@@ -383,7 +383,7 @@ export default function HomePage() {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, predRes, fxRes] = await Promise.all([
         supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
-        fetch('/api/leaderboard?scope=global&limit=200'),
+        fetch('/api/leaderboard?scope=global&no_breakdown=true'),
         fetch('/api/predictions'),
         fetch('/api/fixtures'),
       ])
@@ -419,7 +419,7 @@ export default function HomePage() {
     const tid = selectedTournId ? `&tournament_id=${selectedTournId}` : ''
     Promise.all(
       tournsComps.map(c =>
-        fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&limit=500${tid}`)
+        fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&no_breakdown=true${tid}`)
           .then(r => r.json())
           .then(d => ({ id: c.id, rank: (d.my_entry?.rank ?? null) as number | null }))
           .catch(() => ({ id: c.id, rank: null as number | null }))

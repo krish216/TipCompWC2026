@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const scope = searchParams.get('scope') ?? 'comp'
     const limit = scope === 'tribe' ? 25 : 50
+    const noBreakdown = searchParams.get('no_breakdown') === 'true'
 
     // Resolve comp + tournament from user_preferences
     const { data: prefs } = await supabase
@@ -96,57 +97,59 @@ export async function GET(request: NextRequest) {
     if (lbError) return NextResponse.json({ error: lbError.message }, { status: 500 })
     const rows = (lbData ?? []) as any[]
 
-    // Build fixture → round map (single query, no join)
-    const { data: fixRows } = await adminClient
-      .from('fixtures').select('id, round').not('home_score', 'is', null)
-    const fixtureRoundMap: Record<number, RoundId> = {}
-    ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
-
-    // Build round breakdown per user using admin client (bypasses RLS)
-    const userIds = rows.map((r: any) => r.user_id)
+    // Build round/tab breakdowns (skipped when no_breakdown=true for faster responses)
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
     const tabBreakdownMap: Record<string, Record<string, number>> = {}
-
     const standardBreakdownMap: Record<string, Record<RoundId, number>> = {}
     const bonusBreakdownMap:    Record<string, Record<RoundId, number>> = {}
 
-    if (userIds.length > 0) {
-      const { data: predRows } = await (adminClient.from('predictions') as any)
-        .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
-        .in('user_id', userIds)
-        .not('points_earned', 'is', null)
-        .gt('points_earned', 0)
+    if (!noBreakdown) {
+      // Build fixture → round map (single query, no join)
+      const { data: fixRows } = await adminClient
+        .from('fixtures').select('id, round').not('home_score', 'is', null)
+      const fixtureRoundMap: Record<number, RoundId> = {}
+      ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
 
-      ;(predRows ?? []).forEach((p: any) => {
-        const round = fixtureRoundMap[p.fixture_id]
-        if (!round) return
-        if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
-        if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
-        if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
-        breakdownMap[p.user_id][round]         = (breakdownMap[p.user_id][round]         ?? 0) + (Number(p.points_earned)    || 0)
-        standardBreakdownMap[p.user_id][round] = (standardBreakdownMap[p.user_id][round] ?? 0) + (Number(p.standard_points) || 0)
-        bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
-      })
+      const userIds = rows.map((r: any) => r.user_id)
 
-      const userTabBreakdowns = await Promise.allSettled(userIds.map(async (userId) => {
-        const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
-        if (error) {
-          console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
-          return { userId, rows: [] }
-        }
-        return { userId, rows: (data ?? []) as any[] }
-      }))
+      if (userIds.length > 0) {
+        const { data: predRows } = await (adminClient.from('predictions') as any)
+          .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
+          .in('user_id', userIds)
+          .not('points_earned', 'is', null)
+          .gt('points_earned', 0)
 
-      userTabBreakdowns.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          const { userId, rows } = result.value
-          const map: Record<string, number> = {}
-          rows.forEach((row) => {
-            map[row.tab_group] = Number(row.points ?? 0)
-          })
-          tabBreakdownMap[userId] = map
-        }
-      })
+        ;(predRows ?? []).forEach((p: any) => {
+          const round = fixtureRoundMap[p.fixture_id]
+          if (!round) return
+          if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
+          if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
+          if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
+          breakdownMap[p.user_id][round]         = (breakdownMap[p.user_id][round]         ?? 0) + (Number(p.points_earned)    || 0)
+          standardBreakdownMap[p.user_id][round] = (standardBreakdownMap[p.user_id][round] ?? 0) + (Number(p.standard_points) || 0)
+          bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
+        })
+
+        const userTabBreakdowns = await Promise.allSettled(userIds.map(async (userId) => {
+          const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
+          if (error) {
+            console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
+            return { userId, rows: [] }
+          }
+          return { userId, rows: (data ?? []) as any[] }
+        }))
+
+        userTabBreakdowns.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const { userId, rows } = result.value
+            const map: Record<string, number> = {}
+            rows.forEach((row) => {
+              map[row.tab_group] = Number(row.points ?? 0)
+            })
+            tabBreakdownMap[userId] = map
+          }
+        })
+      }
     }
 
     const ranked = rows.map((row: any, i: number) => ({
