@@ -280,8 +280,8 @@ export default function LeaderboardPage() {
       const base = entries.filter(e => (e.total_points ?? 0) > 0)
       if (sortRound) {
         const sorted = [...base].sort((a, b) => {
-          const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
-          const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
+          const aRnd = Number(a.round_breakdown?.[sortRound] ?? 0)
+          const bRnd = Number(b.round_breakdown?.[sortRound] ?? 0)
           return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
         })
         return sorted.map((e, i) => ({ ...e, rank: i + 1 }))
@@ -587,162 +587,244 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Sort by round — Overall view only */}
-              {roundView === 'all' && ROUND_SNAPSHOTS.length > 1 && (
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-[11px] text-gray-400 font-medium">Sort by</span>
-                  <div className="flex gap-1 flex-wrap bg-gray-100 p-0.5 rounded-lg">
-                    <button
-                      onClick={() => setSortRound(null)}
-                      className={clsx(
-                        'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors',
-                        sortRound === null ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                      )}>
-                      Overall
-                    </button>
-                    {ROUND_SNAPSHOTS.filter(r => r.id !== 'all').map(r => (
-                      <button key={r.id}
-                        onClick={() => setSortRound(r.id)}
-                        className={clsx(
-                          'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors',
-                          sortRound === r.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                        )}>
-                        {r.shortLabel}
-                      </button>
-                    ))}
+              {/* Overall view — multi-round column table, click headers to sort */}
+              {roundView === 'all' ? (() => {
+                const activeRounds = ROUND_ORDER.filter(r =>
+                  filteredEntries.some(e => (e.round_breakdown?.[r] ?? 0) > 0)
+                )
+                return (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                    <table className="w-full text-xs border-collapse min-w-max">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left px-2 py-2.5 text-[11px] font-semibold text-gray-500 uppercase w-8">#</th>
+                          <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50 min-w-[130px]">
+                            Player
+                          </th>
+                          {activeRounds.map(r => (
+                            <th key={r}
+                              onClick={() => setSortRound(sortRound === r ? null : r)}
+                              className={clsx(
+                                'px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none transition-colors min-w-[44px]',
+                                sortRound === r
+                                  ? 'text-green-700 bg-green-50'
+                                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                              )}>
+                              {r.toUpperCase()}
+                              {sortRound === r && <span className="ml-0.5 text-[9px]">▼</span>}
+                            </th>
+                          ))}
+                          <th
+                            onClick={() => setSortRound(null)}
+                            className={clsx(
+                              'px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none transition-colors',
+                              sortRound === null ? 'text-green-700' : 'text-gray-700 hover:bg-gray-100'
+                            )}>
+                            Total{sortRound === null && <span className="ml-0.5 text-[9px]">▼</span>}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredEntries.map((entry, i) => {
+                          const isMe   = entry.user_id === myId
+                          const myRank = entry.rank ?? i + 1
+                          return (
+                            <tr key={entry.user_id}
+                              className={clsx(
+                                'border-b border-gray-100 last:border-0 transition-colors',
+                                isMe ? 'bg-green-50' : 'hover:bg-gray-50'
+                              )}>
+                              <td className="px-2 py-2.5 text-center">
+                                <Medal rank={myRank} />
+                              </td>
+                              <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white')}>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Avatar name={entry.display_name} size="xs" />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={clsx('text-xs font-medium truncate max-w-[100px]', isMe && 'text-green-700')}>
+                                        {entry.display_name}{isMe && ' (you)'}
+                                      </span>
+                                      {isMe && (
+                                        <ShareButton compact payload={{
+                                          type: 'rank', rank: myRank,
+                                          points: entry.total_points, bonus: entry.bonus_count,
+                                          correct: entry.correct_count, exact: entry.exact_count ?? 0,
+                                          displayName: entry.display_name, roundLabel: 'Overall',
+                                        }} />
+                                      )}
+                                    </div>
+                                    {entry.tribe_name && scope !== 'tribe' && (
+                                      <span className="text-[10px] text-gray-400 truncate block max-w-[100px]">🏆 {entry.tribe_name}</span>
+                                    )}
+                                    {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
+                                      <span className="text-[10px] text-blue-400 truncate block max-w-[100px]">🏢 {entry.comp_name}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              {activeRounds.map(r => {
+                                const pts      = entry.round_breakdown?.[r] ?? 0
+                                const isSorted = sortRound === r
+                                return (
+                                  <td key={r} className="px-2 py-2.5 text-center">
+                                    {pts > 0
+                                      ? <span className={clsx(
+                                          'inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
+                                          isSorted
+                                            ? isMe ? 'bg-green-300 text-green-900' : 'bg-green-100 text-green-800'
+                                            : isMe ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                                        )}>{pts}</span>
+                                      : <span className="text-gray-300">—</span>
+                                    }
+                                  </td>
+                                )
+                              })}
+                              <td className="px-3 py-2.5 text-right">
+                                <span className={clsx('font-bold text-sm', isMe ? 'text-green-700' : 'text-gray-900')}>
+                                  {entry.total_points}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-              )}
+                )
+              })() : (
+                /* Round snapshot views — 5-column table */
+                <>
+                  <Card className="overflow-hidden p-0">
+                    <div className="grid grid-cols-[32px_1fr_80px_60px_60px] gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                      <span>#</span>
+                      <span>Player</span>
+                      <span className="text-right">Points</span>
+                      <span className="text-right text-amber-600">+Bonus</span>
+                      <span className="text-right text-green-700">Base</span>
+                    </div>
 
-              {/* Table */}
-              <Card className="overflow-hidden p-0">
-                <div className="grid grid-cols-[32px_1fr_80px_60px_60px] gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                  <span>#</span>
-                  <span>Player</span>
-                  <span className="text-right">Points</span>
-                  <span className="text-right text-amber-600">+Bonus</span>
-                  <span className="text-right text-green-700">Base</span>
-                </div>
-
-                {filteredEntries.map((entry, i) => {
-                  const isMe       = entry.user_id === myId
-                  const isExpanded = expanded === entry.user_id
-                  const myRank     = entry.rank ?? i + 1
-                  const move       = movementMap[entry.user_id]
-                  const above      = myRank > 1 ? filteredEntries[myRank - 2] : null
-                  const gapToAbove = above ? above.total_points - entry.total_points : 0
-                  return (
-                    <div key={entry.user_id}>
-                      <button
-                        className={clsx(
-                          'w-full grid grid-cols-[32px_1fr_80px_60px_60px] gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 text-left transition-colors',
-                          isMe ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'
-                        )}
-                        onClick={() => setExpanded(isExpanded ? null : entry.user_id)}
-                      >
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <Medal rank={myRank} />
-                          {move != null && move !== 0 && (
-                            <span className={clsx('text-[9px] font-bold leading-none', move > 0 ? 'text-green-500' : 'text-red-400')}>
-                              {move > 0 ? `▲${move}` : `▼${Math.abs(move)}`}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Avatar name={entry.display_name} size="xs" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
-                                {entry.display_name}{isMe ? ' (you)' : ''}
-                              </p>
-                              {isMe && (
-                                <ShareButton compact payload={{
-                                  type: 'rank', rank: myRank,
-                                  points: entry.total_points, bonus: entry.bonus_count,
-                                  correct: entry.correct_count, exact: entry.exact_count ?? 0, displayName: entry.display_name,
-                                  roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
-                                }} />
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {entry.tribe_name && (
-                                <span className="text-[10px] text-gray-400 truncate">🏆 {entry.tribe_name}</span>
-                              )}
-                              {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
-                                <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.comp_name}</span>
-                              )}
-                              {isMe && myRank === 1 && (
-                                <span className="text-[10px] text-green-600 font-semibold">Leading 🏆</span>
-                              )}
-                              {isMe && myRank > 1 && (
-                                <span className="text-[10px] text-amber-600">
-                                  {gapToAbove > 0 ? `${gapToAbove} behind #${myRank - 1}` : `Tied #${myRank - 1}`}
+                    {filteredEntries.map((entry, i) => {
+                      const isMe       = entry.user_id === myId
+                      const isExpanded = expanded === entry.user_id
+                      const myRank     = entry.rank ?? i + 1
+                      const move       = movementMap[entry.user_id]
+                      const above      = myRank > 1 ? filteredEntries[myRank - 2] : null
+                      const gapToAbove = above ? above.total_points - entry.total_points : 0
+                      return (
+                        <div key={entry.user_id}>
+                          <button
+                            className={clsx(
+                              'w-full grid grid-cols-[32px_1fr_80px_60px_60px] gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 text-left transition-colors',
+                              isMe ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'
+                            )}
+                            onClick={() => setExpanded(isExpanded ? null : entry.user_id)}
+                          >
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <Medal rank={myRank} />
+                              {move != null && move !== 0 && (
+                                <span className={clsx('text-[9px] font-bold leading-none', move > 0 ? 'text-green-500' : 'text-red-400')}>
+                                  {move > 0 ? `▲${move}` : `▼${Math.abs(move)}`}
                                 </span>
                               )}
                             </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-end">
-                          <span className={clsx('text-sm font-semibold', isMe ? 'text-green-700' : 'text-gray-900')}>
-                            {entry.total_points}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-end">
-                          <span className="text-xs text-amber-600 font-medium">
-                            {entry.total_bonus_points != null && entry.total_bonus_points > 0
-                              ? `+${entry.total_bonus_points}`
-                              : entry.bonus_count > 0 ? entry.bonus_count : '—'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-end">
-                          <span className="text-xs text-green-700 font-medium">
-                            {(entry.total_points ?? 0) - (entry.total_bonus_points ?? 0)}
-                          </span>
-                        </div>
-                      </button>
-
-                      {isExpanded && entry.round_breakdown && (() => {
-                        const sorted = (Object.entries(entry.round_breakdown) as [RoundId, number][])
-                          .filter(([, pts]) => Number(pts) > 0)
-                          .sort(([a], [b]) => {
-                            const ai = ROUND_ORDER.indexOf(a as RoundId)
-                            const bi = ROUND_ORDER.indexOf(b as RoundId)
-                            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-                          })
-                        const maxPts = Math.max(...sorted.map(([, v]) => Number(v)), 1)
-                        return (
-                          <div className="px-4 pt-3 pb-4 bg-gray-50 border-b border-gray-100">
-                            <p className="text-[11px] font-medium text-gray-500 mb-3 uppercase tracking-wide">Points by round</p>
-                            <div className="flex items-end gap-3 flex-wrap">
-                              {sorted.map(([round, pts]) => {
-                                const n        = Number(pts)
-                                const barH     = Math.max(Math.round((n / maxPts) * 52), 6)
-                                const isCrown  = roundWinnerPts[round] === n && n > 0
-                                return (
-                                  <div key={round} className="flex flex-col items-center gap-1 min-w-[36px]">
-                                    <span className="text-[10px] font-bold text-gray-700">{n}</span>
-                                    {isCrown && <span className="text-[11px] leading-none">👑</span>}
-                                    <div
-                                      className={clsx('w-8 rounded-t-md transition-all', isCrown ? 'bg-amber-400' : isMe ? 'bg-green-400' : 'bg-blue-300')}
-                                      style={{ height: `${barH}px` }}
-                                    />
-                                    <span className="text-[9px] text-gray-400 font-medium uppercase">{round}</span>
-                                  </div>
-                                )
-                              })}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar name={entry.display_name} size="xs" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
+                                    {entry.display_name}{isMe ? ' (you)' : ''}
+                                  </p>
+                                  {isMe && (
+                                    <ShareButton compact payload={{
+                                      type: 'rank', rank: myRank,
+                                      points: entry.total_points, bonus: entry.bonus_count,
+                                      correct: entry.correct_count, exact: entry.exact_count ?? 0, displayName: entry.display_name,
+                                      roundLabel: ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label,
+                                    }} />
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {entry.tribe_name && (
+                                    <span className="text-[10px] text-gray-400 truncate">🏆 {entry.tribe_name}</span>
+                                  )}
+                                  {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
+                                    <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.comp_name}</span>
+                                  )}
+                                  {isMe && myRank === 1 && (
+                                    <span className="text-[10px] text-green-600 font-semibold">Leading 🏆</span>
+                                  )}
+                                  {isMe && myRank > 1 && (
+                                    <span className="text-[10px] text-amber-600">
+                                      {gapToAbove > 0 ? `${gapToAbove} behind #${myRank - 1}` : `Tied #${myRank - 1}`}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )
-                })}
-              </Card>
+                            <div className="flex items-center justify-end">
+                              <span className={clsx('text-sm font-semibold', isMe ? 'text-green-700' : 'text-gray-900')}>
+                                {entry.total_points}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-end">
+                              <span className="text-xs text-amber-600 font-medium">
+                                {entry.total_bonus_points != null && entry.total_bonus_points > 0
+                                  ? `+${entry.total_bonus_points}`
+                                  : entry.bonus_count > 0 ? entry.bonus_count : '—'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-end">
+                              <span className="text-xs text-green-700 font-medium">
+                                {entry.total_standard_pts ?? (entry.total_points ?? 0) - (entry.total_bonus_points ?? 0)}
+                              </span>
+                            </div>
+                          </button>
 
-              <div className="flex gap-4 mt-3 text-[11px] text-gray-400 flex-wrap">
-                <span><span className="text-amber-600 font-medium">+Bonus</span> = exact score, pen winner &amp; fav team pts</span>
-                <span><span className="text-green-700 font-medium">Base</span> = pts for correct result (excl. bonus)</span>
-              </div>
+                          {isExpanded && entry.round_breakdown && (() => {
+                            const sorted = (Object.entries(entry.round_breakdown) as [RoundId, number][])
+                              .filter(([, pts]) => Number(pts) > 0)
+                              .sort(([a], [b]) => {
+                                const ai = ROUND_ORDER.indexOf(a as RoundId)
+                                const bi = ROUND_ORDER.indexOf(b as RoundId)
+                                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+                              })
+                            const maxPts = Math.max(...sorted.map(([, v]) => Number(v)), 1)
+                            return (
+                              <div className="px-4 pt-3 pb-4 bg-gray-50 border-b border-gray-100">
+                                <p className="text-[11px] font-medium text-gray-500 mb-3 uppercase tracking-wide">Points by round</p>
+                                <div className="flex items-end gap-3 flex-wrap">
+                                  {sorted.map(([round, pts]) => {
+                                    const n       = Number(pts)
+                                    const barH    = Math.max(Math.round((n / maxPts) * 52), 6)
+                                    const isCrown = roundWinnerPts[round] === n && n > 0
+                                    return (
+                                      <div key={round} className="flex flex-col items-center gap-1 min-w-[36px]">
+                                        <span className="text-[10px] font-bold text-gray-700">{n}</span>
+                                        {isCrown && <span className="text-[11px] leading-none">👑</span>}
+                                        <div
+                                          className={clsx('w-8 rounded-t-md transition-all', isCrown ? 'bg-amber-400' : isMe ? 'bg-green-400' : 'bg-blue-300')}
+                                          style={{ height: `${barH}px` }}
+                                        />
+                                        <span className="text-[9px] text-gray-400 font-medium uppercase">{round}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      )
+                    })}
+                  </Card>
+
+                  <div className="flex gap-4 mt-3 text-[11px] text-gray-400 flex-wrap">
+                    <span><span className="text-amber-600 font-medium">+Bonus</span> = exact score, pen winner &amp; fav team pts</span>
+                    <span><span className="text-green-700 font-medium">Base</span> = pts for correct result (excl. bonus)</span>
+                  </div>
+                </>
+              )}
 
             </>
           )}

@@ -1144,7 +1144,10 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
       const fxPicks = picks?.[fx.id] ?? {}
       Object.entries(fxPicks).forEach(([uid, p]: any) => {
         if (!breakdown[uid]) breakdown[uid] = {}
-        const pts = Number(p.points_earned ?? 0)
+        // Use points_earned if set; fall back to standard_points + bonus_points
+        const pts = p.points_earned != null
+          ? Number(p.points_earned)
+          : Number(p.standard_points ?? 0) + Number(p.bonus_points ?? 0)
         if (pts > 0) {
           breakdown[uid][fx.round] = (breakdown[uid][fx.round] ?? 0) + pts
         }
@@ -1190,7 +1193,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
             {members.map((member, i) => {
               const isMe  = member.user_id === myId
               const breakdown = roundBreakdown[member.user_id] ?? {}
-              const displayTotal = member.total_points
+              const displayTotal = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0)
 
               return (
                 <tr key={member.user_id}

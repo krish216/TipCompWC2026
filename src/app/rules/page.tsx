@@ -2,7 +2,7 @@ import { type RoundId, getDefaultScoringConfig } from '@/types'
 
 // Show each round as a separate row — tp (3rd place) and f (Final) have different scoring
 const SCORING_ROWS: { rid: RoundId; label: string; badge?: string; highlight?: boolean }[] = [
-  { rid: 'gs',  label: 'Group stage' },
+  { rid: 'gs1',  label: 'Group stage' },
   { rid: 'r32', label: 'Round of 32' },
   { rid: 'r16', label: 'Round of 16' },
   { rid: 'qf',  label: 'Quarter-finals' },
@@ -87,7 +87,7 @@ export default function RulesPage() {
         <div className="mt-3 flex gap-3 flex-wrap text-xs text-gray-500">
           <span><span className="font-medium text-blue-600">1/X/2</span> — Pick home win (1), draw (X), or away win (2)</span>
           <span><span className="font-medium text-green-700">Base pts</span> — points earned for a correct result prediction</span>
-          <span><span className="font-medium text-purple-700">+Bonus</span> — extra pts for exact score, penalties &amp; fav team</span>
+          <span><span className="font-medium text-purple-700">+Bonus</span> — extra pts for exact score, penalties &amp; Bonus Points team</span>
           <span><span className="font-medium text-gray-500">✗ Wrong</span> — 0 pts</span>
         </div>
         <p className="text-xs text-gray-400 mt-2">Semi-finals, 3rd place play-off and Final require a bonus score prediction. All other rounds use 1/X/2 outcome only.</p>
