@@ -117,12 +117,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   // Load comps for a given tournament — filtered server-side via ?tournament_id=
   const loadComps = useCallback(async (
     tournId:    string,
-    userId:     string,
+    _userId:    string,
     prefCompId: string | null = null
   ): Promise<Comp[]> => {
     try {
       // Pass tournament_id to API — filtering done server-side with admin client
-      const res  = await fetch(`/api/user-comps?tournament_id=${tournId}`)
+      let res = await fetch(`/api/user-comps?tournament_id=${tournId}`)
+      // 401 can occur right after email verification (race: client session is ready
+      // but the auth cookie hasn't propagated to the server yet). Retry once.
+      if (res.status === 401) {
+        await new Promise(r => setTimeout(r, 1500))
+        res = await fetch(`/api/user-comps?tournament_id=${tournId}`)
+      }
       const data = await res.json()
 
       const comps: Comp[] = data.error ? [] : (data.data as any[])
@@ -146,7 +152,11 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Initial load
+  // Initial load — keyed on user ID, not the full session object.
+  // The session object is replaced on every TOKEN_REFRESHED event, which would
+  // re-run this effect (and all its fetches) once per refresh cycle if we used
+  // [session] directly. Using [session?.user.id] re-runs only on actual
+  // login / logout / user-switch events.
   useEffect(() => {
     // Always reset admin state when session changes (prevents stale comp-admin
     // access when a different user logs in after a comp-admin logs out)
@@ -221,7 +231,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
       setLoading(false)
     })()
-  }, [session])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id])
 
   const pickTournament = useCallback(async (id: string) => {
     setSelectedTournId(id)
