@@ -121,7 +121,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', fixture_id)
 
     await (admin.from('predictions') as any)
-      .update({ points_earned: null })
+      .update({ points_earned: null, standard_points: 0, bonus_points: 0 })
       .eq('fixture_id', fixture_id)
 
   } else {
@@ -131,7 +131,7 @@ export async function DELETE(request: NextRequest) {
       .not('home_score', 'is', null)   // only rows that have a result
 
     await (admin.from('predictions') as any)
-      .update({ points_earned: null })
+      .update({ points_earned: null, standard_points: 0, bonus_points: 0 })
       .not('points_earned', 'is', null)  // only rows that have been scored
   }
 
