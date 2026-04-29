@@ -229,15 +229,32 @@ function buildTemplateHtml(
 ): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // Use a null-byte sentinel so we can locate {join_link} after escaping other tokens
+  const JOIN_PLACEHOLDER = '\x00JOIN\x00'
   const body = template
     .replace(/\{name\}/g,            esc(tokens.name))
     .replace(/\{comp_name\}/g,       esc(tokens.comp_name))
     .replace(/\{join_code\}/g,       esc(tokens.join_code))
-    .replace(/\{join_link\}/g,       tokens.join_link)   // not escaped — it's a URL
+    .replace(/\{join_link\}/g,       JOIN_PLACEHOLDER)
     .replace(/\{tournament_name\}/g, esc(tokens.tournament_name))
-  const lines = body.split('\n').map(line =>
-    `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${line || '&nbsp;'}</p>`
-  ).join('')
+
+  // Full-width CTA button — used when {join_link} is on its own line
+  const joinBtn =
+    `<div style="text-align:center;margin:24px 0;">` +
+    `<a href="${tokens.join_link}" style="display:inline-block;padding:14px 36px;background:#16a34a;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;letter-spacing:-0.2px;box-shadow:0 4px 14px rgba(22,163,74,0.35);">` +
+    `Join ${esc(tokens.comp_name)} →` +
+    `</a></div>`
+
+  // Inline anchor — used when {join_link} is embedded in text
+  const joinAnchor = `<a href="${tokens.join_link}" style="color:#16a34a;word-break:break-all;">${tokens.join_link}</a>`
+
+  const lines = body.split('\n').map(line => {
+    if (line.trim() === JOIN_PLACEHOLDER) return joinBtn
+    const replaced = line.replace(JOIN_PLACEHOLDER, joinAnchor)
+    return `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${replaced || '&nbsp;'}</p>`
+  }).join('')
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/></head>
