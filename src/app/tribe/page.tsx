@@ -582,6 +582,7 @@ function NoTribePanel({
   const [initLoading,   setInitLoading]   = useState(true)
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState<string|null>(null)
+  const [tribeInfoOpen, setTribeInfoOpen] = useState(false)
 
   // Tribe member names (fetched on expand)
   const [tribeMembersMap, setTribeMembersMap] = useState<Record<string, any[]>>({})
@@ -681,8 +682,32 @@ function NoTribePanel({
               </div>
             </div>
             <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
-              You're in this comp — pick a tribe below to compete with friends.
+              You're in this comp — pick a tribe below to compete with friends.{' '}
+              <button
+                type="button"
+                onClick={() => setTribeInfoOpen(v => !v)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 16, height: 16, borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,0.45)',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.75)',
+                  fontSize: 10, fontWeight: 700, lineHeight: 1,
+                  cursor: 'pointer', verticalAlign: 'middle',
+                }}
+                aria-label="What is a tribe?">
+                i
+              </button>
             </p>
+            {tribeInfoOpen && (
+              <p style={{
+                margin: '10px 0 0', padding: '10px 12px',
+                background: 'rgba(255,255,255,0.1)', borderRadius: 10,
+                fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5,
+              }}>
+                A Tribe is a small group within your comp. Join or create one to get a private chat and a mini-leaderboard with your friends.
+              </p>
+            )}
           </>
         ) : (
           <>

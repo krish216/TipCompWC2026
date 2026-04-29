@@ -375,6 +375,7 @@ export default function HomePage() {
     return { deadlineLabel: `Closing in ${m}m`, urgencyLevel: 'red' as const }
   }, [nextKickoff, tickNow])
 
+  const [tribeInfoOpen,  setTribeInfoOpen]  = useState(false)
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
@@ -629,7 +630,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-3 px-4 py-3">
                   <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-700">Joined TribePicks</p>
+                    <p className="text-sm font-semibold text-gray-700">Verified your account</p>
                   </div>
                   <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Done</span>
                 </div>
@@ -733,10 +734,24 @@ export default function HomePage() {
                 </div>
 
                 {/* Step 3 — locked */}
-                <div className="flex items-center gap-3 px-4 py-3 opacity-40">
-                  <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">3</span>
-                  <p className="text-sm font-semibold text-gray-500">Join a tribe</p>
-                  <span className="text-[11px] text-gray-400 ml-auto">Unlocks next</span>
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-3 opacity-40">
+                    <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold">3</span>
+                    <p className="text-sm font-semibold text-gray-500">Join a tribe</p>
+                    <span className="text-[11px] text-gray-400 ml-auto">Unlocks next</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTribeInfoOpen(v => !v)}
+                    className="mt-1.5 flex items-center gap-1 text-[11px] text-green-600 font-medium hover:text-green-700">
+                    <span className="w-3.5 h-3.5 rounded-full border border-green-500 inline-flex items-center justify-center text-[9px] font-bold leading-none flex-shrink-0">i</span>
+                    What is a tribe?
+                  </button>
+                  {tribeInfoOpen && (
+                    <p className="mt-1.5 text-[12px] text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2 leading-relaxed">
+                      A Tribe is a small group within your comp. Join or create one to get a private chat and a mini-leaderboard with your friends.
+                    </p>
+                  )}
                 </div>
 
               </div>
@@ -795,10 +810,25 @@ export default function HomePage() {
                       <span className="text-gray-300">·</span>
                       <span className="text-green-600 font-medium">✅ Comp</span>
                       <span className="text-gray-300">·</span>
-                      <span className="text-amber-700 font-medium">
-                        {isCompAdmin ? '○ Comp Setup' : '○ Tribe'}
-                      </span>
+                      {isCompAdmin ? (
+                        <span className="text-amber-700 font-medium">○ Comp Setup</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-amber-700 font-medium">
+                          ○ Tribe
+                          <button
+                            type="button"
+                            onClick={() => setTribeInfoOpen(v => !v)}
+                            className="w-3.5 h-3.5 rounded-full border border-amber-400 inline-flex items-center justify-center text-[9px] font-bold leading-none text-amber-500 hover:border-amber-600 hover:text-amber-700 flex-shrink-0">
+                            i
+                          </button>
+                        </span>
+                      )}
                     </div>
+                    {tribeInfoOpen && !isCompAdmin && (
+                      <p className="mt-2 text-[11px] text-green-800 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                        A Tribe is a small group within your comp. Join or create one to get a private chat and a mini-leaderboard with your friends.
+                      </p>
+                    )}
                   </div>
                   {isCompAdmin ? (
                     <Link href="/comp-admin"
