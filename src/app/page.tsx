@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
@@ -265,6 +265,7 @@ function CompModal({
 
 export default function HomePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { session, supabase } = useSupabase()
 
   // User profile
@@ -316,6 +317,14 @@ export default function HomePage() {
     }
     return { predCount: allPredictions.length, fixtureCount: allFixtures.length }
   }, [currentRoundCode, allPredictions, allFixtures])
+
+  // Auto-open the Create Comp modal when the user arrives after organiser registration
+  useEffect(() => {
+    if (searchParams.get('flow') === 'create' && session) {
+      setModal('create')
+      router.replace('/')
+    }
+  }, [searchParams, session])
 
   // Ticks every 30s so deadline labels stay fresh without a full reload
   const [tickNow, setTickNow] = useState(() => Date.now())

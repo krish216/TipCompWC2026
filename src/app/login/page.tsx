@@ -17,6 +17,10 @@ export default function LoginPage() {
   const tabParam = params.get('tab') as Mode | null
 
   const [mode,     setMode]     = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
+  const [role,     setRole]     = useState<'tipster' | 'organiser' | null>(null)
+  // Pre-filled from magic join link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
+  const codeParam  = (params.get('code') ?? '').toUpperCase()
+  const emailParam = params.get('email') ?? ''
 
   // Sync tab from URL param — handles Navbar links pressing Register or Sign in
   // while the page is already mounted
@@ -59,6 +63,11 @@ export default function LoginPage() {
       })
       .catch(() => {})
   }, [])
+
+  // Pre-fill email from invite link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
+  useEffect(() => {
+    if (emailParam) setEmail(emailParam)
+  }, [emailParam])
 
   // When session is established, redirect to home (comp setup is handled there)
   useEffect(() => {
@@ -158,9 +167,18 @@ export default function LoginPage() {
         return
       }
 
+      const redirectTo = codeParam
+        ? `${window.location.origin}/join?code=${codeParam}`
+        : role === 'organiser'
+        ? `${window.location.origin}/?flow=create`
+        : `${window.location.origin}/`
+
       const { data: signUpData, error } = await supabase.auth.signUp({
         email, password,
-        options: { data: { display_name: displayName } },
+        options: {
+          data: { display_name: displayName },
+          emailRedirectTo: redirectTo,
+        },
       })
       setLoading(false)
       if (error) {
@@ -311,6 +329,33 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           {mode === 'register' && (
             <>
+              {/* Role selection — skip if arriving via an invite link (role is implicitly tipster) */}
+              {!codeParam && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-2">I want to…</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { value: 'tipster',   icon: '🎯', label: 'Join a comp',     sub: 'Predict & compete' },
+                      { value: 'organiser', icon: '🏆', label: 'Run my own comp', sub: 'Set up & manage'   },
+                    ] as const).map(({ value, icon, label, sub }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setRole(value)}
+                        className={`flex flex-col items-center gap-1 px-3 py-3 rounded-xl border-2 text-center transition-all ${
+                          role === value
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}>
+                        <span className="text-2xl">{icon}</span>
+                        <span className="text-xs font-semibold text-gray-800">{label}</span>
+                        <span className="text-[10px] text-gray-400">{sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Display name <span className="text-red-500">*</span>

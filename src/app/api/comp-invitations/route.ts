@@ -123,13 +123,15 @@ export async function POST(request: NextRequest) {
     // Send invitation email
     if (resend) {
       const recipientName = (registeredUser as any)?.display_name ?? 'there'
-      const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: (comp as any).invite_code, tournament_name: tournamentName }
+      const inviteCode    = (comp as any).invite_code
+      const joinLink      = `${APP_URL}/join?code=${inviteCode}&email=${encodeURIComponent(email)}`
+      const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: inviteCode, join_link: joinLink, tournament_name: tournamentName }
       const emailSubject = subject
         ? subject.replace(/\{comp_name\}/g, tokens.comp_name).replace(/\{tournament_name\}/g, tokens.tournament_name)
         : `You've been invited to join ${tokens.comp_name}`
       const emailHtml = bodyTemplate
         ? buildTemplateHtml(bodyTemplate, tokens)
-        : buildInviteHtml({ recipientName, compName: tokens.comp_name, inviteCode: tokens.join_code, tournamentName, customMessage: '' })
+        : buildInviteHtml({ recipientName, compName: tokens.comp_name, inviteCode, joinLink, tournamentName })
       await resend.emails.send({
         from: FROM, to: email, subject: emailSubject, html: emailHtml,
       }).catch(() => { /* non-fatal — invitation row already created */ })
@@ -151,16 +153,13 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ results, invited, already, already_member: alreadyMember })
 }
 
-function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, customMessage }: {
+function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tournamentName }: {
   recipientName: string; compName: string; inviteCode: string
-  tournamentName: string; customMessage: string
+  joinLink: string; tournamentName: string
 }): string {
-  const customPara = customMessage.trim()
-    ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">${customMessage.trim().replace(/\n/g, '<br/>')}</p>`
-    : ''
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"/></head>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;padding:32px 24px;background:#ffffff;">
 
   <!-- Header -->
@@ -168,35 +167,49 @@ function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, 
     <p style="margin:0;font-size:22px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks ⚽</p>
   </div>
 
-  <p style="margin:0 0 16px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
+  <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
 
-  <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
-    You've been invited to join <strong>${compName}</strong> for the <strong>${tournamentName}</strong>.
+  <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#374151;">
+    You've been invited to join <strong>${compName}</strong> — a prediction comp for the <strong>${tournamentName}</strong>. Tap the button below to create your free account and join in one click.
   </p>
 
-  ${customPara}
-
-  <!-- Join code callout -->
-  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Your join code</p>
-    <p style="margin:0;font-size:28px;font-weight:900;color:#065f46;letter-spacing:0.25em;font-family:monospace;">${inviteCode}</p>
+  <!-- Primary CTA -->
+  <div style="text-align:center;margin:0 0 28px;">
+    <a href="${joinLink}"
+       style="display:inline-block;padding:14px 36px;background:#16a34a;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;letter-spacing:-0.2px;box-shadow:0 4px 14px rgba(22,163,74,0.35);">
+      Join ${compName} →
+    </a>
   </div>
 
-  <!-- Step-by-step instructions -->
-  <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#111827;">How to join in 3 steps:</p>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-    ${[
-      ['1', `Go to <a href="${APP_URL}" style="color:#065f46;font-weight:600;">${APP_URL.replace('https://', '')}</a> and create a free account`],
-      ['2', 'Once registered, tap <strong>Join Comp</strong> on the home screen'],
-      ['3', `Enter comp code <strong style="font-family:monospace;letter-spacing:0.1em;">${inviteCode}</strong> and tap <strong>Join</strong> — you\'re in!`],
-    ].map(([n, text]) => `
-    <tr>
-      <td style="width:32px;padding:6px 12px 6px 0;vertical-align:top;">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#065f46;color:#fff;font-size:12px;font-weight:700;">${n}</span>
-      </td>
-      <td style="padding:6px 0;font-size:13px;line-height:1.6;color:#374151;">${text}</td>
-    </tr>`).join('')}
-  </table>
+  <!-- What to expect -->
+  <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin:0 0 28px;">
+    <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">What happens when you tap Join</p>
+    <table style="width:100%;border-collapse:collapse;">
+      ${[
+        ['🖊️', 'Create a free account (takes 30 seconds)'],
+        ['✅', `You're automatically added to <strong>${compName}</strong>`],
+        ['🎯', 'Start tipping — predictions open now'],
+      ].map(([icon, text]) => `
+      <tr>
+        <td style="width:28px;padding:4px 10px 4px 0;vertical-align:top;font-size:15px;">${icon}</td>
+        <td style="padding:4px 0;font-size:13px;line-height:1.5;color:#374151;">${text}</td>
+      </tr>`).join('')}
+    </table>
+  </div>
+
+  <!-- Fallback -->
+  <div style="border-top:1px solid #f3f4f6;padding-top:20px;margin-bottom:24px;">
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;">Button not working?</p>
+    <p style="margin:0 0 6px;font-size:13px;color:#6b7280;line-height:1.5;">
+      <strong>If you already have a TribePicks account:</strong> sign in at
+      <a href="${APP_URL}" style="color:#065f46;">${APP_URL.replace('https://', '')}</a>
+      — the invitation will appear on your home screen. Tap it to join with one click, no code needed.
+    </p>
+    <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
+      <strong>No invitation showing?</strong> Tap <em>Join a comp</em> on the home screen and enter code
+      <span style="font-family:monospace;font-weight:700;color:#065f46;letter-spacing:0.15em;">${inviteCode}</span>.
+    </p>
+  </div>
 
   <p style="margin:0 0 24px;font-size:14px;color:#374151;">Good luck! 🏆</p>
   <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">The <strong>${compName}</strong> team</p>
@@ -204,6 +217,7 @@ function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, 
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">
     This invite was sent by your comp admin via <a href="${APP_URL}" style="color:#9ca3af;">TribePicks</a>.
+    The join link uses your comp's invite code which does not expire.
   </p>
 </body>
 </html>`
@@ -211,7 +225,7 @@ function buildInviteHtml({ recipientName, compName, inviteCode, tournamentName, 
 
 function buildTemplateHtml(
   template: string,
-  tokens: { name: string; comp_name: string; join_code: string; tournament_name: string }
+  tokens: { name: string; comp_name: string; join_code: string; join_link: string; tournament_name: string }
 ): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -219,6 +233,7 @@ function buildTemplateHtml(
     .replace(/\{name\}/g,            esc(tokens.name))
     .replace(/\{comp_name\}/g,       esc(tokens.comp_name))
     .replace(/\{join_code\}/g,       esc(tokens.join_code))
+    .replace(/\{join_link\}/g,       tokens.join_link)   // not escaped — it's a URL
     .replace(/\{tournament_name\}/g, esc(tokens.tournament_name))
   const lines = body.split('\n').map(line =>
     `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${line || '&nbsp;'}</p>`

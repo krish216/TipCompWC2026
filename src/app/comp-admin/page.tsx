@@ -74,18 +74,19 @@ function Section({ title, sub, right, children }: { title: string; sub?: string;
 }
 
 // ─── Tab: Tipsters ─────────────────────────────────────────────────────────────
-const DEFAULT_INVITE_SUBJECT = `You've been invited to join {comp_name}`
+const DEFAULT_INVITE_SUBJECT = `You're invited to tip in {comp_name} 🏆`
 const DEFAULT_INVITE_BODY =
 `Hi {name},
 
-You've been invited to join {comp_name} for {tournament_name}.
+You've been invited to join {comp_name} — a prediction comp for {tournament_name}.
 
-Your join code is: {join_code}
+Tap the link below to create your free account and join in one click:
 
-How to join in 3 steps:
-1. Go to https://www.tribepicks.com/login?tab=register and create a free account
-2. Tap "Join Comp" on the home screen
-3. Enter {join_code} and tap Join — you're in!
+{join_link}
+
+Already have a TribePicks account? Sign in at tribepicks.com — the invitation will appear on your home screen ready to accept.
+
+Can't see it? Tap "Join a comp" and enter code: {join_code}
 
 Good luck! 🏆
 The {comp_name} team`
