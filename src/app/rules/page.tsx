@@ -60,7 +60,8 @@ export default function RulesPage() {
             const isScore     = sc?.predict_mode === 'score'
             const exactBonus  = sc?.exact_bonus  ?? 0
             const penBonus    = sc?.pen_bonus     ?? 0
-            const hasBonus    = exactBonus > 0 || penBonus > 0
+            const favBonus    = sc?.fav_team_2x   ?? false
+            const hasBonus    = exactBonus > 0 || penBonus > 0 || favBonus
             return (
               <div key={rid} className={`grid grid-cols-[1fr_70px_64px_80px] px-4 py-3 border-b border-gray-100 last:border-0 ${highlight ? 'bg-amber-50' : ''}`}>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -76,6 +77,7 @@ export default function RulesPage() {
                   <span className="text-sm font-semibold text-green-700">{sc?.result_pts ?? 0}</span>
                 </div>
                 <div className="text-right text-[11px] space-y-0.5">
+                  {favBonus    && <div className="text-purple-600 font-semibold">2× ⭐ bonus team</div>}
                   {exactBonus > 0 && <div className="text-purple-600 font-semibold">+{exactBonus} exact score</div>}
                   {penBonus   > 0 && <div className="text-amber-600 font-medium">+{penBonus} correct pens</div>}
                   {!hasBonus      && <span className="text-gray-300">—</span>}

@@ -324,12 +324,14 @@ export default function HomePage() {
     return () => clearInterval(id)
   }, [])
 
-  // Earliest upcoming (unscored, > 5 min away) fixture kickoff in the current round
+  // Earliest upcoming (> 5 min away) fixture kickoff in the current round.
+  // Deliberately ignores result status — pre-scored warm-up fixtures still have
+  // a future kickoff that defines when predictions must close.
   const nextKickoff = useMemo(() => {
     if (!currentRoundCode) return null
     const cutoff = tickNow + 5 * 60 * 1000
     const times = allFixtures
-      .filter(f => f.round === currentRoundCode && f.result == null)
+      .filter(f => f.round === currentRoundCode)
       .map(f => new Date(f.kickoff_utc).getTime())
       .filter(t => t > cutoff)
       .sort((a, b) => a - b)
@@ -959,6 +961,34 @@ export default function HomePage() {
                   </>
                 )
               })()}
+
+              {/* Prediction CTA — shown when the round is open and tips are incomplete */}
+              {currentRoundCode && fixtureCount > 0 && predCount < fixtureCount && (
+                <Link href="/predict" className="block mb-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4 hover:border-green-300 hover:shadow-sm transition-all group">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-green-800">
+                        {fixtureCount - predCount} tip{fixtureCount - predCount !== 1 ? 's' : ''} to submit
+                      </p>
+                      {deadlineLabel && (
+                        <p className={`text-xs mt-0.5 ${
+                          urgencyLevel === 'red'    ? 'text-red-600'    :
+                          urgencyLevel === 'orange' ? 'text-orange-500' :
+                          urgencyLevel === 'amber'  ? 'text-amber-600'  :
+                          'text-green-600'
+                        }`}>{deadlineLabel}</p>
+                      )}
+                    </div>
+                    <span className="flex-shrink-0 px-3 py-2 bg-green-600 text-white text-sm font-bold rounded-lg group-hover:bg-green-700 transition-colors">
+                      Tip now →
+                    </span>
+                  </div>
+                  <div className="mt-3 h-1.5 bg-green-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${Math.round((predCount / fixtureCount) * 100)}%` }} />
+                  </div>
+                  <p className="text-[10px] text-green-600 mt-1">{Math.round((predCount / fixtureCount) * 100)}% complete</p>
+                </Link>
+              )}
 
               {/* Comp radio list */}
               {tournsComps.length > 0 && selectedTournId && (
