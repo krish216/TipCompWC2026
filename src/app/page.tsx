@@ -1,13 +1,20 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
+
+const SAMPLE_LEADERS = [
+  { name: 'Ash 🇦🇺', pts: 187 },
+  { name: 'Marco 🇧🇷', pts: 174 },
+  { name: 'Priya 🇮🇳', pts: 162 },
+]
 
 // ── CompModal ─────────────────────────────────────────────────────────────────
 // Steps: choose → join | create → created
@@ -382,6 +389,9 @@ export default function HomePage() {
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
   const [decliningId,    setDecliningId]    = useState<string | null>(null)
   const [blockFuture,    setBlockFuture]    = useState(false)
+  const [showAllSet,     setShowAllSet]     = useState(false)
+  const [heroStats,      setHeroStats]      = useState<{ tipster_count: number } | null>(null)
+  const step3WasRef = useRef<boolean | null>(null)
   const [decliningBusy,  setDecliningBusy]  = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
@@ -460,6 +470,34 @@ export default function HomePage() {
     window.addEventListener('focus', refreshHasTribe)
     return () => window.removeEventListener('focus', refreshHasTribe)
   }, [session, refreshHasTribe])
+
+  // Fetch public tipster count for the logged-out hero
+  useEffect(() => {
+    if (session) return
+    fetch('/api/stats').then(r => r.json()).then(d => setHeroStats(d)).catch(() => {})
+  }, [session])
+
+  // Fire "You're all set" celebration once when tribe step completes
+  useEffect(() => {
+    if (contextLoading || loading || !session) return
+    if (step3WasRef.current === null) {
+      // First stable read — record baseline without celebrating
+      step3WasRef.current = step3Done
+      return
+    }
+    if (step3Done && !step3WasRef.current && step2Done) {
+      const key = `allset_${session.user.id}`
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, '1')
+        setShowAllSet(true)
+        setTimeout(() => confetti({
+          particleCount: 180, spread: 100, origin: { y: 0.45 },
+          colors: ['#22c55e', '#16a34a', '#fbbf24', '#f59e0b', '#ffffff'],
+        }), 150)
+      }
+    }
+    step3WasRef.current = step3Done
+  }, [step3Done, step2Done, contextLoading, loading, session])
 
   const joinPendingInvite = async (inv: { comp_id: string; invite_code: string; invitation_id: string; comp_name: string; comp_logo_url: string | null }) => {
     setJoiningInvite(inv.invitation_id)
@@ -593,6 +631,52 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+
+            {/* Social proof */}
+            {heroStats && heroStats.tipster_count > 0 && (
+              <div style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
+                {/* Live count badge */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 16 }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%', background: '#4ade80', flexShrink: 0,
+                    boxShadow: '0 0 0 3px rgba(74,222,128,0.25)',
+                  }} />
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
+                    <strong style={{ color: '#4ade80', fontWeight: 800 }}>
+                      {heroStats.tipster_count.toLocaleString()}
+                    </strong>{' '}tipsters already registered
+                  </span>
+                </div>
+
+                {/* Sample leaderboard */}
+                <div style={{
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 14, overflow: 'hidden', maxWidth: 290, margin: '0 auto',
+                }}>
+                  <div style={{ padding: '7px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                      🏆 Global leaderboard
+                    </span>
+                  </div>
+                  {SAMPLE_LEADERS.map((u, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
+                      borderBottom: i < SAMPLE_LEADERS.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined,
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, width: 18, flexShrink: 0,
+                        color: i === 0 ? '#fbbf24' : i === 1 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.35)' }}>
+                        #{i + 1}
+                      </span>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', flex: 1, fontWeight: 500 }}>{u.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80' }}>{u.pts} pts</span>
+                    </div>
+                  ))}
+                  <div style={{ padding: '8px 14px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>Sign up to see the full leaderboard →</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -761,6 +845,35 @@ export default function HomePage() {
 
             /* ── Main view — comp is selected ── */
             <>
+
+              {/* You're all set — fires once when tribe step completes */}
+              {showAllSet && (
+                <div className="mb-4 rounded-2xl overflow-hidden shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)' }}>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xl font-black text-white mb-0.5">🎉 You&apos;re all set!</p>
+                        <p className="text-sm text-green-200 mb-3">Account · Comp · Tribe — you&apos;re ready to compete.</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <Link href="/predict"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
+                            Make predictions →
+                          </Link>
+                          <Link href="/leaderboard"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-semibold rounded-lg">
+                            Leaderboard
+                          </Link>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowAllSet(false)}
+                        className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Welcome bar */}
               {displayName && (

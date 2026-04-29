@@ -1,7 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 
@@ -40,10 +41,8 @@ export default function LoginPage() {
   const [name,            setName]            = useState('')
   const [firstName,       setFirstName]       = useState('')
   const [agreedToTerms,   setAgreedToTerms]   = useState(false)
-  // Simple math captcha
-  const [captchaA]        = useState(() => Math.floor(Math.random() * 9) + 1)
-  const [captchaB]        = useState(() => Math.floor(Math.random() * 9) + 1)
-  const [captchaInput,    setCaptchaInput]    = useState('')
+  const turnstileRef                          = useRef<TurnstileInstance>(null)
+  const [turnstileToken,  setTurnstileToken]  = useState<string | null>(null)
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string;start_date?:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
 
@@ -138,8 +137,8 @@ export default function LoginPage() {
         setError('Password must be at least 8 characters')
         return
       }
-      if (parseInt(captchaInput) !== captchaA + captchaB) {
-        setError(`Captcha incorrect — what is ${captchaA} + ${captchaB}?`)
+      if (!turnstileToken) {
+        setError('Verification not complete — please wait a moment and try again')
         return
       }
       if (!agreedToTerms) {
@@ -182,8 +181,11 @@ export default function LoginPage() {
         options: {
           data: { display_name: displayName },
           emailRedirectTo: redirectTo,
+          captchaToken: turnstileToken!,
         },
       })
+      turnstileRef.current?.reset()
+      setTurnstileToken(null)
       setLoading(false)
       if (error) {
         if (error.message.toLowerCase().includes('rate limit')) {
@@ -553,35 +555,17 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Captcha + T&C — register only */}
+          {/* Turnstile + T&C — register only */}
           {mode === 'register' && (
             <>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Verification <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-                    What is {captchaA} + {captchaB}?
-                  </span>
-                  <input
-                    type="number"
-                    value={captchaInput}
-                    onChange={e => setCaptchaInput(e.target.value)}
-                    placeholder="Answer"
-                    className={`w-24 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
-                      captchaInput && parseInt(captchaInput) !== captchaA + captchaB
-                        ? 'border-red-400'
-                        : captchaInput && parseInt(captchaInput) === captchaA + captchaB
-                        ? 'border-green-400'
-                        : 'border-gray-300'
-                    }`}
-                  />
-                  {captchaInput && parseInt(captchaInput) === captchaA + captchaB && (
-                    <span className="text-green-600 text-sm">✓</span>
-                  )}
-                </div>
-              </div>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA'}
+                options={{ size: 'invisible' }}
+                onSuccess={token => setTurnstileToken(token)}
+                onError={() => setError('Verification failed — please refresh and try again')}
+                onExpire={() => setTurnstileToken(null)}
+              />
 
               <div className="flex items-start gap-2.5">
                 <input
@@ -598,7 +582,7 @@ export default function LoginPage() {
                     onClick={e => e.stopPropagation()}>
                     Terms &amp; Conditions
                   </a>
-                  {' '}of TipComp. I confirm I am 18 years of age or older.
+                  {' '}of TribePicks. I confirm I am 18 years of age or older.
                 </label>
               </div>
             </>
