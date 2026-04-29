@@ -1,9 +1,9 @@
-export const metadata = { title: 'Privacy Policy — TipComp 2026' }
+export const metadata = { title: 'Privacy Policy — TribePicks' }
 
-const LAST_UPDATED = '9 April 2026'
-const CONTACT_EMAIL = 'privacy@wc2026tipcomp.com'
-const APP_NAME = 'TipComp 2026'
-const OPERATOR = 'TipComp 2026'   // update with your legal entity name
+const LAST_UPDATED = '30 April 2026'
+const CONTACT_EMAIL = 'privacy@tribepicks.com'
+const APP_NAME = 'TribePicks'
+const OPERATOR = '11outof10 Pty Ltd. (ACN 637 629 219)'
 
 export default function PrivacyPage() {
   return (
@@ -185,7 +185,7 @@ export default function PrivacyPage() {
           <p>
             This privacy policy was prepared with reference to the{' '}
             <em>Privacy Act 1988</em> (Cth) and the Australian Privacy Principles.
-            TipComp 2026 is an unofficial fan competition and is not affiliated with or endorsed by FIFA,
+            TribePicks is an unofficial fan competition and is not affiliated with or endorsed by FIFA,
             the FIFA World Cup™, or any associated national football federation.
           </p>
         </div>

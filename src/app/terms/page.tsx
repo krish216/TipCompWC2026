@@ -2,25 +2,25 @@ export default function TermsPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-xl font-bold text-gray-900 mb-1">Terms &amp; Conditions</h1>
-      <p className="text-xs text-gray-400 mb-6">TipComp WC2026 · 11outof10 Pty Ltd</p>
+      <p className="text-xs text-gray-400 mb-6">TribePicks · 11outof10 Pty Ltd. (ACN 637 629 219)</p>
 
       <div className="prose prose-sm max-w-none space-y-4 text-sm text-gray-700">
 
-        <p>Welcome to TipComp. These Terms &amp; Conditions govern your use of the TipComp platform
-        operated by <strong>11outof10 Pty Ltd</strong> (&quot;we&quot;, &quot;us&quot;, &quot;site owner&quot;).
+        <p>Welcome to TribePicks. These Terms &amp; Conditions govern your use of the TribePicks platform
+        operated by <strong>11outof10 Pty Ltd. (ACN 637 629 219)</strong> (&quot;we&quot;, &quot;us&quot;, &quot;site owner&quot;).
         By registering or using this site you agree to these terms in full.</p>
 
         <h2 className="text-base font-bold text-gray-900 mt-6">1. Definitions</h2>
         <ul className="list-disc pl-5 space-y-1">
           <li><strong>Participant</strong> — a registered user who enters tips in a competition.</li>
-          <li><strong>Site owner</strong> — 11outof10 Pty Ltd, owner and operator of TipComp.</li>
+          <li><strong>Site owner</strong> — 11outof10 Pty Ltd. (ACN 637 629 219), owner and operator of TribePicks.</li>
           <li><strong>Comp owner</strong> — a user who creates and administers a tipping competition, sets comp rules, entry fees (if any) and prizes.</li>
           <li><strong>Round</strong> — a set of matches made available for tipping as listed on the site.</li>
           <li><strong>Season</strong> — the full series of rounds for a tournament as listed on the site.</li>
         </ul>
 
         <h2 className="text-base font-bold text-gray-900 mt-6">2. Registration</h2>
-        <p>Registration on TipComp is free. Entry into a tipping competition may incur an entry fee
+        <p>Registration on TribePicks is free. Entry into a tipping competition may incur an entry fee
         as determined by the comp owner. By registering you confirm you are at least 18 years of age
         (or the minimum age required in your jurisdiction) and that all information provided is
         accurate.</p>
@@ -57,7 +57,7 @@ export default function TermsPage() {
         disputes.</p>
 
         <h2 className="text-base font-bold text-gray-900 mt-6">7. Liability</h2>
-        <p>To the extent permitted by law, 11outof10 Pty Ltd and the comp owner are not liable for:</p>
+        <p>To the extent permitted by law, 11outof10 Pty Ltd. (ACN 637 629 219) and the comp owner are not liable for:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>Tips not received, corrupted or rejected by the server.</li>
           <li>Site downtime or unavailability.</li>
@@ -73,7 +73,7 @@ export default function TermsPage() {
         shown publicly within your competition. Please refer to our <a href="/privacy" className="text-blue-600 underline">Privacy Policy</a> for full details.</p>
 
         <h2 className="text-base font-bold text-gray-900 mt-6">9. Changes to Terms</h2>
-        <p>11outof10 Pty Ltd reserves the right to modify these Terms at any time. Continued use of
+        <p>11outof10 Pty Ltd. (ACN 637 629 219) reserves the right to modify these Terms at any time. Continued use of
         the site after changes are posted constitutes acceptance of the revised Terms.</p>
 
         <h2 className="text-base font-bold text-gray-900 mt-6">10. Governing Law</h2>
@@ -81,7 +81,7 @@ export default function TermsPage() {
         subject to the exclusive jurisdiction of the courts of New South Wales.</p>
 
         <div className="mt-8 pt-4 border-t border-gray-200 text-xs text-gray-400">
-          <p>11outof10 Pty Ltd · TipComp · Last updated April 2026</p>
+          <p>11outof10 Pty Ltd. (ACN 637 629 219) · TribePicks · Last updated April 2026</p>
         </div>
       </div>
     </div>
