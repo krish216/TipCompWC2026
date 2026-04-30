@@ -3,10 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-// localStorage key — read by home page after registration to hydrate predictions
-export const CHALLENGE_PICKS_KEY   = 'tribepicks_challenge_picks'
-export const CHALLENGE_SOURCE_KEY  = 'tribepicks_challenge_source'
+import { CHALLENGE_PICKS_KEY, CHALLENGE_SOURCE_KEY } from '@/lib/challenge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Outcome = 'H' | 'D' | 'A'
