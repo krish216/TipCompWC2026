@@ -15,10 +15,11 @@ export default function LoginPage() {
   const router  = useRouter()
   const params  = useSearchParams()
   const redirect = params.get('redirect') ?? '/'
-  const tabParam = params.get('tab') as Mode | null
+  const tabParam    = params.get('tab') as Mode | null
+  const isChallenge = params.get('challenge') === '1'
 
-  const [mode,     setMode]     = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
-  const [role,     setRole]     = useState<'tipster' | 'organiser' | null>(null)
+  const [mode, setMode] = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
+  const [role, setRole] = useState<'tipster' | 'organiser' | null>(isChallenge ? 'tipster' : null)
   // Pre-filled from magic join link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
   const codeParam  = (params.get('code') ?? '').toUpperCase()
   const emailParam = params.get('email') ?? ''
@@ -272,7 +273,9 @@ export default function LoginPage() {
         icon:    '📬',
         title:   'Check your email',
         body:    `We sent a verification link to`,
-        detail:  'Click the link to activate your account, then come back here to sign in.',
+        detail:  isChallenge
+          ? 'Your warm-up picks are saved — click the link to activate your account and lock them in!'
+          : 'Click the link to activate your account, then come back here to sign in.',
         warning: true,
       },
       magic: {
@@ -345,6 +348,14 @@ export default function LoginPage() {
           <h1 className="text-xl font-semibold text-gray-900">TribePicks</h1>
           <p className="text-sm text-gray-500 mt-1">Predict every match. Beat your tribe.</p>
         </div>
+
+        {/* Challenge banner — shown when arriving from /su-challenge */}
+        {isChallenge && mode === 'register' && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-center">
+            <p className="text-green-800 text-sm font-semibold">⚽ Your 4 warm-up picks are saved!</p>
+            <p className="text-green-600 text-xs mt-0.5">Create an account to lock them into the competition</p>
+          </div>
+        )}
 
         {/* Mode tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-6">

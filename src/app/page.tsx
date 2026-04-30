@@ -392,7 +392,9 @@ export default function HomePage() {
   const [showAllSet,     setShowAllSet]     = useState(false)
   const [heroStats,      setHeroStats]      = useState<{ tipster_count: number } | null>(null)
   const step3WasRef = useRef<boolean | null>(null)
-  const [decliningBusy,  setDecliningBusy]  = useState(false)
+  const [decliningBusy,    setDecliningBusy]    = useState(false)
+  const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
+  const [cameFromChallenge, setCameFromChallenge] = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -477,6 +479,44 @@ export default function HomePage() {
     fetch('/api/stats').then(r => r.json()).then(d => setHeroStats(d)).catch(() => {})
   }, [session])
 
+  // Hydrate challenge picks from localStorage after login/signup
+  useEffect(() => {
+    if (!session) return
+    const raw = localStorage.getItem('tribepicks_challenge_picks')
+    if (!raw) return
+    try {
+      const picks: { fixtureId: number; outcome: string }[] = JSON.parse(raw)
+      const real = picks.filter(p => p.fixtureId > 0)
+      if (!real.length) { localStorage.removeItem('tribepicks_challenge_picks'); return }
+      fetch('/api/predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ predictions: real.map(p => ({ fixture_id: p.fixtureId, outcome: p.outcome })) }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (!d.error) {
+            setChallengeToast(`⚽ ${real.length} warm-up pick${real.length > 1 ? 's' : ''} saved to the competition!`)
+            setTimeout(() => setChallengeToast(null), 5000)
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          localStorage.removeItem('tribepicks_challenge_picks')
+        })
+    } catch {
+      localStorage.removeItem('tribepicks_challenge_picks')
+    }
+  }, [session])
+
+  // Read + clear challenge source flag on mount so it survives into the You're all set card
+  useEffect(() => {
+    if (localStorage.getItem('tribepicks_challenge_source')) {
+      setCameFromChallenge(true)
+      localStorage.removeItem('tribepicks_challenge_source')
+    }
+  }, [])
+
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
     if (contextLoading || loading || !session) return
@@ -546,6 +586,13 @@ export default function HomePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
+
+      {/* Challenge picks hydration toast */}
+      {challengeToast && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 flex items-center gap-2 text-sm text-green-800 font-medium">
+          {challengeToast}
+        </div>
+      )}
 
       {/* ── Not logged in hero ── */}
       {!session && (
@@ -630,6 +677,33 @@ export default function HomePage() {
                   <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{f.label}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Challenge CTA — try before signing up */}
+            <div style={{ marginTop: 20, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+              <Link href="/su-challenge" style={{
+                display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 16, padding: '12px 16px',
+              }}>
+                <span style={{ fontSize: 26, flexShrink: 0 }}>⚽</span>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                    Try the 4-pick challenge
+                  </p>
+                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                    Pick 4 warm-up games — no signup needed
+                  </p>
+                </div>
+                <span style={{
+                  flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#4ade80',
+                  padding: '5px 11px', borderRadius: 8,
+                  background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Go →
+                </span>
+              </Link>
             </div>
 
             {/* Social proof */}
@@ -854,11 +928,18 @@ export default function HomePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xl font-black text-white mb-0.5">🎉 You&apos;re all set!</p>
-                        <p className="text-sm text-green-200 mb-3">Account · Comp · Tribe — you&apos;re ready to compete.</p>
+                        <div className="flex flex-col gap-0.5 mb-3">
+                          <p className="text-sm text-green-200 flex items-center gap-1.5"><span className="text-white">✓</span> Account created</p>
+                          <p className="text-sm text-green-200 flex items-center gap-1.5"><span className="text-white">✓</span> Joined a Comp</p>
+                          <p className="text-sm text-green-200 flex items-center gap-1.5"><span className="text-white">✓</span> Joined a Tribe</p>
+                          {cameFromChallenge && (
+                            <p className="text-sm text-green-200 flex items-center gap-1.5"><span>⚽</span> Warm-up picks saved!</p>
+                          )}
+                        </div>
                         <div className="flex gap-2 flex-wrap">
                           <Link href="/predict"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
-                            Make predictions →
+                            Start Tipping! →
                           </Link>
                           <Link href="/leaderboard"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-semibold rounded-lg">

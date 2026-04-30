@@ -22,19 +22,20 @@ export const OUTCOME_ROUNDS:         RoundId[] = ['gs', 'r32', 'r16', 'qf']
 // ─── Per-tournament round config (loaded from tournament_rounds DB table) ────
 
 export interface RoundConfig {
-  id:            string
-  tournament_id: string
-  round_code:    RoundId
-  round_name:    string
-  round_order:   number
-  tab_group:     string    // UI tab this round belongs to
-  tab_label?:    string    // display label for the tab (overrides round_name) — from tournament_rounds.tab_group
-  is_knockout:   boolean   // single-elimination format — pen winner can apply
-  predict_mode:  'outcome' | 'score'
-  result_pts:    number
-  exact_bonus:   number
-  pen_bonus:     number
-  fav_team_2x:   boolean
+  id:                  string
+  tournament_id:       string
+  round_code:          RoundId
+  round_name:          string
+  round_order:         number
+  tab_group:           string    // UI tab this round belongs to
+  tab_label?:          string    // display label for the tab (overrides round_name) — from tournament_rounds.tab_group
+  is_knockout:         boolean   // single-elimination format — pen winner can apply
+  predict_mode:        'outcome' | 'score'
+  result_pts:          number
+  exact_bonus:         number
+  pen_bonus:           number
+  fav_team_2x:         boolean
+  include_in_scoring:  boolean   // when false: zero points, hidden from leaderboard breakdown and Tribe Picks
 }
 
 export interface TournamentScoringConfig {
@@ -69,15 +70,15 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
  */
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
-    { id: 'gs1',  tournament_id: 'default', round_code: 'gs1',  is_knockout: false,  round_name: 'Group Stage1',    round_order: 1, tab_group: 'gs1',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-    { id: 'gs2',  tournament_id: 'default', round_code: 'gs2',  is_knockout: false,  round_name: 'Group Stage2',    round_order: 1, tab_group: 'gs2',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-    { id: 'gs3',  tournament_id: 'default', round_code: 'gs3',  is_knockout: false,  round_name: 'Group Stage3',    round_order: 1, tab_group: 'gs3',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true  },
-    { id: 'r32', tournament_id: 'default', round_code: 'r32', is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',    predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-    { id: 'r16', tournament_id: 'default', round_code: 'r16', is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',    predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-    { id: 'qf',  tournament_id: 'default', round_code: 'qf',  is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',     predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false },
-    { id: 'sf',  tournament_id: 'default', round_code: 'sf',  is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',     predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-    { id: 'tp',  tournament_id: 'default', round_code: 'tp',  is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals', predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
-    { id: 'f',   tournament_id: 'default', round_code: 'f',   is_knockout: true,  round_name: 'Final',          round_order: 7, tab_group: 'finals', predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false },
+    { id: 'gs1',  tournament_id: 'default', round_code: 'gs1',  is_knockout: false, round_name: 'Group Stage1',    round_order: 1, tab_group: 'gs1',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'gs2',  tournament_id: 'default', round_code: 'gs2',  is_knockout: false, round_name: 'Group Stage2',    round_order: 1, tab_group: 'gs2',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'gs3',  tournament_id: 'default', round_code: 'gs3',  is_knockout: false, round_name: 'Group Stage3',    round_order: 1, tab_group: 'gs3',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'r32',  tournament_id: 'default', round_code: 'r32',  is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',     predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'r16',  tournament_id: 'default', round_code: 'r16',  is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',     predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'qf',   tournament_id: 'default', round_code: 'qf',   is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',      predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'sf',   tournament_id: 'default', round_code: 'sf',   is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',      predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'tp',   tournament_id: 'default', round_code: 'tp',   is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals',  predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'f',    tournament_id: 'default', round_code: 'f',    is_knockout: true,  round_name: 'Final',          round_order: 7, tab_group: 'finals',  predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
   ])
 }
 

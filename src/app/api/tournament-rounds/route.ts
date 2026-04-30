@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import type { RoundConfig } from '@/types'
 
 // GET /api/tournament-rounds?tournament_id=xxx
 // Returns all round configs for a tournament, ordered by round_order.
@@ -14,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const fields = 'id,tournament_id,round_code,round_name,round_order,tab_group,tab_label,is_knockout,predict_mode,result_pts,exact_bonus,pen_bonus,fav_team_2x'
+  const fields = 'id,tournament_id,round_code,round_name,round_order,tab_group,tab_label,is_knockout,predict_mode,result_pts,exact_bonus,pen_bonus,fav_team_2x,include_in_scoring'
   const url = supabaseUrl + '/rest/v1/tournament_rounds?tournament_id=eq.' + tournamentId + '&order=round_order&select=' + fields
   const res = await fetch(url, {
     headers: { 'apikey': serviceKey ?? '', 'Authorization': 'Bearer ' + (serviceKey ?? '') },
@@ -34,7 +33,7 @@ export async function PUT(request: NextRequest) {
   // Verify tournament admin
   const body = await request.json()
   const { tournament_id, round_code, round_name, round_order, tab_group, is_knockout,
-          predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x } = body
+          predict_mode, result_pts, exact_bonus, pen_bonus, fav_team_2x, include_in_scoring } = body
 
   if (!tournament_id || !round_code) {
     return NextResponse.json({ error: 'tournament_id and round_code required' }, { status: 400 })
@@ -54,7 +53,8 @@ export async function PUT(request: NextRequest) {
       result_pts:   result_pts  ?? 0,
       exact_bonus:  exact_bonus ?? 0,
       pen_bonus:    pen_bonus   ?? 0,
-      fav_team_2x:  fav_team_2x ?? false,
+      fav_team_2x:         fav_team_2x         ?? false,
+      include_in_scoring:  include_in_scoring  ?? true,
     }, { onConflict: 'tournament_id,round_code' })
     .select().single()
 
