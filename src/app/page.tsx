@@ -51,18 +51,24 @@ function CompModal({
   const [createdComp, setCreatedComp] = useState<{ id: string; name: string; invite_code?: string } | null>(null)
   const [copied,      setCopied]      = useState(false)
 
-  const lookupCode = async () => {
-    if (code.length < 6) return
+  const lookupCode = async (codeOverride?: string) => {
+    const c = codeOverride ?? code
+    if (c.length < 6) return
     setLookingUp(true); setCodeErr(null); setPreview(null)
     try {
-      const { data, error } = await fetch(`/api/comps?code=${code}`).then(r => r.json())
-      if (error || !data) { setCodeErr('Code not found — check with your comp admin'); return }
+      const { data, error } = await fetch(`/api/comps?code=${c}`).then(r => r.json())
+      if (error || !data) { setCodeErr('Code not found — check with your Comp Manager'); return }
       if (tournamentId && data.tournament_id && data.tournament_id !== tournamentId)
         { setCodeErr('This comp belongs to a different tournament'); return }
       setPreview(data)
     } catch { setCodeErr('Something went wrong') }
     finally { setLookingUp(false) }
   }
+
+  useEffect(() => {
+    if (code.length === 8 && !lookingUp) lookupCode(code)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
 
   const handleJoin = async () => {
     if (!preview) return
@@ -79,15 +85,17 @@ function CompModal({
   const handleCreate = async () => {
     if (!compName.trim() || !session) return
     setLoading(true); setError(null)
-    const { data: comp, error: err } = await fetch('/api/comps/create', {
+    const res = await fetch('/api/comps/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: compName.trim(), owner_name: '',
         user_id: session.user.id, email: session.user.email,
         tournament_id: tournamentId,
       }),
-    }).then(r => r.json())
+    })
+    const { data: comp, error: err } = await res.json()
     setLoading(false)
+    if (res.status === 409) { setError('A comp with this name already exists — try a different name'); return }
     if (err || !comp) { setError(err ?? 'Failed to create comp'); return }
     setCreatedComp({ id: comp.id, name: comp.name, invite_code: comp.invite_code })
     setStep('created')
@@ -95,7 +103,7 @@ function CompModal({
 
   const content = (
     <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget) { if (createdComp) onSuccess({ id: createdComp.id, name: createdComp.name }); else onClose() } }}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
@@ -131,7 +139,7 @@ function CompModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={() => { if (createdComp) onSuccess({ id: createdComp.id, name: createdComp.name }); else onClose() }}
             className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm flex-shrink-0">
             ✕
           </button>
@@ -171,7 +179,7 @@ function CompModal({
                     onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')); setPreview(null); setCodeErr(null) }}
                     placeholder="e.g. 1VMPT0RA" maxLength={10} autoFocus
                     className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                  <button type="button" onClick={lookupCode}
+                  <button type="button" onClick={() => lookupCode()}
                     disabled={lookingUp || code.length < 6}
                     className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1">
                     {lookingUp ? <Spinner className="w-3 h-3" /> : 'Verify'}
@@ -404,6 +412,10 @@ export default function HomePage() {
   const [savingFav,        setSavingFav]        = useState(false)
   const [tipsterExpanded,  setTipsterExpanded]  = useState(false)
   const [organiserExpanded, setOrganiserExpanded] = useState(false)
+  const [editingName,      setEditingName]      = useState(false)
+  const [nameInput,        setNameInput]        = useState('')
+  const [nameError,        setNameError]        = useState<string | null>(null)
+  const [nameSaving,       setNameSaving]       = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -604,6 +616,24 @@ export default function HomePage() {
       body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
     }).catch(() => {})
     setSavingFav(false)
+  }
+
+  const saveDisplayName = async () => {
+    const trimmed = nameInput.trim()
+    if (trimmed.length < 2 || trimmed.length > 30) {
+      setNameError('Name must be 2–30 characters')
+      return
+    }
+    setNameSaving(true); setNameError(null)
+    const res = await fetch('/api/users/display-name', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: trimmed, comp_id: selectedCompId }),
+    }).then(r => r.json()).catch(() => ({ error: 'Network error' }))
+    setNameSaving(false)
+    if (res.error) { setNameError(res.error); return }
+    setDisplayName(trimmed)
+    setEditingName(false)
   }
 
   const joinWarmUpComp = async () => {
@@ -1175,9 +1205,39 @@ export default function HomePage() {
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                     }
-                    <span className="text-sm font-semibold text-gray-800">
-                      {displayName}
-                    </span>
+                    {editingName ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            autoFocus
+                            value={nameInput}
+                            onChange={e => { setNameInput(e.target.value); setNameError(null) }}
+                            onKeyDown={e => { if (e.key === 'Enter') saveDisplayName(); if (e.key === 'Escape') setEditingName(false) }}
+                            className="text-sm font-semibold text-gray-800 border border-gray-300 rounded-md px-2 py-0.5 w-36 focus:outline-none focus:ring-2 focus:ring-green-400"
+                            maxLength={30}
+                          />
+                          <button
+                            onClick={saveDisplayName}
+                            disabled={nameSaving}
+                            className="text-xs font-medium text-white bg-green-600 hover:bg-green-700 px-2 py-1 rounded-md disabled:opacity-50"
+                          >{nameSaving ? '…' : 'Save'}</button>
+                          <button
+                            onClick={() => setEditingName(false)}
+                            className="text-xs text-gray-400 hover:text-gray-600 px-1 py-1"
+                          >✕</button>
+                        </div>
+                        {nameError && <p className="text-[11px] text-red-500">{nameError}</p>}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold text-gray-800">{displayName}</span>
+                        <button
+                          onClick={() => { setNameInput(displayName ?? ''); setNameError(null); setEditingName(true) }}
+                          className="text-gray-300 hover:text-gray-500 text-xs leading-none"
+                          title="Edit display name"
+                        >✎</button>
+                      </div>
+                    )}
                   </div>
                   {(totalPts !== null || myRank !== null) && (
                     <div className="flex items-center gap-3">
@@ -1569,7 +1629,7 @@ export default function HomePage() {
           { label: 'Matches', value: t?.total_matches != null ? String(t.total_matches) : '—' },
           { label: 'Teams',   value: t?.total_teams   != null ? String(t.total_teams)   : '—' },
           { label: 'Rounds',  value: t?.total_rounds  != null ? String(t.total_rounds)  : '—' },
-          { label: 'Max pts', value: '??' },
+          { label: 'Max pts', value: (t?.max_base_pts != null && t?.max_bonus_pts != null) ? String((t.max_base_pts ?? 0) + (t.max_bonus_pts ?? 0)) : '—' },
         ]
         const kickoffStr = t?.start_date
           ? new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })

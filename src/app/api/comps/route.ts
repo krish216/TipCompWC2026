@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       .eq('invite_code', code)
       .neq('slug', 'public')
       .single()
-    if (error || !data) return NextResponse.json({ error: 'Invalid comp code' }, { status: 404 })
+    if (error || !data) return NextResponse.json({ data: null, error: 'Code not found — check with your Comp Manager' }, { status: 200 })
     return NextResponse.json({ data })
   }
 
