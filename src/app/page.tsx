@@ -698,7 +698,7 @@ export default function HomePage() {
             </h1>
             <p style={{ margin: '0 0 28px', fontSize: 15, color: 'rgba(255,255,255,0.58)',
               lineHeight: 1.5, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
-              Predict every match. Compete with friends. Rise to the top.
+              One set of picks. Every comp. Live as it happens.
             </p>
 
             {/* Primary CTAs */}
@@ -721,21 +721,20 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Feature chips */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {/* Benefit line — informational only, no button affordance */}
+            <div style={{ display: 'flex', gap: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
               {[
-                { icon: '🎯', label: 'Predict every match' },
-                { icon: '🏆', label: 'Compete in your comp' },
-                { icon: '👥', label: 'Chat with your tribe' },
+                { icon: '🏆', label: 'Private group comps' },
+                { icon: '⚡', label: 'Live scoring' },
+                { icon: '🆓', label: 'Free to join' },
               ].map(f => (
-                <div key={f.label} style={{
+                <span key={f.label} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
-                  background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 20, padding: '5px 11px',
+                  fontSize: 11.5, color: 'rgba(255,255,255,0.45)', fontWeight: 500,
                 }}>
-                  <span style={{ fontSize: 12 }}>{f.icon}</span>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{f.label}</span>
-                </div>
+                  <span style={{ fontSize: 13 }}>{f.icon}</span>
+                  {f.label}
+                </span>
               ))}
             </div>
 
