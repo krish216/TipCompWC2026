@@ -17,9 +17,12 @@ export default function LoginPage() {
   const redirect = params.get('redirect') ?? '/'
   const tabParam    = params.get('tab') as Mode | null
   const isChallenge = params.get('challenge') === '1'
+  const isOrganiser = params.get('role') === 'organiser'
 
   const [mode, setMode] = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
-  const [role, setRole] = useState<'tipster' | 'organiser' | null>(isChallenge ? 'tipster' : null)
+  const [role, setRole] = useState<'tipster' | 'organiser' | null>(
+    isOrganiser ? 'organiser' : isChallenge ? 'tipster' : null
+  )
   // Pre-filled from magic join link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
   const codeParam  = (params.get('code') ?? '').toUpperCase()
   const emailParam = params.get('email') ?? ''
@@ -275,6 +278,8 @@ export default function LoginPage() {
         body:    `We sent a verification link to`,
         detail:  isChallenge
           ? 'Your warm-up picks are saved — click the link to activate your account and lock them in!'
+          : isOrganiser
+          ? "Click the link to activate your account — you'll be taken straight to comp creation."
           : 'Click the link to activate your account, then come back here to sign in.',
         warning: true,
       },
@@ -397,8 +402,8 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           {mode === 'register' && (
             <>
-              {/* Role selection — skip for invite links and challenge flow (role is implicitly tipster) */}
-              {!codeParam && !isChallenge && (
+              {/* Role selection — skip for invite links, challenge flow, and direct organiser entry */}
+              {!codeParam && !isChallenge && !isOrganiser && (
                 <div>
                   <p className="text-xs font-semibold text-gray-700 mb-2">I want to…</p>
                   <div className="grid grid-cols-2 gap-2">

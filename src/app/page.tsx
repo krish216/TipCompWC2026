@@ -795,7 +795,7 @@ export default function HomePage() {
             {/* Organiser entry point */}
             <p style={{ margin: '0 0 18px', fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
               Setting up a comp for your group?{' '}
-              <Link href="/login?tab=register" style={{ color: '#4ade80', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+              <Link href="/login?tab=register&role=organiser" style={{ color: '#4ade80', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
                 Create one free →
               </Link>
             </p>
