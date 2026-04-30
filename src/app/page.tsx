@@ -1502,8 +1502,8 @@ export default function HomePage() {
         />
       )}
 
-      {/* Tournament stats — driven by selectedTourn metadata */}
-      {(() => {
+      {/* Tournament stats — logged-in only; adds no value on the unsigned hero */}
+      {session && (() => {
         const t = selectedTourn
         const stats = [
           { label: 'Matches', value: t?.total_matches != null ? String(t.total_matches) : '—' },
@@ -1551,3 +1551,4 @@ export default function HomePage() {
     </div>
   )
 }
+
