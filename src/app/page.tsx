@@ -584,11 +584,16 @@ export default function HomePage() {
         body: JSON.stringify({ comp_id: comp.id, invite_code: 'WCEH3GB9' }),
       }).then(r => r.json())
       if (!success) { setWarmUpError(jErr ?? 'Failed to join — please try again'); return }
-      // Auto-join the warm-up tribe (comp membership now established)
-      await fetch('/api/tribes', {
+      // Auto-join the warm-up tribe (comp membership now established); 409 = already a member, ignore
+      const tribeRes = await fetch('/api/tribes', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invite_code: 'VZ3JEZRA' }),
       })
+      if (!tribeRes.ok && tribeRes.status !== 409) {
+        const { error: tErr } = await tribeRes.json().catch(() => ({}))
+        setWarmUpError(tErr ?? 'Joined comp but failed to join tribe')
+        return
+      }
       await pickComp({ id: comp.id, name: comp.name, logo_url: comp.logo_url ?? null } as any)
       await refreshComps(comp.id)
       await refreshHasTribe()

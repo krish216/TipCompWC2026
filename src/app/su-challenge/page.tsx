@@ -518,7 +518,7 @@ export default function SuChallengePage() {
       if (saveable.length > 0) {
         try {
           localStorage.setItem(CHALLENGE_PICKS_KEY, JSON.stringify(
-            saveable.map(p => ({ fixture_id: p.fixtureId, outcome: p.outcome }))
+            saveable.map(p => ({ fixtureId: p.fixtureId, outcome: p.outcome }))
           ))
           localStorage.setItem(CHALLENGE_SOURCE_KEY, 'wup')
         } catch { /* storage may be blocked in private browsing */ }
