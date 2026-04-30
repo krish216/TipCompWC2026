@@ -399,6 +399,9 @@ export default function HomePage() {
   const [warmUpError,      setWarmUpError]      = useState<string | null>(null)
   const [confirmAction,    setConfirmAction]    = useState<{ compId: string; action: 'leave' | 'delete'; name: string } | null>(null)
   const [compActionBusy,   setCompActionBusy]   = useState(false)
+  const [teamsList,        setTeamsList]        = useState<{ name: string; flag_emoji?: string }[]>([])
+  const [favouriteTeam,    setFavouriteTeam]    = useState<string | null>(null)
+  const [savingFav,        setSavingFav]        = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -520,6 +523,21 @@ export default function HomePage() {
     }
   }, [])
 
+  // Load teams list + current favourite team for the bonus team picker
+  useEffect(() => {
+    if (!session || !selectedTournId) return
+    Promise.all([
+      fetch(`/api/tournament-teams?tournament_id=${selectedTournId}`),
+      fetch('/api/user-tournaments'),
+    ]).then(async ([teamsRes, utRes]) => {
+      const teamsData = await teamsRes.json().catch(() => ({}))
+      setTeamsList(teamsData.teams ?? [])
+      const utData = await utRes.json().catch(() => ({}))
+      const myEnrol = (utData.data ?? []).find((ut: any) => ut.tournament_id === selectedTournId)
+      setFavouriteTeam(myEnrol?.favourite_team ?? null)
+    }).catch(() => {})
+  }, [session, selectedTournId])
+
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
     if (contextLoading || loading || !session) return
@@ -572,6 +590,18 @@ export default function HomePage() {
     } finally {
       setDecliningBusy(false)
     }
+  }
+
+  const saveFavTeam = async (team: string) => {
+    if (!selectedTournId) return
+    setSavingFav(true)
+    setFavouriteTeam(team || null)
+    await fetch('/api/user-tournaments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
+    }).catch(() => {})
+    setSavingFav(false)
   }
 
   const joinWarmUpComp = async () => {
@@ -1027,6 +1057,29 @@ export default function HomePage() {
                             <p className="text-sm text-green-200 flex items-center gap-1.5"><span>⚽</span> Warm-up picks saved!</p>
                           )}
                         </div>
+                        {teamsList.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs font-semibold text-green-100 mb-1.5">⭐ Pick your Bonus Team</p>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={favouriteTeam ?? ''}
+                                onChange={e => saveFavTeam(e.target.value)}
+                                disabled={savingFav}
+                                className="text-xs font-medium rounded-lg border border-white/20 bg-white/15 text-white px-2 py-1.5 focus:outline-none flex-1">
+                                <option value="">Pick a team…</option>
+                                {teamsList.map(t => (
+                                  <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
+                                ))}
+                              </select>
+                              {favouriteTeam && (
+                                <span className="text-xs text-green-200 flex-shrink-0">2× pts ✓</span>
+                              )}
+                            </div>
+                            {!favouriteTeam && (
+                              <p className="text-[11px] text-green-300/70 mt-1">2× base points on their Group Stage matches</p>
+                            )}
+                          </div>
+                        )}
                         <div className="flex gap-2 flex-wrap">
                           <Link href="/predict"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
@@ -1126,6 +1179,27 @@ export default function HomePage() {
                       Find a tribe →
                     </Link>
                   )}
+                </div>
+              )}
+
+              {/* Bonus team nudge — shown to tipsters who haven't picked one yet */}
+              {step3Done && !showAllSet && teamsList.length > 0 && !favouriteTeam && (
+                <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-3 flex items-start gap-2.5">
+                  <span className="text-base flex-shrink-0 mt-0.5">⭐</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-purple-800 mb-1.5">Pick your Bonus Team</p>
+                    <select
+                      value=""
+                      onChange={e => saveFavTeam(e.target.value)}
+                      disabled={savingFav}
+                      className="text-xs font-medium rounded-lg border border-purple-300 bg-white text-purple-800 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 w-full">
+                      <option value="">Choose a team…</option>
+                      {teamsList.map(t => (
+                        <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-purple-600 mt-1">Earn 2× base points on their Group Stage matches</p>
+                  </div>
                 </div>
               )}
 

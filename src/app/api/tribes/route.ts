@@ -191,10 +191,10 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  // Check not already in this specific tribe
+  // Check not already in this specific tribe — idempotent: return 200 if already a member
   const { data: alreadyIn } = await (adminClient.from('tribe_members') as any)
     .select('tribe_id').eq('user_id', user.id).eq('tribe_id', (tribe as any).id).single()
-  if (alreadyIn) return NextResponse.json({ error: 'Already in this tribe' }, { status: 409 })
+  if (alreadyIn) return NextResponse.json({ data: tribe })
 
   // Enforce max tribe size of 25
   const { count: memberCount } = await supabase
