@@ -756,7 +756,7 @@ export default function HomePage() {
                     Try the 4-pick challenge
                   </p>
                   <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-                    Pick 4 warm-up games — no signup needed
+                    Pick 4 World Cup matches — no signup needed
                   </p>
                 </div>
                 <span style={{
@@ -765,13 +765,13 @@ export default function HomePage() {
                   background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
                   whiteSpace: 'nowrap',
                 }}>
-                  Go →
+                  Pick now →
                 </span>
               </Link>
             </div>
 
             {/* Primary CTAs */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 22 }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 10 }}>
               <Link href="/login?tab=register" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '11px 22px', borderRadius: 12, fontSize: 14, fontWeight: 700,
@@ -789,6 +789,14 @@ export default function HomePage() {
                 Sign in
               </Link>
             </div>
+
+            {/* Organiser entry point */}
+            <p style={{ margin: '0 0 18px', fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
+              Setting up a comp for your group?{' '}
+              <Link href="/login?tab=register" style={{ color: '#4ade80', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                Create one free →
+              </Link>
+            </p>
 
             {/* For Tipsters / For Organisers — inside hero, before social proof */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20, textAlign: 'left' }}>
