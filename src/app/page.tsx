@@ -731,9 +731,13 @@ export default function HomePage() {
               letterSpacing: '-0.8px', lineHeight: 1.05 }}>
               TribePicks
             </h1>
-            <p style={{ margin: '0 0 28px', fontSize: 15, color: 'rgba(255,255,255,0.58)',
-              lineHeight: 1.5, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
-              One set of picks. Every comp. Live as it happens.
+            <p style={{ margin: '0 0 28px', lineHeight: 1.55, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
+              <span style={{ display: 'block', fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: 4 }}>
+                Tip once, enter multiple comps.
+              </span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.52)' }}>
+                Office, friends and family — each with their own private leaderboard.
+              </span>
             </p>
 
             {/* Primary CTAs */}
@@ -845,6 +849,46 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── For Tipsters / For Organisers — unsigned only ── */}
+      {!session && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          {/* Tipsters */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-3.5">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">🎯 Tipsters</p>
+            <ul className="space-y-2">
+              {[
+                'Tip once — all your comps covered',
+                'Bonus Team — 2× points on their matches',
+                'Penalty shootout picks in knockouts',
+                "See everyone's picks after tipping closes",
+              ].map(item => (
+                <li key={item} className="flex items-start gap-1.5 text-[11.5px] text-gray-600 leading-snug">
+                  <span className="text-green-500 font-bold flex-shrink-0 mt-px">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* Organisers */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-3.5">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">🏆 Organisers</p>
+            <ul className="space-y-2">
+              {[
+                'Set up in 10 minutes — always free',
+                'Bulk invites with automated reminders',
+                'Divide your comp into Tribes — team vs team',
+                'Live auto-scoring',
+              ].map(item => (
+                <li key={item} className="flex items-start gap-1.5 text-[11.5px] text-gray-600 leading-snug">
+                  <span className="text-green-500 font-bold flex-shrink-0 mt-px">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
