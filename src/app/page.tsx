@@ -710,93 +710,59 @@ export default function HomePage() {
             pointerEvents: 'none',
           }} />
 
-          <div style={{ position: 'relative', padding: '36px 24px 32px' }}>
-            {/* Logo */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="TribePicks"
-              style={{ width: 88, height: 88, margin: '0 auto 16px', display: 'block', borderRadius: 22,
-                filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))',
-                boxShadow: '0 0 40px rgba(74,222,128,0.18)' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <div style={{ position: 'relative', padding: '24px 20px 28px' }}>
 
             {/* Tournament badge */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
               background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.28)',
-              borderRadius: 20, padding: '4px 12px', marginBottom: 14 }}>
+              borderRadius: 20, padding: '4px 12px', marginBottom: 12 }}>
               <span style={{ fontSize: 12 }}>⚽</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', letterSpacing: '0.3px' }}>FIFA WORLD CUP 2026</span>
             </div>
 
-            <h1 style={{ margin: '0 0 10px', fontSize: 36, fontWeight: 900, color: '#fff',
-              letterSpacing: '-0.8px', lineHeight: 1.05 }}>
-              TribePicks
-            </h1>
-            <p style={{ margin: '0 0 28px', lineHeight: 1.55, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
-              <span style={{ display: 'block', fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: 4 }}>
+            {/* Logo + title inline lockup */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, justifyContent: 'center', marginBottom: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="TribePicks"
+                style={{ width: 44, height: 44, borderRadius: 11, flexShrink: 0,
+                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
+                  boxShadow: '0 0 20px rgba(74,222,128,0.2)' }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, color: '#fff', letterSpacing: '-0.8px', lineHeight: 1 }}>
+                TribePicks
+              </h1>
+            </div>
+
+            {/* Tagline */}
+            <p style={{ margin: '0 0 18px', lineHeight: 1.55, maxWidth: 300, marginLeft: 'auto', marginRight: 'auto' }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: 4 }}>
                 Tip once, enter multiple comps.
               </span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.52)' }}>
+              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.50)' }}>
                 Office, friends and family — each with their own private leaderboard.
               </span>
             </p>
 
-            {/* Primary CTAs */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 28 }}>
-              <Link href="/login?tab=register" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '12px 24px', borderRadius: 12, fontSize: 14, fontWeight: 700,
-                background: '#16a34a', color: '#fff', textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(22,163,74,0.45)',
-              }}>
-                Join free →
-              </Link>
-              <Link href="/login" style={{
-                display: 'inline-flex', alignItems: 'center',
-                padding: '12px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
-                background: 'rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.82)',
-                border: '1px solid rgba(255,255,255,0.18)', textDecoration: 'none',
-              }}>
-                Sign in
-              </Link>
-            </div>
-
-            {/* Benefit line — informational only, no button affordance */}
-            <div style={{ display: 'flex', gap: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {[
-                { icon: '🏆', label: 'Private group comps' },
-                { icon: '⚡', label: 'Live scoring' },
-                { icon: '🆓', label: 'Free to join' },
-              ].map(f => (
-                <span key={f.label} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  fontSize: 11.5, color: 'rgba(255,255,255,0.45)', fontWeight: 500,
-                }}>
-                  <span style={{ fontSize: 13 }}>{f.icon}</span>
-                  {f.label}
-                </span>
-              ))}
-            </div>
-
-            {/* Challenge CTA — try before signing up */}
-            <div style={{ marginTop: 20, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+            {/* Challenge CTA — primary action for cold visitors, no signup needed */}
+            <div style={{ marginBottom: 14, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
               <Link href="/su-challenge" style={{
                 display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none',
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)',
                 borderRadius: 16, padding: '12px 16px',
               }}>
-                <span style={{ fontSize: 26, flexShrink: 0 }}>⚽</span>
+                <span style={{ fontSize: 24, flexShrink: 0 }}>⚽</span>
                 <div style={{ flex: 1, textAlign: 'left' }}>
                   <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: '#fff' }}>
                     Try the 4-pick challenge
                   </p>
-                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                     Pick 4 warm-up games — no signup needed
                   </p>
                 </div>
                 <span style={{
                   flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#4ade80',
                   padding: '5px 11px', borderRadius: 8,
-                  background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)',
+                  background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
                   whiteSpace: 'nowrap',
                 }}>
                   Go →
@@ -804,9 +770,65 @@ export default function HomePage() {
               </Link>
             </div>
 
+            {/* Primary CTAs */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 22 }}>
+              <Link href="/login?tab=register" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '11px 22px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                background: '#16a34a', color: '#fff', textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(22,163,74,0.45)',
+              }}>
+                Join free →
+              </Link>
+              <Link href="/login" style={{
+                display: 'inline-flex', alignItems: 'center',
+                padding: '11px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                background: 'rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.82)',
+                border: '1px solid rgba(255,255,255,0.18)', textDecoration: 'none',
+              }}>
+                Sign in
+              </Link>
+            </div>
+
+            {/* For Tipsters / For Organisers — inside hero, before social proof */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20, textAlign: 'left' }}>
+              {([
+                {
+                  label: '🎯 Tipsters',
+                  items: [
+                    'Tip once — all your comps covered',
+                    'Bonus Team — 2× points on their matches',
+                    'Penalty shootout picks in knockouts',
+                    "See everyone's picks after tipping closes",
+                  ],
+                },
+                {
+                  label: '🏆 Organisers',
+                  items: [
+                    'Set up in 10 minutes — always free',
+                    'Bulk invites with automated reminders',
+                    'Divide your comp into Tribes — team vs team',
+                    'Live auto-scoring',
+                  ],
+                },
+              ] as const).map(col => (
+                <div key={col.label} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '11px 12px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{col.label}</p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {col.items.map(item => (
+                      <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 10.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                        <span style={{ color: '#4ade80', flexShrink: 0, fontWeight: 700 }}>✓</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
             {/* Social proof */}
             {heroStats && heroStats.tipster_count > 0 && (
-              <div style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
                 {/* Live count badge */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 16 }}>
                   <span style={{
@@ -853,45 +875,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── For Tipsters / For Organisers — unsigned only ── */}
-      {!session && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-          {/* Tipsters */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-3.5">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">🎯 Tipsters</p>
-            <ul className="space-y-2">
-              {[
-                'Tip once — all your comps covered',
-                'Bonus Team — 2× points on their matches',
-                'Penalty shootout picks in knockouts',
-                "See everyone's picks after tipping closes",
-              ].map(item => (
-                <li key={item} className="flex items-start gap-1.5 text-[11.5px] text-gray-600 leading-snug">
-                  <span className="text-green-500 font-bold flex-shrink-0 mt-px">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {/* Organisers */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-3.5">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">🏆 Organisers</p>
-            <ul className="space-y-2">
-              {[
-                'Set up in 10 minutes — always free',
-                'Bulk invites with automated reminders',
-                'Divide your comp into Tribes — team vs team',
-                'Live auto-scoring',
-              ].map(item => (
-                <li key={item} className="flex items-start gap-1.5 text-[11.5px] text-gray-600 leading-snug">
-                  <span className="text-green-500 font-bold flex-shrink-0 mt-px">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+
 
       {/* ── Logged in ── */}
       {session && (
