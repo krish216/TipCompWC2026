@@ -395,6 +395,10 @@ export default function HomePage() {
   const [decliningBusy,    setDecliningBusy]    = useState(false)
   const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
   const [cameFromChallenge, setCameFromChallenge] = useState(false)
+  const [joiningWarmUp,    setJoiningWarmUp]    = useState(false)
+  const [warmUpError,      setWarmUpError]      = useState<string | null>(null)
+  const [confirmAction,    setConfirmAction]    = useState<{ compId: string; action: 'leave' | 'delete'; name: string } | null>(null)
+  const [compActionBusy,   setCompActionBusy]   = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -497,7 +501,6 @@ export default function HomePage() {
         .then(d => {
           if (!d.error) {
             setChallengeToast(`⚽ ${real.length} warm-up pick${real.length > 1 ? 's' : ''} saved to the competition!`)
-            setTimeout(() => setChallengeToast(null), 5000)
           }
         })
         .catch(() => {})
@@ -571,6 +574,55 @@ export default function HomePage() {
     }
   }
 
+  const joinWarmUpComp = async () => {
+    setJoiningWarmUp(true); setWarmUpError(null)
+    try {
+      const { data: comp, error: cErr } = await fetch('/api/comps?code=WCEH3GB9').then(r => r.json())
+      if (cErr || !comp) { setWarmUpError('Warm-Up Comp not available — please try again'); return }
+      const { success, error: jErr } = await fetch('/api/comp-admins/self-register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id, invite_code: 'WCEH3GB9' }),
+      }).then(r => r.json())
+      if (!success) { setWarmUpError(jErr ?? 'Failed to join — please try again'); return }
+      // Auto-join the warm-up tribe (comp membership now established)
+      await fetch('/api/tribes', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_code: 'VZ3JEZRA' }),
+      })
+      await pickComp({ id: comp.id, name: comp.name, logo_url: comp.logo_url ?? null } as any)
+      await refreshComps(comp.id)
+      await refreshHasTribe()
+    } catch {
+      setWarmUpError('Something went wrong — please try again')
+    } finally {
+      setJoiningWarmUp(false)
+    }
+  }
+
+  const handleCompAction = async () => {
+    if (!confirmAction) return
+    setCompActionBusy(true)
+    try {
+      if (confirmAction.action === 'leave') {
+        const { success, error } = await fetch('/api/comp-members/leave', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comp_id: confirmAction.compId }),
+        }).then(r => r.json())
+        if (!success) { alert(error ?? 'Failed to leave comp'); return }
+      } else {
+        const { success, error } = await fetch('/api/comps/create', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comp_id: confirmAction.compId }),
+        }).then(r => r.json())
+        if (!success) { alert(error ?? 'Failed to delete comp'); return }
+      }
+      setConfirmAction(null)
+      await refreshComps()
+    } finally {
+      setCompActionBusy(false)
+    }
+  }
+
   const NavCard = ({ href, icon, title, description }: {
     href: string; icon: string; title: string; description: string
   }) => (
@@ -587,10 +639,18 @@ export default function HomePage() {
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
 
-      {/* Challenge picks hydration toast */}
+      {/* Challenge picks hydration toast — persistent until dismissed */}
       {challengeToast && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 flex items-center gap-2 text-sm text-green-800 font-medium">
-          {challengeToast}
+        <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 flex items-center gap-2">
+          <span className="flex-1 text-sm text-green-800 font-medium">{challengeToast}</span>
+          <Link href="/predict?round=wup"
+            className="text-xs font-bold text-green-700 underline underline-offset-2 whitespace-nowrap flex-shrink-0">
+            View picks →
+          </Link>
+          <button onClick={() => setChallengeToast(null)}
+            className="text-green-400 hover:text-green-600 ml-1 flex-shrink-0 text-lg leading-none">
+            ✕
+          </button>
         </div>
       )}
 
@@ -874,6 +934,33 @@ export default function HomePage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Warm-Up Comp — default for users without a code */}
+                  <div className="mb-3 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
+                    <div className="flex items-center gap-3 p-3">
+                      <span className="text-2xl flex-shrink-0">⚽</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
+                        <p className="text-[11px] text-green-700">No code needed — jump straight in</p>
+                      </div>
+                      <button
+                        onClick={joinWarmUpComp}
+                        disabled={joiningWarmUp}
+                        className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
+                      >
+                        {joiningWarmUp ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
+                      </button>
+                    </div>
+                    {warmUpError && (
+                      <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex-1 h-px bg-gray-100" />
+                    <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">or join your own comp</span>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => setModal('join')}
@@ -1243,6 +1330,26 @@ export default function HomePage() {
                     const isSel = selectedCompId === c.id
                     const isAdm = isCompAdmin && isSel
                     const rank  = compRanks[c.id]
+                    const isConfirming = confirmAction?.compId === c.id
+
+                    if (isConfirming) {
+                      return (
+                        <div key={c.id} className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border-b border-red-100 last:border-0">
+                          <span className="flex-1 text-xs text-red-700 font-medium truncate">
+                            {confirmAction.action === 'delete' ? `Delete "${c.name}"?` : `Leave "${c.name}"?`}
+                          </span>
+                          <button onClick={handleCompAction} disabled={compActionBusy}
+                            className="text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 px-2.5 py-1 rounded-lg flex items-center gap-1 flex-shrink-0">
+                            {compActionBusy ? <Spinner className="w-3 h-3 text-white" /> : 'Confirm'}
+                          </button>
+                          <button onClick={() => setConfirmAction(null)} disabled={compActionBusy}
+                            className="text-[11px] font-medium text-gray-500 hover:text-gray-700 px-1.5 py-1 flex-shrink-0">
+                            Cancel
+                          </button>
+                        </div>
+                      )
+                    }
+
                     return (
                       <button key={c.id}
                         onClick={() => pickComp(c)}
@@ -1265,6 +1372,17 @@ export default function HomePage() {
                         )}
                         {rank != null && (
                           <span className="text-xs text-gray-400 flex-shrink-0">#{rank}</span>
+                        )}
+                        {isSel && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              setConfirmAction({ compId: c.id, action: isAdm ? 'delete' : 'leave', name: c.name })
+                            }}
+                            title={isAdm ? 'Delete comp' : 'Leave comp'}
+                            className="text-gray-300 hover:text-red-400 transition-colors px-1 flex-shrink-0 text-base leading-none">
+                            ···
+                          </button>
                         )}
                       </button>
                     )

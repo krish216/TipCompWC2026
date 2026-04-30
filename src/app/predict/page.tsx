@@ -640,6 +640,16 @@ export default function PredictPage() {
         {...roundScoreBarProps}
       />
 
+      {/* Warm-up round notice */}
+      {activeRound === 'wup' && (
+        <div className="mb-3 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+          <span className="text-base flex-shrink-0 mt-0.5">⏳</span>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            <strong>Pre-tournament warm-up.</strong> Points earned here will be cleared when the real tournament kicks off — enjoy the practice!
+          </p>
+        </div>
+      )}
+
       {/* Progress bar */}
       {(() => {
         const cnt = roundPredCounts[activeRound]

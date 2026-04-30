@@ -353,7 +353,7 @@ export default function LoginPage() {
         {isChallenge && mode === 'register' && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-center">
             <p className="text-green-800 text-sm font-semibold">⚽ Your 4 warm-up picks are saved!</p>
-            <p className="text-green-600 text-xs mt-0.5">Create an account to lock them into the competition</p>
+            <p className="text-green-600 text-xs mt-0.5">Create an account to save your picks — warm-up points reset when the tournament begins</p>
           </div>
         )}
 
@@ -397,8 +397,8 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           {mode === 'register' && (
             <>
-              {/* Role selection — skip if arriving via an invite link (role is implicitly tipster) */}
-              {!codeParam && (
+              {/* Role selection — skip for invite links and challenge flow (role is implicitly tipster) */}
+              {!codeParam && !isChallenge && (
                 <div>
                   <p className="text-xs font-semibold text-gray-700 mb-2">I want to…</p>
                   <div className="grid grid-cols-2 gap-2">

@@ -85,7 +85,7 @@ export default function RulesPage() {
               </div>
             )
           })}
-        </div>r
+        </div>
         <div className="mt-3 flex gap-3 flex-wrap text-xs text-gray-500">
           <span><span className="font-medium text-blue-600">1/X/2</span> — Pick home win (1), draw (X), or away win (2)</span>
           <span><span className="font-medium text-green-700">Base pts</span> — points earned for a correct result prediction</span>

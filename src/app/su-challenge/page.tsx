@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CHALLENGE_PICKS_KEY, CHALLENGE_SOURCE_KEY } from '@/lib/challenge'
+import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Outcome = 'H' | 'D' | 'A'
@@ -200,7 +201,7 @@ function IntroScreen({ onStart, loading }: { onStart: () => void; loading: boole
 
       <p className="text-green-200 text-base mb-8 max-w-xs leading-relaxed">
         Pick the winners of the first 4 Warm-Up matches.
-        Sign up to lock in your picks — they count toward the real competition.
+        Sign up to experience the full game before it begins — points earned during the warm-up will not count in the real tournament.
       </p>
 
       <div className="flex items-center gap-6 mb-10 text-sm text-green-300">
@@ -397,15 +398,25 @@ function ResultScreen({ picks, onSignup, onContinue }: {
 
       <button onClick={onContinue}
         className="w-full text-green-400 text-sm font-medium py-2 underline">
-        Maybe later — explore the app
+        Maybe later — go to home
       </button>
     </div>
   )
 }
 
 function SignupScreen({ picks }: { picks: Pick[] }) {
-  const router = useRouter()
-  const rank   = getProjectedRank(calcScore(picks), picks.filter(p => p.isBold).length)
+  const router          = useRouter()
+  const { supabase }    = useSupabase()
+  const rank            = getProjectedRank(calcScore(picks), picks.filter(p => p.isBold).length)
+
+  const handleGoogleSignUp = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`,
+      },
+    })
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6"
@@ -416,7 +427,7 @@ function SignupScreen({ picks }: { picks: Pick[] }) {
         Lock in #<span className="text-amber-400">{rank}</span>
       </h2>
       <p className="text-green-300 text-center text-sm mb-5 max-w-xs">
-        Create your free account to save your picks — they'll count toward the real leaderboard when the tournament starts.
+        Create your free account to save your warm-up picks. Note: warm-up points won't carry into the real tournament — but you'll get the full experience before it begins.
       </p>
 
       {/* Mini picks summary */}
@@ -433,9 +444,9 @@ function SignupScreen({ picks }: { picks: Pick[] }) {
           )
         })}
       </div>
-      <p className="text-green-500 text-xs mb-6">Your 4 warm-up picks — saved for 24 hrs</p>
+      <p className="text-green-500 text-xs mb-6">Your 4 warm-up picks — saved until you sign up</p>
 
-      <Link href="/login?tab=register&challenge=1"
+      <button onClick={handleGoogleSignUp}
         className="w-full max-w-xs flex items-center justify-center gap-3
                    bg-white text-gray-800 font-bold text-base
                    rounded-2xl py-4 px-6 shadow-lg active:scale-95 transition-transform mb-3">
@@ -446,7 +457,7 @@ function SignupScreen({ picks }: { picks: Pick[] }) {
           <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.96L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
         </svg>
         Continue with Google
-      </Link>
+      </button>
 
       <Link href="/login?tab=register&challenge=1"
         className="w-full max-w-xs flex items-center justify-center gap-3
@@ -456,7 +467,7 @@ function SignupScreen({ picks }: { picks: Pick[] }) {
         Sign up with Email
       </Link>
 
-      <button onClick={() => router.push('/predict')}
+      <button onClick={() => router.push('/')}
         className="text-green-400 text-sm underline">
         Skip for now
       </button>
@@ -528,7 +539,7 @@ export default function SuChallengePage() {
       {step === 'result' && (
         <ResultScreen picks={picks}
           onSignup={() => setStep('signup')}
-          onContinue={() => { window.location.href = '/predict' }} />
+          onContinue={() => { window.location.href = '/' }} />
       )}
       {step === 'signup' && <SignupScreen picks={picks} />}
     </div>
