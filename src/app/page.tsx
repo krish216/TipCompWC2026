@@ -402,6 +402,8 @@ export default function HomePage() {
   const [teamsList,        setTeamsList]        = useState<{ name: string; flag_emoji?: string }[]>([])
   const [favouriteTeam,    setFavouriteTeam]    = useState<string | null>(null)
   const [savingFav,        setSavingFav]        = useState(false)
+  const [tipsterExpanded,  setTipsterExpanded]  = useState(false)
+  const [organiserExpanded, setOrganiserExpanded] = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -800,38 +802,60 @@ export default function HomePage() {
 
             {/* For Tipsters / For Organisers — inside hero, before social proof */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20, textAlign: 'left' }}>
-              {([
-                {
-                  label: '🎯 Tipsters',
-                  items: [
+              {/* Tipsters column */}
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '11px 12px' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.8px' }}>🎯 Tipsters</p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
                     'Tip once — all your comps covered',
                     'Bonus Team — 2× points on their matches',
                     'Penalty shootout picks in knockouts',
                     "See everyone's picks after tipping closes",
-                  ],
-                },
-                {
-                  label: '🏆 Organisers',
-                  items: [
+                    ...(tipsterExpanded ? [
+                      'Family friendly — no betting ads',
+                      'Exact score bonus from the semi-finals onwards',
+                      'Same comp rules for all tipsters across the tournament',
+                    ] : []),
+                  ].map(item => (
+                    <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 10.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                      <span style={{ color: '#4ade80', flexShrink: 0, fontWeight: 700 }}>✓</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => setTipsterExpanded(v => !v)}
+                  style={{ marginTop: 8, fontSize: 10, fontWeight: 600, color: '#4ade80', background: 'none', border: 'none', padding: 0, cursor: 'pointer', opacity: 0.75 }}>
+                  {tipsterExpanded ? '− Less' : '+ 3 more'}
+                </button>
+              </div>
+
+              {/* Organisers column */}
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '11px 12px' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.8px' }}>🏆 Organisers</p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
                     'Set up in 10 minutes — always free',
                     'Bulk invites with automated reminders',
                     'Divide your comp into Tribes — team vs team',
                     'Live auto-scoring',
-                  ],
-                },
-              ] as const).map(col => (
-                <div key={col.label} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '11px 12px' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{col.label}</p>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {col.items.map(item => (
-                      <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 10.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
-                        <span style={{ color: '#4ade80', flexShrink: 0, fontWeight: 700 }}>✓</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                    ...(organiserExpanded ? [
+                      'Manage optional tipster comp contributions',
+                      'Place getters recognised for each round',
+                    ] : []),
+                  ].map(item => (
+                    <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 10.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                      <span style={{ color: '#4ade80', flexShrink: 0, fontWeight: 700 }}>✓</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => setOrganiserExpanded(v => !v)}
+                  style={{ marginTop: 8, fontSize: 10, fontWeight: 600, color: '#4ade80', background: 'none', border: 'none', padding: 0, cursor: 'pointer', opacity: 0.75 }}>
+                  {organiserExpanded ? '− Less' : '+ 2 more'}
+                </button>
+              </div>
             </div>
 
             {/* Social proof */}
