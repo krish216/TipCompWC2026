@@ -740,22 +740,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Persona toggle — logged-out only ────────────────────── */}
-      {!session && (
-        <div className="flex justify-center mb-4">
-          <div className="flex bg-gray-100 p-1 rounded-2xl gap-1 shadow-sm">
-            {(['tipster', 'organiser'] as const).map(p => (
-              <button key={p} onClick={() => setPersona(p)}
-                className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
-                  persona === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
-                }`}>
-                {p === 'tipster' ? '🎯 I\'m a Tipster' : '🏆 I\'m an Organiser'}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Hero card (persona-aware) — logged-out only ─────────── */}
       {!session && (
         <div style={{
@@ -779,12 +763,21 @@ export default function HomePage() {
 
           <div style={{ position:'relative', padding:'24px 20px 28px' }}>
 
-            {/* Tournament badge */}
-            <div style={{ display:'inline-flex', alignItems:'center', gap:5,
-              background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.28)',
-              borderRadius:20, padding:'4px 12px', marginBottom:12 }}>
-              <span style={{ fontSize:12 }}>⚽</span>
-              <span style={{ fontSize:11, fontWeight:700, color:'#4ade80', letterSpacing:'0.3px' }}>FIFA WORLD CUP 2026</span>
+            {/* Persona toggle — inside hero so it's always above the fold */}
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+              <div style={{ display:'inline-flex', background:'rgba(255,255,255,0.10)', padding:4, borderRadius:16, gap:4 }}>
+                {(['tipster', 'organiser'] as const).map(p => (
+                  <button key={p} type="button" onClick={() => setPersona(p)} style={{
+                    padding:'7px 16px', borderRadius:11, fontSize:13, fontWeight:700,
+                    border:'none', cursor:'pointer', transition:'all 0.15s',
+                    background: persona === p ? 'rgba(255,255,255,0.95)' : 'transparent',
+                    color: persona === p ? '#166534' : 'rgba(255,255,255,0.60)',
+                    boxShadow: persona === p ? '0 1px 6px rgba(0,0,0,0.18)' : 'none',
+                  }}>
+                    {p === 'tipster' ? '🎯 I\'m a Tipster' : '🏆 I run Tipping Comps'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Logo + title */}
@@ -1077,6 +1070,16 @@ export default function HomePage() {
                       <p className="text-xs font-bold text-emerald-700">Create a comp</p>
                       <p className="text-[10px] text-emerald-500">For my group</p>
                     </button>
+                  </div>
+
+                  {/* No invite fallback */}
+                  <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-center">
+                    <p className="text-xs font-bold text-amber-800 mb-0.5">No code? No invite? No problem.</p>
+                    <p className="text-[11px] text-amber-600 mb-2.5">Jump straight in with our open Warm-Up Comp — no invite needed.</p>
+                    <Link href="/su-challenge"
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white border border-amber-300 hover:border-amber-500 hover:bg-amber-100 text-xs font-semibold text-amber-800 transition-all">
+                      ⚽ Join the Warm-Up Comp →
+                    </Link>
                   </div>
                 </div>
 

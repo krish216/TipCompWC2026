@@ -8,7 +8,15 @@ import { Spinner } from '@/components/ui'
 
 type Mode = 'login' | 'register' | 'magic' | 'reset'
 
-
+const TIMEZONE_OPTIONS = [
+  'Pacific/Honolulu', 'America/Anchorage', 'America/Los_Angeles', 'America/Denver',
+  'America/Chicago', 'America/New_York', 'America/Sao_Paulo', 'Atlantic/Azores',
+  'UTC', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow',
+  'Africa/Johannesburg', 'Africa/Lagos', 'Asia/Dubai', 'Asia/Karachi',
+  'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Bangkok', 'Asia/Singapore',
+  'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Perth', 'Australia/Darwin',
+  'Australia/Adelaide', 'Australia/Sydney', 'Pacific/Auckland',
+]
 
 export default function LoginPage() {
   const { supabase, session } = useSupabase()
@@ -46,6 +54,8 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [name,            setName]            = useState('')
   const [firstName,       setFirstName]       = useState('')
+  const [timezone,        setTimezone]        = useState('')
+  const [showTzSelect,    setShowTzSelect]    = useState(false)
   const [agreedToTerms,   setAgreedToTerms]   = useState(false)
   const turnstileRef                          = useRef<TurnstileInstance>(null)
   const [turnstileToken,  setTurnstileToken]  = useState<string | null>(null)
@@ -56,6 +66,11 @@ export default function LoginPage() {
   const [registered,    setRegistered]    = useState(false)  // show "check email"
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSent,    setResendSent]    = useState(false)
+
+  // Auto-detect timezone on mount
+  useEffect(() => {
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  }, [])
 
   // Fetch active/upcoming tournaments for registration
   useEffect(() => {
@@ -184,12 +199,14 @@ export default function LoginPage() {
       // Route through /auth/callback so the PKCE code exchange happens server-side
       // before the user lands on their destination. This also avoids a ?code= param
       // collision with the comp invite code on /join.
-      const nextUrl = codeParam
+      const destinationUrl = codeParam
         ? `/join?code=${codeParam}`
         : role === 'organiser'
         ? `/?flow=create`
         : `/`
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+      // Route through the email-confirmed celebration page so new users get a clear signal
+      const confirmedUrl = `/auth/confirmed?next=${encodeURIComponent(destinationUrl)}`
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(confirmedUrl)}`
 
       // If registering via an invite link, fetch the comp name so the verification
       // email template can reference it via {{ .Data.invite_comp_name }}.
@@ -232,7 +249,7 @@ export default function LoginPage() {
           email:               newUser.email!,
           display_name:        displayName,
           first_name:          firstName.trim() || null,
-          timezone:            Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          timezone:            timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           onboarding_complete: false,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
@@ -485,7 +502,8 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Display name <span className="text-red-500">*</span>
                 </label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)}
+                <input type="text" value={name}
+                  onChange={e => setName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                   placeholder="GoalMaster99" maxLength={40} required
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
                     name.trim().length > 0 && name.trim().length < 3
@@ -495,7 +513,7 @@ export default function LoginPage() {
                 {name.trim().length > 0 && name.trim().length < 3 && (
                   <p className="text-[11px] text-amber-600 mt-1">Minimum 3 characters</p>
                 )}
-                <p className="text-[11px] text-gray-400 mt-1">Your public alias — visible to other tipsters in your comp</p>
+                <p className="text-[11px] text-gray-400 mt-1">A fun username shown on scoreboards and Tip Sheets. Letters, numbers and underscores only.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
@@ -504,6 +522,31 @@ export default function LoginPage() {
                 <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
                   placeholder="Alex" maxLength={50} required
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                <p className="text-[11px] text-gray-400 mt-1">Personalises your experience — not visible to other players.</p>
+              </div>
+
+              {/* Timezone — auto-detected, changeable */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Timezone</label>
+                {!showTzSelect ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    <span className="text-sm text-gray-700 flex-1 truncate">📍 {timezone || 'Detecting…'}</span>
+                    <button type="button" onClick={() => setShowTzSelect(true)}
+                      className="text-xs text-green-600 hover:text-green-700 font-medium flex-shrink-0">
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={timezone}
+                    onChange={e => { setTimezone(e.target.value); setShowTzSelect(false) }}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                    {TIMEZONE_OPTIONS.map(tz => (
+                      <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-[11px] text-gray-400 mt-1">To help you view match times in your timezone.</p>
               </div>
               {/* Tournament selection — single tournament */}
               {tournaments.length > 0 && (
@@ -567,6 +610,9 @@ export default function LoginPage() {
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+            {mode === 'register' && (
+              <p className="text-[11px] text-gray-400 mt-1">Used to log in and for reminders &amp; notifications.</p>
+            )}
           </div>
 
           {(mode === 'login' || mode === 'register') && (
