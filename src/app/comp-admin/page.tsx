@@ -898,7 +898,14 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   const [grantingAdmin,    setGrantingAdmin]    = useState(false)
   const [deletingComp,     setDeletingComp]     = useState(false)
   const [compAdmins,       setCompAdmins]       = useState<{ user_id: string; display_name: string; email: string; is_owner: boolean }[]>([])
-  const [removingAdmin,    setRemovingAdmin]    = useState<string | null>(null)
+  const [removingAdmin,      setRemovingAdmin]      = useState<string | null>(null)
+  const [tribeSizeError,     setTribeSizeError]     = useState<string | null>(null)
+  const [tribeSizeAdvisory,  setTribeSizeAdvisory]  = useState(false)
+  const feeAmountRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (feeEnabled) setTimeout(() => feeAmountRef.current?.focus(), 100)
+  }, [feeEnabled])
 
   const adminUserIds   = useMemo(() => new Set(compAdmins.map(a => a.user_id)), [compAdmins])
   const eligibleAdmins = useMemo(() =>
@@ -931,6 +938,8 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   }
   const saveMaxTribeSize = async () => {
     const size = parseInt(newMaxTribeSize) || 15
+    if (size < 2) { setTribeSizeError('Tribe size must be at least 2'); return }
+    setTribeSizeError(null)
     const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, max_tribe_size: size }) })
     if (res.ok) { onUpdate('maxTribeSize', size); toast.success(`Max tribe size set to ${size}`) } else toast.error('Failed')
   }
@@ -1030,12 +1039,12 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
           </div>
 
           {feeEnabled && (
-            <div className="pt-2 border-t border-gray-100">
+            <div id="entry-fee-amount-section" className="pt-2 border-t border-gray-100">
               <label className="block text-xs font-bold text-gray-600 mb-1.5">Entry fee amount</label>
               <div className="flex gap-2 items-center">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 gap-1.5">
                   <span className="text-sm font-bold text-gray-500">$</span>
-                  <input type="number" min="0" step="0.50" value={feeAmount}
+                  <input ref={feeAmountRef} type="number" min="0" step="0.50" value={feeAmount}
                     onChange={e => setFeeAmount(e.target.value)}
                     placeholder="0.00"
                     className="w-24 bg-transparent text-sm font-bold focus:outline-none"
@@ -1083,10 +1092,23 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
           </div>
         )},
         { title: 'Max tribe size', sub: 'Recommended members per tribe — used to prompt when to add more tribes', id: 'max-tribe-size-section', content: (
-          <div className="flex gap-2 items-center p-4">
-            <input type="number" min="2" max="200" value={newMaxTribeSize} onChange={e => setNewMaxTribeSize(e.target.value)} placeholder="15" className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-            <button onClick={saveMaxTribeSize} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
-            <span className="text-xs text-gray-400">members (default 15)</span>
+          <div className="p-4 space-y-2">
+            <div className="flex gap-2 items-center">
+              <input type="number" min="2" max="200" value={newMaxTribeSize}
+                onChange={e => {
+                  const v = e.target.value
+                  setNewMaxTribeSize(v)
+                  const n = parseInt(v)
+                  if (!isNaN(n) && n < 2) { setTribeSizeError('Tribe size must be at least 2'); setTribeSizeAdvisory(false) }
+                  else if (!isNaN(n) && n < 11) { setTribeSizeError(null); setTribeSizeAdvisory(true) }
+                  else { setTribeSizeError(null); setTribeSizeAdvisory(false) }
+                }}
+                placeholder="15" className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              <button onClick={saveMaxTribeSize} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
+              <span className="text-xs text-gray-400">members (default 15)</span>
+            </div>
+            {tribeSizeError    && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{tribeSizeError}</p>}
+            {tribeSizeAdvisory && <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-xl">Ideal minimum tribe size is 10 or more — smaller tribes can feel too quiet.</p>}
           </div>
         )},
       ].map(s => (
@@ -1275,7 +1297,7 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
       </div>
 
       {!showForm ? (
-        <button onClick={() => setShowForm(true)} className="w-full mb-4 py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
+        <button id="create-new-tribe-btn" onClick={() => setShowForm(true)} className="w-full mb-4 py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
           <span className="text-lg">+</span> Create new tribe
         </button>
       ) : (
@@ -1390,7 +1412,7 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
 
       {/* Tipsters without a tribe — multi-select */}
       {withoutTribe.length > 0 && tribes.length > 0 && (
-        <div className="mt-4">
+        <div id="not-in-tribe-section" className="mt-4">
           <Section title="Not in a tribe" sub={`${withoutTribe.length} tipster${withoutTribe.length !== 1 ? 's' : ''} without a tribe`}>
             {/* Batch action bar */}
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
@@ -1607,19 +1629,24 @@ export default function CompAdminPage() {
   useEffect(() => {
     if (!session || !comp?.id) return
     const tid = (selectedTourn as any)?.id
-    Promise.all([
-      fetch(`/api/leaderboard?scope=comp&comp_id=${comp.id}&no_tab_breakdown=true`).then(r => r.json()),
-      tid ? fetch(`/api/round-locks?tournament_id=${tid}`).then(r => r.json()) : Promise.resolve({ data: {} }),
-    ]).then(([lbJson, rlJson]) => {
-      const openEntry = Object.entries(rlJson.data ?? {}).find(([, v]) => v)
-      const openRound = openEntry?.[0] ?? null
-      setAdminRoundCode(openRound)
-      const active = (lbJson.data ?? []).filter((r: any) => {
-        if (!openRound) return (r.predictions_made ?? 0) > 0
-        return (r.round_breakdown?.[openRound] ?? 0) > 0
-      }).length
-      setLbHealth({ active })
-    }).catch(() => {})
+    ;(async () => {
+      try {
+        // Resolve the open round from round-locks
+        let openRound: string | null = null
+        if (tid) {
+          const rlJson = await fetch(`/api/round-locks?tournament_id=${tid}`).then(r => r.json())
+          const openEntry = Object.entries(rlJson.data ?? {}).find(([, v]) => v)
+          openRound = openEntry?.[0] ?? null
+        }
+        setAdminRoundCode(openRound)
+        // Count tipsters who have tipped in the open round (raw predictions, not scored)
+        const url = `/api/comp-health?comp_id=${comp.id}${openRound ? `&round=${openRound}` : ''}`
+        const healthJson = await fetch(url).then(r => r.json())
+        setLbHealth({ active: healthJson.tipped ?? 0 })
+      } catch {
+        // non-critical — leave health stats as null
+      }
+    })()
   }, [session, comp?.id, selectedTourn])
 
   const handleSettingUpdate = useCallback((k: string, v: any) => {
@@ -1753,11 +1780,11 @@ export default function CompAdminPage() {
         const tribesNeeded = tipsters.length > 0 ? Math.ceil(tipsters.length / Math.max(maxTribeSize, 1)) : 1
         type StepItem = { label: string; detail: string; tab: Tab; done: boolean; scrollTo?: string }
         const steps: StepItem[] = [
-          { label: 'Set an entry fee',          detail: 'Enable in Settings, then set the amount',             tab: 'settings', done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0) },
+          { label: 'Set an entry fee',          detail: 'Enable in Settings, then set the amount',             tab: 'settings', done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0), scrollTo: 'entry-fee-amount-section' },
           { label: 'Configure tribe size limit', detail: 'Set max members per tribe — default is 15',          tab: 'settings', done: false, scrollTo: 'max-tribe-size-section' },
           { label: 'Send invites',               detail: 'Invite your group to join and start tipping',        tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1 },
-          { label: 'Create tribes',              detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length >= tribesNeeded },
-          ...(tipstersWithoutTribe.length > 0 ? [{ label: 'Assign tipsters to tribes', detail: `${tipstersWithoutTribe.length} tipster${tipstersWithoutTribe.length !== 1 ? 's' : ''} still need a tribe`, tab: 'tribes' as Tab, done: false }] : []),
+          { label: 'Create New Tribes',            detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length >= tribesNeeded, scrollTo: 'create-new-tribe-btn' },
+          ...(tipstersWithoutTribe.length > 0 ? [{ label: 'Assign tipsters to tribes', detail: `${tipstersWithoutTribe.length} tipster${tipstersWithoutTribe.length !== 1 ? 's' : ''} still need a tribe`, tab: 'tribes' as Tab, done: false, scrollTo: 'not-in-tribe-section' }] : []),
           ...(requiresFee ? [{ label: 'Track comp contributions', detail: 'Record which tipsters have paid', tab: 'payments' as Tab, done: tipsters.some(t => t.fee_paid) }] : []),
         ]
         return (
