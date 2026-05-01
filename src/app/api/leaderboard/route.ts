@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const scope = searchParams.get('scope') ?? 'comp'
     const limit = scope === 'tribe' ? 25 : 50
-    const noBreakdown = searchParams.get('no_breakdown') === 'true'
+    const noBreakdown    = searchParams.get('no_breakdown')     === 'true'
+    const noTabBreakdown = searchParams.get('no_tab_breakdown') === 'true'
 
     // Resolve comp + tournament from user_preferences
     const { data: prefs } = await supabase
@@ -130,14 +131,16 @@ export async function GET(request: NextRequest) {
           bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
         })
 
-        const userTabBreakdowns = await Promise.allSettled(userIds.map(async (userId) => {
-          const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
-          if (error) {
-            console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
-            return { userId, rows: [] }
-          }
-          return { userId, rows: (data ?? []) as any[] }
-        }))
+        const userTabBreakdowns = noTabBreakdown
+          ? []
+          : await Promise.allSettled(userIds.map(async (userId) => {
+              const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
+              if (error) {
+                console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
+                return { userId, rows: [] }
+              }
+              return { userId, rows: (data ?? []) as any[] }
+            }))
 
         userTabBreakdowns.forEach((result) => {
           if (result.status === 'fulfilled') {

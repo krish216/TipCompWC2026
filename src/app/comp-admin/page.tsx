@@ -1082,7 +1082,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
             {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
           </div>
         )},
-        { title: 'Max tribe size', sub: 'Recommended members per tribe — used to prompt when to add more tribes', content: (
+        { title: 'Max tribe size', sub: 'Recommended members per tribe — used to prompt when to add more tribes', id: 'max-tribe-size-section', content: (
           <div className="flex gap-2 items-center p-4">
             <input type="number" min="2" max="200" value={newMaxTribeSize} onChange={e => setNewMaxTribeSize(e.target.value)} placeholder="15" className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
             <button onClick={saveMaxTribeSize} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
@@ -1090,7 +1090,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
           </div>
         )},
       ].map(s => (
-        <Section key={s.title} title={s.title} sub={(s as any).sub}>{s.content}</Section>
+        <div key={s.title} id={(s as any).id}><Section title={s.title} sub={(s as any).sub}>{s.content}</Section></div>
       ))}
 
       {/* ── Admin management ──────────────────────────────────── */}
@@ -1608,13 +1608,17 @@ export default function CompAdminPage() {
     if (!session || !comp?.id) return
     const tid = (selectedTourn as any)?.id
     Promise.all([
-      fetch(`/api/leaderboard?scope=comp&comp_id=${comp.id}&no_breakdown=true`).then(r => r.json()),
+      fetch(`/api/leaderboard?scope=comp&comp_id=${comp.id}&no_tab_breakdown=true`).then(r => r.json()),
       tid ? fetch(`/api/round-locks?tournament_id=${tid}`).then(r => r.json()) : Promise.resolve({ data: {} }),
     ]).then(([lbJson, rlJson]) => {
-      const active = (lbJson.data ?? []).filter((r: any) => (r.predictions_made ?? 0) > 0).length
-      setLbHealth({ active })
       const openEntry = Object.entries(rlJson.data ?? {}).find(([, v]) => v)
-      setAdminRoundCode(openEntry?.[0] ?? null)
+      const openRound = openEntry?.[0] ?? null
+      setAdminRoundCode(openRound)
+      const active = (lbJson.data ?? []).filter((r: any) => {
+        if (!openRound) return (r.predictions_made ?? 0) > 0
+        return (r.round_breakdown?.[openRound] ?? 0) > 0
+      }).length
+      setLbHealth({ active })
     }).catch(() => {})
   }, [session, comp?.id, selectedTourn])
 
@@ -1745,13 +1749,15 @@ export default function CompAdminPage() {
 
       {/* Comp setup checklist — shown until dismissed */}
       {!freshBannerDismissed && (() => {
-        type StepItem = { label: string; detail: string; tab: Tab; done: boolean }
+        const tipstersWithoutTribe = tipsters.filter(t => !tribes.some(tr => (tr.member_ids ?? []).includes(t.user_id)))
+        const tribesNeeded = tipsters.length > 0 ? Math.ceil(tipsters.length / Math.max(maxTribeSize, 1)) : 1
+        type StepItem = { label: string; detail: string; tab: Tab; done: boolean; scrollTo?: string }
         const steps: StepItem[] = [
-          { label: 'Set an entry fee',          detail: 'Charge tipsters to join — configure in Settings',    tab: 'settings', done: requiresFee },
-          { label: 'Configure tribe size limit', detail: 'Set max members per tribe — default is 15',          tab: 'settings', done: false },
+          { label: 'Set an entry fee',          detail: 'Enable in Settings, then set the amount',             tab: 'settings', done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0) },
+          { label: 'Configure tribe size limit', detail: 'Set max members per tribe — default is 15',          tab: 'settings', done: false, scrollTo: 'max-tribe-size-section' },
           { label: 'Send invites',               detail: 'Invite your group to join and start tipping',        tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1 },
-          { label: 'Create tribes',              detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length > 0 },
-          { label: 'Assign tipsters to tribes',  detail: 'Move tipsters into their team',                      tab: 'tribes',   done: tribes.some(tr => (tr.member_count ?? 0) > 0) },
+          { label: 'Create tribes',              detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length >= tribesNeeded },
+          ...(tipstersWithoutTribe.length > 0 ? [{ label: 'Assign tipsters to tribes', detail: `${tipstersWithoutTribe.length} tipster${tipstersWithoutTribe.length !== 1 ? 's' : ''} still need a tribe`, tab: 'tribes' as Tab, done: false }] : []),
           ...(requiresFee ? [{ label: 'Track comp contributions', detail: 'Record which tipsters have paid', tab: 'payments' as Tab, done: tipsters.some(t => t.fee_paid) }] : []),
         ]
         return (
@@ -1771,7 +1777,10 @@ export default function CompAdminPage() {
               {steps.map((step, i) => (
                 <button
                   key={step.label}
-                  onClick={() => setActiveTab(step.tab)}
+                  onClick={() => {
+                    setActiveTab(step.tab)
+                    if (step.scrollTo) setTimeout(() => document.getElementById(step.scrollTo!)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200)
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
                 >
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${step.done ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
@@ -1791,12 +1800,14 @@ export default function CompAdminPage() {
 
       {/* Mini checklist progress — visible when full checklist is dismissed */}
       {freshBannerDismissed && (() => {
+        const tipstersWithoutTribe = tipsters.filter(t => !tribes.some(tr => (tr.member_ids ?? []).includes(t.user_id)))
+        const tribesNeeded = tipsters.length > 0 ? Math.ceil(tipsters.length / Math.max(maxTribeSize, 1)) : 1
         const steps = [
-          { done: requiresFee },
+          { done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0) },
           { done: false },
           { done: invitations.length > 0 || tipsters.length > 1 },
-          { done: tribes.length > 0 },
-          { done: tribes.some(tr => (tr.member_count ?? 0) > 0) },
+          { done: tribes.length >= tribesNeeded },
+          ...(tipstersWithoutTribe.length > 0 ? [{ done: false }] : []),
           ...(requiresFee ? [{ done: tipsters.some(t => t.fee_paid) }] : []),
         ]
         const doneCount = steps.filter(s => s.done).length
