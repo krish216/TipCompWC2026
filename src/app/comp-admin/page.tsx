@@ -1631,12 +1631,18 @@ export default function CompAdminPage() {
     const tid = (selectedTourn as any)?.id
     ;(async () => {
       try {
-        // Resolve the open round from round-locks
+        // Resolve the open round from round-locks — sort by round_order (same logic as home page)
         let openRound: string | null = null
         if (tid) {
           const rlJson = await fetch(`/api/round-locks?tournament_id=${tid}`).then(r => r.json())
-          const openEntry = Object.entries(rlJson.data ?? {}).find(([, v]) => v)
-          openRound = openEntry?.[0] ?? null
+          const openCodes = Object.entries(rlJson.data ?? {})
+            .filter(([, v]) => v)
+            .map(([code]) => code)
+          openRound = openCodes.sort((a, b) => {
+            const oA = (scoringConfig.rounds as any)[a]?.round_order ?? 999
+            const oB = (scoringConfig.rounds as any)[b]?.round_order ?? 999
+            return oA - oB
+          })[0] ?? null
         }
         setAdminRoundCode(openRound)
         // Count tipsters who have tipped in the open round (raw predictions, not scored)
