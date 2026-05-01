@@ -1165,7 +1165,8 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
   const [removingMember, setRemovingMember] = useState<string | null>(null)
   const [addingMember,   setAddingMember]   = useState<string | null>(null)
   const [targetTribeId,  setTargetTribeId]  = useState<Record<string, string>>({})
-  const [settingDefault, setSettingDefault] = useState<string | null>(null)
+  const [settingDefault,   setSettingDefault]   = useState<string | null>(null)
+  const [justCreatedTribe, setJustCreatedTribe] = useState<Tribe | null>(null)
 
   // user_id → tribe_id map for quick lookup
   const userTribeMap = useMemo(() => {
@@ -1189,7 +1190,12 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     const { data, error: err } = await res.json()
     setCreating(false)
     if (err) { setError(res.status === 409 ? `"${name.trim()}" already exists` : err) }
-    else { toast.success(`Tribe "${data.name}" created`); setTribes(prev => [{ ...data, member_ids: [] }, ...prev]); setName(''); setDesc(''); setError(null); setShowForm(false) }
+    else {
+      const newTribe = { ...data, member_ids: [], member_count: 0 }
+      setTribes(prev => [newTribe, ...prev])
+      setName(''); setDesc(''); setError(null); setShowForm(false)
+      setJustCreatedTribe(newTribe)
+    }
   }
 
   const setDefaultTribe = async (tribe: Tribe) => {
@@ -1272,6 +1278,35 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
             </div>
           </div>
         </Section>
+      )}
+
+      {justCreatedTribe && (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl flex-shrink-0">✅</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-emerald-900 mb-0.5">"{justCreatedTribe.name}" created!</p>
+              <p className="text-xs text-emerald-700 mb-3">
+                Make this the <strong>default tribe</strong>? New tipsters joining this comp will automatically be placed in it.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => { await setDefaultTribe(justCreatedTribe); setJustCreatedTribe(null) }}
+                  disabled={settingDefault === justCreatedTribe.id}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                >
+                  {settingDefault === justCreatedTribe.id ? '…' : 'Set as default'}
+                </button>
+                <button
+                  onClick={() => setJustCreatedTribe(null)}
+                  className="px-3 py-1.5 border border-emerald-200 text-xs font-semibold text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {tribes.length === 0 ? <EmptyState title="No tribes yet" description="Create a tribe to organise tipsters into groups." /> : (

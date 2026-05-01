@@ -67,10 +67,19 @@ export default function LoginPage() {
       .catch(() => {})
   }, [])
 
-  // Pre-fill email from invite link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
+  // Pre-fill email from invite link and auto-switch to Sign In if already registered
+  const [inviteAlreadyRegistered, setInviteAlreadyRegistered] = useState(false)
   useEffect(() => {
     if (emailParam) setEmail(emailParam)
-  }, [emailParam])
+    if (emailParam && codeParam) {
+      ;(async () => {
+        try {
+          const { data } = await supabase.from('users').select('id').ilike('email', emailParam.trim()).maybeSingle()
+          if (data) { setMode('login'); setInviteAlreadyRegistered(true) }
+        } catch {}
+      })()
+    }
+  }, [emailParam, codeParam])
 
   // When session is established, redirect to home (comp setup is handled there)
   useEffect(() => {
@@ -280,6 +289,8 @@ export default function LoginPage() {
           ? 'Your warm-up picks are saved — click the link to activate your account and lock them in!'
           : isOrganiser
           ? "Click the link to activate your account — you'll be taken straight to comp creation."
+          : codeParam
+          ? "Click the link to activate your account — you'll be automatically added to the comp and can start tipping straight away!"
           : 'Click the link to activate your account, then come back here to sign in.',
         warning: true,
       },
@@ -359,6 +370,17 @@ export default function LoginPage() {
           <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-center">
             <p className="text-green-800 text-sm font-semibold">⚽ Your 4 warm-up picks are saved!</p>
             <p className="text-green-600 text-xs mt-0.5">Create an account to save your picks — warm-up points reset when the tournament begins</p>
+          </div>
+        )}
+
+        {/* Invite banner — shown when arriving from a comp invite link */}
+        {codeParam && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-center">
+            <p className="text-blue-800 text-sm font-semibold">🔑 You've been invited to a comp!</p>
+            {inviteAlreadyRegistered
+              ? <p className="text-blue-600 text-xs mt-0.5">Your email is already registered — sign in below to accept your invite.</p>
+              : <p className="text-blue-600 text-xs mt-0.5">Already have an account? <button type="button" onClick={() => setMode('login')} className="font-semibold underline">Sign in</button> to accept your invite.</p>
+            }
           </div>
         )}
 

@@ -58,7 +58,6 @@ function JoinInner() {
         setPhase('error'); setErrMsg(joinErr ?? 'Failed to join comp'); return
       }
       setPhase('done')
-      setTimeout(() => router.push('/'), 2000)
     })()
   }, [session, code, email])
 
@@ -78,13 +77,34 @@ function JoinInner() {
   if (phase === 'done') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-sm w-full text-center">
-          <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-xl font-bold text-gray-900 mb-1">You're in!</h1>
-          {compName && (
-            <p className="text-sm font-semibold text-green-700 mb-2">{compName}</p>
-          )}
-          <p className="text-sm text-gray-500">Taking you to your homepage…</p>
+        <div className="max-w-sm w-full">
+          <div className="text-center mb-6">
+            <div className="text-6xl mb-4">🎉</div>
+            <h1 className="text-xl font-bold text-gray-900 mb-1">You're in!</h1>
+            {compName && <p className="text-sm font-semibold text-green-700">{compName}</p>}
+          </div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">What to do next</p>
+          <div className="space-y-3">
+            <Link href="/predict"
+              className="flex items-center gap-3 px-4 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors group">
+              <span className="text-2xl flex-shrink-0">🎯</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold">Start tipping</p>
+                <p className="text-xs opacity-75">Make your match predictions now</p>
+              </div>
+              <span className="text-lg group-hover:translate-x-0.5 transition-transform">→</span>
+            </Link>
+            <Link href="/"
+              className="flex items-center gap-3 px-4 py-3.5 bg-white border border-gray-200 hover:border-gray-300 text-gray-800 rounded-xl transition-colors group">
+              <span className="text-2xl flex-shrink-0">⭐</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold">Pick your Bonus Team</p>
+                <p className="text-xs text-gray-500">2× points on their Group Stage matches</p>
+              </div>
+              <span className="text-lg text-gray-400 group-hover:translate-x-0.5 transition-transform">→</span>
+            </Link>
+          </div>
+          <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
         </div>
       </div>
     )
