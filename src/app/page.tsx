@@ -390,6 +390,24 @@ export default function HomePage() {
     return { deadlineLabel: `Closing in ${m}m`, urgencyLevel: 'red' as const }
   }, [nextKickoff, tickNow])
 
+  const nextRoundInfo = useMemo(() => {
+    if (currentRoundCode) return null  // a round is already open
+    const now = Date.now()
+    const roundFirstKickoff: Record<string, number> = {}
+    allFixtures.forEach(f => {
+      const t = new Date(f.kickoff_utc).getTime()
+      if (t > now) {
+        if (!roundFirstKickoff[f.round] || t < roundFirstKickoff[f.round])
+          roundFirstKickoff[f.round] = t
+      }
+    })
+    const entries = Object.entries(roundFirstKickoff).sort(([, a], [, b]) => a - b)
+    if (!entries.length) return null
+    const [roundCode, kickoff] = entries[0]
+    const roundName = (scoringConfig.rounds as any)[roundCode]?.round_name ?? roundCode
+    return { roundCode, roundName, kickoff }
+  }, [currentRoundCode, allFixtures, scoringConfig])
+
   const [tribeInfoOpen,  setTribeInfoOpen]  = useState(false)
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
@@ -1086,7 +1104,8 @@ export default function HomePage() {
                         <span className="text-2xl flex-shrink-0">⚽</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
-                          <p className="text-[11px] text-green-700">No code needed — jump straight in</p>
+                          <p className="text-[11px] text-green-700">Practice before the real thing</p>
+                          <p className="text-[10px] text-green-600 opacity-75 mt-0.5">Warm-up points reset when the tournament begins</p>
                         </div>
                         <button
                           onClick={joinWarmUpComp}
@@ -1554,6 +1573,24 @@ export default function HomePage() {
                   </div>
                   <p className="text-[10px] text-green-600 mt-1">{Math.round((predCount / fixtureCount) * 100)}% complete</p>
                 </Link>
+              )}
+
+              {/* No open round — next round teaser */}
+              {!currentRoundCode && nextRoundInfo && (
+                <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-center gap-3">
+                  <span className="text-xl flex-shrink-0">📅</span>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-blue-800">{nextRoundInfo.roundName} opens soon</p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      First kickoff {new Date(nextRoundInfo.kickoff).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}{' '}
+                      — check back to submit your tips!
+                    </p>
+                  </div>
+                  <Link href="/predict"
+                    className="flex-shrink-0 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                    Preview →
+                  </Link>
+                </div>
               )}
 
               {/* Comp radio list */}

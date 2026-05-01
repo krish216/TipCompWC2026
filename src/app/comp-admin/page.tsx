@@ -1556,7 +1556,7 @@ function ChallengesTab({ comp }: { comp: any }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function CompAdminPage() {
   const { session }                                         = useSupabase()
-  const { selectedComp, selectedTourn, isCompAdmin, loading: ctxLoading, updateComp } = useUserPrefs()
+  const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
 
   const [activeTab,    setActiveTab]    = useState<Tab>('tipsters')
   const [loading,      setLoading]      = useState(false)
@@ -1572,6 +1572,8 @@ export default function CompAdminPage() {
   const [showKebab,           setShowKebab]           = useState(false)
   const [deletingComp,        setDeletingComp]        = useState(false)
   const [freshBannerDismissed,setFreshBannerDismissed]= useState(false)
+  const [lbHealth,            setLbHealth]            = useState<{ active: number } | null>(null)
+  const [adminRoundCode,      setAdminRoundCode]      = useState<string | null>(null)
   const kebabRef = useRef<HTMLDivElement>(null)
 
   const comp = selectedComp as any
@@ -1600,6 +1602,21 @@ export default function CompAdminPage() {
       setMaxTribeSize(comp.max_tribe_size ?? 15)
     }).finally(() => setLoading(false))
   }, [session, comp?.id])
+
+  // Separate effect for health stats (non-blocking)
+  useEffect(() => {
+    if (!session || !comp?.id) return
+    const tid = (selectedTourn as any)?.id
+    Promise.all([
+      fetch(`/api/leaderboard?scope=comp&comp_id=${comp.id}&no_breakdown=true`).then(r => r.json()),
+      tid ? fetch(`/api/round-locks?tournament_id=${tid}`).then(r => r.json()) : Promise.resolve({ data: {} }),
+    ]).then(([lbJson, rlJson]) => {
+      const active = (lbJson.data ?? []).filter((r: any) => (r.predictions_made ?? 0) > 0).length
+      setLbHealth({ active })
+      const openEntry = Object.entries(rlJson.data ?? {}).find(([, v]) => v)
+      setAdminRoundCode(openEntry?.[0] ?? null)
+    }).catch(() => {})
+  }, [session, comp?.id, selectedTourn])
 
   const handleSettingUpdate = useCallback((k: string, v: any) => {
     if (k === 'domain')      setDomain(v)
@@ -1684,6 +1701,48 @@ export default function CompAdminPage() {
         </div>
       </div>
 
+      {/* Share invite link */}
+      {comp.invite_code && (
+        <div className="flex items-center gap-2 mb-4 px-1">
+          <button
+            onClick={async () => {
+              const link = `${window.location.origin}/join?code=${comp.invite_code}`
+              await navigator.clipboard.writeText(link)
+              toast.success('Invite link copied to clipboard!')
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+            <span>📤</span>
+            Share invite link
+          </button>
+          <span className="text-[11px] text-gray-400">Fastest way to get tipsters to join</span>
+        </div>
+      )}
+
+      {/* Comp health dashboard */}
+      {(() => {
+        const inTribe = tribes.reduce((sum, t) => sum + ((t.member_ids ?? []).length), 0)
+        const pendingJoin = invitations.filter(i => !i.joined).length
+        const roundName = adminRoundCode ? (scoringConfig.rounds as any)[adminRoundCode]?.round_name ?? adminRoundCode : null
+        const stats = [
+          { label: 'Joined',      value: tipsters.length,                              icon: '👥', sub: 'tipsters',          color: 'text-gray-800'   },
+          { label: 'In a tribe',  value: inTribe,                                       icon: '⚔️', sub: `of ${tipsters.length}`,  color: 'text-blue-600'   },
+          { label: 'Have tipped', value: lbHealth?.active ?? '…',                       icon: '🎯', sub: roundName ? `${roundName}` : 'total',       color: 'text-green-700'  },
+          { label: 'Awaiting',    value: pendingJoin,                                   icon: '📩', sub: 'invited not joined', color: 'text-amber-600'  },
+        ]
+        return (
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {stats.map(s => (
+              <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-2.5 text-center shadow-sm">
+                <p className="text-base mb-0.5">{s.icon}</p>
+                <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
+                <p className="text-[10px] text-gray-700 font-semibold mt-0.5">{s.label}</p>
+                <p className="text-[9px] text-gray-400 leading-tight mt-0.5">{s.sub}</p>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
       {/* Comp setup checklist — shown until dismissed */}
       {!freshBannerDismissed && (() => {
         type StepItem = { label: string; detail: string; tab: Tab; done: boolean }
@@ -1726,6 +1785,33 @@ export default function CompAdminPage() {
                 </button>
               ))}
             </div>
+          </div>
+        )
+      })()}
+
+      {/* Mini checklist progress — visible when full checklist is dismissed */}
+      {freshBannerDismissed && (() => {
+        const steps = [
+          { done: requiresFee },
+          { done: false },
+          { done: invitations.length > 0 || tipsters.length > 1 },
+          { done: tribes.length > 0 },
+          { done: tribes.some(tr => (tr.member_count ?? 0) > 0) },
+          ...(requiresFee ? [{ done: tipsters.some(t => t.fee_paid) }] : []),
+        ]
+        const doneCount = steps.filter(s => s.done).length
+        const total = steps.length
+        if (doneCount === total) return null
+        return (
+          <div className="mb-3 flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="flex-1 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.round((doneCount / total) * 100)}%` }} />
+            </div>
+            <span className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">{doneCount}/{total} setup steps done</span>
+            <button onClick={() => setFreshBannerDismissed(false)}
+              className="text-[11px] text-emerald-600 underline hover:text-emerald-800 whitespace-nowrap flex-shrink-0">
+              Show checklist
+            </button>
           </div>
         )
       })()}

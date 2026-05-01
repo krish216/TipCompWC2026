@@ -37,6 +37,8 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [sentMode, setSentMode] = useState<Mode>('register')
+  const [showPassword,        setShowPassword]        = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Registration fields
   const [email,    setEmail]    = useState('')
@@ -371,7 +373,9 @@ export default function LoginPage() {
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           </div>
           <h1 className="text-xl font-semibold text-gray-900">TribePicks</h1>
-          <p className="text-sm text-gray-500 mt-1">Predict every match. Beat your tribe.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isOrganiser && mode === 'register' ? 'Set up a comp for your group.' : 'Predict every match. Beat your tribe.'}
+          </p>
         </div>
 
         {/* Challenge banner — shown when arriving from /su-challenge */}
@@ -390,6 +394,23 @@ export default function LoginPage() {
               ? <p className="text-blue-600 text-xs mt-0.5">Your email is already registered — sign in below to accept your invite.</p>
               : <p className="text-blue-600 text-xs mt-0.5">Already have an account? <button type="button" onClick={() => setMode('login')} className="font-semibold underline">Sign in</button> to accept your invite.</p>
             }
+          </div>
+        )}
+
+        {/* Organiser context banner */}
+        {isOrganiser && mode === 'register' && (
+          <div className="mb-4 px-4 py-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+            <p className="text-emerald-900 text-sm font-bold mb-1">🏆 You're setting up a comp</p>
+            <p className="text-emerald-700 text-xs mb-2.5">Create your account and you'll be taken straight to comp setup — takes about 10 minutes.</p>
+            <div className="flex items-center gap-3">
+              {['Create account', 'Set up comp', 'Invite friends'].map((s, i) => (
+                <div key={s} className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                  <span className="text-[11px] font-semibold text-emerald-800">{s}</span>
+                  {i < 2 && <span className="text-emerald-300 text-xs">→</span>}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -474,6 +495,7 @@ export default function LoginPage() {
                 {name.trim().length > 0 && name.trim().length < 3 && (
                   <p className="text-[11px] text-amber-600 mt-1">Minimum 3 characters</p>
                 )}
+                <p className="text-[11px] text-gray-400 mt-1">Your public alias — visible to other tipsters in your comp</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
@@ -550,10 +572,16 @@ export default function LoginPage() {
           {(mode === 'login' || mode === 'register') && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
-              <input type="password" required minLength={8}
-                value={password} onChange={e => setPassword(e.target.value)}
-                placeholder={mode === 'register' ? 'Min 8 characters' : '••••••••'}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} required minLength={8}
+                  value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder={mode === 'register' ? 'Min 8 characters' : '••••••••'}
+                  className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                <button type="button" onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium">
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               {/* Strength indicator — register only */}
               {mode === 'register' && password && passwordStrength && (
                 <div className="mt-1.5">
@@ -583,16 +611,22 @@ export default function LoginPage() {
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Confirm password</label>
-              <input type="password" required
-                value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your password"
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
-                  confirmPassword && confirmPassword !== password
-                    ? 'border-red-400 bg-red-50'
-                    : confirmPassword && confirmPassword === password
-                    ? 'border-green-400'
-                    : 'border-gray-300'
-                }`} />
+              <div className="relative">
+                <input type={showConfirmPassword ? 'text' : 'password'} required
+                  value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  className={`w-full px-3 py-2 pr-10 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
+                    confirmPassword && confirmPassword !== password
+                      ? 'border-red-400 bg-red-50'
+                      : confirmPassword && confirmPassword === password
+                      ? 'border-green-400'
+                      : 'border-gray-300'
+                  }`} />
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium">
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               {confirmPassword && confirmPassword !== password && (
                 <p className="text-[11px] text-red-600 mt-1">Passwords do not match</p>
               )}
