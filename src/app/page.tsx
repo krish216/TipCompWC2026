@@ -430,6 +430,7 @@ export default function HomePage() {
   const [savingFav,        setSavingFav]        = useState(false)
   const [tipsterExpanded,  setTipsterExpanded]  = useState(false)
   const [organiserExpanded, setOrganiserExpanded] = useState(false)
+  const [howItWorksTab,    setHowItWorksTab]    = useState<'tipster' | 'organiser'>('tipster')
   const [compWelcome,      setCompWelcome]      = useState<string | null>(null)
   const [editingName,      setEditingName]      = useState(false)
   const [nameInput,        setNameInput]        = useState('')
@@ -1694,141 +1695,223 @@ export default function HomePage() {
       )}
 
       {/* ── How it works — logged-out only ──────────────────────── */}
-      {!session && (
-        <div className="mb-10">
+      {!session && (() => {
+        const isTipster = howItWorksTab === 'tipster'
 
-          {/* Section header */}
-          <div className="text-center mb-7">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Simple by design</p>
-            <h2 className="text-2xl font-black text-gray-900">How It Works</h2>
-            <p className="text-sm text-gray-500 mt-1.5">Get started in a few easy steps</p>
-          </div>
-
-          {/* Steps — horizontal row with arrows */}
-          <div className="flex items-start gap-1">
-
-            {([
-              {
-                n: 1, color: '#15803d',
-                title: 'Join a Comp',
-                desc:  'Get your invite link from the organiser and join in seconds.',
-                phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
-                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Join a Comp</p>
-                    <div style={{ display:'flex', gap:3, marginBottom:5 }}>
-                      <div style={{ flex:1, background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', fontSize:8, fontWeight:600, color:'#374151', letterSpacing:'0.8px' }}>ABC12345</div>
-                      <div style={{ background:'#15803d', borderRadius:5, padding:'4px 7px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Join</div>
-                    </div>
-                    <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 6px', display:'flex', alignItems:'center', gap:4 }}>
-                      <span style={{ fontSize:10, flexShrink:0 }}>⚽</span>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <p style={{ margin:0, fontSize:8, fontWeight:700, color:'#111827', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>World Cup Comp</p>
-                        <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>24 tipsters</p>
-                      </div>
-                      <div style={{ background:'#dcfce7', borderRadius:3, padding:'1px 4px', fontSize:7, fontWeight:700, color:'#15803d', flexShrink:0 }}>✓</div>
+        const tipsterSteps: { n:number; color:string; title:string; desc:string; phone:JSX.Element }[] = [
+          {
+            n:1, color:'#15803d',
+            title: 'Accept Your Invite',
+            desc:  'Tap the invite link your organiser shared — no code typing needed.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 5px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>You&apos;ve been invited 🎉</p>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'6px', marginBottom:5 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:4 }}>
+                    <div style={{ width:20, height:20, borderRadius:5, background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, flexShrink:0 }}>⚽</div>
+                    <div>
+                      <p style={{ margin:0, fontSize:8.5, fontWeight:700, color:'#111827' }}>World Cup Comp</p>
+                      <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>Organised by Jordan · 24 tipsters</p>
                     </div>
                   </div>
-                ),
-              },
-              {
-                n: 2, color: '#1d4ed8',
-                title: 'Make Your Tips',
-                desc:  'Pick every match result before the submission deadline.',
-                phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
-                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>My Tips</p>
-                    {[{ home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' }, { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' }].map((m, i) => (
-                      <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', marginBottom:4, display:'flex', alignItems:'center', gap:3 }}>
-                        <span style={{ fontSize:11 }}>{m.home}</span>
-                        <div style={{ flex:1, display:'flex', justifyContent:'center', gap:3 }}>
-                          <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
-                          <span style={{ fontSize:7, color:'#9ca3af', alignSelf:'center' }}>–</span>
-                          <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
-                        </div>
-                        <span style={{ fontSize:11 }}>{m.away}</span>
-                      </div>
-                    ))}
-                    <div style={{ textAlign:'center', marginTop:3 }}>
-                      <div style={{ display:'inline-block', background:'#1d4ed8', borderRadius:5, padding:'3px 10px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Submit →</div>
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                n: 3, color: '#7c3aed',
-                title: 'Track & Win',
-                desc:  'Climb the leaderboard every round and celebrate with your tribe.',
-                phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
-                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>🏆 Leaderboard</p>
-                    {[{ rank:1, name:'Sarah', pts:142, gold:true }, { rank:2, name:'Marco', pts:128, gold:false }, { rank:3, name:'Priya', pts:115, gold:false }].map(r => (
-                      <div key={r.rank} style={{ display:'flex', alignItems:'center', gap:3, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
-                        <span style={{ fontSize:7.5, fontWeight:800, width:12, flexShrink:0, color: r.gold ? '#f59e0b' : '#9ca3af' }}>#{r.rank}</span>
-                        <div style={{ width:13, height:13, borderRadius:'50%', background: r.gold ? '#fef3c7' : '#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontWeight:700, color: r.gold ? '#b45309' : '#6b7280', flexShrink:0 }}>{r.name[0]}</div>
-                        <span style={{ flex:1, fontSize:8, fontWeight:600, color:'#374151' }}>{r.name}</span>
-                        <span style={{ fontSize:8, fontWeight:800, color: r.gold ? '#d97706' : '#374151' }}>{r.pts}</span>
-                      </div>
-                    ))}
-                    <div style={{ marginTop:4, background:'#ede9fe', borderRadius:5, padding:'3px 5px', display:'flex', alignItems:'center', gap:3 }}>
-                      <span style={{ fontSize:7.5, fontWeight:700, color:'#7c3aed' }}>You</span>
-                      <span style={{ flex:1, fontSize:7.5, color:'#7c3aed' }}>#7 · 88 pts</span>
-                      <span style={{ fontSize:7.5, color:'#7c3aed', fontWeight:700 }}>↑3</span>
-                    </div>
-                  </div>
-                ),
-              },
-            ] as { n:number; title:string; desc:string; color:string; phone:JSX.Element }[]).map((s, i) => (
-              <div key={s.n} className="contents">
-                {/* Step card */}
-                <div className="flex-1 flex flex-col items-center text-center">
-                  {/* Number badge */}
-                  <div style={{
-                    width:34, height:34, borderRadius:'50%', background:s.color, color:'#fff',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:14, fontWeight:900, flexShrink:0,
-                    boxShadow:`0 4px 12px ${s.color}50`, marginBottom:8,
-                  }}>{s.n}</div>
-                  <h3 className="text-xs font-black text-gray-900 mb-1 leading-tight">{s.title}</h3>
-                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed px-0.5">{s.desc}</p>
-                  {/* Phone frame */}
-                  <div style={{
-                    width:'100%', background:'#111827', borderRadius:14,
-                    padding:'7px 6px 9px',
-                    boxShadow:'0 6px 20px rgba(0,0,0,0.20)',
-                  }}>
-                    <div style={{ width:28, height:4, background:'#374151', borderRadius:2, margin:'0 auto 6px' }} />
-                    {s.phone}
+                  <div style={{ background:'#15803d', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff' }}>
+                    Accept &amp; Join →
                   </div>
                 </div>
-                {/* Arrow connector */}
-                {i < 2 && (
-                  <div className="flex-shrink-0 flex items-start pt-3.5">
-                    <span style={{ fontSize:16, color:'#d1d5db', lineHeight:1 }}>→</span>
-                  </div>
-                )}
+                <p style={{ margin:0, fontSize:7, color:'#9ca3af', textAlign:'center' }}>You&apos;ll be in before the first match kicks off</p>
               </div>
-            ))}
-          </div>
+            ),
+          },
+          {
+            n:2, color:'#1d4ed8',
+            title: 'Make Your Tips',
+            desc:  'Pick every match result before the submission deadline.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>My Tips</p>
+                {([{ home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' }, { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' }] as {home:string;away:string;hs:string;as:string}[]).map((m, i) => (
+                  <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', marginBottom:4, display:'flex', alignItems:'center', gap:3 }}>
+                    <span style={{ fontSize:11 }}>{m.home}</span>
+                    <div style={{ flex:1, display:'flex', justifyContent:'center', gap:3 }}>
+                      <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
+                      <span style={{ fontSize:7, color:'#9ca3af', alignSelf:'center' }}>–</span>
+                      <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
+                    </div>
+                    <span style={{ fontSize:11 }}>{m.away}</span>
+                  </div>
+                ))}
+                <div style={{ textAlign:'center', marginTop:3 }}>
+                  <div style={{ display:'inline-block', background:'#1d4ed8', borderRadius:5, padding:'3px 10px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Submit →</div>
+                </div>
+              </div>
+            ),
+          },
+          {
+            n:3, color:'#7c3aed',
+            title: 'Track & Win',
+            desc:  'Climb the leaderboard every round and celebrate with your tribe.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>🏆 Leaderboard</p>
+                {([{ rank:1, name:'Sarah', pts:142, gold:true }, { rank:2, name:'Marco', pts:128, gold:false }, { rank:3, name:'Priya', pts:115, gold:false }] as {rank:number;name:string;pts:number;gold:boolean}[]).map(r => (
+                  <div key={r.rank} style={{ display:'flex', alignItems:'center', gap:3, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
+                    <span style={{ fontSize:7.5, fontWeight:800, width:12, flexShrink:0, color: r.gold ? '#f59e0b' : '#9ca3af' }}>#{r.rank}</span>
+                    <div style={{ width:13, height:13, borderRadius:'50%', background: r.gold ? '#fef3c7' : '#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontWeight:700, color: r.gold ? '#b45309' : '#6b7280', flexShrink:0 }}>{r.name[0]}</div>
+                    <span style={{ flex:1, fontSize:8, fontWeight:600, color:'#374151' }}>{r.name}</span>
+                    <span style={{ fontSize:8, fontWeight:800, color: r.gold ? '#d97706' : '#374151' }}>{r.pts}</span>
+                  </div>
+                ))}
+                <div style={{ marginTop:4, background:'#ede9fe', borderRadius:5, padding:'3px 5px', display:'flex', alignItems:'center', gap:3 }}>
+                  <span style={{ fontSize:7.5, fontWeight:700, color:'#7c3aed' }}>You</span>
+                  <span style={{ flex:1, fontSize:7.5, color:'#7c3aed' }}>#7 · 88 pts</span>
+                  <span style={{ fontSize:7.5, color:'#7c3aed', fontWeight:700 }}>↑3</span>
+                </div>
+              </div>
+            ),
+          },
+        ]
 
-          {/* Testimonial */}
-          <div className="mt-8 mb-6 text-center px-4">
-            <p className="text-sm italic text-gray-500 leading-relaxed">
-              &ldquo;I love seeing how my tribe&rsquo;s picks stack up each round!&rdquo;
-            </p>
-            <p className="text-[11px] text-gray-400 mt-1 font-medium">— Alex, TribePicks user</p>
-          </div>
+        const organiserSteps: { n:number; color:string; title:string; desc:string; phone:JSX.Element }[] = [
+          {
+            n:1, color:'#15803d',
+            title: 'Create a Comp',
+            desc:  'Name your comp and set it up in under 10 minutes — always free.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>New Comp</p>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:4, fontSize:8, color:'#374151', fontWeight:600 }}>World Cup Comp 2026</div>
+                <div style={{ display:'flex', gap:3, marginBottom:4 }}>
+                  {['Group A', '🏆 WC 2026'].map(tag => (
+                    <div key={tag} style={{ background:'#dcfce7', borderRadius:4, padding:'2px 5px', fontSize:7, fontWeight:700, color:'#15803d' }}>{tag}</div>
+                  ))}
+                </div>
+                <div style={{ background:'#15803d', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff' }}>Create free →</div>
+                <p style={{ margin:'4px 0 0', fontSize:7, color:'#9ca3af', textAlign:'center' }}>No credit card required</p>
+              </div>
+            ),
+          },
+          {
+            n:2, color:'#1d4ed8',
+            title: 'Invite Your Group',
+            desc:  'Share a one-tap link or send bulk emails straight from the app.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Invite tipsters</p>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ flex:1, fontSize:7.5, color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>tribepicks.com/join?code=ABC…</span>
+                  <div style={{ background:'#dbeafe', borderRadius:3, padding:'2px 5px', fontSize:7, fontWeight:700, color:'#1d4ed8', flexShrink:0 }}>Copy</div>
+                </div>
+                <div style={{ background:'#1d4ed8', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff', marginBottom:3 }}>📤 Share invite link</div>
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'0 2px' }}>
+                  <span style={{ fontSize:7, color:'#9ca3af' }}>12 sent</span>
+                  <span style={{ fontSize:7, color:'#9ca3af' }}>9 joined · 3 pending</span>
+                </div>
+              </div>
+            ),
+          },
+          {
+            n:3, color:'#7c3aed',
+            title: 'Sit Back & Watch',
+            desc:  'Scores auto-update, reminders go out, the leaderboard runs itself.',
+            phone: (
+              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Comp Health</p>
+                {([
+                  { icon:'👥', label:'Joined',     val:'19', color:'#374151' },
+                  { icon:'🎯', label:'Have tipped', val:'14', color:'#15803d' },
+                  { icon:'📩', label:'Awaiting',   val:'3',  color:'#d97706' },
+                ] as {icon:string;label:string;val:string;color:string}[]).map(s => (
+                  <div key={s.label} style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
+                    <span style={{ fontSize:9 }}>{s.icon}</span>
+                    <span style={{ flex:1, fontSize:7.5, color:'#6b7280' }}>{s.label}</span>
+                    <span style={{ fontSize:9, fontWeight:800, color:s.color }}>{s.val}</span>
+                  </div>
+                ))}
+                <div style={{ marginTop:4, background:'#dcfce7', borderRadius:5, padding:'3px 6px', display:'flex', alignItems:'center', gap:3 }}>
+                  <span style={{ fontSize:7.5, color:'#15803d' }}>⚡</span>
+                  <span style={{ fontSize:7, color:'#15803d', fontWeight:600 }}>Scores synced automatically</span>
+                </div>
+              </div>
+            ),
+          },
+        ]
 
-          {/* CTA */}
-          <div className="text-center">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-2xl transition-colors shadow-md">
-              Start Your First Pick →
-            </Link>
-          </div>
+        const steps = isTipster ? tipsterSteps : organiserSteps
+        const cta   = isTipster
+          ? { href:'/login', label:'Start Your First Pick →' }
+          : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →' }
+        const testimonial = isTipster
+          ? { quote: 'I love seeing how my tribe\'s picks stack up each round!', author: 'Alex, TribePicks tipster' }
+          : { quote: 'Set it up in an evening — the app does the rest. Our group has never been more engaged.', author: 'Jordan, comp organiser' }
 
-        </div>
-      )}
+        return (
+          <div className="mb-10">
+            {/* Section header */}
+            <div className="text-center mb-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Simple by design</p>
+              <h2 className="text-2xl font-black text-gray-900">How It Works</h2>
+            </div>
+
+            {/* Tab toggle */}
+            <div className="flex justify-center mb-7">
+              <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+                {(['tipster', 'organiser'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setHowItWorksTab(tab)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      howItWorksTab === tab
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}>
+                    {tab === 'tipster' ? '🎯 I\'m a Tipster' : '🏆 I\'m an Organiser'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Steps — horizontal row */}
+            <div className="flex items-start gap-1">
+              {steps.map((s, i) => (
+                <div key={s.n} className="contents">
+                  <div className="flex-1 flex flex-col items-center text-center">
+                    <div style={{
+                      width:34, height:34, borderRadius:'50%', background:s.color, color:'#fff',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:14, fontWeight:900, flexShrink:0,
+                      boxShadow:`0 4px 12px ${s.color}50`, marginBottom:8,
+                    }}>{s.n}</div>
+                    <h3 className="text-xs font-black text-gray-900 mb-1 leading-tight">{s.title}</h3>
+                    <p className="text-[10px] text-gray-500 mb-3 leading-relaxed px-0.5">{s.desc}</p>
+                    <div style={{ width:'100%', background:'#111827', borderRadius:14, padding:'7px 6px 9px', boxShadow:'0 6px 20px rgba(0,0,0,0.20)' }}>
+                      <div style={{ width:28, height:4, background:'#374151', borderRadius:2, margin:'0 auto 6px' }} />
+                      {s.phone}
+                    </div>
+                  </div>
+                  {i < 2 && (
+                    <div className="flex-shrink-0 flex items-start pt-3.5">
+                      <span style={{ fontSize:16, color:'#d1d5db', lineHeight:1 }}>→</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Testimonial */}
+            <div className="mt-8 mb-6 text-center px-4">
+              <p className="text-sm italic text-gray-500 leading-relaxed">&ldquo;{testimonial.quote}&rdquo;</p>
+              <p className="text-[11px] text-gray-400 mt-1 font-medium">— {testimonial.author}</p>
+            </div>
+
+            {/* CTA */}
+            <div className="text-center">
+              <Link href={cta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-2xl transition-colors shadow-md">
+                {cta.label}
+              </Link>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Why TribePicks — logged-out only ────────────────────── */}
       {!session && (
