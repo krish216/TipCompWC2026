@@ -1229,13 +1229,13 @@ export default function HomePage() {
                         {nameError && <p className="text-[11px] text-red-500">{nameError}</p>}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">{displayName}</span>
                         <button
                           onClick={() => { setNameInput(displayName ?? ''); setNameError(null); setEditingName(true) }}
-                          className="text-gray-300 hover:text-gray-500 text-xs leading-none"
+                          className="text-[11px] font-medium text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-1.5 py-0.5 rounded transition-colors"
                           title="Edit display name"
-                        >✎</button>
+                        >✏️ Edit</button>
                       </div>
                     )}
                   </div>
@@ -1487,6 +1487,11 @@ export default function HomePage() {
                     <div>
                       <p className="text-sm font-bold text-green-800">
                         {fixtureCount - predCount} tip{fixtureCount - predCount !== 1 ? 's' : ''} to submit
+                        {currentRoundCode && (
+                          <span className="ml-2 text-[11px] font-semibold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full align-middle">
+                            {(scoringConfig.rounds as any)[currentRoundCode]?.round_name ?? currentRoundCode}
+                          </span>
+                        )}
                       </p>
                       {deadlineLabel && (
                         <p className={`text-xs mt-0.5 ${

@@ -1615,50 +1615,51 @@ export default function CompAdminPage() {
         </div>
       </div>
 
-      {/* Fresh comp setup banner — shown until dismissed */}
-      {tipsters.length === 1 && !freshBannerDismissed && (
-        <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
-          <div className="flex items-start justify-between px-4 pt-4 pb-2">
-            <div>
-              <p className="text-sm font-bold text-emerald-900">Your comp is live — let's set it up! 🎉</p>
-              <p className="text-xs text-emerald-700 mt-0.5">Complete these two steps to get your tipsters tipping.</p>
+      {/* Comp setup checklist — shown until dismissed */}
+      {!freshBannerDismissed && (() => {
+        type StepItem = { label: string; detail: string; tab: Tab; done: boolean }
+        const steps: StepItem[] = [
+          { label: 'Set an entry fee',          detail: 'Charge tipsters to join — configure in Settings',    tab: 'settings', done: requiresFee },
+          { label: 'Configure tribe size limit', detail: 'Set max members per tribe — default is 15',          tab: 'settings', done: false },
+          { label: 'Send invites',               detail: 'Invite your group to join and start tipping',        tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1 },
+          { label: 'Create tribes',              detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length > 0 },
+          { label: 'Assign tipsters to tribes',  detail: 'Move tipsters into their team',                      tab: 'tribes',   done: tribes.some(tr => (tr.member_count ?? 0) > 0) },
+          ...(requiresFee ? [{ label: 'Track comp contributions', detail: 'Record which tipsters have paid', tab: 'payments' as Tab, done: tipsters.some(t => t.fee_paid) }] : []),
+        ]
+        return (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+            <div className="flex items-start justify-between px-4 pt-4 pb-2">
+              <div>
+                <p className="text-sm font-bold text-emerald-900">Comp setup checklist 🏁</p>
+                <p className="text-xs text-emerald-700 mt-0.5">Complete these steps to get your comp running.</p>
+              </div>
+              <button
+                onClick={() => setFreshBannerDismissed(true)}
+                className="w-6 h-6 flex items-center justify-center text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 rounded-md transition-colors text-xs flex-shrink-0 ml-2"
+                title="Dismiss"
+              >✕</button>
             </div>
-            <button
-              onClick={() => setFreshBannerDismissed(true)}
-              className="w-6 h-6 flex items-center justify-center text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 rounded-md transition-colors text-xs flex-shrink-0 ml-2"
-              title="Dismiss"
-            >✕</button>
+            <div className="px-4 pb-4 space-y-2">
+              {steps.map((step, i) => (
+                <button
+                  key={step.label}
+                  onClick={() => setActiveTab(step.tab)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${step.done ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
+                    {step.done ? '✓' : i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold ${step.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{step.label}</p>
+                    <p className="text-[11px] text-gray-400">{step.detail}</p>
+                  </div>
+                  <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="px-4 pb-4 space-y-2">
-            <button
-              onClick={() => setActiveTab('tribes')}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
-            >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${tipsters.length <= maxTribeSize ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
-                {tipsters.length <= maxTribeSize ? '✓' : '1'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${tipsters.length <= maxTribeSize ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Add more Tribes</p>
-                <p className="text-[11px] text-gray-400">Group your tipsters into rivalry teams</p>
-              </div>
-              <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('tipsters')}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 transition-colors text-left group"
-            >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${invitations.length > 0 ? 'bg-green-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-300'}`}>
-                {invitations.length > 0 ? '✓' : '2'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${invitations.length > 0 ? 'text-gray-400 line-through' : 'text-gray-800'}`}>Invite Tipsters</p>
-                <p className="text-[11px] text-gray-400">Send invites so your group can join and tip</p>
-              </div>
-              <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
-            </button>
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Tab nav — scrollable on mobile */}
       <div className="flex overflow-x-auto gap-1 bg-gray-100 p-1 rounded-2xl mb-5 scrollbar-none">
