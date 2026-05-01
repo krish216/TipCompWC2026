@@ -1704,123 +1704,108 @@ export default function HomePage() {
             <p className="text-sm text-gray-500 mt-1.5">Get started in a few easy steps</p>
           </div>
 
-          {/* Steps — stack on mobile, row on sm+ */}
-          <div className="flex flex-col gap-6">
+          {/* Steps — horizontal row with arrows */}
+          <div className="flex items-start gap-1">
 
             {([
               {
-                n: 1,
+                n: 1, color: '#15803d',
                 title: 'Join a Comp',
-                desc:  'Get your invite link from the organiser and join your group in seconds.',
-                color: '#15803d',
+                desc:  'Get your invite link from the organiser and join in seconds.',
                 phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:10, overflow:'hidden', padding:'8px 8px 10px' }}>
-                    <p style={{ margin:'0 0 6px', fontSize:9, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.5px' }}>Join a Comp</p>
-                    <div style={{ display:'flex', gap:4, marginBottom:7 }}>
-                      <div style={{ flex:1, background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 7px', fontSize:9.5, fontWeight:600, color:'#374151', letterSpacing:'1px' }}>ABC12345</div>
-                      <div style={{ background:'#15803d', borderRadius:6, padding:'5px 9px', fontSize:9, fontWeight:700, color:'#fff' }}>Join</div>
+                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Join a Comp</p>
+                    <div style={{ display:'flex', gap:3, marginBottom:5 }}>
+                      <div style={{ flex:1, background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', fontSize:8, fontWeight:600, color:'#374151', letterSpacing:'0.8px' }}>ABC12345</div>
+                      <div style={{ background:'#15803d', borderRadius:5, padding:'4px 7px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Join</div>
                     </div>
-                    <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:'7px 8px', display:'flex', alignItems:'center', gap:6 }}>
-                      <div style={{ width:22, height:22, borderRadius:6, background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0 }}>⚽</div>
-                      <div>
-                        <p style={{ margin:0, fontSize:9.5, fontWeight:700, color:'#111827' }}>World Cup Comp</p>
-                        <p style={{ margin:0, fontSize:8.5, color:'#9ca3af' }}>24 tipsters · 1 tribe</p>
+                    <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 6px', display:'flex', alignItems:'center', gap:4 }}>
+                      <span style={{ fontSize:10, flexShrink:0 }}>⚽</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <p style={{ margin:0, fontSize:8, fontWeight:700, color:'#111827', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>World Cup Comp</p>
+                        <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>24 tipsters</p>
                       </div>
-                      <div style={{ marginLeft:'auto', background:'#dcfce7', borderRadius:4, padding:'2px 6px', fontSize:8.5, fontWeight:700, color:'#15803d' }}>✓ Joined</div>
+                      <div style={{ background:'#dcfce7', borderRadius:3, padding:'1px 4px', fontSize:7, fontWeight:700, color:'#15803d', flexShrink:0 }}>✓</div>
                     </div>
                   </div>
                 ),
               },
               {
-                n: 2,
+                n: 2, color: '#1d4ed8',
                 title: 'Make Your Tips',
-                desc:  'Pick the result of every match before the submission deadline.',
-                color: '#1d4ed8',
+                desc:  'Pick every match result before the submission deadline.',
                 phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:10, overflow:'hidden', padding:'8px 8px 10px' }}>
-                    <p style={{ margin:'0 0 6px', fontSize:9, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.5px' }}>My Tips · Group Stage</p>
-                    {[
-                      { home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' },
-                      { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' },
-                    ].map((m, i) => (
-                      <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:7, padding:'5px 7px', marginBottom:5, display:'flex', alignItems:'center', gap:4 }}>
-                        <span style={{ fontSize:13 }}>{m.home}</span>
-                        <div style={{ flex:1, display:'flex', justifyContent:'center', gap:4 }}>
-                          <div style={{ width:18, height:18, background:'#dbeafe', borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9.5, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
-                          <span style={{ fontSize:8.5, color:'#9ca3af', alignSelf:'center' }}>–</span>
-                          <div style={{ width:18, height:18, background:'#dbeafe', borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9.5, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
+                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>My Tips</p>
+                    {[{ home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' }, { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' }].map((m, i) => (
+                      <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', marginBottom:4, display:'flex', alignItems:'center', gap:3 }}>
+                        <span style={{ fontSize:11 }}>{m.home}</span>
+                        <div style={{ flex:1, display:'flex', justifyContent:'center', gap:3 }}>
+                          <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
+                          <span style={{ fontSize:7, color:'#9ca3af', alignSelf:'center' }}>–</span>
+                          <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
                         </div>
-                        <span style={{ fontSize:13 }}>{m.away}</span>
+                        <span style={{ fontSize:11 }}>{m.away}</span>
                       </div>
                     ))}
-                    <div style={{ textAlign:'center', marginTop:4 }}>
-                      <div style={{ display:'inline-block', background:'#1d4ed8', borderRadius:6, padding:'4px 14px', fontSize:9, fontWeight:700, color:'#fff' }}>Submit Tips →</div>
+                    <div style={{ textAlign:'center', marginTop:3 }}>
+                      <div style={{ display:'inline-block', background:'#1d4ed8', borderRadius:5, padding:'3px 10px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Submit →</div>
                     </div>
                   </div>
                 ),
               },
               {
-                n: 3,
-                title: 'Track & Win Together',
-                desc:  'Climb the leaderboard round by round and celebrate with your tribe.',
-                color: '#7c3aed',
+                n: 3, color: '#7c3aed',
+                title: 'Track & Win',
+                desc:  'Climb the leaderboard every round and celebrate with your tribe.',
                 phone: (
-                  <div style={{ background:'#f9fafb', borderRadius:10, overflow:'hidden', padding:'8px 8px 10px' }}>
-                    <p style={{ margin:'0 0 6px', fontSize:9, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.5px' }}>🏆 Leaderboard</p>
-                    {[
-                      { rank:1, name:'Sarah 🇦🇺', pts:142, gold:true  },
-                      { rank:2, name:'Marco 🇧🇷', pts:128, gold:false },
-                      { rank:3, name:'Priya 🇮🇳', pts:115, gold:false },
-                    ].map(r => (
-                      <div key={r.rank} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 0', borderBottom:'1px solid #f3f4f6' }}>
-                        <span style={{ fontSize:9, fontWeight:800, width:14, flexShrink:0, color: r.gold ? '#f59e0b' : '#9ca3af' }}>#{r.rank}</span>
-                        <div style={{ width:16, height:16, borderRadius:'50%', background: r.gold ? '#fef3c7' : '#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, color: r.gold ? '#b45309' : '#6b7280', flexShrink:0 }}>{r.name.charAt(0)}</div>
-                        <span style={{ flex:1, fontSize:9.5, fontWeight:600, color:'#374151' }}>{r.name}</span>
-                        <span style={{ fontSize:9.5, fontWeight:800, color: r.gold ? '#d97706' : '#374151' }}>{r.pts}</span>
-                        <span style={{ fontSize:8, color:'#9ca3af' }}>pts</span>
+                  <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+                    <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>🏆 Leaderboard</p>
+                    {[{ rank:1, name:'Sarah', pts:142, gold:true }, { rank:2, name:'Marco', pts:128, gold:false }, { rank:3, name:'Priya', pts:115, gold:false }].map(r => (
+                      <div key={r.rank} style={{ display:'flex', alignItems:'center', gap:3, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
+                        <span style={{ fontSize:7.5, fontWeight:800, width:12, flexShrink:0, color: r.gold ? '#f59e0b' : '#9ca3af' }}>#{r.rank}</span>
+                        <div style={{ width:13, height:13, borderRadius:'50%', background: r.gold ? '#fef3c7' : '#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontWeight:700, color: r.gold ? '#b45309' : '#6b7280', flexShrink:0 }}>{r.name[0]}</div>
+                        <span style={{ flex:1, fontSize:8, fontWeight:600, color:'#374151' }}>{r.name}</span>
+                        <span style={{ fontSize:8, fontWeight:800, color: r.gold ? '#d97706' : '#374151' }}>{r.pts}</span>
                       </div>
                     ))}
-                    <div style={{ marginTop:6, background:'#ede9fe', borderRadius:6, padding:'4px 7px', display:'flex', alignItems:'center', gap:4 }}>
-                      <span style={{ fontSize:8.5, fontWeight:700, color:'#7c3aed' }}>You</span>
-                      <span style={{ flex:1, fontSize:8.5, color:'#7c3aed' }}>#7 · 88 pts</span>
-                      <span style={{ fontSize:8.5, color:'#7c3aed', fontWeight:700 }}>↑ 3</span>
+                    <div style={{ marginTop:4, background:'#ede9fe', borderRadius:5, padding:'3px 5px', display:'flex', alignItems:'center', gap:3 }}>
+                      <span style={{ fontSize:7.5, fontWeight:700, color:'#7c3aed' }}>You</span>
+                      <span style={{ flex:1, fontSize:7.5, color:'#7c3aed' }}>#7 · 88 pts</span>
+                      <span style={{ fontSize:7.5, color:'#7c3aed', fontWeight:700 }}>↑3</span>
                     </div>
                   </div>
                 ),
               },
-            ] as { n:number; title:string; desc:string; color:string; phone:React.ReactNode }[]).map((s, i) => (
-              <div key={s.n} className="flex gap-4 items-start">
-
-                {/* Left: number + connector */}
-                <div className="flex flex-col items-center flex-shrink-0 pt-1">
+            ] as { n:number; title:string; desc:string; color:string; phone:JSX.Element }[]).map((s, i) => (
+              <div key={s.n} className="contents">
+                {/* Step card */}
+                <div className="flex-1 flex flex-col items-center text-center">
+                  {/* Number badge */}
                   <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: s.color, color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 900, flexShrink: 0,
-                    boxShadow: `0 3px 10px ${s.color}40`,
+                    width:34, height:34, borderRadius:'50%', background:s.color, color:'#fff',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:14, fontWeight:900, flexShrink:0,
+                    boxShadow:`0 4px 12px ${s.color}50`, marginBottom:8,
                   }}>{s.n}</div>
-                  {i < 2 && <div style={{ width: 2, flex: 1, minHeight: 32, background: '#e5e7eb', marginTop: 6, borderRadius: 1 }} />}
-                </div>
-
-                {/* Right: content */}
-                <div className="flex-1 pb-2">
-                  <h3 className="text-base font-black text-gray-900 mb-1">{s.title}</h3>
-                  <p className="text-xs text-gray-500 mb-3 leading-relaxed">{s.desc}</p>
-
-                  {/* Phone mockup */}
+                  <h3 className="text-xs font-black text-gray-900 mb-1 leading-tight">{s.title}</h3>
+                  <p className="text-[10px] text-gray-500 mb-3 leading-relaxed px-0.5">{s.desc}</p>
+                  {/* Phone frame */}
                   <div style={{
-                    maxWidth: 240,
-                    background: '#111827',
-                    borderRadius: 18,
-                    padding: '10px 8px 12px',
-                    boxShadow: '0 8px 28px rgba(0,0,0,0.18)',
+                    width:'100%', background:'#111827', borderRadius:14,
+                    padding:'7px 6px 9px',
+                    boxShadow:'0 6px 20px rgba(0,0,0,0.20)',
                   }}>
-                    {/* Notch */}
-                    <div style={{ width: 38, height: 5, background: '#374151', borderRadius: 3, margin: '0 auto 8px' }} />
+                    <div style={{ width:28, height:4, background:'#374151', borderRadius:2, margin:'0 auto 6px' }} />
                     {s.phone}
                   </div>
                 </div>
+                {/* Arrow connector */}
+                {i < 2 && (
+                  <div className="flex-shrink-0 flex items-start pt-3.5">
+                    <span style={{ fontSize:16, color:'#d1d5db', lineHeight:1 }}>→</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1845,12 +1830,12 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Features section — logged-out only ──────────────────── */}
+      {/* ── Why TribePicks — logged-out only ────────────────────── */}
       {!session && (
         <div className="mb-8">
           <div className="text-center mb-5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Everything you need</p>
-            <h2 className="text-xl font-black text-gray-900">Platform Features</h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Built for your group</p>
+            <h2 className="text-xl font-black text-gray-900">Why TribePicks?</h2>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1863,11 +1848,11 @@ export default function HomePage() {
               </div>
               <div className="p-3.5 space-y-2.5 flex-1">
                 {([
-                  ['⚽', 'Penalty winner bonus'],
-                  ['⭐', '2× Team bonus'],
-                  ['🔢', 'Exact score bonus'],
-                  ['📈', 'Points scale by round'],
-                  ['🏆', 'Round-by-round leaderboard'],
+                  ['⚽', 'Bonus points for calling the penalty winner'],
+                  ['⭐', '2× points on your Bonus Team\'s matches'],
+                  ['🎰', 'Extra points for predicting the exact score'],
+                  ['📈', 'Higher stakes as the tournament progresses'],
+                  ['🏆', 'See who\'s rising through every round'],
                 ] as [string, string][]).map(([icon, label]) => (
                   <div key={label} className="flex items-start gap-2">
                     <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
@@ -1885,9 +1870,10 @@ export default function HomePage() {
               </div>
               <div className="p-3.5 space-y-2.5 flex-1">
                 {([
-                  ['🔗', 'Invite by link or code'],
-                  ['💰', 'Fee collection tracking'],
-                  ['⚔️', 'Organise tipsters into tribes'],
+                  ['🔗', 'Invite your group by link or code'],
+                  ['👀', 'Track who\'s joined and follow up instantly'],
+                  ['💰', 'Collect entry fees without spreadsheets'],
+                  ['⚔️', 'Divide your comp into rival Tribes'],
                 ] as [string, string][]).map(([icon, label]) => (
                   <div key={label} className="flex items-start gap-2">
                     <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
@@ -1905,11 +1891,11 @@ export default function HomePage() {
               </div>
               <div className="p-3.5 space-y-2.5 flex-1">
                 {([
-                  ['💬', 'Tribe chatrooms'],
-                  ['👁️', 'See competitor tips after deadline'],
-                  ['🏅', 'Tribe mini-leaderboard'],
-                  ['📢', 'Comp announcements'],
-                  ['⚡', 'Match challenges & prizes'],
+                  ['💬', 'Trash talk in your Tribe chatroom'],
+                  ['👁️', 'See everyone\'s picks after the deadline'],
+                  ['🏅', 'Your Tribe has its own leaderboard'],
+                  ['📢', 'Broadcast announcements to your comp'],
+                  ['⚡', 'Add match prizes to spike the excitement'],
                 ] as [string, string][]).map(([icon, label]) => (
                   <div key={label} className="flex items-start gap-2">
                     <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
@@ -1927,8 +1913,8 @@ export default function HomePage() {
               </div>
               <div className="p-3.5 space-y-2.5 flex-1">
                 {([
-                  ['⚡', 'Live scoreboard, auto-synced'],
-                  ['🔔', 'Automatic tipster reminders'],
+                  ['⚡', 'Scores update automatically — no manual entry'],
+                  ['🔔', 'Automatic reminders go out before tips close'],
                 ] as [string, string][]).map(([icon, label]) => (
                   <div key={label} className="flex items-start gap-2">
                     <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
