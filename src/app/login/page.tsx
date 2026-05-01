@@ -189,10 +189,19 @@ export default function LoginPage() {
         : `/`
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`
 
+      // If registering via an invite link, fetch the comp name so the verification
+      // email template can reference it via {{ .Data.invite_comp_name }}.
+      let inviteCompName: string | undefined
+      if (codeParam) {
+        const { data: compData } = await fetch(`/api/comps?code=${codeParam}`)
+          .then(r => r.json()).catch(() => ({ data: null }))
+        if (compData?.name) inviteCompName = compData.name
+      }
+
       const { data: signUpData, error } = await supabase.auth.signUp({
         email, password,
         options: {
-          data: { display_name: displayName },
+          data: { display_name: displayName, ...(inviteCompName ? { invite_comp_name: inviteCompName } : {}) },
           emailRedirectTo: redirectTo,
           captchaToken: turnstileToken!,
         },
