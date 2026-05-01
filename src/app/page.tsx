@@ -412,6 +412,7 @@ export default function HomePage() {
   const [savingFav,        setSavingFav]        = useState(false)
   const [tipsterExpanded,  setTipsterExpanded]  = useState(false)
   const [organiserExpanded, setOrganiserExpanded] = useState(false)
+  const [compWelcome,      setCompWelcome]      = useState<string | null>(null)
   const [editingName,      setEditingName]      = useState(false)
   const [nameInput,        setNameInput]        = useState('')
   const [nameError,        setNameError]        = useState<string | null>(null)
@@ -582,10 +583,10 @@ export default function HomePage() {
         body: JSON.stringify({ comp_id: inv.comp_id, invite_code: inv.invite_code }),
       }).then(r => r.json())
       if (!success) { alert(error ?? 'Failed to join comp'); return }
-      // Remove from pending list and select the newly joined comp
       setPendingInvites(prev => prev.filter(i => i.invitation_id !== inv.invitation_id))
       await pickComp({ id: inv.comp_id, name: inv.comp_name, logo_url: inv.comp_logo_url } as any)
       await refreshComps(inv.comp_id)
+      setCompWelcome(inv.comp_name)
     } finally {
       setJoiningInvite(null)
     }
@@ -659,6 +660,7 @@ export default function HomePage() {
       await pickComp({ id: comp.id, name: comp.name, logo_url: comp.logo_url ?? null } as any)
       await refreshComps(comp.id)
       await refreshHasTribe()
+      setCompWelcome(comp.name)
     } catch {
       setWarmUpError('Something went wrong — please try again')
     } finally {
@@ -829,6 +831,24 @@ export default function HomePage() {
                 Create one free →
               </Link>
             </p>
+
+            {/* How it works — 3 steps */}
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>How it works</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                {[
+                  { icon: '🎯', title: 'Tip', sub: 'Pick the result of every match before the deadline' },
+                  { icon: '🏆', title: 'Compete', sub: 'Climb your private comp leaderboard' },
+                  { icon: '🥇', title: 'Win', sub: 'Best tipster wins at the Final' },
+                ].map(s => (
+                  <div key={s.title} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 4px', fontSize: 18 }}>{s.icon}</p>
+                    <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 700, color: '#fff' }}>{s.title}</p>
+                    <p style={{ margin: 0, fontSize: 9.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>{s.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* For Tipsters / For Organisers — inside hero, before social proof */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20, textAlign: 'left' }}>
@@ -1059,26 +1079,28 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {/* Warm-Up Comp — default for users without a code */}
-                  <div className="mb-3 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
-                    <div className="flex items-center gap-3 p-3">
-                      <span className="text-2xl flex-shrink-0">⚽</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
-                        <p className="text-[11px] text-green-700">No code needed — jump straight in</p>
+                  {/* Warm-Up Comp — hidden when user already has invites to real comps */}
+                  {pendingInvites.length === 0 && (
+                    <div className="mb-3 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
+                      <div className="flex items-center gap-3 p-3">
+                        <span className="text-2xl flex-shrink-0">⚽</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
+                          <p className="text-[11px] text-green-700">No code needed — jump straight in</p>
+                        </div>
+                        <button
+                          onClick={joinWarmUpComp}
+                          disabled={joiningWarmUp}
+                          className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
+                        >
+                          {joiningWarmUp ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
+                        </button>
                       </div>
-                      <button
-                        onClick={joinWarmUpComp}
-                        disabled={joiningWarmUp}
-                        className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
-                      >
-                        {joiningWarmUp ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
-                      </button>
+                      {warmUpError && (
+                        <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
+                      )}
                     </div>
-                    {warmUpError && (
-                      <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
-                    )}
-                  </div>
+                  )}
 
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex-1 h-px bg-gray-100" />
@@ -1130,6 +1152,27 @@ export default function HomePage() {
 
             /* ── Main view — comp is selected ── */
             <>
+
+              {/* Comp welcome banner — shown after joining a new comp */}
+              {compWelcome && (
+                <div className="mb-4 rounded-2xl overflow-hidden shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)' }}>
+                  <div className="p-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-black text-white mb-0.5">🎉 Welcome to {compWelcome}!</p>
+                      <p className="text-sm text-green-200 mb-3">You're now a member. Time to start tipping!</p>
+                      <Link href="/predict"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
+                        Start tipping →
+                      </Link>
+                    </div>
+                    <button onClick={() => setCompWelcome(null)}
+                      className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* You're all set — fires once when tribe step completes */}
               {showAllSet && (
@@ -1489,7 +1532,7 @@ export default function HomePage() {
                         {fixtureCount - predCount} tip{fixtureCount - predCount !== 1 ? 's' : ''} to submit
                         {currentRoundCode && (
                           <span className="ml-2 text-[11px] font-semibold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full align-middle">
-                            {(scoringConfig.rounds as any)[currentRoundCode]?.round_name ?? currentRoundCode}
+                            {(scoringConfig.rounds as any)[currentRoundCode]?.round_name ?? currentRoundCode} Round
                           </span>
                         )}
                       </p>
@@ -1590,6 +1633,13 @@ export default function HomePage() {
                       </button>
                     )
                   })}
+                  {/* What is a Comp */}
+                  <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/60 flex items-start gap-1.5">
+                    <span className="text-[10px] text-gray-400 font-semibold flex-shrink-0 mt-px">ℹ</span>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      A <strong className="text-gray-500">Comp</strong> is your private leaderboard — a group of friends, colleagues, or family all tipping on the same tournament and competing for the top spot.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -1617,6 +1667,7 @@ export default function HomePage() {
             setModal(null)
             await pickComp(comp as any)
             await refreshComps(comp.id)
+            setCompWelcome(comp.name)
           }}
           onManageComp={async (comp) => {
             setModal(null)

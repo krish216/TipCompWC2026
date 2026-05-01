@@ -169,7 +169,7 @@ export default function RulesPage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Tribes</h2>
         <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
           {[
-            { icon:'🔗', text:'Join a tribe from the My Tribe page' },
+            { icon:'🔗', text:'Join a tribe from the My Tribe page to view what other competitors tipped' },
             { icon:'🏆', text:'Your tribe has its own private leaderboard updated in real time' },
             { icon:'💬', text:'Chat with your tribe — trash talk, predictions, and reactions' },
             { icon:'⭐', text:'Bonus Points team double points apply in tribe leaderboards too — use them wisely' },

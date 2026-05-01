@@ -1163,10 +1163,11 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
   const [deleting,       setDeleting]       = useState<string | null>(null)
   const [expandedTribeId,setExpandedTribeId]= useState<string | null>(null)
   const [removingMember, setRemovingMember] = useState<string | null>(null)
-  const [addingMember,   setAddingMember]   = useState<string | null>(null)
-  const [targetTribeId,  setTargetTribeId]  = useState<Record<string, string>>({})
   const [settingDefault,   setSettingDefault]   = useState<string | null>(null)
   const [justCreatedTribe, setJustCreatedTribe] = useState<Tribe | null>(null)
+  const [selectedTipsters, setSelectedTipsters] = useState<Set<string>>(new Set())
+  const [batchTribeId,     setBatchTribeId]     = useState('')
+  const [batchAdding,      setBatchAdding]      = useState(false)
 
   // user_id → tribe_id map for quick lookup
   const userTribeMap = useMemo(() => {
@@ -1222,21 +1223,6 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     else { const d = await res.json(); toast.error(d.error ?? 'Failed to delete tribe') }
   }
 
-  const addToTribe = async (userId: string, tribeId: string) => {
-    setAddingMember(userId)
-    const res = await fetch('/api/tribes/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tribe_id: tribeId, user_id: userId }) })
-    setAddingMember(null)
-    if (res.ok) {
-      setTribes(prev => prev.map(t => {
-        const ids = t.member_ids ?? []
-        if (t.id === tribeId)  return { ...t, member_ids: ids.includes(userId) ? ids : [...ids, userId], member_count: (t.member_count ?? 0) + 1 }
-        if (ids.includes(userId)) return { ...t, member_ids: ids.filter(id => id !== userId), member_count: Math.max((t.member_count ?? 0) - 1, 0) }
-        return t
-      }))
-      toast.success(`${tipsterMap[userId]?.display_name ?? 'User'} added to tribe`)
-    } else { const d = await res.json(); toast.error(d.error ?? 'Failed') }
-  }
-
   const removeFromTribe = async (userId: string, tribeId: string) => {
     setRemovingMember(userId)
     const res = await fetch(`/api/tribes/members?tribe_id=${tribeId}&user_id=${userId}`, { method: 'DELETE' })
@@ -1249,6 +1235,32 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
       }))
       toast.success(`${tipsterMap[userId]?.display_name ?? 'User'} removed from tribe`)
     } else { const d = await res.json(); toast.error(d.error ?? 'Failed') }
+  }
+
+  const addBatch = async () => {
+    if (!batchTribeId || selectedTipsters.size === 0) return
+    setBatchAdding(true)
+    const userIds = [...selectedTipsters]
+    const results = await Promise.all(
+      userIds.map(uid =>
+        fetch('/api/tribes/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tribe_id: batchTribeId, user_id: uid }) })
+      )
+    )
+    setBatchAdding(false)
+    const succeeded = userIds.filter((_, i) => results[i].ok)
+    if (succeeded.length > 0) {
+      setTribes(prev => prev.map(t => {
+        if (t.id !== batchTribeId) return t
+        const ids = t.member_ids ?? []
+        const added = succeeded.filter(uid => !ids.includes(uid))
+        return { ...t, member_ids: [...ids, ...added], member_count: (t.member_count ?? 0) + added.length }
+      }))
+      setSelectedTipsters(new Set())
+      setBatchTribeId('')
+      toast.success(`${succeeded.length} tipster${succeeded.length !== 1 ? 's' : ''} added to tribe`)
+    }
+    const failed = userIds.length - succeeded.length
+    if (failed > 0) toast.error(`${failed} failed to add`)
   }
 
   return (
@@ -1376,33 +1388,55 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
         </div>
       )}
 
-      {/* Tipsters without a tribe */}
+      {/* Tipsters without a tribe — multi-select */}
       {withoutTribe.length > 0 && tribes.length > 0 && (
         <div className="mt-4">
           <Section title="Not in a tribe" sub={`${withoutTribe.length} tipster${withoutTribe.length !== 1 ? 's' : ''} without a tribe`}>
+            {/* Batch action bar */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+              <button
+                onClick={() => setSelectedTipsters(prev => prev.size === withoutTribe.length ? new Set() : new Set(withoutTribe.map(t => t.user_id)))}
+                className="text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
+                {selectedTipsters.size === withoutTribe.length ? 'Deselect all' : 'Select all'}
+              </button>
+              <span className="text-gray-200 text-xs">|</span>
+              <select
+                value={batchTribeId}
+                onChange={e => setBatchTribeId(e.target.value)}
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-gray-900">
+                <option value="">Assign to tribe…</option>
+                {tribes.map(tr => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+              </select>
+              <button
+                onClick={addBatch}
+                disabled={!batchTribeId || selectedTipsters.size === 0 || batchAdding}
+                className="px-3 py-1.5 bg-gray-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 hover:bg-gray-800 transition-colors whitespace-nowrap flex-shrink-0">
+                {batchAdding ? '…' : `Add${selectedTipsters.size > 0 ? ` (${selectedTipsters.size})` : ''} →`}
+              </button>
+            </div>
             <div className="divide-y divide-gray-50">
-              {withoutTribe.map(t => (
-                <div key={t.user_id} className="flex items-center gap-3 px-4 py-2.5">
-                  <Avi name={t.display_name} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
-                    <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <select value={targetTribeId[t.user_id] ?? ''} onChange={e => setTargetTribeId(prev => ({ ...prev, [t.user_id]: e.target.value }))}
-                      className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-gray-900">
-                      <option value="">Pick tribe…</option>
-                      {tribes.map(tr => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
-                    </select>
-                    <button
-                      onClick={() => { const tid = targetTribeId[t.user_id]; if (tid) addToTribe(t.user_id, tid) }}
-                      disabled={!targetTribeId[t.user_id] || addingMember === t.user_id}
-                      className="px-3 py-1.5 bg-gray-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 hover:bg-gray-800 transition-colors">
-                      {addingMember === t.user_id ? '…' : 'Add'}
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {withoutTribe.map(t => {
+                const checked = selectedTipsters.has(t.user_id)
+                return (
+                  <label key={t.user_id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setSelectedTipsters(prev => {
+                        const next = new Set(prev)
+                        if (checked) next.delete(t.user_id); else next.add(t.user_id)
+                        return next
+                      })}
+                      className="w-4 h-4 accent-gray-900 flex-shrink-0"
+                    />
+                    <Avi name={t.display_name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                    </div>
+                  </label>
+                )
+              })}
             </div>
           </Section>
         </div>

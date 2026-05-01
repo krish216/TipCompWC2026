@@ -722,6 +722,14 @@ function NoTribePanel({
         )}
       </div>
 
+      {/* What is a Tribe — static info line */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', flexShrink: 0, marginTop: 1 }}>ℹ</span>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+          A <strong style={{ color: 'var(--color-text-primary)' }}>Tribe</strong> is a small team within your comp — compete on a mini-leaderboard, see your <strong style={{ color: 'var(--color-text-primary)' }}>Competitor Picks</strong> after tipping closes, and chat with your Tribe.
+        </p>
+      </div>
+
       {/* Joined comp cards with tribe pickers */}
       {myComps.map((comp, idx) => {
         const tribes = compTribesMap[comp.id] ?? []
