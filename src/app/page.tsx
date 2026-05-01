@@ -1693,6 +1693,103 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* ── Features section — logged-out only ──────────────────── */}
+      {!session && (
+        <div className="mb-8">
+          <div className="text-center mb-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Everything you need</p>
+            <h2 className="text-xl font-black text-gray-900">Platform Features</h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+
+            {/* ── Scoring ── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-700">
+                <span className="text-base leading-none">🎯</span>
+                <p className="text-[11px] font-black text-white uppercase tracking-wider">Scoring</p>
+              </div>
+              <div className="p-3.5 space-y-2.5 flex-1">
+                {([
+                  ['⚽', 'Penalty winner bonus'],
+                  ['⭐', '2× Team bonus'],
+                  ['🔢', 'Exact score bonus'],
+                  ['📈', 'Points scale by round'],
+                  ['🏆', 'Round-by-round leaderboard'],
+                ] as [string, string][]).map(([icon, label]) => (
+                  <div key={label} className="flex items-start gap-2">
+                    <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                    <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Comp Management ── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-700">
+                <span className="text-base leading-none">⚙️</span>
+                <p className="text-[11px] font-black text-white uppercase tracking-wider">Comp Mgmt</p>
+              </div>
+              <div className="p-3.5 space-y-2.5 flex-1">
+                {([
+                  ['🔗', 'Invite by link or code'],
+                  ['💰', 'Fee collection tracking'],
+                  ['⚔️', 'Organise tipsters into tribes'],
+                ] as [string, string][]).map(([icon, label]) => (
+                  <div key={label} className="flex items-start gap-2">
+                    <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                    <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Social Engagement ── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-violet-700">
+                <span className="text-base leading-none">💬</span>
+                <p className="text-[11px] font-black text-white uppercase tracking-wider">Social</p>
+              </div>
+              <div className="p-3.5 space-y-2.5 flex-1">
+                {([
+                  ['💬', 'Tribe chatrooms'],
+                  ['👁️', 'See competitor tips after deadline'],
+                  ['🏅', 'Tribe mini-leaderboard'],
+                  ['📢', 'Comp announcements'],
+                  ['⚡', 'Match challenges & prizes'],
+                ] as [string, string][]).map(([icon, label]) => (
+                  <div key={label} className="flex items-start gap-2">
+                    <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                    <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Reduced Admin ── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-600">
+                <span className="text-base leading-none">🔧</span>
+                <p className="text-[11px] font-black text-white uppercase tracking-wider">Reduced Admin</p>
+              </div>
+              <div className="p-3.5 space-y-2.5 flex-1">
+                {([
+                  ['⚡', 'Live scoreboard, auto-synced'],
+                  ['🔔', 'Automatic tipster reminders'],
+                ] as [string, string][]).map(([icon, label]) => (
+                  <div key={label} className="flex items-start gap-2">
+                    <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                    <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Comp modal */}
       {modal && (
         <CompModal
