@@ -850,9 +850,9 @@ export default function HomePage() {
                 {/* Content — pushed to the right side */}
                 <div style={{
                   position:'relative',
-                  padding:'16px 16px 16px 47%',
+                  padding:'16px 16px 16px 57%',
                   minHeight:156,
-                  alignItems:'flex-start',
+                  alignItems: 'flex-start',
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
@@ -862,7 +862,7 @@ export default function HomePage() {
                       <span>4-Pick<br/>Challenge?</span>
                     </p>
                     <div style={{
-                      background:'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
+                      background:'linear-gradient(180deg, #1a9246 0%, #117435 100%)',
                       borderRadius:12, padding:'11px 0',
                       alignSelf:'center',
                       color:'#fff', fontWeight:800, fontSize:14,
