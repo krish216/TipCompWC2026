@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/tournament-teams?tournament_id=<id>
 // Public — no auth required. Returns team name, fifa_code, flag_emoji.
 export async function GET(request: NextRequest) {
