@@ -794,104 +794,80 @@ export default function HomePage() {
             </div>
 
             {/* Persona tagline */}
-            <p style={{ margin:'0 0 18px', lineHeight:1.55, maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
+            <p style={{ margin:'0 0 20px', lineHeight:1.4, maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
               {persona === 'tipster' ? (<>
-                <span style={{ display:'block', fontSize:16, fontWeight:800, color:'#fff', marginBottom:4 }}>Tip every match. Beat your tribe.</span>
-                <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private World Cup comp — free and instant.</span>
+                <span style={{ display:'block', fontSize:22, fontWeight:900, color:'#fff', marginBottom:5, letterSpacing:'-0.4px' }}>Tip every match. Beat your tribe.</span>
+                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private World Cup comp — free and instant.</span>
               </>) : (<>
-                <span style={{ display:'block', fontSize:16, fontWeight:800, color:'#fff', marginBottom:4 }}>Run a comp your whole group will love.</span>
-                <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.50)' }}>Set up in 10 minutes. Free forever. Zero spreadsheets.</span>
+                <span style={{ display:'block', fontSize:22, fontWeight:900, color:'#fff', marginBottom:5, letterSpacing:'-0.4px' }}>Run a comp your whole group will love.</span>
+                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)' }}>Set up in 10 minutes. Free forever. Zero spreadsheets.</span>
               </>)}
             </p>
 
-            {/* Challenge CTA — stadium banner — tipsters only */}
+            {/* Challenge CTA — full-bleed avatar banner — tipsters only */}
             {persona === 'tipster' && (
-              <div style={{
-                marginBottom:14, borderRadius:22, overflow:'hidden',
-                position:'relative', boxShadow:'0 10px 40px rgba(0,0,0,0.45)',
+              <Link href="/su-challenge" style={{
+                display:'block', position:'relative',
+                marginBottom:16, borderRadius:18, overflow:'hidden',
+                minHeight:156, textDecoration:'none', cursor:'pointer',
+                boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
               }}>
-                {/* Stadium gradient background */}
+                {/* Avatar as full-bleed background — character visible on left */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/Avatar.png" alt="" aria-hidden="true" style={{
+                  position:'absolute', inset:0,
+                  width:'100%', height:'100%',
+                  objectFit:'cover', objectPosition:'30% center',
+                  display:'block',
+                }}/>
+                {/* Gradient: transparent left → opaque dark right, so character shows through */}
                 <div style={{
                   position:'absolute', inset:0,
-                  background:'linear-gradient(175deg, #091932 0%, #0c2548 38%, #0b3b18 70%, #0d4e1f 100%)',
+                  background:'linear-gradient(90deg, rgba(0,0,0,0.02) 0%, rgba(5,18,10,0.55) 42%, rgba(5,18,10,0.95) 68%, rgba(5,18,10,1) 100%)',
                   pointerEvents:'none',
                 }}/>
-                {/* Stadium light glows */}
-                <div style={{ position:'absolute', top:-20, left:8,  width:80, height:80, borderRadius:'50%', background:'radial-gradient(circle, rgba(255,210,80,0.20) 0%, transparent 68%)', pointerEvents:'none' }}/>
-                <div style={{ position:'absolute', top:-20, right:8, width:80, height:80, borderRadius:'50%', background:'radial-gradient(circle, rgba(255,210,80,0.20) 0%, transparent 68%)', pointerEvents:'none' }}/>
-                {/* Pitch glow from below */}
-                <div style={{ position:'absolute', bottom:0, left:0, right:0, height:48, background:'radial-gradient(ellipse at 50% 100%, rgba(74,222,128,0.12) 0%, transparent 70%)', pointerEvents:'none' }}/>
-                {/* Confetti pieces */}
+                {/* Confetti on top */}
                 {[
-                  { l:'22%', t:'10%', c:'#ef4444', w:7,  h:3,  r:'-20deg' },
-                  { l:'32%', t:'5%',  c:'#4ade80', w:6,  h:2.5,r:'30deg'  },
-                  { l:'68%', t:'8%',  c:'#fbbf24', w:8,  h:3,  r:'15deg'  },
-                  { l:'78%', t:'14%', c:'#60a5fa', w:5,  h:2.5,r:'-35deg' },
-                  { l:'88%', t:'7%',  c:'#f472b6', w:7,  h:2.5,r:'25deg'  },
-                  { l:'55%', t:'4%',  c:'#a78bfa', w:5,  h:2,  r:'-10deg' },
+                  { l:'50%', t:'8%',  c:'#fbbf24', w:7,  h:3,  r:'18deg'  },
+                  { l:'62%', t:'5%',  c:'#4ade80', w:5,  h:2.5,r:'-12deg' },
+                  { l:'74%', t:'10%', c:'#ef4444', w:6,  h:2.5,r:'30deg'  },
+                  { l:'84%', t:'6%',  c:'#60a5fa', w:7,  h:2.5,r:'-25deg' },
+                  { l:'90%', t:'15%', c:'#f472b6', w:5,  h:2,  r:'20deg'  },
                 ].map((d, i) => (
                   <div key={i} style={{
                     position:'absolute', left:d.l, top:d.t,
                     width:d.w, height:d.h, borderRadius:2,
-                    background:d.c, opacity:0.75, pointerEvents:'none',
+                    background:d.c, opacity:0.80, pointerEvents:'none',
                     transform:`rotate(${d.r})`,
                   }}/>
                 ))}
 
-                {/* Entire banner is one tappable Link */}
-                <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', position:'relative', minHeight:152 }}>
-
-                  {/* ── Mascot column — real avatar image ── */}
-                  <div style={{ width:140, flexShrink:0, alignSelf:'stretch', overflow:'hidden', borderRadius:'22px 0 0 22px' }}>
-                    <img
-                      src="/Avatar.png"
-                      alt="TribePicks mascot"
-                      style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'left center', display:'block' }}
-                    />
-                  </div>
-
-                  {/* ── Right content: bubble + CTA ── */}
-                  <div style={{ flex:1, padding:'14px 14px 14px 4px', display:'flex', flexDirection:'column', justifyContent:'center', gap:10 }}>
-
-                    {/* Speech bubble */}
-                    <div style={{
-                      background:'rgba(255,255,255,0.97)',
-                      borderRadius:'16px 16px 16px 8px',
-                      padding:'11px 14px',
-                      position:'relative',
-                      boxShadow:'0 4px 18px rgba(0,0,0,0.30)',
-                    }}>
-                      {/* Tail pointing left-down toward character's pointing finger */}
-                      <div style={{
-                        position:'absolute', left:-9, bottom:18,
-                        width:0, height:0,
-                        borderTop:'9px solid transparent',
-                        borderBottom:'9px solid transparent',
-                        borderRight:'9px solid rgba(255,255,255,0.97)',
-                      }}/>
-                      <p style={{ margin:'0 0 2px', fontSize:11, color:'#6b7280', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
-                      <p style={{ margin:0, fontSize:15, fontWeight:900, lineHeight:1.25, letterSpacing:'-0.2px' }}>
-                        <span style={{ color:'#d97706' }}>World Cup </span>
-                        <span style={{ color:'#111827' }}>4-Pick Challenge?</span>
-                      </p>
-                    </div>
-
-                    {/* CTA button — big, prominent, full-width tap target */}
+                {/* Content — pushed to the right side */}
+                <div style={{
+                  position:'relative',
+                  padding:'16px 16px 16px 47%',
+                  minHeight:156,
+                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
+                }}>
+                  <div>
+                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
+                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                      <span style={{ color:'#fbbf24' }}>World Cup </span>
+                      <span>4-Pick<br/>Challenge?</span>
+                    </p>
                     <div style={{
                       background:'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
-                      borderRadius:13, padding:'12px 0',
-                      color:'white', fontWeight:800, fontSize:14,
-                      textAlign:'center', letterSpacing:'0.2px',
+                      borderRadius:12, padding:'11px 0',
+                      color:'#fff', fontWeight:800, fontSize:14,
+                      textAlign:'center', letterSpacing:'0.1px',
                       boxShadow:'0 4px 16px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
                       border:'1px solid #15803d',
                     }}>
                       Take the Challenge! ⚽
                     </div>
-
                   </div>
-
-                </Link>
-              </div>
+                </div>
+              </Link>
             )}
 
             {/* Primary CTAs */}
@@ -917,7 +893,7 @@ export default function HomePage() {
               <p style={{ margin:'0 0 10px', fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.8px' }}>
                 {persona === 'tipster' ? 'What you get' : "What's included"}
               </p>
-              <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 12px' }}>
+              <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px' }}>
                 {(persona === 'tipster' ? [
                   'Tip once — all your comps covered',
                   'Bonus Team — 2× pts on their matches',
@@ -933,8 +909,8 @@ export default function HomePage() {
                   'Track entry fees without spreadsheets',
                   'Automated reminders to tipsters',
                 ]).map(item => (
-                  <li key={item} style={{ display:'flex', alignItems:'flex-start', gap:5, fontSize:11, color:'rgba(255,255,255,0.65)', lineHeight:1.4 }}>
-                    <span style={{ color:'#4ade80', flexShrink:0, fontWeight:700, marginTop:1 }}>✓</span>
+                  <li key={item} style={{ display:'flex', alignItems:'flex-start', gap:6, fontSize:11.5, color:'rgba(255,255,255,0.68)', lineHeight:1.45 }}>
+                    <span style={{ color:'#4ade80', flexShrink:0, fontWeight:800, marginTop:1 }}>✓</span>
                     {item}
                   </li>
                 ))}
@@ -980,14 +956,15 @@ export default function HomePage() {
                       {SAMPLE_PICKS.map((p, i) => (
                         <div key={i} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 10px',
                           borderBottom: i < SAMPLE_PICKS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
-                          <span style={{ fontSize:10, color:'rgba(255,255,255,0.45)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {p.home} <span style={{ color:'rgba(255,255,255,0.25)' }}>v</span> {p.away}
+                          <span style={{ fontSize:10, color:'rgba(255,255,255,0.40)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {p.home} v {p.away}
                           </span>
-                          <span style={{
-                            fontSize:10, fontWeight:700, flexShrink:0,
-                            color: p.correct === true ? '#4ade80' : p.correct === false ? '#f87171' : 'rgba(255,255,255,0.30)',
-                          }}>
-                            {p.correct === true ? '✓' : p.correct === false ? '✗' : '—'}
+                          <span style={{ display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
+                            <span style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,0.65)' }}>{p.pick}</span>
+                            <span style={{ fontSize:10, fontWeight:800,
+                              color: p.correct === true ? '#4ade80' : p.correct === false ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
+                              {p.correct === true ? '✓' : p.correct === false ? '✗' : '·'}
+                            </span>
                           </span>
                         </div>
                       ))}
