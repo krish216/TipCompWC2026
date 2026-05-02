@@ -424,7 +424,7 @@ export default function HomePage() {
   const [decliningId,    setDecliningId]    = useState<string | null>(null)
   const [blockFuture,    setBlockFuture]    = useState(false)
   const [showAllSet,     setShowAllSet]     = useState(false)
-  const [heroStats,      setHeroStats]      = useState<{ tipster_count: number } | null>(null)
+  const [heroStats,      setHeroStats]      = useState<{ tipster_count: number; comp_count: number } | null>(null)
   const step3WasRef = useRef<boolean | null>(null)
   const [decliningBusy,    setDecliningBusy]    = useState(false)
   const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
@@ -796,15 +796,18 @@ export default function HomePage() {
             </div>
 
             {/* Persona tagline */}
-            <p style={{ margin:'0 0 20px', lineHeight:1.4, maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
+            <div style={{ margin:'0 0 20px', textAlign:'center', maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
               {persona === 'tipster' ? (<>
-                <span style={{ display:'block', fontSize:22, fontWeight:900, color:'#fff', marginBottom:5, letterSpacing:'-0.4px' }}>Tip every match. Beat your tribe.</span>
-                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private World Cup comp — free and instant.</span>
+                <p style={{ margin:'0 0 5px', fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1.3 }}>Tip every match. Beat your tribe.</p>
+                <p style={{ margin:0, fontSize:13, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private World Cup comp — free and instant.</p>
               </>) : (<>
-                <span style={{ display:'block', fontSize:22, fontWeight:900, color:'#fff', marginBottom:5, letterSpacing:'-0.4px' }}>Run a comp your whole group will love.</span>
-                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)' }}>Set up in 10 minutes. Free forever. Zero spreadsheets.</span>
+                <p style={{ margin:'0 0 5px', fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1.3 }}>Be the hero of your group.</p>
+                <p style={{ margin:'0 0 10px', fontSize:13, color:'rgba(255,255,255,0.50)' }}>Zero spreadsheets. Zero arguments. Set up in minutes.</p>
+                <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.35)', borderRadius:20, padding:'4px 12px' }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>🆓 Always free — no credit card, ever</span>
+                </div>
               </>)}
-            </p>
+            </div>
 
             {/* Challenge CTA — full-bleed avatar banner — tipsters only */}
             {persona === 'tipster' && (
@@ -917,23 +920,19 @@ export default function HomePage() {
                 }}>
                   <div>
                     <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
-                    <p style={{ margin:'0 0 14px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
                       <span style={{ color:'#60a5fa' }}>World Cup </span>
                       <span>Tipping<br/>Comp?</span>
                     </p>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                      <span style={{ fontSize:11.5, color:'rgba(255,255,255,0.55)', fontWeight:500, whiteSpace:'nowrap' }}>
-                        Already have an account?
-                      </span>
-                      <Link href="/login" style={{
-                        display:'inline-flex', alignItems:'center',
-                        padding:'7px 14px', borderRadius:10, fontSize:13, fontWeight:700,
-                        background:'rgba(255,255,255,0.14)', color:'#fff',
-                        border:'1px solid rgba(255,255,255,0.28)', textDecoration:'none',
-                        backdropFilter:'blur(4px)',
-                      }}>
-                        Sign in →
-                      </Link>
+                    <div style={{
+                      background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
+                      borderRadius:12, padding:'11px 0',
+                      color:'#fff', fontWeight:800, fontSize:14,
+                      textAlign:'center', letterSpacing:'0.1px',
+                      boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      border:'1px solid #1e40af',
+                    }}>
+                      Create a Comp Free →
                     </div>
                   </div>
                 </div>
@@ -941,22 +940,32 @@ export default function HomePage() {
             )}
 
             {/* Primary CTAs */}
-            <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
-              <Link href={persona === 'organiser' ? '/login?tab=register&role=organiser' : '/login?tab=register'} style={{
-                display:'inline-flex', alignItems:'center', gap:6,
-                padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
-                background:'#16a34a', color:'#fff', textDecoration:'none',
-                boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
-              }}>
-                {persona === 'organiser' ? 'Create a comp free →' : 'Join free →'}
-              </Link>
-              <Link href="/login" style={{
-                display:'inline-flex', alignItems:'center',
-                padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
-                background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
-                border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
-              }}>Sign in</Link>
-            </div>
+            {persona === 'tipster' ? (
+              <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
+                <Link href="/login?tab=register" style={{
+                  display:'inline-flex', alignItems:'center', gap:6,
+                  padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
+                  background:'#16a34a', color:'#fff', textDecoration:'none',
+                  boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
+                }}>Join free →</Link>
+                <Link href="/login" style={{
+                  display:'inline-flex', alignItems:'center',
+                  padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
+                  background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
+                  border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
+                }}>Sign in</Link>
+              </div>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginBottom:18 }}>
+                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)', fontWeight:500 }}>Already have an account?</span>
+                <Link href="/login" style={{
+                  display:'inline-flex', alignItems:'center',
+                  padding:'9px 18px', borderRadius:12, fontSize:13, fontWeight:700,
+                  background:'rgba(255,255,255,0.10)', color:'rgba(255,255,255,0.88)',
+                  border:'1px solid rgba(255,255,255,0.22)', textDecoration:'none',
+                }}>Sign in →</Link>
+              </div>
+            )}
 
             {/* Benefit list */}
             <div style={{ textAlign:'left', marginBottom:20 }}>
@@ -989,13 +998,25 @@ export default function HomePage() {
 
             {/* Social proof + Tip Sheet grid */}
             <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:18 }}>
-              {/* Live count */}
-              {heroStats && heroStats.tipster_count > 0 && (
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom:14 }}>
-                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
-                  <span style={{ fontSize:13, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
-                    <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters already registered
-                  </span>
+              {/* Live counts */}
+              {heroStats && (heroStats.tipster_count > 0 || heroStats.comp_count > 0) && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:14, flexWrap:'wrap' }}>
+                  {heroStats.tipster_count > 0 && (
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
+                      <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
+                        <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters registered
+                      </span>
+                    </div>
+                  )}
+                  {persona === 'organiser' && heroStats.comp_count > 0 && (
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ width:7, height:7, borderRadius:'50%', background:'#60a5fa', flexShrink:0, boxShadow:'0 0 0 3px rgba(96,165,250,0.25)' }} />
+                      <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
+                        <strong style={{ color:'#60a5fa', fontWeight:800 }}>{heroStats.comp_count.toLocaleString()}</strong>{' '}comps organised
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

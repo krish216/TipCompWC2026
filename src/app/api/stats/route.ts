@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const admin = createAdminClient()
-    const { count } = await admin
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-    return NextResponse.json({ tipster_count: count ?? 0 })
+    const [{ count: tipsters }, { count: comps }] = await Promise.all([
+      admin.from('users').select('*', { count: 'exact', head: true }),
+      admin.from('comps').select('*', { count: 'exact', head: true }),
+    ])
+    return NextResponse.json({ tipster_count: tipsters ?? 0, comp_count: comps ?? 0 })
   } catch {
-    return NextResponse.json({ tipster_count: 0 })
+    return NextResponse.json({ tipster_count: 0, comp_count: 0 })
   }
 }
