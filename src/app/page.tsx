@@ -855,7 +855,7 @@ export default function HomePage() {
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
-                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(133, 128, 128, 0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
+                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
                     <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
                       <span style={{ color:'#fbbf24' }}>World Cup </span>
                       <span>4-Pick<br/>Challenge?</span>
@@ -864,10 +864,10 @@ export default function HomePage() {
                       background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
                       borderRadius:12, padding:'11px 0',
                       alignSelf:'center',
-                      color:'#fff', fontWeight:800, fontSize:14,
+                      color:'#9e9797', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
                       boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'0px solid #d5c920',
+                      border:'1px solid #d5c920',
                     }}>
                       Take the Challenge! ⚽
                     </div>
@@ -2255,7 +2255,7 @@ export default function HomePage() {
               {finalStr && t?.final_venue && <span>🏆 Final: {finalStr}, {t.final_venue}</span>}
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <Link href="/rules" className="text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1">
+              <Link href="/rules/wc2026" className="text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1">
                 📖 View scoring rules &amp; how to play →
               </Link>
             </div>
