@@ -1251,11 +1251,7 @@ export default function HomePage() {
                   {/* No invite fallback */}
                   <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-center">
                     <p className="text-xs font-bold text-amber-800 mb-0.5">No code? No invite? No problem.</p>
-                    <p className="text-[11px] text-amber-600 mb-2.5">Jump straight in with our open Warm-Up Comp — no invite needed.</p>
-                    <Link href="/su-challenge"
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white border border-amber-300 hover:border-amber-500 hover:bg-amber-100 text-xs font-semibold text-amber-800 transition-all">
-                      ⚽ Join the Warm-Up Comp →
-                    </Link>
+                    <p className="text-[11px] text-amber-600 mb-2.5">Jump straight in with our open Tournament Warm-Up Comp above — Just click join, no invite needed! </p>
                   </div>
                 </div>
 
