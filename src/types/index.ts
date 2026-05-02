@@ -33,19 +33,21 @@ export interface RoundConfig {
   predict_mode:        'outcome' | 'score'
   result_pts:          number
   exact_bonus:         number
+  margin_bonus:        number
   pen_bonus:           number
   fav_team_2x:         boolean
   include_in_scoring:  boolean   // when false: zero points, hidden from leaderboard breakdown and Tribe Picks
 }
 
 export interface TournamentScoringConfig {
-  rounds:             Record<RoundId, RoundConfig>
+  rounds:              Record<RoundId, RoundConfig>
   // All derived from tournament_rounds rows — no hardcoding:
-  knockout_rounds:    RoundId[]   // is_knockout === true
-  outcome_rounds:     RoundId[]   // predict_mode === 'outcome'
-  exact_score_rounds: RoundId[]   // predict_mode === 'score'
-  pen_bonus_rounds:   RoundId[]   // pen_bonus > 0
-  fav_team_rounds:    RoundId[]   // fav_team_2x === true
+  knockout_rounds:     RoundId[]   // is_knockout === true
+  outcome_rounds:      RoundId[]   // predict_mode === 'outcome'
+  exact_score_rounds:  RoundId[]   // predict_mode === 'score'
+  pen_bonus_rounds:    RoundId[]   // pen_bonus > 0
+  margin_bonus_rounds: RoundId[]   // margin_bonus > 0
+  fav_team_rounds:     RoundId[]   // fav_team_2x === true
 }
 
 /** Build a TournamentScoringConfig from an array of RoundConfig rows from the DB.
@@ -55,30 +57,31 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
   rows.forEach(r => { rounds[r.round_code] = r })
   return {
     rounds,
-    knockout_rounds:    rows.filter(r => r.is_knockout).map(r => r.round_code),
-    outcome_rounds:     rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
-    exact_score_rounds: rows.filter(r => r.predict_mode === 'score').map(r => r.round_code),
-    pen_bonus_rounds:   rows.filter(r => r.pen_bonus > 0).map(r => r.round_code),
-    fav_team_rounds:    rows.filter(r => r.fav_team_2x).map(r => r.round_code),
+    knockout_rounds:     rows.filter(r => r.is_knockout).map(r => r.round_code),
+    outcome_rounds:      rows.filter(r => r.predict_mode === 'outcome').map(r => r.round_code),
+    exact_score_rounds:  rows.filter(r => r.predict_mode === 'score').map(r => r.round_code),
+    pen_bonus_rounds:    rows.filter(r => r.pen_bonus > 0).map(r => r.round_code),
+    margin_bonus_rounds: rows.filter(r => r.margin_bonus > 0).map(r => r.round_code),
+    fav_team_rounds:     rows.filter(r => r.fav_team_2x).map(r => r.round_code),
   }
 }
 
 /**
  * Returns the WC2026 hardcoded fallback config — called as a function so it
  * never runs at module evaluation time (avoids TDZ in bundled output).
- * Mirrors rows seeded in migration 049.
+ * Mirrors rows seeded in migration 049 + 081.
  */
 export function getDefaultScoringConfig(): TournamentScoringConfig {
   return buildScoringConfig([
-    { id: 'gs1',  tournament_id: 'default', round_code: 'gs1',  is_knockout: false, round_name: 'Group Stage1',    round_order: 1, tab_group: 'gs1',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
-    { id: 'gs2',  tournament_id: 'default', round_code: 'gs2',  is_knockout: false, round_name: 'Group Stage2',    round_order: 1, tab_group: 'gs2',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
-    { id: 'gs3',  tournament_id: 'default', round_code: 'gs3',  is_knockout: false, round_name: 'Group Stage3',    round_order: 1, tab_group: 'gs3',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
-    { id: 'r32',  tournament_id: 'default', round_code: 'r32',  is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',     predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
-    { id: 'r16',  tournament_id: 'default', round_code: 'r16',  is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',     predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
-    { id: 'qf',   tournament_id: 'default', round_code: 'qf',   is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',      predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
-    { id: 'sf',   tournament_id: 'default', round_code: 'sf',   is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',      predict_mode: 'score',   result_pts: 15, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
-    { id: 'tp',   tournament_id: 'default', round_code: 'tp',   is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals',  predict_mode: 'score',   result_pts:  5, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
-    { id: 'f',    tournament_id: 'default', round_code: 'f',    is_knockout: true,  round_name: 'Final',          round_order: 7, tab_group: 'finals',  predict_mode: 'score',   result_pts: 25, exact_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'gs1',  tournament_id: 'default', round_code: 'gs1',  is_knockout: false, round_name: 'Group Stage1',    round_order: 1, tab_group: 'gs1',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, margin_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'gs2',  tournament_id: 'default', round_code: 'gs2',  is_knockout: false, round_name: 'Group Stage2',    round_order: 1, tab_group: 'gs2',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, margin_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'gs3',  tournament_id: 'default', round_code: 'gs3',  is_knockout: false, round_name: 'Group Stage3',    round_order: 1, tab_group: 'gs3',     predict_mode: 'outcome', result_pts:  3, exact_bonus: 0, margin_bonus: 0, pen_bonus: 0, fav_team_2x: true,  include_in_scoring: true },
+    { id: 'r32',  tournament_id: 'default', round_code: 'r32',  is_knockout: true,  round_name: 'Round of 32',    round_order: 2, tab_group: 'r32',     predict_mode: 'outcome', result_pts:  5, exact_bonus: 0, margin_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'r16',  tournament_id: 'default', round_code: 'r16',  is_knockout: true,  round_name: 'Round of 16',    round_order: 3, tab_group: 'r16',     predict_mode: 'outcome', result_pts:  7, exact_bonus: 0, margin_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'qf',   tournament_id: 'default', round_code: 'qf',   is_knockout: true,  round_name: 'Quarter-finals', round_order: 4, tab_group: 'qf',      predict_mode: 'outcome', result_pts: 10, exact_bonus: 0, margin_bonus: 0, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'sf',   tournament_id: 'default', round_code: 'sf',   is_knockout: true,  round_name: 'Semi-finals',    round_order: 5, tab_group: 'sf',      predict_mode: 'score',   result_pts: 15, exact_bonus: 5, margin_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'tp',   tournament_id: 'default', round_code: 'tp',   is_knockout: true,  round_name: '3rd Place',      round_order: 6, tab_group: 'finals',  predict_mode: 'score',   result_pts:  5, exact_bonus: 5, margin_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
+    { id: 'f',    tournament_id: 'default', round_code: 'f',    is_knockout: true,  round_name: 'Final',          round_order: 7, tab_group: 'finals',  predict_mode: 'score',   result_pts: 25, exact_bonus: 5, margin_bonus: 5, pen_bonus: 5, fav_team_2x: false, include_in_scoring: true },
   ])
 }
 
@@ -180,13 +183,20 @@ export function calcPoints(
     if (isExactScore) {
       const drewAndPens = result.home === result.away && !!result.pen_winner
       const penCorrect  = drewAndPens && rc.pen_bonus > 0 && pred.pen_winner === result.pen_winner
-      return (rc.result_pts + rc.exact_bonus + (penCorrect ? rc.pen_bonus : 0)) * multiplier
+      // fav_team_2x applies to base result_pts only
+      return rc.result_pts * multiplier + rc.exact_bonus + (penCorrect ? rc.pen_bonus : 0)
     }
     if (predOutcome !== resultOutcome) return 0
 
+    // Correct result but not exact: check margin bonus
+    const predMargin   = Math.abs((pred.home ?? 0) - (pred.away ?? 0))
+    const resultMargin = Math.abs(result.home - result.away)
+    const marginBonus  = rc.margin_bonus > 0 && predMargin === resultMargin ? rc.margin_bonus : 0
+
     const drewAndPens = result.home === result.away && !!result.pen_winner
     const penCorrect  = drewAndPens && rc.pen_bonus > 0 && pred.pen_winner === result.pen_winner
-    return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
+    // fav_team_2x applies to base result_pts only
+    return rc.result_pts * multiplier + marginBonus + (penCorrect ? rc.pen_bonus : 0)
 
   } else {
     // Outcome-only rounds (gs / r32 / r16 / qf)
@@ -202,6 +212,7 @@ export function calcPoints(
       && !!result.pen_winner
       && !!pred.pen_winner
       && pred.pen_winner === result.pen_winner
-    return (rc.result_pts + (penCorrect ? rc.pen_bonus : 0)) * multiplier
+    // fav_team_2x applies to base result_pts only (pen bonus always flat)
+    return rc.result_pts * multiplier + (penCorrect ? rc.pen_bonus : 0)
   }
 }
