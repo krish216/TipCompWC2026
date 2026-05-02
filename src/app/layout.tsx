@@ -20,6 +20,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'TribePicks',
   description: 'Predict every match of the 2026 FIFA World Cup. Compete with your tribe.',
+  icons: {
+    icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+    shortcut: '/favicon.ico',
+  },
   openGraph: {
     title: 'TribePicks',
     description: 'Predict every match. Beat your tribe. Win bragging rights.',
