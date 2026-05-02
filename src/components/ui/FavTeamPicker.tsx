@@ -97,11 +97,14 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
 
         <span className="text-xs text-purple-700 flex-1 min-w-0">
           {selected
-            ? <>Double base pts on <strong>{selected.name}</strong> — Group Stage only</>
-            : 'Pick a team for 2× bonus pts on their matches'}
+            ? <>2× base pts when you correctly predict any <strong>{selected.name}</strong> result — Group Stage only</>
+            : 'Pick a team — earn 2× base pts when you correctly predict their result'}
         </span>
         {disabled && <span className="text-[10px] text-red-500 flex-shrink-0">Locked</span>}
       </div>
+      <p className="text-[10px] text-purple-500 -mt-2 mb-3 px-1">
+        ⭐ The 2× bonus applies whether your team wins, draws or loses — as long as you picked the correct result (1/X/2).
+      </p>
 
       {/* ── Sheet / Modal ── */}
       {open && (
@@ -127,7 +130,7 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
             <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-gray-100 flex-shrink-0">
               <div>
                 <h2 className="text-sm font-semibold text-gray-900">Choose your Bonus Points team</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Earn 2× base points on their Group Stage matches</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Earn 2× base pts when you correctly predict their result (win, draw or loss) — Group Stage only</p>
               </div>
               <button
                 type="button"
