@@ -742,6 +742,24 @@ export default function HomePage() {
 
       {/* ── Hero card (persona-aware) — logged-out only ─────────── */}
       {!session && (
+        <>
+        {/* Brand banner — sits above the dark card, always visible */}
+        <div style={{ textAlign:'center', marginBottom:14 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, justifyContent:'center', marginBottom:3 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="TribePicks"
+              style={{ width:42, height:42, borderRadius:11, flexShrink:0,
+                filter:'drop-shadow(0 2px 6px rgba(0,0,0,0.18))' }}
+              onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
+            <h1 style={{ margin:0, fontSize:32, fontWeight:900, color:'#111827', letterSpacing:'-0.7px', lineHeight:1 }}>
+              TribePicks
+            </h1>
+          </div>
+          <p style={{ margin:0, fontSize:11, color:'#9ca3af', fontWeight:500, letterSpacing:'0.2px' }}>
+            World Cup 2026 Tipping Competition
+          </p>
+        </div>
+
         <div style={{
           background: 'linear-gradient(160deg, #061a0e 0%, #0d3320 45%, #0a2e1c 100%)',
           borderRadius: 24, marginBottom: 16, textAlign: 'center',
@@ -753,17 +771,17 @@ export default function HomePage() {
             backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',
             backgroundSize: '10px 10px',
           }} />
-          {/* Glow behind logo */}
+          {/* Ambient glow at top of card */}
           <div style={{
-            position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)',
-            width: 200, height: 200, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(74,222,128,0.15) 0%, transparent 70%)',
+            position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)',
+            width: 260, height: 160, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(74,222,128,0.12) 0%, transparent 70%)',
             pointerEvents: 'none',
           }} />
 
-          <div style={{ position:'relative', padding:'24px 20px 28px' }}>
+          <div style={{ position:'relative', padding:'20px 20px 28px' }}>
 
-            {/* Persona toggle — inside hero so it's always above the fold */}
+            {/* Persona toggle */}
             <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
               <div style={{ display:'inline-flex', background:'rgba(255,255,255,0.10)', padding:4, borderRadius:16, gap:4 }}>
                 {(['tipster', 'organiser'] as const).map(p => (
@@ -780,19 +798,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Logo + title */}
-            <div style={{ display:'flex', alignItems:'center', gap:11, justifyContent:'center', marginBottom:14 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="TribePicks"
-                style={{ width:44, height:44, borderRadius:11, flexShrink:0,
-                  filter:'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
-                  boxShadow:'0 0 20px rgba(74,222,128,0.2)' }}
-                onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
-              <h1 style={{ margin:0, fontSize:34, fontWeight:900, color:'#fff', letterSpacing:'-0.8px', lineHeight:1 }}>
-                TribePicks
-              </h1>
-            </div>
-
             {/* Persona tagline */}
             <p style={{ margin:'0 0 18px', lineHeight:1.55, maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
               {persona === 'tipster' ? (<>
@@ -804,22 +809,60 @@ export default function HomePage() {
               </>)}
             </p>
 
-            {/* Challenge CTA — tipsters only */}
+            {/* Challenge CTA — avatar holding board — tipsters only */}
             {persona === 'tipster' && (
               <div style={{ marginBottom:14, maxWidth:320, marginLeft:'auto', marginRight:'auto' }}>
                 <Link href="/su-challenge" style={{
-                  display:'flex', alignItems:'center', gap:12, textDecoration:'none',
-                  background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.3)',
-                  borderRadius:16, padding:'12px 16px',
+                  display:'flex', alignItems:'stretch', textDecoration:'none',
+                  background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.28)',
+                  borderRadius:18, overflow:'hidden',
                 }}>
-                  <span style={{ fontSize:24, flexShrink:0 }}>⚽</span>
-                  <div style={{ flex:1, textAlign:'left' }}>
-                    <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:700, color:'#fff' }}>Try the 4-pick challenge</p>
-                    <p style={{ margin:0, fontSize:11, color:'rgba(255,255,255,0.5)' }}>Pick 4 World Cup matches — no signup needed</p>
+                  {/* Avatar panel */}
+                  <div style={{
+                    background:'rgba(74,222,128,0.13)', flexShrink:0, width:66,
+                    display:'flex', alignItems:'flex-end', justifyContent:'center',
+                    padding:'10px 0 0',
+                  }}>
+                    <svg width="52" height="62" viewBox="0 0 52 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Head */}
+                      <circle cx="26" cy="14" r="12" fill="#4ade80"/>
+                      {/* Eyes */}
+                      <circle cx="21.5" cy="12.5" r="2" fill="#166534"/>
+                      <circle cx="30.5" cy="12.5" r="2" fill="#166534"/>
+                      {/* Smile */}
+                      <path d="M20 18.5 Q26 23 32 18.5" stroke="#166534" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+                      {/* Body */}
+                      <rect x="17" y="28" width="18" height="20" rx="5" fill="#16a34a"/>
+                      {/* Right arm — extended toward board */}
+                      <path d="M35 32 L52 30" stroke="#16a34a" strokeWidth="6" strokeLinecap="round"/>
+                      {/* Left arm — down */}
+                      <path d="M17 32 L8 44" stroke="#16a34a" strokeWidth="6" strokeLinecap="round"/>
+                      {/* Legs */}
+                      <path d="M20 48 L17 62" stroke="#16a34a" strokeWidth="5" strokeLinecap="round"/>
+                      <path d="M32 48 L35 62" stroke="#16a34a" strokeWidth="5" strokeLinecap="round"/>
+                    </svg>
                   </div>
-                  <span style={{ flexShrink:0, fontSize:12, fontWeight:700, color:'#4ade80',
-                    padding:'5px 11px', borderRadius:8, background:'rgba(74,222,128,0.15)',
-                    border:'1px solid rgba(74,222,128,0.3)', whiteSpace:'nowrap' }}>Pick now →</span>
+
+                  {/* Challenge board */}
+                  <div style={{ flex:1, padding:'12px 14px 12px 10px', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+                    {/* Board header pin */}
+                    <div style={{ display:'flex', justifyContent:'center', marginBottom:6 }}>
+                      <div style={{ width:6, height:6, borderRadius:'50%', background:'rgba(74,222,128,0.5)' }}/>
+                    </div>
+                    <div style={{
+                      background:'rgba(255,255,255,0.06)', border:'1px solid rgba(74,222,128,0.22)',
+                      borderRadius:12, padding:'9px 12px',
+                    }}>
+                      <p style={{ margin:'0 0 1px', fontSize:13, fontWeight:800, color:'#fff', textAlign:'left' }}>4-Pick Challenge ⚽</p>
+                      <p style={{ margin:'0 0 8px', fontSize:10.5, color:'rgba(255,255,255,0.50)', textAlign:'left' }}>No signup needed — pick &amp; play instantly</p>
+                      <div style={{
+                        display:'inline-flex', alignItems:'center', gap:4,
+                        fontSize:11, fontWeight:700, color:'#4ade80',
+                        padding:'4px 10px', borderRadius:8,
+                        background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.3)',
+                      }}>Pick now →</div>
+                    </div>
+                  </div>
                 </Link>
               </div>
             )}
@@ -903,6 +946,7 @@ export default function HomePage() {
             )}
           </div>
         </div>
+        </>
       )}
 
 
