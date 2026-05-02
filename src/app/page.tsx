@@ -852,6 +852,7 @@ export default function HomePage() {
                   position:'relative',
                   padding:'16px 16px 16px 47%',
                   minHeight:156,
+                  alignItems:'flex-start',
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
@@ -917,9 +918,9 @@ export default function HomePage() {
                 <div style={{
                   position:'relative',
                   padding:'16px 16px 16px 47%',
-                  alignItems:'left',
+                  alignItems:'flex-start',
                   minHeight:156,
-                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
+                  display:'flex', flexDirection:'column',  justifyContent:'center', gap:11,
                 }}>
                   <div>
                     <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
