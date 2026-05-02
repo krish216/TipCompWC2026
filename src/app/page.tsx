@@ -917,19 +917,23 @@ export default function HomePage() {
                 }}>
                   <div>
                     <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
-                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                    <p style={{ margin:'0 0 14px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
                       <span style={{ color:'#60a5fa' }}>World Cup </span>
                       <span>Tipping<br/>Comp?</span>
                     </p>
-                    <div style={{
-                      background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                      borderRadius:12, padding:'11px 0',
-                      color:'#fff', fontWeight:800, fontSize:14,
-                      textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'1px solid #1e40af',
-                    }}>
-                      Create a Comp Free →
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                      <span style={{ fontSize:11.5, color:'rgba(255,255,255,0.55)', fontWeight:500, whiteSpace:'nowrap' }}>
+                        Already have an account?
+                      </span>
+                      <Link href="/login" style={{
+                        display:'inline-flex', alignItems:'center',
+                        padding:'7px 14px', borderRadius:10, fontSize:13, fontWeight:700,
+                        background:'rgba(255,255,255,0.14)', color:'#fff',
+                        border:'1px solid rgba(255,255,255,0.28)', textDecoration:'none',
+                        backdropFilter:'blur(4px)',
+                      }}>
+                        Sign in →
+                      </Link>
                     </div>
                   </div>
                 </div>
