@@ -7,6 +7,7 @@ import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
+import { RoundScoringCheatSheet } from '@/components/game/RoundScoringCheatSheet'
 import { EmptyState, Spinner } from '@/components/ui'
 import { FavTeamPicker } from '@/components/ui/FavTeamPicker'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -602,6 +603,12 @@ export default function PredictPage() {
           })}
         </div>
       </div>
+
+      {/* Scoring cheat-sheet for the active round */}
+      <RoundScoringCheatSheet
+        rc={getScoringForTab(activeRound, scoringConfig)}
+        tournamentSlug={(selectedTourn as any)?.slug ?? 'wc2026'}
+      />
 
       {/* Round score bar */}
       <RoundScoreBar
