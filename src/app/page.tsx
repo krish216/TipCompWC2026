@@ -844,7 +844,7 @@ export default function HomePage() {
                   {/* ── Mascot column — real avatar image ── */}
                   <div style={{ width:140, flexShrink:0, alignSelf:'stretch', overflow:'hidden', borderRadius:'22px 0 0 22px' }}>
                     <img
-                      src="/avatar.png"
+                      src="/Avatar.png"
                       alt="TribePicks mascot"
                       style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'left center', display:'block' }}
                     />
