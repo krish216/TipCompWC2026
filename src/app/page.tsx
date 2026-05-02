@@ -941,22 +941,33 @@ export default function HomePage() {
             )}
 
             {/* Primary CTAs */}
-            <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
-              <Link href={persona === 'organiser' ? '/login?tab=register&role=organiser' : '/login?tab=register'} style={{
-                display:'inline-flex', alignItems:'center', gap:6,
-                padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
-                background:'#16a34a', color:'#fff', textDecoration:'none',
-                boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
-              }}>
-                {persona === 'organiser' ? 'Create a comp free →' : 'Join free →'}
-              </Link>
-              <Link href="/login" style={{
-                display:'inline-flex', alignItems:'center',
-                padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
-                background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
-                border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
-              }}>Sign in</Link>
-            </div>
+            {persona === 'tipster' ? (
+              <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
+                <Link href="/login?tab=register" style={{
+                  display:'inline-flex', alignItems:'center', gap:6,
+                  padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
+                  background:'#16a34a', color:'#fff', textDecoration:'none',
+                  boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
+                }}>Join free →</Link>
+                <Link href="/login" style={{
+                  display:'inline-flex', alignItems:'center',
+                  padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
+                  background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
+                  border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
+                }}>Sign in</Link>
+              </div>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginBottom:18 }}>
+                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)', fontWeight:500 }}>Already have an account?</span>
+                <Link href="/login" style={{
+                  display:'inline-flex', alignItems:'center',
+                  padding:'9px 18px', borderRadius:12, fontSize:13, fontWeight:700,
+                  background:'rgba(255,255,255,0.10)', color:'rgba(255,255,255,0.88)',
+                  border:'1px solid rgba(255,255,255,0.22)', textDecoration:'none',
+                }}>Sign in →</Link>
+              </div>
+            )}
+
 
             {/* Benefit list */}
             <div style={{ textAlign:'left', marginBottom:20 }}>
