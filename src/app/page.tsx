@@ -888,7 +888,7 @@ export default function HomePage() {
                 boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/OrganiserAvatar.png" alt="" aria-hidden="true" style={{
+                <img src="/organiseravatar.png" alt="" aria-hidden="true" style={{
                   position:'absolute', inset:0,
                   width:'100%', height:'100%',
                   objectFit:'cover', objectPosition:'30% center',
@@ -1807,27 +1807,37 @@ export default function HomePage() {
       {!session && (() => {
         const isTipster = persona === 'tipster'
 
+        // Phone helper style — every mock uses flex-column so a flex:1 spacer equalises height
+        const ph: React.CSSProperties = { background:'#f9fafb', borderRadius:8, padding:'6px', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column' }
+
         const tipsterSteps: { n:number; color:string; title:string; desc:string; phone:JSX.Element }[] = [
           {
             n:1, color:'#15803d',
             title: 'Accept Your Invite',
             desc:  'Tap the invite link your organiser shared — no code typing needed.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 5px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>You&apos;ve been invited 🎉</p>
-                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'6px', marginBottom:5 }}>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 6px', marginBottom:4 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:4 }}>
-                    <div style={{ width:20, height:20, borderRadius:5, background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, flexShrink:0 }}>⚽</div>
+                    <div style={{ width:18, height:18, borderRadius:4, background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, flexShrink:0 }}>⚽</div>
                     <div>
-                      <p style={{ margin:0, fontSize:8.5, fontWeight:700, color:'#111827' }}>World Cup Comp</p>
-                      <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>Organised by Jordan · 24 tipsters</p>
+                      <p style={{ margin:0, fontSize:8, fontWeight:700, color:'#111827' }}>World Cup Comp 2026</p>
+                      <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>by Jordan · 24 tipsters</p>
                     </div>
                   </div>
-                  <div style={{ background:'#15803d', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff' }}>
-                    Accept &amp; Join →
-                  </div>
+                  <div style={{ background:'#15803d', borderRadius:4, padding:'3px 0', textAlign:'center', fontSize:7.5, fontWeight:700, color:'#fff' }}>Accept &amp; Join →</div>
                 </div>
-                <p style={{ margin:0, fontSize:7, color:'#9ca3af', textAlign:'center' }}>You&apos;ll be in before the first match kicks off</p>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 6px', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:18, height:18, borderRadius:4, background:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, flexShrink:0 }}>🏢</div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:0, fontSize:8, fontWeight:700, color:'#111827' }}>Office League</p>
+                    <p style={{ margin:0, fontSize:7, color:'#9ca3af' }}>by Sam · 12 tipsters</p>
+                  </div>
+                  <div style={{ background:'#ede9fe', borderRadius:3, padding:'2px 4px', fontSize:6.5, fontWeight:700, color:'#7c3aed' }}>Join</div>
+                </div>
+                <div style={{ flex:1 }}/>
+                <p style={{ margin:0, fontSize:7, color:'#9ca3af', textAlign:'center' }}>One account · multiple comps ✓</p>
               </div>
             ),
           },
@@ -1836,20 +1846,25 @@ export default function HomePage() {
             title: 'Make Your Tips',
             desc:  'Pick every match result before the submission deadline.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>My Tips</p>
-                {([{ home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' }, { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' }] as {home:string;away:string;hs:string;as:string}[]).map((m, i) => (
-                  <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 5px', marginBottom:4, display:'flex', alignItems:'center', gap:3 }}>
-                    <span style={{ fontSize:11 }}>{m.home}</span>
+                {([
+                  { home:'🇦🇷', away:'🇧🇷', hs:'2', as:'1' },
+                  { home:'🇫🇷', away:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', hs:'1', as:'0' },
+                  { home:'🇩🇪', away:'🇪🇸', hs:'1', as:'1' },
+                ] as {home:string;away:string;hs:string;as:string}[]).map((m, i) => (
+                  <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'3px 5px', marginBottom:3, display:'flex', alignItems:'center', gap:3 }}>
+                    <span style={{ fontSize:10 }}>{m.home}</span>
                     <div style={{ flex:1, display:'flex', justifyContent:'center', gap:3 }}>
-                      <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
+                      <div style={{ width:14, height:14, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7.5, fontWeight:800, color:'#1d4ed8' }}>{m.hs}</div>
                       <span style={{ fontSize:7, color:'#9ca3af', alignSelf:'center' }}>–</span>
-                      <div style={{ width:15, height:15, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
+                      <div style={{ width:14, height:14, background:'#dbeafe', borderRadius:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7.5, fontWeight:800, color:'#1d4ed8' }}>{m.as}</div>
                     </div>
-                    <span style={{ fontSize:11 }}>{m.away}</span>
+                    <span style={{ fontSize:10 }}>{m.away}</span>
                   </div>
                 ))}
-                <div style={{ textAlign:'center', marginTop:3 }}>
+                <div style={{ flex:1 }}/>
+                <div style={{ textAlign:'center' }}>
                   <div style={{ display:'inline-block', background:'#1d4ed8', borderRadius:5, padding:'3px 10px', fontSize:7.5, fontWeight:700, color:'#fff' }}>Submit →</div>
                 </div>
               </div>
@@ -1860,9 +1875,13 @@ export default function HomePage() {
             title: 'Track & Win',
             desc:  'Climb the leaderboard every round and celebrate with your tribe.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>🏆 Leaderboard</p>
-                {([{ rank:1, name:'Sarah', pts:142, gold:true }, { rank:2, name:'Marco', pts:128, gold:false }, { rank:3, name:'Priya', pts:115, gold:false }] as {rank:number;name:string;pts:number;gold:boolean}[]).map(r => (
+                {([
+                  { rank:1, name:'Sarah', pts:142, gold:true  },
+                  { rank:2, name:'Marco', pts:128, gold:false },
+                  { rank:3, name:'Priya', pts:115, gold:false },
+                ] as {rank:number;name:string;pts:number;gold:boolean}[]).map(r => (
                   <div key={r.rank} style={{ display:'flex', alignItems:'center', gap:3, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
                     <span style={{ fontSize:7.5, fontWeight:800, width:12, flexShrink:0, color: r.gold ? '#f59e0b' : '#9ca3af' }}>#{r.rank}</span>
                     <div style={{ width:13, height:13, borderRadius:'50%', background: r.gold ? '#fef3c7' : '#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontWeight:700, color: r.gold ? '#b45309' : '#6b7280', flexShrink:0 }}>{r.name[0]}</div>
@@ -1870,7 +1889,8 @@ export default function HomePage() {
                     <span style={{ fontSize:8, fontWeight:800, color: r.gold ? '#d97706' : '#374151' }}>{r.pts}</span>
                   </div>
                 ))}
-                <div style={{ marginTop:4, background:'#ede9fe', borderRadius:5, padding:'3px 5px', display:'flex', alignItems:'center', gap:3 }}>
+                <div style={{ flex:1 }}/>
+                <div style={{ background:'#ede9fe', borderRadius:5, padding:'3px 5px', display:'flex', alignItems:'center', gap:3 }}>
                   <span style={{ fontSize:7.5, fontWeight:700, color:'#7c3aed' }}>You</span>
                   <span style={{ flex:1, fontSize:7.5, color:'#7c3aed' }}>#7 · 88 pts</span>
                   <span style={{ fontSize:7.5, color:'#7c3aed', fontWeight:700 }}>↑3</span>
@@ -1886,16 +1906,21 @@ export default function HomePage() {
             title: 'Create a Comp',
             desc:  'Name your comp and set it up in under 10 minutes — always free.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>New Comp</p>
-                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:4, fontSize:8, color:'#374151', fontWeight:600 }}>World Cup Comp 2026</div>
-                <div style={{ display:'flex', gap:3, marginBottom:4 }}>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:3, fontSize:8, color:'#374151', fontWeight:600 }}>World Cup Comp 2026</div>
+                <div style={{ display:'flex', gap:3, marginBottom:3 }}>
                   {['Group A', '🏆 WC 2026'].map(tag => (
                     <div key={tag} style={{ background:'#dcfce7', borderRadius:4, padding:'2px 5px', fontSize:7, fontWeight:700, color:'#15803d' }}>{tag}</div>
                   ))}
                 </div>
-                <div style={{ background:'#15803d', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff' }}>Create free →</div>
-                <p style={{ margin:'4px 0 0', fontSize:7, color:'#9ca3af', textAlign:'center' }}>No credit card required</p>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:3, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:7.5, color:'#6b7280' }}>Entry fee</span>
+                  <span style={{ fontSize:8, fontWeight:700, color:'#374151' }}>$10 💰</span>
+                </div>
+                <div style={{ flex:1 }}/>
+                <div style={{ background:'#15803d', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff', marginBottom:3 }}>Create free →</div>
+                <p style={{ margin:0, fontSize:7, color:'#9ca3af', textAlign:'center' }}>No credit card required</p>
               </div>
             ),
           },
@@ -1904,17 +1929,25 @@ export default function HomePage() {
             title: 'Invite Your Group',
             desc:  'Share a one-tap link or send bulk emails straight from the app.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Invite tipsters</p>
-                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'4px 6px', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
-                  <span style={{ flex:1, fontSize:7.5, color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>tribepicks.com/join?code=ABC…</span>
-                  <div style={{ background:'#dbeafe', borderRadius:3, padding:'2px 5px', fontSize:7, fontWeight:700, color:'#1d4ed8', flexShrink:0 }}>Copy</div>
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'3px 6px', marginBottom:3, display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ flex:1, fontSize:7, color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>tribepicks.com/join?code=ABC…</span>
+                  <div style={{ background:'#dbeafe', borderRadius:3, padding:'2px 4px', fontSize:6.5, fontWeight:700, color:'#1d4ed8', flexShrink:0 }}>Copy</div>
                 </div>
-                <div style={{ background:'#1d4ed8', borderRadius:5, padding:'4px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff', marginBottom:3 }}>📤 Share invite link</div>
-                <div style={{ display:'flex', justifyContent:'space-between', padding:'0 2px' }}>
-                  <span style={{ fontSize:7, color:'#9ca3af' }}>12 sent</span>
-                  <span style={{ fontSize:7, color:'#9ca3af' }}>9 joined · 3 pending</span>
-                </div>
+                <div style={{ background:'#1d4ed8', borderRadius:5, padding:'3px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff', marginBottom:4 }}>📤 Share invite link</div>
+                {([
+                  { name:'Jordan', ok:true  },
+                  { name:'Alex',   ok:true  },
+                  { name:'Sam',    ok:false },
+                ] as {name:string;ok:boolean}[]).map(m => (
+                  <div key={m.name} style={{ display:'flex', alignItems:'center', gap:4, padding:'2.5px 0', borderBottom:'1px solid #f3f4f6' }}>
+                    <div style={{ width:12, height:12, borderRadius:'50%', background:'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:6.5, fontWeight:700, color:'#6b7280', flexShrink:0 }}>{m.name[0]}</div>
+                    <span style={{ flex:1, fontSize:7.5, color:'#374151' }}>{m.name}</span>
+                    <span style={{ fontSize:7, fontWeight:700, color: m.ok ? '#15803d' : '#d97706' }}>{m.ok ? '✓ joined' : '⏳ pending'}</span>
+                  </div>
+                ))}
+                <div style={{ flex:1 }}/>
               </div>
             ),
           },
@@ -1923,12 +1956,13 @@ export default function HomePage() {
             title: 'Sit Back & Watch',
             desc:  'Scores auto-update, reminders go out, the leaderboard runs itself.',
             phone: (
-              <div style={{ background:'#f9fafb', borderRadius:8, padding:'6px' }}>
+              <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Comp Health</p>
                 {([
-                  { icon:'👥', label:'Joined',     val:'19', color:'#374151' },
-                  { icon:'🎯', label:'Have tipped', val:'14', color:'#15803d' },
-                  { icon:'📩', label:'Awaiting',   val:'3',  color:'#d97706' },
+                  { icon:'👥', label:'Joined',      val:'19',  color:'#374151' },
+                  { icon:'🎯', label:'Have tipped', val:'14',  color:'#15803d' },
+                  { icon:'📩', label:'Awaiting',    val:'3',   color:'#d97706' },
+                  { icon:'💰', label:'Prize pool',  val:'$190',color:'#374151' },
                 ] as {icon:string;label:string;val:string;color:string}[]).map(s => (
                   <div key={s.label} style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 0', borderBottom:'1px solid #f3f4f6' }}>
                     <span style={{ fontSize:9 }}>{s.icon}</span>
@@ -1936,7 +1970,8 @@ export default function HomePage() {
                     <span style={{ fontSize:9, fontWeight:800, color:s.color }}>{s.val}</span>
                   </div>
                 ))}
-                <div style={{ marginTop:4, background:'#dcfce7', borderRadius:5, padding:'3px 6px', display:'flex', alignItems:'center', gap:3 }}>
+                <div style={{ flex:1 }}/>
+                <div style={{ background:'#dcfce7', borderRadius:5, padding:'3px 6px', display:'flex', alignItems:'center', gap:3 }}>
                   <span style={{ fontSize:7.5, color:'#15803d' }}>⚡</span>
                   <span style={{ fontSize:7, color:'#15803d', fontWeight:600 }}>Scores synced automatically</span>
                 </div>
@@ -1974,9 +2009,13 @@ export default function HomePage() {
                     }}>{s.n}</div>
                     <h3 className="text-xs font-black text-gray-900 mb-1 leading-tight">{s.title}</h3>
                     <p className="text-[10px] text-gray-500 mb-3 leading-relaxed px-0.5">{s.desc}</p>
-                    <div style={{ width:'100%', background:'#111827', borderRadius:14, padding:'7px 6px 9px', boxShadow:'0 6px 20px rgba(0,0,0,0.20)' }}>
-                      <div style={{ width:28, height:4, background:'#374151', borderRadius:2, margin:'0 auto 6px' }} />
-                      {s.phone}
+                    <div style={{ width:'100%', background:'#111827', borderRadius:14, padding:'7px 6px 9px',
+                      boxShadow:'0 6px 20px rgba(0,0,0,0.20)', height:152, boxSizing:'border-box',
+                      display:'flex', flexDirection:'column' }}>
+                      <div style={{ width:28, height:4, background:'#374151', borderRadius:2, margin:'0 auto 6px', flexShrink:0 }} />
+                      <div style={{ flex:1, overflow:'hidden' }}>
+                        {s.phone}
+                      </div>
                     </div>
                   </div>
                   {i < 2 && (
