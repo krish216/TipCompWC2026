@@ -819,7 +819,7 @@ export default function HomePage() {
               }}>
                 {/* Avatar as full-bleed background — character visible on left */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/Avatar.png" alt="" aria-hidden="true" style={{
+                <img src="/TipsterAvatar.png" alt="" aria-hidden="true" style={{
                   position:'absolute', inset:0,
                   width:'100%', height:'100%',
                   objectFit:'cover', objectPosition:'30% center',
@@ -850,7 +850,7 @@ export default function HomePage() {
                 {/* Content — pushed to the right side */}
                 <div style={{
                   position:'relative',
-                  padding:'16px 16px 16px 62%',
+                  padding:'16px 16px 16px 57%',
                   minHeight:156,
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
@@ -888,7 +888,7 @@ export default function HomePage() {
                 boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/organiseravatar.png" alt="" aria-hidden="true" style={{
+                <img src="/OrganiserAvatar.png" alt="" aria-hidden="true" style={{
                   position:'absolute', inset:0,
                   width:'100%', height:'100%',
                   objectFit:'cover', objectPosition:'30% center',
@@ -915,7 +915,7 @@ export default function HomePage() {
                 ))}
                 <div style={{
                   position:'relative',
-                  padding:'16px 16px 16px 62%',
+                  padding:'16px 16px 16px 57%',
                   minHeight:156,
                   display:'flex', flexDirection:'column',  justifyContent:'center', gap:11,
                 }}>
@@ -942,9 +942,14 @@ export default function HomePage() {
 
             {/* Primary CTAs */}
             <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
-              <p>
-                Already have an account?
-              </p>
+              <Link href={persona === 'organiser' ? '/login?tab=register&role=organiser' : '/login?tab=register'} style={{
+                display:'inline-flex', alignItems:'center', gap:6,
+                padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
+                background:'#16a34a', color:'#fff', textDecoration:'none',
+                boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
+              }}>
+                {persona === 'organiser' ? 'Create a comp free →' : 'Join free →'}
+              </Link>
               <Link href="/login" style={{
                 display:'inline-flex', alignItems:'center',
                 padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
