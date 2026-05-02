@@ -917,6 +917,7 @@ export default function HomePage() {
                 <div style={{
                   position:'relative',
                   padding:'16px 16px 16px 47%',
+                  alignItems:'left',
                   minHeight:156,
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
