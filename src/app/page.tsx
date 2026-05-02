@@ -809,60 +809,97 @@ export default function HomePage() {
               </>)}
             </p>
 
-            {/* Challenge CTA — avatar holding board — tipsters only */}
+            {/* Challenge CTA — cartoon mascot + speech bubble — tipsters only */}
             {persona === 'tipster' && (
-              <div style={{ marginBottom:14, maxWidth:320, marginLeft:'auto', marginRight:'auto' }}>
-                <Link href="/su-challenge" style={{
-                  display:'flex', alignItems:'stretch', textDecoration:'none',
-                  background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.28)',
-                  borderRadius:18, overflow:'hidden',
-                }}>
-                  {/* Avatar panel */}
-                  <div style={{
-                    background:'rgba(74,222,128,0.13)', flexShrink:0, width:66,
-                    display:'flex', alignItems:'flex-end', justifyContent:'center',
-                    padding:'10px 0 0',
-                  }}>
-                    <svg width="52" height="62" viewBox="0 0 52 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      {/* Head */}
-                      <circle cx="26" cy="14" r="12" fill="#4ade80"/>
+              <div style={{ marginBottom:14, maxWidth:330, marginLeft:'auto', marginRight:'auto' }}>
+                <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', gap:0 }}>
+
+                  {/* Mascot column */}
+                  <div style={{ flexShrink:0, width:76, display:'flex', justifyContent:'center', alignItems:'flex-end' }}>
+                    <svg width="76" height="112" viewBox="0 0 76 112" fill="none" style={{ overflow:'visible' }}>
+                      {/* CAP brim */}
+                      <ellipse cx="36" cy="25" rx="19" ry="3.5" fill="#15803d"/>
+                      {/* CAP dome */}
+                      <path d="M17 25 Q17 11 36 11 Q55 11 55 25 Z" fill="#16a34a"/>
+                      {/* Cap logo dot */}
+                      <circle cx="36" cy="18" r="3" fill="#4ade80" opacity="0.85"/>
+                      {/* FACE skin */}
+                      <ellipse cx="36" cy="38" rx="15" ry="16" fill="#f4c896"/>
+                      {/* Beard */}
+                      <path d="M23 46 Q36 55 49 46 Q49 53 36 53 Q23 53 23 46Z" fill="#8B5E3C" opacity="0.3"/>
                       {/* Eyes */}
-                      <circle cx="21.5" cy="12.5" r="2" fill="#166534"/>
-                      <circle cx="30.5" cy="12.5" r="2" fill="#166534"/>
-                      {/* Smile */}
-                      <path d="M20 18.5 Q26 23 32 18.5" stroke="#166534" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                      {/* Body */}
-                      <rect x="17" y="28" width="18" height="20" rx="5" fill="#16a34a"/>
-                      {/* Right arm — extended toward board */}
-                      <path d="M35 32 L52 30" stroke="#16a34a" strokeWidth="6" strokeLinecap="round"/>
-                      {/* Left arm — down */}
-                      <path d="M17 32 L8 44" stroke="#16a34a" strokeWidth="6" strokeLinecap="round"/>
+                      <circle cx="30" cy="34" r="2.8" fill="#1e293b"/>
+                      <circle cx="42" cy="34" r="2.8" fill="#1e293b"/>
+                      <circle cx="31" cy="32.8" r="1" fill="white"/>
+                      <circle cx="43" cy="32.8" r="1" fill="white"/>
+                      {/* Eyebrows */}
+                      <path d="M26.5 29 Q30 26.5 33.5 28.5" stroke="#8B5E3C" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                      <path d="M38.5 28.5 Q42 26.5 45.5 29" stroke="#8B5E3C" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                      {/* Open smile + teeth */}
+                      <path d="M28 44 Q36 51 44 44" stroke="#8B5E3C" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                      <path d="M29 45 Q36 50 43 45 Q43 49 36 49 Q29 49 29 45Z" fill="white" opacity="0.85"/>
+                      {/* Neck */}
+                      <rect x="32" y="52" width="8" height="6" rx="2" fill="#f4c896"/>
+                      {/* T-SHIRT body */}
+                      <path d="M20 60 L13 73 L25 77 L25 98 L47 98 L47 77 L59 73 L52 60 Q44 56 36 56 Q28 56 20 60Z" fill="#1e293b"/>
+                      {/* TribePicks logo ring on shirt */}
+                      <circle cx="36" cy="79" r="7.5" stroke="#4ade80" strokeWidth="2.2" fill="none"/>
+                      <circle cx="36" cy="79" r="3" fill="#4ade80" opacity="0.65"/>
+                      {/* LEFT ARM — thumbs up */}
+                      <path d="M20 64 L9 78" stroke="#1e293b" strokeWidth="9" strokeLinecap="round"/>
+                      <path d="M9 78 L7 92" stroke="#f4c896" strokeWidth="8" strokeLinecap="round"/>
+                      <ellipse cx="7" cy="96" rx="7" ry="6" fill="#f4c896"/>
+                      {/* Thumb pointing UP */}
+                      <path d="M3 92 L0 80" stroke="#f4c896" strokeWidth="5" strokeLinecap="round"/>
+                      {/* RIGHT ARM — pointing toward bubble */}
+                      <path d="M52 64 L67 70" stroke="#1e293b" strokeWidth="9" strokeLinecap="round"/>
+                      <path d="M67 70 L84 65" stroke="#f4c896" strokeWidth="8" strokeLinecap="round"/>
+                      <ellipse cx="87" cy="64" rx="7" ry="5.5" fill="#f4c896"/>
+                      {/* Index finger pointing right */}
+                      <path d="M91 58 L97 56" stroke="#f4c896" strokeWidth="4.5" strokeLinecap="round"/>
                       {/* Legs */}
-                      <path d="M20 48 L17 62" stroke="#16a34a" strokeWidth="5" strokeLinecap="round"/>
-                      <path d="M32 48 L35 62" stroke="#16a34a" strokeWidth="5" strokeLinecap="round"/>
+                      <path d="M28 98 L24 112" stroke="#374151" strokeWidth="8" strokeLinecap="round"/>
+                      <path d="M44 98 L48 112" stroke="#374151" strokeWidth="8" strokeLinecap="round"/>
                     </svg>
                   </div>
 
-                  {/* Challenge board */}
-                  <div style={{ flex:1, padding:'12px 14px 12px 10px', display:'flex', flexDirection:'column', justifyContent:'center' }}>
-                    {/* Board header pin */}
-                    <div style={{ display:'flex', justifyContent:'center', marginBottom:6 }}>
-                      <div style={{ width:6, height:6, borderRadius:'50%', background:'rgba(74,222,128,0.5)' }}/>
-                    </div>
+                  {/* Speech bubble */}
+                  <div style={{
+                    flex:1, background:'rgba(255,255,255,0.97)',
+                    borderRadius:'18px 18px 18px 6px',
+                    padding:'12px 14px 12px 14px',
+                    position:'relative', marginLeft:4, marginBottom:6,
+                    boxShadow:'0 4px 20px rgba(0,0,0,0.22)',
+                  }}>
+                    {/* Tail pointing left toward character */}
                     <div style={{
-                      background:'rgba(255,255,255,0.06)', border:'1px solid rgba(74,222,128,0.22)',
-                      borderRadius:12, padding:'9px 12px',
+                      position:'absolute', left:-9, bottom:20,
+                      width:0, height:0,
+                      borderTop:'9px solid transparent',
+                      borderBottom:'9px solid transparent',
+                      borderRight:'9px solid rgba(255,255,255,0.97)',
+                    }}/>
+                    {/* Bubble content */}
+                    <p style={{ margin:'0 0 1px', fontSize:10, fontWeight:800, color:'#16a34a', textTransform:'uppercase', letterSpacing:'0.6px' }}>Ready for a</p>
+                    <p style={{ margin:'0 0 6px', fontSize:16, fontWeight:900, color:'#111827', lineHeight:1.2, letterSpacing:'-0.3px' }}>4-Pick Challenge?</p>
+                    {/* Icon row */}
+                    <div style={{ display:'flex', gap:4, marginBottom:9, alignItems:'center' }}>
+                      {['⚽','⚽','⚽','⚽','🏆'].map((e, i) => (
+                        <span key={i} style={{ fontSize:17, lineHeight:1 }}>{e}</span>
+                      ))}
+                    </div>
+                    {/* CTA button */}
+                    <div style={{
+                      background:'#16a34a', color:'#fff',
+                      borderRadius:9, padding:'7px 0',
+                      fontSize:12, fontWeight:800, textAlign:'center',
+                      letterSpacing:'0.2px',
+                      boxShadow:'0 2px 8px rgba(22,163,74,0.4)',
                     }}>
-                      <p style={{ margin:'0 0 1px', fontSize:13, fontWeight:800, color:'#fff', textAlign:'left' }}>4-Pick Challenge ⚽</p>
-                      <p style={{ margin:'0 0 8px', fontSize:10.5, color:'rgba(255,255,255,0.50)', textAlign:'left' }}>No signup needed — pick &amp; play instantly</p>
-                      <div style={{
-                        display:'inline-flex', alignItems:'center', gap:4,
-                        fontSize:11, fontWeight:700, color:'#4ade80',
-                        padding:'4px 10px', borderRadius:8,
-                        background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.3)',
-                      }}>Pick now →</div>
+                      Take the Challenge! →
                     </div>
                   </div>
+
                 </Link>
               </div>
             )}
