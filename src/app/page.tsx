@@ -815,51 +815,111 @@ export default function HomePage() {
                 <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', gap:0 }}>
 
                   {/* Mascot column */}
-                  <div style={{ flexShrink:0, width:76, display:'flex', justifyContent:'center', alignItems:'flex-end' }}>
-                    <svg width="76" height="112" viewBox="0 0 76 112" fill="none" style={{ overflow:'visible' }}>
-                      {/* CAP brim */}
-                      <ellipse cx="36" cy="25" rx="19" ry="3.5" fill="#15803d"/>
-                      {/* CAP dome */}
-                      <path d="M17 25 Q17 11 36 11 Q55 11 55 25 Z" fill="#16a34a"/>
-                      {/* Cap logo dot */}
-                      <circle cx="36" cy="18" r="3" fill="#4ade80" opacity="0.85"/>
-                      {/* FACE skin */}
-                      <ellipse cx="36" cy="38" rx="15" ry="16" fill="#f4c896"/>
-                      {/* Beard */}
-                      <path d="M23 46 Q36 55 49 46 Q49 53 36 53 Q23 53 23 46Z" fill="#8B5E3C" opacity="0.3"/>
-                      {/* Eyes */}
-                      <circle cx="30" cy="34" r="2.8" fill="#1e293b"/>
-                      <circle cx="42" cy="34" r="2.8" fill="#1e293b"/>
-                      <circle cx="31" cy="32.8" r="1" fill="white"/>
-                      <circle cx="43" cy="32.8" r="1" fill="white"/>
-                      {/* Eyebrows */}
-                      <path d="M26.5 29 Q30 26.5 33.5 28.5" stroke="#8B5E3C" strokeWidth="2" fill="none" strokeLinecap="round"/>
-                      <path d="M38.5 28.5 Q42 26.5 45.5 29" stroke="#8B5E3C" strokeWidth="2" fill="none" strokeLinecap="round"/>
-                      {/* Open smile + teeth */}
-                      <path d="M28 44 Q36 51 44 44" stroke="#8B5E3C" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                      <path d="M29 45 Q36 50 43 45 Q43 49 36 49 Q29 49 29 45Z" fill="white" opacity="0.85"/>
-                      {/* Neck */}
-                      <rect x="32" y="52" width="8" height="6" rx="2" fill="#f4c896"/>
-                      {/* T-SHIRT body */}
-                      <path d="M20 60 L13 73 L25 77 L25 98 L47 98 L47 77 L59 73 L52 60 Q44 56 36 56 Q28 56 20 60Z" fill="#1e293b"/>
-                      {/* TribePicks logo ring on shirt */}
-                      <circle cx="36" cy="79" r="7.5" stroke="#4ade80" strokeWidth="2.2" fill="none"/>
-                      <circle cx="36" cy="79" r="3" fill="#4ade80" opacity="0.65"/>
-                      {/* LEFT ARM — thumbs up */}
-                      <path d="M20 64 L9 78" stroke="#1e293b" strokeWidth="9" strokeLinecap="round"/>
-                      <path d="M9 78 L7 92" stroke="#f4c896" strokeWidth="8" strokeLinecap="round"/>
-                      <ellipse cx="7" cy="96" rx="7" ry="6" fill="#f4c896"/>
-                      {/* Thumb pointing UP */}
-                      <path d="M3 92 L0 80" stroke="#f4c896" strokeWidth="5" strokeLinecap="round"/>
-                      {/* RIGHT ARM — pointing toward bubble */}
-                      <path d="M52 64 L67 70" stroke="#1e293b" strokeWidth="9" strokeLinecap="round"/>
-                      <path d="M67 70 L84 65" stroke="#f4c896" strokeWidth="8" strokeLinecap="round"/>
-                      <ellipse cx="87" cy="64" rx="7" ry="5.5" fill="#f4c896"/>
-                      {/* Index finger pointing right */}
-                      <path d="M91 58 L97 56" stroke="#f4c896" strokeWidth="4.5" strokeLinecap="round"/>
-                      {/* Legs */}
-                      <path d="M28 98 L24 112" stroke="#374151" strokeWidth="8" strokeLinecap="round"/>
-                      <path d="M44 98 L48 112" stroke="#374151" strokeWidth="8" strokeLinecap="round"/>
+                  <div style={{ flexShrink:0, width:82, display:'flex', justifyContent:'center', alignItems:'flex-end' }}>
+                    <svg width="80" height="116" viewBox="0 0 80 116" fill="none" style={{ overflow:'visible' }}>
+
+                      {/* ── CAP ── */}
+                      {/* Dome */}
+                      <path d="M22 30 Q22 10 40 10 Q58 10 58 30 Z" fill="#16a34a"/>
+                      {/* Brim */}
+                      <path d="M15 30 Q40 35.5 65 30 L65 35 Q40 40 15 35 Z" fill="#15803d"/>
+                      {/* Brim underside shadow */}
+                      <path d="M17 34 Q40 38 63 34" stroke="#0a4f1a" strokeWidth="1" fill="none" opacity="0.5"/>
+                      {/* Cap top button */}
+                      <circle cx="40" cy="12" r="2.5" fill="#4ade80" opacity="0.75"/>
+                      {/* Cap logo badge */}
+                      <circle cx="40" cy="22" r="4" fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.7"/>
+                      <circle cx="40" cy="22" r="1.8" fill="#4ade80" opacity="0.5"/>
+
+                      {/* ── FACE ── */}
+                      <ellipse cx="40" cy="50" rx="19" ry="21" fill="#e8a87c"/>
+                      {/* Cheek blush */}
+                      <ellipse cx="25" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
+                      <ellipse cx="55" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
+
+                      {/* ── BEARD ── */}
+                      <path d="M23 56 Q40 72 57 56 Q57 71 40 73 Q23 71 23 56Z" fill="#3a1e0a"/>
+                      <path d="M26 59 Q40 70 54 59" stroke="#5a3018" strokeWidth="1.3" fill="none" opacity="0.4"/>
+                      {/* Moustache */}
+                      <path d="M31 56 Q36 52 40 54.5 Q44 52 49 56 Q45 54 40 56 Q35 54 31 56Z" fill="#3a1e0a"/>
+
+                      {/* ── EYES ── */}
+                      {/* Whites */}
+                      <ellipse cx="31" cy="45" rx="6.5" ry="7" fill="white"/>
+                      <ellipse cx="49" cy="45" rx="6.5" ry="7" fill="white"/>
+                      {/* Iris */}
+                      <circle cx="32" cy="46" r="4.2" fill="#5c3a1e"/>
+                      <circle cx="50" cy="46" r="4.2" fill="#5c3a1e"/>
+                      {/* Pupil */}
+                      <circle cx="32.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
+                      <circle cx="50.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
+                      {/* Main shine */}
+                      <circle cx="34.2" cy="44.5" r="1.4" fill="white"/>
+                      <circle cx="52.2" cy="44.5" r="1.4" fill="white"/>
+                      {/* Secondary shine */}
+                      <circle cx="31.5" cy="48" r="0.7" fill="white" opacity="0.55"/>
+                      <circle cx="49.5" cy="48" r="0.7" fill="white" opacity="0.55"/>
+
+                      {/* ── EYEBROWS ── */}
+                      <path d="M24 38 Q31 33.5 38 37" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
+                      <path d="M42 37 Q49 33.5 56 38" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
+
+                      {/* ── NOSE ── */}
+                      <path d="M38 53 L35 59 Q40 62 45 59 L42 53" stroke="#c07050" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+
+                      {/* ── OPEN MOUTH ── */}
+                      <path d="M28 62 Q34 58 40 61 Q46 58 52 62 Q52 71 40 73 Q28 71 28 62Z" fill="#2a0808"/>
+                      {/* Teeth */}
+                      <path d="M30 63 Q40 67 50 63 L50 68 Q40 71 30 68 Z" fill="white"/>
+                      {/* Teeth dividers */}
+                      <line x1="35.5" y1="63.5" x2="35" y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
+                      <line x1="40" y1="64" x2="40" y2="69" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
+                      <line x1="44.5" y1="63.5" x2="45" y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
+                      {/* Lower lip */}
+                      <path d="M28 71 Q40 76 52 71" stroke="#b05030" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+
+                      {/* ── NECK ── */}
+                      <rect x="36" y="70" width="8" height="7" rx="2.5" fill="#e8a87c"/>
+
+                      {/* ── T-SHIRT ── */}
+                      <path d="M18 80 L10 95 L24 100 L24 116 L56 116 L56 100 L70 95 L62 80 Q52 75 40 75 Q28 75 18 80Z" fill="#1e293b"/>
+                      {/* V-collar */}
+                      <path d="M32 76 Q40 83 48 76" stroke="#374151" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                      {/* TribePicks logo */}
+                      <circle cx="40" cy="97" r="9.5" stroke="#4ade80" strokeWidth="2.5" fill="none"/>
+                      <circle cx="40" cy="97" r="3.8" fill="#4ade80" opacity="0.55"/>
+                      <path d="M34 97 Q40 102 46 97" stroke="#4ade80" strokeWidth="1.2" fill="none" opacity="0.55"/>
+
+                      {/* ── LEFT ARM — THUMBS UP ── */}
+                      {/* Sleeve */}
+                      <path d="M18 84 L6 100" stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
+                      {/* Forearm */}
+                      <path d="M6 100 L4 114" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
+                      {/* Fist */}
+                      <ellipse cx="4" cy="118" rx="9.5" ry="7.5" fill="#e8a87c"/>
+                      {/* Thumb — large, bold, upward */}
+                      <path d="M-1.5 113 L-6 96" stroke="#e8a87c" strokeWidth="8" strokeLinecap="round"/>
+                      {/* Thumb nail */}
+                      <ellipse cx="-6.5" cy="94" rx="3.5" ry="2.2" fill="#c07050" opacity="0.55"/>
+
+                      {/* ── RIGHT ARM — POINTING ── */}
+                      {/* Sleeve */}
+                      <path d="M62 84 L77 91" stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
+                      {/* Forearm — arcs upward, elbow bent */}
+                      <path d="M77 91 L97 80" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
+                      {/* Hand/fist */}
+                      <ellipse cx="100" cy="78" rx="9.5" ry="7.5" fill="#e8a87c"/>
+                      {/* Index finger — bold point */}
+                      <path d="M106 70 L115 66" stroke="#e8a87c" strokeWidth="7.5" strokeLinecap="round"/>
+                      {/* Finger nail */}
+                      <ellipse cx="116" cy="65.5" rx="3.2" ry="2" fill="#c07050" opacity="0.5"/>
+                      {/* Middle finger (folded back) */}
+                      <path d="M106 78 L113 76" stroke="#e8a87c" strokeWidth="6" strokeLinecap="round" opacity="0.5"/>
+
+                      {/* ── JEANS / LEGS ── */}
+                      <path d="M26 116 L22 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
+                      <path d="M54 116 L58 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
+
                     </svg>
                   </div>
 
