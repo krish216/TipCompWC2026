@@ -16,6 +16,12 @@ const SAMPLE_LEADERS = [
   { name: 'Priya 🇮🇳', pts: 162 },
 ]
 
+const SAMPLE_PICKS = [
+  { home: '🇧🇷 BRA', away: '🇫🇷 FRA', pick: 'BRA', correct: true  },
+  { home: '🇦🇷 ARG', away: '🇩🇪 GER', pick: 'ARG', correct: true  },
+  { home: '🇪🇸 ESP', away: '🇵🇹 POR', pick: '—',   correct: null  },
+]
+
 // ── CompModal ─────────────────────────────────────────────────────────────────
 // Steps: choose → join | create → created
 function CompModal({
@@ -709,17 +715,6 @@ export default function HomePage() {
     }
   }
 
-  const NavCard = ({ href, icon, title, description }: {
-    href: string; icon: string; title: string; description: string
-  }) => (
-    <Link href={href} className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm transition-all group">
-      <span className="text-xl flex-shrink-0">{icon}</span>
-      <div>
-        <p className="text-sm font-semibold text-gray-800 group-hover:text-gray-900">{title}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{description}</p>
-      </div>
-    </Link>
-  )
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -846,89 +841,13 @@ export default function HomePage() {
                 {/* Entire banner is one tappable Link */}
                 <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', position:'relative', minHeight:152 }}>
 
-                  {/* ── Mascot column ── */}
-                  <div style={{ width:94, flexShrink:0, alignSelf:'flex-end', display:'flex', justifyContent:'center' }}>
-                    <svg width="86" height="122" viewBox="0 0 80 116" fill="none" style={{ overflow:'visible', display:'block' }}>
-
-                      {/* CAP dome */}
-                      <path d="M22 30 Q22 10 40 10 Q58 10 58 30 Z" fill="#16a34a"/>
-                      {/* CAP brim */}
-                      <path d="M15 30 Q40 35.5 65 30 L65 35 Q40 40 15 35 Z" fill="#15803d"/>
-                      <path d="M17 34 Q40 38 63 34" stroke="#0a4f1a" strokeWidth="1" fill="none" opacity="0.5"/>
-                      <circle cx="40" cy="12" r="2.5" fill="#4ade80" opacity="0.75"/>
-                      <circle cx="40" cy="22" r="4"   fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.7"/>
-                      <circle cx="40" cy="22" r="1.8" fill="#4ade80" opacity="0.5"/>
-
-                      {/* FACE */}
-                      <ellipse cx="40" cy="50" rx="19" ry="21" fill="#e8a87c"/>
-                      <ellipse cx="25" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
-                      <ellipse cx="55" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
-
-                      {/* BEARD */}
-                      <path d="M23 56 Q40 72 57 56 Q57 71 40 73 Q23 71 23 56Z" fill="#3a1e0a"/>
-                      <path d="M26 59 Q40 70 54 59" stroke="#5a3018" strokeWidth="1.3" fill="none" opacity="0.4"/>
-                      <path d="M31 56 Q36 52 40 54.5 Q44 52 49 56 Q45 54 40 56 Q35 54 31 56Z" fill="#3a1e0a"/>
-
-                      {/* EYE whites */}
-                      <ellipse cx="31" cy="45" rx="6.5" ry="7"   fill="white"/>
-                      <ellipse cx="49" cy="45" rx="6.5" ry="7"   fill="white"/>
-                      {/* Iris */}
-                      <circle cx="32" cy="46" r="4.2" fill="#5c3a1e"/>
-                      <circle cx="50" cy="46" r="4.2" fill="#5c3a1e"/>
-                      {/* Pupil */}
-                      <circle cx="32.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
-                      <circle cx="50.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
-                      {/* Shine */}
-                      <circle cx="34.2" cy="44.5" r="1.4" fill="white"/>
-                      <circle cx="52.2" cy="44.5" r="1.4" fill="white"/>
-                      <circle cx="31.5" cy="48"   r="0.7" fill="white" opacity="0.55"/>
-                      <circle cx="49.5" cy="48"   r="0.7" fill="white" opacity="0.55"/>
-
-                      {/* EYEBROWS */}
-                      <path d="M24 38 Q31 33.5 38 37" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
-                      <path d="M42 37 Q49 33.5 56 38" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
-
-                      {/* NOSE */}
-                      <path d="M38 53 L35 59 Q40 62 45 59 L42 53" stroke="#c07050" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-
-                      {/* OPEN MOUTH */}
-                      <path d="M28 62 Q34 58 40 61 Q46 58 52 62 Q52 71 40 73 Q28 71 28 62Z" fill="#2a0808"/>
-                      <path d="M30 63 Q40 67 50 63 L50 68 Q40 71 30 68 Z" fill="white"/>
-                      <line x1="35.5" y1="63.5" x2="35"   y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      <line x1="40"   y1="64"   x2="40"   y2="69" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      <line x1="44.5" y1="63.5" x2="45"   y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      <path d="M28 71 Q40 76 52 71" stroke="#b05030" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-
-                      {/* NECK */}
-                      <rect x="36" y="70" width="8" height="7" rx="2.5" fill="#e8a87c"/>
-
-                      {/* T-SHIRT */}
-                      <path d="M18 80 L10 95 L24 100 L24 116 L56 116 L56 100 L70 95 L62 80 Q52 75 40 75 Q28 75 18 80Z" fill="#1e293b"/>
-                      <path d="M32 76 Q40 83 48 76" stroke="#374151" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-                      <circle cx="40" cy="97" r="9.5" stroke="#4ade80" strokeWidth="2.5" fill="none"/>
-                      <circle cx="40" cy="97" r="3.8" fill="#4ade80" opacity="0.55"/>
-                      <path d="M34 97 Q40 102 46 97" stroke="#4ade80" strokeWidth="1.2" fill="none" opacity="0.55"/>
-
-                      {/* LEFT ARM — relaxed at side */}
-                      <path d="M18 84 L7 98"  stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
-                      <path d="M7 98  L8 112" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
-                      <ellipse cx="8" cy="115" rx="9" ry="7" fill="#e8a87c"/>
-
-                      {/* RIGHT ARM — bent elbow, pointing UP-RIGHT toward bubble */}
-                      <path d="M62 82 L74 86"  stroke="#1e293b"  strokeWidth="12"   strokeLinecap="round"/>
-                      <path d="M74 86 L92 64"  stroke="#e8a87c"  strokeWidth="10.5" strokeLinecap="round"/>
-                      <ellipse cx="95" cy="62" rx="9.5" ry="7.5" fill="#e8a87c"/>
-                      {/* Index finger pointing up-right */}
-                      <path d="M100 54 L108 48" stroke="#e8a87c" strokeWidth="7.5" strokeLinecap="round"/>
-                      <ellipse cx="109" cy="47" rx="3.2" ry="2" fill="#c07050" opacity="0.5"/>
-                      {/* Folded middle finger */}
-                      <path d="M100 62 L107 59" stroke="#e8a87c" strokeWidth="6" strokeLinecap="round" opacity="0.5"/>
-
-                      {/* LEGS */}
-                      <path d="M27 116 L23 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
-                      <path d="M53 116 L57 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
-
-                    </svg>
+                  {/* ── Mascot column — real avatar image ── */}
+                  <div style={{ width:140, flexShrink:0, alignSelf:'stretch', overflow:'hidden', borderRadius:'22px 0 0 22px' }}>
+                    <img
+                      src="/avatar.png"
+                      alt="TribePicks mascot"
+                      style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'left center', display:'block' }}
+                    />
                   </div>
 
                   {/* ── Right content: bubble + CTA ── */}
@@ -1032,22 +951,51 @@ export default function HomePage() {
                   </span>
                 </div>
                 {persona === 'tipster' && (
-                  <div style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, overflow:'hidden', maxWidth:290, margin:'0 auto' }}>
-                    <div style={{ padding:'7px 14px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.6px' }}>🏆 Global leaderboard</span>
-                    </div>
-                    {SAMPLE_LEADERS.map((u, i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px',
-                        borderBottom: i < SAMPLE_LEADERS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
-                        <span style={{ fontSize:11, fontWeight:800, width:18, flexShrink:0,
-                          color: i===0 ? '#fbbf24' : i===1 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.35)' }}>#{i+1}</span>
-                        <span style={{ fontSize:13, color:'rgba(255,255,255,0.78)', flex:1, fontWeight:500 }}>{u.name}</span>
-                        <span style={{ fontSize:12, fontWeight:700, color:'#4ade80' }}>{u.pts} pts</span>
+                  <div style={{ display:'flex', gap:8 }}>
+
+                    {/* Global leaderboard preview */}
+                    <div style={{ flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, overflow:'hidden' }}>
+                      <div style={{ padding:'7px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+                        <span style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.6px' }}>🏆 Leaderboard</span>
                       </div>
-                    ))}
-                    <div style={{ padding:'8px 14px', textAlign:'center' }}>
-                      <span style={{ fontSize:10, color:'rgba(255,255,255,0.22)' }}>Sign up to see the full leaderboard →</span>
+                      {SAMPLE_LEADERS.map((u, i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 10px',
+                          borderBottom: i < SAMPLE_LEADERS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
+                          <span style={{ fontSize:10, fontWeight:800, width:16, flexShrink:0,
+                            color: i===0 ? '#fbbf24' : i===1 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.35)' }}>#{i+1}</span>
+                          <span style={{ fontSize:12, color:'rgba(255,255,255,0.78)', flex:1, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.name}</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:'#4ade80', flexShrink:0 }}>{u.pts}</span>
+                        </div>
+                      ))}
+                      <div style={{ padding:'7px 10px', textAlign:'center' }}>
+                        <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.22)' }}>Sign up to see more →</span>
+                      </div>
                     </div>
+
+                    {/* Tip Sheet snapshot */}
+                    <div style={{ flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, overflow:'hidden' }}>
+                      <div style={{ padding:'7px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+                        <span style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.6px' }}>📋 Tip Sheet</span>
+                      </div>
+                      {SAMPLE_PICKS.map((p, i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 10px',
+                          borderBottom: i < SAMPLE_PICKS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
+                          <span style={{ fontSize:10, color:'rgba(255,255,255,0.45)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {p.home} <span style={{ color:'rgba(255,255,255,0.25)' }}>v</span> {p.away}
+                          </span>
+                          <span style={{
+                            fontSize:10, fontWeight:700, flexShrink:0,
+                            color: p.correct === true ? '#4ade80' : p.correct === false ? '#f87171' : 'rgba(255,255,255,0.30)',
+                          }}>
+                            {p.correct === true ? '✓' : p.correct === false ? '✗' : '—'}
+                          </span>
+                        </div>
+                      ))}
+                      <div style={{ padding:'7px 10px', textAlign:'center' }}>
+                        <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.22)' }}>Sign up to tip →</span>
+                      </div>
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -1777,13 +1725,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Utility links — logged-out only ─────────────────────── */}
-      {!session && (
-        <div className="grid grid-cols-2 gap-2.5 mb-6">
-          <NavCard href="/leaderboard" icon="🏆" title="ScoreBoard"  description="See the current standings" />
-          <NavCard href="/rules"       icon="📖" title="How to play" description="Scoring rules & guide" />
-        </div>
-      )}
+      {/* ── Utility links removed from unsigned view ── */}
 
       {/* ── How it works — logged-out only ──────────────────────── */}
       {!session && (() => {
