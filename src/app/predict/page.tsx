@@ -8,6 +8,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { EmptyState, Spinner } from '@/components/ui'
+import { FavTeamPicker } from '@/components/ui/FavTeamPicker'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
@@ -20,16 +21,6 @@ import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-t
 type RoundTab = string
 
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
-
-function abbreviateRound(name: string): string {
-  const m: Record<string, string> = {
-    'Group Stage': 'GS', 'Round of 32': 'R32', 'Round of 16': 'R16',
-    'Quarter-Final': 'QF', 'Quarter Final': 'QF', 'Quarterfinal': 'QF',
-    'Semi-Final': 'SF', 'Semi Final': 'SF', 'Semifinal': 'SF',
-    'Final': 'F', 'Third-Place Play-off': '3rd', 'Third Place': '3rd',
-  }
-  return m[name] ?? name
-}
 
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
@@ -537,37 +528,15 @@ export default function PredictPage() {
       )}
 
 
-      {/* Fav team picker + info */}
+      {/* Fav team picker */}
       {teamsList.length > 0 && (
-        <div className="mb-3 flex items-center gap-2.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-2.5">
-          <span className="text-base flex-shrink-0">⭐</span>
-          <select
-            value={favouriteTeam ?? ''}
-            onChange={e => saveFavTeam(e.target.value)}
-            disabled={savingFav || tournamentStarted}
-            className={`text-xs font-medium rounded-lg border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 flex-shrink-0 ${
-              tournamentStarted
-                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                : 'border-purple-300 bg-white text-purple-800'
-            }`}>
-            <option value="">Pick a team…</option>
-            {teamsList.map(t => (
-              <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
-            ))}
-          </select>
-          <span className="text-xs text-purple-700 flex-1 min-w-0">
-            {favouriteTeam
-              ? <>Double pts on <strong>{favouriteTeam}</strong>
-                  {scoringConfig.fav_team_rounds.length > 0 && (
-                    <> — {scoringConfig.fav_team_rounds.map(r => abbreviateRound(scoringConfig.rounds[r]?.round_name ?? r)).join(' & ')} only</>
-                  )}
-                </>
-              : 'Pick a team for 2× bonus pts on their matches'}
-          </span>
-          {tournamentStarted && (
-            <span className="text-[10px] text-red-500 flex-shrink-0">Locked</span>
-          )}
-        </div>
+        <FavTeamPicker
+          teams={teamsList}
+          value={favouriteTeam}
+          disabled={savingFav || tournamentStarted}
+          saving={savingFav}
+          onSelect={saveFavTeam}
+        />
       )}
 
       {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
