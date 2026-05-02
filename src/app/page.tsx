@@ -861,13 +861,13 @@ export default function HomePage() {
                       <span>4-Pick<br/>Challenge?</span>
                     </p>
                     <div style={{
-                      background:'linear-gradient(180deg, #1a9246 0%, #117435 100%)',
+                      background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
                       borderRadius:12, padding:'11px 0',
                       alignSelf:'center',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'1px solid #15803d',
+                      boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      border:'1px solid #d6cb2e',
                     }}>
                       Take the Challenge! ⚽
                     </div>
