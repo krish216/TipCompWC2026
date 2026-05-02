@@ -850,9 +850,8 @@ export default function HomePage() {
                 {/* Content — pushed to the right side */}
                 <div style={{
                   position:'relative',
-                  padding:'16px 16px 16px 57%',
+                  padding:'16px 16px 16px 67%',
                   minHeight:156,
-                  alignItems: 'flex-start',
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
@@ -916,8 +915,7 @@ export default function HomePage() {
                 ))}
                 <div style={{
                   position:'relative',
-                  padding:'16px 16px 16px 47%',
-                  alignItems:'flex-start',
+                  padding:'16px 16px 16px 67%',
                   minHeight:156,
                   display:'flex', flexDirection:'column',  justifyContent:'center', gap:11,
                 }}>
@@ -930,7 +928,6 @@ export default function HomePage() {
                     <div style={{
                       background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
                       borderRadius:12, padding:'11px 0',
-                      alignSelf:'center',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
                       boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
