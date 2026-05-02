@@ -863,6 +863,7 @@ export default function HomePage() {
                     <div style={{
                       background:'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
                       borderRadius:12, padding:'11px 0',
+                      alignSelf:'center',
                       width:'70%',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
@@ -928,6 +929,7 @@ export default function HomePage() {
                     <div style={{
                       background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
                       borderRadius:12, padding:'11px 0',
+                      alignSelf:'center',
                       width:'70%',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
