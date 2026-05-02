@@ -809,155 +809,166 @@ export default function HomePage() {
               </>)}
             </p>
 
-            {/* Challenge CTA — cartoon mascot + speech bubble — tipsters only */}
+            {/* Challenge CTA — stadium banner — tipsters only */}
             {persona === 'tipster' && (
-              <div style={{ marginBottom:14, maxWidth:330, marginLeft:'auto', marginRight:'auto' }}>
-                <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', gap:0 }}>
+              <div style={{
+                marginBottom:14, borderRadius:22, overflow:'hidden',
+                position:'relative', boxShadow:'0 10px 40px rgba(0,0,0,0.45)',
+              }}>
+                {/* Stadium gradient background */}
+                <div style={{
+                  position:'absolute', inset:0,
+                  background:'linear-gradient(175deg, #091932 0%, #0c2548 38%, #0b3b18 70%, #0d4e1f 100%)',
+                  pointerEvents:'none',
+                }}/>
+                {/* Stadium light glows */}
+                <div style={{ position:'absolute', top:-20, left:8,  width:80, height:80, borderRadius:'50%', background:'radial-gradient(circle, rgba(255,210,80,0.20) 0%, transparent 68%)', pointerEvents:'none' }}/>
+                <div style={{ position:'absolute', top:-20, right:8, width:80, height:80, borderRadius:'50%', background:'radial-gradient(circle, rgba(255,210,80,0.20) 0%, transparent 68%)', pointerEvents:'none' }}/>
+                {/* Pitch glow from below */}
+                <div style={{ position:'absolute', bottom:0, left:0, right:0, height:48, background:'radial-gradient(ellipse at 50% 100%, rgba(74,222,128,0.12) 0%, transparent 70%)', pointerEvents:'none' }}/>
+                {/* Confetti pieces */}
+                {[
+                  { l:'22%', t:'10%', c:'#ef4444', w:7,  h:3,  r:'-20deg' },
+                  { l:'32%', t:'5%',  c:'#4ade80', w:6,  h:2.5,r:'30deg'  },
+                  { l:'68%', t:'8%',  c:'#fbbf24', w:8,  h:3,  r:'15deg'  },
+                  { l:'78%', t:'14%', c:'#60a5fa', w:5,  h:2.5,r:'-35deg' },
+                  { l:'88%', t:'7%',  c:'#f472b6', w:7,  h:2.5,r:'25deg'  },
+                  { l:'55%', t:'4%',  c:'#a78bfa', w:5,  h:2,  r:'-10deg' },
+                ].map((d, i) => (
+                  <div key={i} style={{
+                    position:'absolute', left:d.l, top:d.t,
+                    width:d.w, height:d.h, borderRadius:2,
+                    background:d.c, opacity:0.75, pointerEvents:'none',
+                    transform:`rotate(${d.r})`,
+                  }}/>
+                ))}
 
-                  {/* Mascot column */}
-                  <div style={{ flexShrink:0, width:82, display:'flex', justifyContent:'center', alignItems:'flex-end' }}>
-                    <svg width="80" height="116" viewBox="0 0 80 116" fill="none" style={{ overflow:'visible' }}>
+                {/* Entire banner is one tappable Link */}
+                <Link href="/su-challenge" style={{ display:'flex', alignItems:'flex-end', textDecoration:'none', position:'relative', minHeight:152 }}>
 
-                      {/* ── CAP ── */}
-                      {/* Dome */}
+                  {/* ── Mascot column ── */}
+                  <div style={{ width:94, flexShrink:0, alignSelf:'flex-end', display:'flex', justifyContent:'center' }}>
+                    <svg width="86" height="122" viewBox="0 0 80 116" fill="none" style={{ overflow:'visible', display:'block' }}>
+
+                      {/* CAP dome */}
                       <path d="M22 30 Q22 10 40 10 Q58 10 58 30 Z" fill="#16a34a"/>
-                      {/* Brim */}
+                      {/* CAP brim */}
                       <path d="M15 30 Q40 35.5 65 30 L65 35 Q40 40 15 35 Z" fill="#15803d"/>
-                      {/* Brim underside shadow */}
                       <path d="M17 34 Q40 38 63 34" stroke="#0a4f1a" strokeWidth="1" fill="none" opacity="0.5"/>
-                      {/* Cap top button */}
                       <circle cx="40" cy="12" r="2.5" fill="#4ade80" opacity="0.75"/>
-                      {/* Cap logo badge */}
-                      <circle cx="40" cy="22" r="4" fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.7"/>
+                      <circle cx="40" cy="22" r="4"   fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.7"/>
                       <circle cx="40" cy="22" r="1.8" fill="#4ade80" opacity="0.5"/>
 
-                      {/* ── FACE ── */}
+                      {/* FACE */}
                       <ellipse cx="40" cy="50" rx="19" ry="21" fill="#e8a87c"/>
-                      {/* Cheek blush */}
                       <ellipse cx="25" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
                       <ellipse cx="55" cy="55" rx="6" ry="4" fill="#d4784a" opacity="0.28"/>
 
-                      {/* ── BEARD ── */}
+                      {/* BEARD */}
                       <path d="M23 56 Q40 72 57 56 Q57 71 40 73 Q23 71 23 56Z" fill="#3a1e0a"/>
                       <path d="M26 59 Q40 70 54 59" stroke="#5a3018" strokeWidth="1.3" fill="none" opacity="0.4"/>
-                      {/* Moustache */}
                       <path d="M31 56 Q36 52 40 54.5 Q44 52 49 56 Q45 54 40 56 Q35 54 31 56Z" fill="#3a1e0a"/>
 
-                      {/* ── EYES ── */}
-                      {/* Whites */}
-                      <ellipse cx="31" cy="45" rx="6.5" ry="7" fill="white"/>
-                      <ellipse cx="49" cy="45" rx="6.5" ry="7" fill="white"/>
+                      {/* EYE whites */}
+                      <ellipse cx="31" cy="45" rx="6.5" ry="7"   fill="white"/>
+                      <ellipse cx="49" cy="45" rx="6.5" ry="7"   fill="white"/>
                       {/* Iris */}
                       <circle cx="32" cy="46" r="4.2" fill="#5c3a1e"/>
                       <circle cx="50" cy="46" r="4.2" fill="#5c3a1e"/>
                       {/* Pupil */}
                       <circle cx="32.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
                       <circle cx="50.5" cy="46.5" r="2.5" fill="#0d0d0d"/>
-                      {/* Main shine */}
+                      {/* Shine */}
                       <circle cx="34.2" cy="44.5" r="1.4" fill="white"/>
                       <circle cx="52.2" cy="44.5" r="1.4" fill="white"/>
-                      {/* Secondary shine */}
-                      <circle cx="31.5" cy="48" r="0.7" fill="white" opacity="0.55"/>
-                      <circle cx="49.5" cy="48" r="0.7" fill="white" opacity="0.55"/>
+                      <circle cx="31.5" cy="48"   r="0.7" fill="white" opacity="0.55"/>
+                      <circle cx="49.5" cy="48"   r="0.7" fill="white" opacity="0.55"/>
 
-                      {/* ── EYEBROWS ── */}
+                      {/* EYEBROWS */}
                       <path d="M24 38 Q31 33.5 38 37" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
                       <path d="M42 37 Q49 33.5 56 38" stroke="#3a1e0a" strokeWidth="3.2" fill="none" strokeLinecap="round"/>
 
-                      {/* ── NOSE ── */}
+                      {/* NOSE */}
                       <path d="M38 53 L35 59 Q40 62 45 59 L42 53" stroke="#c07050" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
 
-                      {/* ── OPEN MOUTH ── */}
+                      {/* OPEN MOUTH */}
                       <path d="M28 62 Q34 58 40 61 Q46 58 52 62 Q52 71 40 73 Q28 71 28 62Z" fill="#2a0808"/>
-                      {/* Teeth */}
                       <path d="M30 63 Q40 67 50 63 L50 68 Q40 71 30 68 Z" fill="white"/>
-                      {/* Teeth dividers */}
-                      <line x1="35.5" y1="63.5" x2="35" y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      <line x1="40" y1="64" x2="40" y2="69" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      <line x1="44.5" y1="63.5" x2="45" y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
-                      {/* Lower lip */}
+                      <line x1="35.5" y1="63.5" x2="35"   y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
+                      <line x1="40"   y1="64"   x2="40"   y2="69" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
+                      <line x1="44.5" y1="63.5" x2="45"   y2="68" stroke="#ddd" strokeWidth="0.9" opacity="0.7"/>
                       <path d="M28 71 Q40 76 52 71" stroke="#b05030" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
 
-                      {/* ── NECK ── */}
+                      {/* NECK */}
                       <rect x="36" y="70" width="8" height="7" rx="2.5" fill="#e8a87c"/>
 
-                      {/* ── T-SHIRT ── */}
+                      {/* T-SHIRT */}
                       <path d="M18 80 L10 95 L24 100 L24 116 L56 116 L56 100 L70 95 L62 80 Q52 75 40 75 Q28 75 18 80Z" fill="#1e293b"/>
-                      {/* V-collar */}
                       <path d="M32 76 Q40 83 48 76" stroke="#374151" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-                      {/* TribePicks logo */}
                       <circle cx="40" cy="97" r="9.5" stroke="#4ade80" strokeWidth="2.5" fill="none"/>
                       <circle cx="40" cy="97" r="3.8" fill="#4ade80" opacity="0.55"/>
                       <path d="M34 97 Q40 102 46 97" stroke="#4ade80" strokeWidth="1.2" fill="none" opacity="0.55"/>
 
-                      {/* ── LEFT ARM — THUMBS UP ── */}
-                      {/* Sleeve */}
-                      <path d="M18 84 L6 100" stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
-                      {/* Forearm */}
-                      <path d="M6 100 L4 114" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
-                      {/* Fist */}
-                      <ellipse cx="4" cy="118" rx="9.5" ry="7.5" fill="#e8a87c"/>
-                      {/* Thumb — large, bold, upward */}
-                      <path d="M-1.5 113 L-6 96" stroke="#e8a87c" strokeWidth="8" strokeLinecap="round"/>
-                      {/* Thumb nail */}
-                      <ellipse cx="-6.5" cy="94" rx="3.5" ry="2.2" fill="#c07050" opacity="0.55"/>
+                      {/* LEFT ARM — relaxed at side */}
+                      <path d="M18 84 L7 98"  stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
+                      <path d="M7 98  L8 112" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
+                      <ellipse cx="8" cy="115" rx="9" ry="7" fill="#e8a87c"/>
 
-                      {/* ── RIGHT ARM — POINTING ── */}
-                      {/* Sleeve */}
-                      <path d="M62 84 L77 91" stroke="#1e293b" strokeWidth="12" strokeLinecap="round"/>
-                      {/* Forearm — arcs upward, elbow bent */}
-                      <path d="M77 91 L97 80" stroke="#e8a87c" strokeWidth="10.5" strokeLinecap="round"/>
-                      {/* Hand/fist */}
-                      <ellipse cx="100" cy="78" rx="9.5" ry="7.5" fill="#e8a87c"/>
-                      {/* Index finger — bold point */}
-                      <path d="M106 70 L115 66" stroke="#e8a87c" strokeWidth="7.5" strokeLinecap="round"/>
-                      {/* Finger nail */}
-                      <ellipse cx="116" cy="65.5" rx="3.2" ry="2" fill="#c07050" opacity="0.5"/>
-                      {/* Middle finger (folded back) */}
-                      <path d="M106 78 L113 76" stroke="#e8a87c" strokeWidth="6" strokeLinecap="round" opacity="0.5"/>
+                      {/* RIGHT ARM — bent elbow, pointing UP-RIGHT toward bubble */}
+                      <path d="M62 82 L74 86"  stroke="#1e293b"  strokeWidth="12"   strokeLinecap="round"/>
+                      <path d="M74 86 L92 64"  stroke="#e8a87c"  strokeWidth="10.5" strokeLinecap="round"/>
+                      <ellipse cx="95" cy="62" rx="9.5" ry="7.5" fill="#e8a87c"/>
+                      {/* Index finger pointing up-right */}
+                      <path d="M100 54 L108 48" stroke="#e8a87c" strokeWidth="7.5" strokeLinecap="round"/>
+                      <ellipse cx="109" cy="47" rx="3.2" ry="2" fill="#c07050" opacity="0.5"/>
+                      {/* Folded middle finger */}
+                      <path d="M100 62 L107 59" stroke="#e8a87c" strokeWidth="6" strokeLinecap="round" opacity="0.5"/>
 
-                      {/* ── JEANS / LEGS ── */}
-                      <path d="M26 116 L22 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
-                      <path d="M54 116 L58 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
+                      {/* LEGS */}
+                      <path d="M27 116 L23 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
+                      <path d="M53 116 L57 116" stroke="#4b6070" strokeWidth="11" strokeLinecap="round"/>
 
                     </svg>
                   </div>
 
-                  {/* Speech bubble */}
-                  <div style={{
-                    flex:1, background:'rgba(255,255,255,0.97)',
-                    borderRadius:'18px 18px 18px 6px',
-                    padding:'12px 14px 12px 14px',
-                    position:'relative', marginLeft:4, marginBottom:6,
-                    boxShadow:'0 4px 20px rgba(0,0,0,0.22)',
-                  }}>
-                    {/* Tail pointing left toward character */}
+                  {/* ── Right content: bubble + CTA ── */}
+                  <div style={{ flex:1, padding:'14px 14px 14px 4px', display:'flex', flexDirection:'column', justifyContent:'center', gap:10 }}>
+
+                    {/* Speech bubble */}
                     <div style={{
-                      position:'absolute', left:-9, bottom:20,
-                      width:0, height:0,
-                      borderTop:'9px solid transparent',
-                      borderBottom:'9px solid transparent',
-                      borderRight:'9px solid rgba(255,255,255,0.97)',
-                    }}/>
-                    {/* Bubble content */}
-                    <p style={{ margin:'0 0 1px', fontSize:10, fontWeight:800, color:'#16a34a', textTransform:'uppercase', letterSpacing:'0.6px' }}>Ready for a</p>
-                    <p style={{ margin:'0 0 6px', fontSize:16, fontWeight:900, color:'#111827', lineHeight:1.2, letterSpacing:'-0.3px' }}>4-Pick Challenge?</p>
-                    {/* Icon row */}
-                    <div style={{ display:'flex', gap:4, marginBottom:9, alignItems:'center' }}>
-                      {['⚽','⚽','⚽','⚽','🏆'].map((e, i) => (
-                        <span key={i} style={{ fontSize:17, lineHeight:1 }}>{e}</span>
-                      ))}
-                    </div>
-                    {/* CTA button */}
-                    <div style={{
-                      background:'#16a34a', color:'#fff',
-                      borderRadius:9, padding:'7px 0',
-                      fontSize:12, fontWeight:800, textAlign:'center',
-                      letterSpacing:'0.2px',
-                      boxShadow:'0 2px 8px rgba(22,163,74,0.4)',
+                      background:'rgba(255,255,255,0.97)',
+                      borderRadius:'16px 16px 16px 8px',
+                      padding:'11px 14px',
+                      position:'relative',
+                      boxShadow:'0 4px 18px rgba(0,0,0,0.30)',
                     }}>
-                      Take the Challenge! →
+                      {/* Tail pointing left-down toward character's pointing finger */}
+                      <div style={{
+                        position:'absolute', left:-9, bottom:18,
+                        width:0, height:0,
+                        borderTop:'9px solid transparent',
+                        borderBottom:'9px solid transparent',
+                        borderRight:'9px solid rgba(255,255,255,0.97)',
+                      }}/>
+                      <p style={{ margin:'0 0 2px', fontSize:11, color:'#6b7280', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
+                      <p style={{ margin:0, fontSize:15, fontWeight:900, lineHeight:1.25, letterSpacing:'-0.2px' }}>
+                        <span style={{ color:'#d97706' }}>World Cup </span>
+                        <span style={{ color:'#111827' }}>4-Pick Challenge?</span>
+                      </p>
                     </div>
+
+                    {/* CTA button — big, prominent, full-width tap target */}
+                    <div style={{
+                      background:'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
+                      borderRadius:13, padding:'12px 0',
+                      color:'white', fontWeight:800, fontSize:14,
+                      textAlign:'center', letterSpacing:'0.2px',
+                      boxShadow:'0 4px 16px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      border:'1px solid #15803d',
+                    }}>
+                      Take the Challenge! ⚽
+                    </div>
+
                   </div>
 
                 </Link>
