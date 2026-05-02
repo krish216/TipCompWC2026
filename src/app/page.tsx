@@ -867,6 +867,70 @@ export default function HomePage() {
                     }}>
                       Take the Challenge! ⚽
                     </div>
+                    <p style={{ margin:0, fontSize:10, color:'rgba(255,255,255,0.42)', textAlign:'center', fontWeight:500 }}>
+                      No sign-in required!
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            )}
+
+            {/* Organiser CTA — full-bleed avatar banner — organisers only */}
+            {persona === 'organiser' && (
+              <Link href="/login?tab=register&role=organiser" style={{
+                display:'block', position:'relative',
+                marginBottom:16, borderRadius:18, overflow:'hidden',
+                minHeight:156, textDecoration:'none', cursor:'pointer',
+                boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
+              }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/organiseravatar.png" alt="" aria-hidden="true" style={{
+                  position:'absolute', inset:0,
+                  width:'100%', height:'100%',
+                  objectFit:'cover', objectPosition:'30% center',
+                  display:'block',
+                }}/>
+                <div style={{
+                  position:'absolute', inset:0,
+                  background:'linear-gradient(90deg, rgba(0,0,0,0.02) 0%, rgba(5,12,28,0.55) 42%, rgba(5,12,28,0.95) 68%, rgba(5,12,28,1) 100%)',
+                  pointerEvents:'none',
+                }}/>
+                {[
+                  { l:'52%', t:'8%',  c:'#60a5fa', w:7,  h:3,  r:'18deg'  },
+                  { l:'64%', t:'5%',  c:'#fbbf24', w:5,  h:2.5,r:'-12deg' },
+                  { l:'76%', t:'11%', c:'#4ade80', w:6,  h:2.5,r:'28deg'  },
+                  { l:'86%', t:'6%',  c:'#f472b6', w:7,  h:2.5,r:'-22deg' },
+                  { l:'91%', t:'16%', c:'#a78bfa', w:5,  h:2,  r:'15deg'  },
+                ].map((d, i) => (
+                  <div key={i} style={{
+                    position:'absolute', left:d.l, top:d.t,
+                    width:d.w, height:d.h, borderRadius:2,
+                    background:d.c, opacity:0.80, pointerEvents:'none',
+                    transform:`rotate(${d.r})`,
+                  }}/>
+                ))}
+                <div style={{
+                  position:'relative',
+                  padding:'16px 16px 16px 47%',
+                  minHeight:156,
+                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
+                }}>
+                  <div>
+                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
+                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                      <span style={{ color:'#60a5fa' }}>World Cup </span>
+                      <span>Tipping<br/>Comp?</span>
+                    </p>
+                    <div style={{
+                      background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
+                      borderRadius:12, padding:'11px 0',
+                      color:'#fff', fontWeight:800, fontSize:14,
+                      textAlign:'center', letterSpacing:'0.1px',
+                      boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      border:'1px solid #1e40af',
+                    }}>
+                      Create a Comp Free →
+                    </div>
                   </div>
                 </div>
               </Link>
@@ -2017,6 +2081,55 @@ export default function HomePage() {
                   {([
                     ['⚡', 'Scores update automatically — no manual entry'],
                     ['🔔', 'Automatic reminders go out before tips close'],
+                    ['📨', 'Inline invite on tipsters\' homepage — no lost emails'],
+                    ['💬', 'Broadcast announcements instead of group chats'],
+                    ['📊', 'Live standings — no spreadsheet needed'],
+                  ] as [string, string][]).map(([icon, label]) => (
+                    <div key={label} className="flex items-start gap-2">
+                      <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                      <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Organiser: Easy Setup ── */}
+            {persona === 'organiser' && (
+              <div className="col-span-2 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+                <div className="flex items-center gap-2 px-3.5 py-2.5 bg-teal-700">
+                  <span className="text-base leading-none">🚀</span>
+                  <p className="text-[11px] font-black text-white uppercase tracking-wider">Easy Setup</p>
+                </div>
+                <div className="p-3.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  {([
+                    ['⏱️', 'Live in under 10 minutes — seriously'],
+                    ['🔗', 'One share link — tipsters join instantly'],
+                    ['🏷️', 'Custom comp name, logo & entry fee rules'],
+                    ['📅', 'Runs itself from Group Stage to the Final'],
+                  ] as [string, string][]).map(([icon, label]) => (
+                    <div key={label} className="flex items-start gap-2">
+                      <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
+                      <p className="text-[11px] font-medium text-gray-700 leading-tight">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Tipster: Low Effort ── */}
+            {persona === 'tipster' && (
+              <div className="col-span-2 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+                <div className="flex items-center gap-2 px-3.5 py-2.5 bg-orange-500">
+                  <span className="text-base leading-none">😌</span>
+                  <p className="text-[11px] font-black text-white uppercase tracking-wider">Low Effort</p>
+                </div>
+                <div className="p-3.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  {([
+                    ['📬', 'Invites appear on your homepage — no lost emails'],
+                    ['🎯', 'Tip once and compete across multiple comps simultaneously'],
+                    ['👆', 'Pick winner or draw up to the Quarters — then predict exact scores'],
+                    ['👥', 'One account covers Colleagues, Family & Friends comps'],
                   ] as [string, string][]).map(([icon, label]) => (
                     <div key={label} className="flex items-start gap-2">
                       <span className="text-sm leading-none mt-0.5 flex-shrink-0">{icon}</span>
