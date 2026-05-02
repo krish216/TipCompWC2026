@@ -865,7 +865,7 @@ export default function HomePage() {
                       borderRadius:12, padding:'11px 0',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      boxShadow:'0 4px 10px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
                       border:'1px solid #15803d',
                     }}>
                       Take the Challenge! ⚽
@@ -940,32 +940,22 @@ export default function HomePage() {
             )}
 
             {/* Primary CTAs */}
-            {persona === 'tipster' ? (
-              <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
-                <Link href="/login?tab=register" style={{
-                  display:'inline-flex', alignItems:'center', gap:6,
-                  padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
-                  background:'#16a34a', color:'#fff', textDecoration:'none',
-                  boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
-                }}>Join free →</Link>
-                <Link href="/login" style={{
-                  display:'inline-flex', alignItems:'center',
-                  padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
-                  background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
-                  border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
-                }}>Sign in</Link>
-              </div>
-            ) : (
-              <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginBottom:18 }}>
-                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)', fontWeight:500 }}>Already have an account?</span>
-                <Link href="/login" style={{
-                  display:'inline-flex', alignItems:'center',
-                  padding:'9px 18px', borderRadius:12, fontSize:13, fontWeight:700,
-                  background:'rgba(255,255,255,0.10)', color:'rgba(255,255,255,0.88)',
-                  border:'1px solid rgba(255,255,255,0.22)', textDecoration:'none',
-                }}>Sign in →</Link>
-              </div>
-            )}
+            <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
+              <Link href={persona === 'organiser' ? '/login?tab=register&role=organiser' : '/login?tab=register'} style={{
+                display:'inline-flex', alignItems:'center', gap:6,
+                padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
+                background:'#16a34a', color:'#fff', textDecoration:'none',
+                boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
+              }}>
+                {persona === 'organiser' ? 'Create a comp free →' : 'Join free →'}
+              </Link>
+              <Link href="/login" style={{
+                display:'inline-flex', alignItems:'center',
+                padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
+                background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
+                border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
+              }}>Sign in</Link>
+            </div>
 
             {/* Benefit list */}
             <div style={{ textAlign:'left', marginBottom:20 }}>
@@ -998,25 +988,13 @@ export default function HomePage() {
 
             {/* Social proof + Tip Sheet grid */}
             <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:18 }}>
-              {/* Live counts */}
-              {heroStats && (heroStats.tipster_count > 0 || heroStats.comp_count > 0) && (
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:14, flexWrap:'wrap' }}>
-                  {heroStats.tipster_count > 0 && (
-                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
-                      <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
-                        <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters registered
-                      </span>
-                    </div>
-                  )}
-                  {persona === 'organiser' && heroStats.comp_count > 0 && (
-                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'#60a5fa', flexShrink:0, boxShadow:'0 0 0 3px rgba(96,165,250,0.25)' }} />
-                      <span style={{ fontSize:12.5, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
-                        <strong style={{ color:'#60a5fa', fontWeight:800 }}>{heroStats.comp_count.toLocaleString()}</strong>{' '}comps organised
-                      </span>
-                    </div>
-                  )}
+              {/* Live count */}
+              {heroStats && heroStats.tipster_count > 0 && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom:14 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
+                  <span style={{ fontSize:13, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
+                    <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters already registered
+                  </span>
                 </div>
               )}
 
