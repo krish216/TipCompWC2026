@@ -863,9 +863,10 @@ export default function HomePage() {
                     <div style={{
                       background:'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
                       borderRadius:12, padding:'11px 0',
+                      width:'70%',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 10px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      boxShadow:'0 4px 16px rgba(22,163,74,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
                       border:'1px solid #15803d',
                     }}>
                       Take the Challenge! ⚽
@@ -927,6 +928,7 @@ export default function HomePage() {
                     <div style={{
                       background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
                       borderRadius:12, padding:'11px 0',
+                      width:'70%',
                       color:'#fff', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
                       boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
