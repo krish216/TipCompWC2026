@@ -10,17 +10,19 @@ import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 
-const SAMPLE_LEADERS = [
-  { name: 'Ash 🇦🇺', pts: 187 },
-  { name: 'Marco 🇧🇷', pts: 174 },
-  { name: 'Priya 🇮🇳', pts: 162 },
-]
-
-const SAMPLE_PICKS = [
-  { home: '🇧🇷 BRA', away: '🇫🇷 FRA', pick: 'BRA', correct: true  },
-  { home: '🇦🇷 ARG', away: '🇩🇪 GER', pick: 'ARG', correct: true  },
-  { home: '🇪🇸 ESP', away: '🇵🇹 POR', pick: '—',   correct: null  },
-]
+const SAMPLE_TIP_SHEET = {
+  matches: [
+    { code: 'MEX·RSA', score: '0–1' },
+    { code: 'KOR·CZE', score: '3–1' },
+    { code: 'CAN·BIH', score: '—'   },
+    { code: 'USA·PAR', score: '3–1' },
+  ],
+  rows: [
+    { rank:1, name:'Ash',   pts:12, picks:['🇿🇦','🇰🇷', null,'🇺🇸'], ok:[true,  true,  null,  true ] },
+    { rank:2, name:'Marco', pts: 9, picks:['🇿🇦','🇰🇷', null,'🇵🇾'], ok:[true,  true,  null,  false] },
+    { rank:3, name:'Priya', pts: 0, picks:[null,  null,  null,  null], ok:[null,  null,  null,  null ] },
+  ],
+}
 
 // ── CompModal ─────────────────────────────────────────────────────────────────
 // Steps: choose → join | create → created
@@ -917,66 +919,84 @@ export default function HomePage() {
               </ul>
             </div>
 
-            {/* Social proof */}
-            {heroStats && heroStats.tipster_count > 0 && (
-              <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:20 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom: persona === 'tipster' ? 16 : 0 }}>
+            {/* Social proof + Tip Sheet grid */}
+            <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:18 }}>
+              {/* Live count */}
+              {heroStats && heroStats.tipster_count > 0 && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom:14 }}>
                   <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
                   <span style={{ fontSize:13, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
                     <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters already registered
                   </span>
                 </div>
-                {persona === 'tipster' && (
-                  <div style={{ display:'flex', gap:8 }}>
+              )}
 
-                    {/* Global leaderboard preview */}
-                    <div style={{ flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, overflow:'hidden' }}>
-                      <div style={{ padding:'7px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-                        <span style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.6px' }}>🏆 Leaderboard</span>
-                      </div>
-                      {SAMPLE_LEADERS.map((u, i) => (
-                        <div key={i} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 10px',
-                          borderBottom: i < SAMPLE_LEADERS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
-                          <span style={{ fontSize:10, fontWeight:800, width:16, flexShrink:0,
-                            color: i===0 ? '#fbbf24' : i===1 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.35)' }}>#{i+1}</span>
-                          <span style={{ fontSize:12, color:'rgba(255,255,255,0.78)', flex:1, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.name}</span>
-                          <span style={{ fontSize:11, fontWeight:700, color:'#4ade80', flexShrink:0 }}>{u.pts}</span>
-                        </div>
-                      ))}
-                      <div style={{ padding:'7px 10px', textAlign:'center' }}>
-                        <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.22)' }}>Sign up to see more →</span>
-                      </div>
+              {/* Mini Tip Sheet grid — tipsters only */}
+              {persona === 'tipster' && (
+                <div style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)', borderRadius:14, overflow:'hidden' }}>
+
+                  {/* Column headers */}
+                  <div style={{ display:'flex', alignItems:'stretch', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ width:68, flexShrink:0, padding:'7px 10px', display:'flex', alignItems:'flex-end' }}>
+                      <span style={{ fontSize:8, fontWeight:700, color:'rgba(255,255,255,0.28)', textTransform:'uppercase', letterSpacing:'0.6px' }}>PLAYER</span>
                     </div>
-
-                    {/* Tip Sheet snapshot */}
-                    <div style={{ flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, overflow:'hidden' }}>
-                      <div style={{ padding:'7px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-                        <span style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,0.35)', textTransform:'uppercase', letterSpacing:'0.6px' }}>📋 Tip Sheet</span>
+                    {SAMPLE_TIP_SHEET.matches.map((m, i) => (
+                      <div key={i} style={{ flex:1, padding:'5px 2px', textAlign:'center', borderLeft:'1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ fontSize:8, color:'rgba(255,255,255,0.32)', fontWeight:600, letterSpacing:'0.2px' }}>{m.code}</div>
+                        <div style={{ fontSize:9.5, color: m.score === '—' ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.60)', fontWeight:700, marginTop:1 }}>{m.score}</div>
                       </div>
-                      {SAMPLE_PICKS.map((p, i) => (
-                        <div key={i} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 10px',
-                          borderBottom: i < SAMPLE_PICKS.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
-                          <span style={{ fontSize:10, color:'rgba(255,255,255,0.40)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {p.home} v {p.away}
-                          </span>
-                          <span style={{ display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
-                            <span style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,0.65)' }}>{p.pick}</span>
-                            <span style={{ fontSize:10, fontWeight:800,
-                              color: p.correct === true ? '#4ade80' : p.correct === false ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
-                              {p.correct === true ? '✓' : p.correct === false ? '✗' : '·'}
-                            </span>
-                          </span>
-                        </div>
-                      ))}
-                      <div style={{ padding:'7px 10px', textAlign:'center' }}>
-                        <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.22)' }}>Sign up to tip →</span>
-                      </div>
+                    ))}
+                    <div style={{ width:28, flexShrink:0, padding:'7px 6px', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', borderLeft:'1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ fontSize:8, fontWeight:700, color:'rgba(255,255,255,0.28)', textTransform:'uppercase', letterSpacing:'0.6px' }}>PTS</span>
                     </div>
-
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Player rows */}
+                  {SAMPLE_TIP_SHEET.rows.map((row, ri) => (
+                    <div key={ri} style={{ display:'flex', alignItems:'center', borderBottom: ri < SAMPLE_TIP_SHEET.rows.length-1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
+                      {/* Rank + name */}
+                      <div style={{ width:68, flexShrink:0, padding:'7px 10px', display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ fontSize:9, fontWeight:800, width:12, flexShrink:0,
+                          color: ri===0 ? '#fbbf24' : ri===1 ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>{row.rank}</span>
+                        <span style={{ fontSize:11, color:'rgba(255,255,255,0.80)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.name}</span>
+                      </div>
+                      {/* Pick cells */}
+                      {row.picks.map((pick, pi) => (
+                        <div key={pi} style={{ flex:1, padding:'5px 2px', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px solid rgba(255,255,255,0.04)' }}>
+                          {pick ? (
+                            <div style={{
+                              width:24, height:24, borderRadius:6,
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontSize:14, lineHeight:1,
+                              background: row.ok[pi] === true  ? 'rgba(34,197,94,0.22)'  :
+                                          row.ok[pi] === false ? 'rgba(239,68,68,0.22)'  :
+                                          'rgba(255,255,255,0.08)',
+                              border: `1.5px solid ${
+                                row.ok[pi] === true  ? 'rgba(34,197,94,0.55)'  :
+                                row.ok[pi] === false ? 'rgba(239,68,68,0.55)'  :
+                                'rgba(251,191,36,0.50)'}`,
+                            }}>
+                              {pick}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize:12, color:'rgba(255,255,255,0.18)', fontWeight:500 }}>?</span>
+                          )}
+                        </div>
+                      ))}
+                      {/* Pts */}
+                      <div style={{ width:28, flexShrink:0, padding:'7px 6px', textAlign:'right', borderLeft:'1px solid rgba(255,255,255,0.04)' }}>
+                        <span style={{ fontSize:11, fontWeight:800, color: row.pts > 0 ? '#4ade80' : 'rgba(255,255,255,0.18)' }}>{row.pts}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Footer nudge */}
+                  <div style={{ padding:'8px 12px', textAlign:'center', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.22)' }}>Sign up to see your live Tip Sheet →</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         </>
