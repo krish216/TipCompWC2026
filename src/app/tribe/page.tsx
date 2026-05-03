@@ -1195,8 +1195,13 @@ export default function TribePage() {
       {/* ── Tab content ──────────────────────────────────────────── */}
       <div style={{ marginTop: 12 }}>
 
-        {/* ── Welcome banner — single-member tribe, dismissible ── */}
-        {tribe.members.length === 1 && !welcomeDismissed && (
+        {/* ── Welcome banner — new tribe member (joined ≤7 days ago), dismissible ── */}
+        {(() => {
+          const myMember = tribe.members.find(m => m.user_id === myId)
+          const joinedAt = myMember?.joined_at ? new Date(myMember.joined_at).getTime() : 0
+          const isNewMember = joinedAt > 0 && Date.now() - joinedAt < 7 * 24 * 60 * 60 * 1000
+          return isNewMember && !welcomeDismissed
+        })() && (
           <div className="mb-4 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
             <span className="text-2xl leading-none pt-0.5">👋</span>
             <div className="flex-1 min-w-0">
