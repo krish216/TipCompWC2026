@@ -933,6 +933,7 @@ export default function TribePage() {
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
   const [unreadChat,     setUnreadChat]     = useState(0)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const myId = session?.user.id ?? ''
 
   const loadPicks = async () => {
@@ -948,6 +949,10 @@ export default function TribePage() {
   useEffect(() => {
     if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
   }, [tab, tribe])
+
+  useEffect(() => {
+    if (tribe?.id) setWelcomeDismissed(localStorage.getItem(`tribe_welcome_${tribe.id}`) === '1')
+  }, [tribe?.id])
 
   const loadTribe = useCallback(async () => {
     setLoading(true)
@@ -1190,9 +1195,43 @@ export default function TribePage() {
       {/* ── Tab content ──────────────────────────────────────────── */}
       <div style={{ marginTop: 12 }}>
 
+        {/* ── Welcome banner — single-member tribe, dismissible ── */}
+        {tribe.members.length === 1 && !welcomeDismissed && (
+          <div className="mb-4 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+            <span className="text-2xl leading-none pt-0.5">👋</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-green-800 mb-0.5">Welcome to your tribe!</p>
+              <p className="text-xs text-gray-600 mb-2.5">Share your invite code to bring in friends. Everyone tips separately — then compare picks here once a round closes.</p>
+              <button onClick={copyCode}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-green-300 rounded-lg text-xs font-semibold text-green-700 hover:bg-green-50 font-mono">
+                {tribe.invite_code}
+                <span className="font-sans font-normal text-[10px] opacity-70">{copied ? '✓ Copied' : '⎘ Copy'}</span>
+              </button>
+            </div>
+            <button
+              onClick={() => { setWelcomeDismissed(true); localStorage.setItem(`tribe_welcome_${tribe.id}`, '1') }}
+              className="text-gray-300 hover:text-gray-500 text-lg leading-none flex-shrink-0">
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Standings */}
         {tab === 'leaderboard' && (
           <>
+            {/* Invite nudge — always visible on Standings when alone */}
+            {tribe.members.length === 1 && (
+              <div className="mb-4 flex flex-col items-center gap-2 py-5 px-4 bg-blue-50 border border-blue-100 rounded-xl text-center">
+                <span className="text-2xl">👥</span>
+                <p className="text-sm font-semibold text-blue-800">Invite your tribe mates</p>
+                <p className="text-xs text-gray-500 max-w-xs">The leaderboard comes alive once others join. Share your code and start competing.</p>
+                <button onClick={copyCode}
+                  className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-50 font-mono">
+                  {tribe.invite_code}
+                  <span className="font-sans font-normal text-[10px] opacity-70">{copied ? '✓ Copied' : '⎘ Copy'}</span>
+                </button>
+              </div>
+            )}
             <TribeStandingsView
               members={sortedMembers}
               myId={myId}
@@ -1916,6 +1955,10 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
           <span className="text-3xl">🔒</span>
           <p className="text-sm font-semibold text-gray-600">Picks will be revealed once this round closes</p>
           <p className="text-xs text-gray-400">The admin closes the round after the last fixture kicks off</p>
+          <a href="/predict"
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs font-medium text-green-700 hover:bg-green-100">
+            ⚽ Make your picks on the Predictions page
+          </a>
         </div>
       )}
     </div>
