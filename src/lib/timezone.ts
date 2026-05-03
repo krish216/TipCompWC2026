@@ -96,7 +96,83 @@ export const COUNTRIES = [
   'Taiwan','Tanzania','Thailand','Tunisia','Turkey','Uganda','Ukraine',
   'United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan',
   'Venezuela','Vietnam','Yemen','Zimbabwe',
+  // additional sovereign nations
+  'Andorra','Antigua and Barbuda','Bahamas','Barbados','Belize',
+  'Benin','Bhutan','Botswana','Brunei','Burkina Faso',
+  'Burundi','Cape Verde','Central African Republic','Chad','Comoros',
+  'Republic of Congo','Costa Rica','Cyprus','Djibouti','Dominica',
+  'Dominican Republic','Equatorial Guinea','Eritrea','Estonia','Eswatini',
+  'Fiji','Gabon','Gambia','Grenada','Guinea',
+  'Guinea-Bissau','Guyana','Iceland','Kiribati','Kyrgyzstan',
+  'Laos','Latvia','Lesotho','Liberia','Liechtenstein',
+  'Lithuania','Luxembourg','Madagascar','Malawi','Maldives',
+  'Mali','Malta','Marshall Islands','Mauritania','Micronesia',
+  'Monaco','Montenegro','Namibia','Nauru','Nicaragua',
+  'Niger','North Macedonia','Palau','Palestine','Papua New Guinea',
+  'Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines',
+  'Samoa','San Marino','São Tomé and Príncipe','Seychelles','Sierra Leone',
+  'Solomon Islands','Suriname','Tajikistan','Timor-Leste','Togo',
+  'Tonga','Trinidad and Tobago','Turkmenistan','Tuvalu','Vanuatu','Zambia',
 ].sort()
+
+// Full country name → ISO 3166-1 alpha-2 code
+export const COUNTRY_CODE_MAP: Record<string, string> = {
+  'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Angola':'AO',
+  'Argentina':'AR','Armenia':'AM','Australia':'AU','Austria':'AT',
+  'Azerbaijan':'AZ','Bahrain':'BH','Bangladesh':'BD','Belarus':'BY',
+  'Belgium':'BE','Bolivia':'BO','Bosnia and Herzegovina':'BA','Brazil':'BR',
+  'Bulgaria':'BG','Cambodia':'KH','Cameroon':'CM','Canada':'CA',
+  'Chile':'CL','China':'CN','Colombia':'CO','Croatia':'HR',
+  'Cuba':'CU','Czech Republic':'CZ','Denmark':'DK','DR Congo':'CD',
+  'Ecuador':'EC','Egypt':'EG','El Salvador':'SV','Ethiopia':'ET',
+  'Finland':'FI','France':'FR','Georgia':'GE','Germany':'DE',
+  'Ghana':'GH','Greece':'GR','Guatemala':'GT','Haiti':'HT',
+  'Honduras':'HN','Hungary':'HU','India':'IN','Indonesia':'ID',
+  'Iran':'IR','Iraq':'IQ','Ireland':'IE','Israel':'IL',
+  'Italy':'IT','Ivory Coast':'CI','Jamaica':'JM','Japan':'JP',
+  'Jordan':'JO','Kazakhstan':'KZ','Kenya':'KE','Kuwait':'KW',
+  'Lebanon':'LB','Libya':'LY','Malaysia':'MY','Mauritius':'MU',
+  'Mexico':'MX','Moldova':'MD','Mongolia':'MN','Morocco':'MA',
+  'Mozambique':'MZ','Myanmar':'MM','Nepal':'NP','Netherlands':'NL',
+  'New Zealand':'NZ','Nigeria':'NG','North Korea':'KP','Norway':'NO',
+  'Oman':'OM','Pakistan':'PK','Panama':'PA','Paraguay':'PY',
+  'Peru':'PE','Philippines':'PH','Poland':'PL','Portugal':'PT',
+  'Qatar':'QA','Romania':'RO','Russia':'RU','Rwanda':'RW',
+  'Saudi Arabia':'SA','Senegal':'SN','Serbia':'RS','Singapore':'SG',
+  'Slovakia':'SK','Slovenia':'SI','Somalia':'SO','South Africa':'ZA',
+  'South Korea':'KR','South Sudan':'SS','Spain':'ES','Sri Lanka':'LK',
+  'Sudan':'SD','Sweden':'SE','Switzerland':'CH','Syria':'SY',
+  'Taiwan':'TW','Tanzania':'TZ','Thailand':'TH','Tunisia':'TN',
+  'Turkey':'TR','Uganda':'UG','Ukraine':'UA','United Arab Emirates':'AE',
+  'United Kingdom':'GB','United States':'US','Uruguay':'UY','Uzbekistan':'UZ',
+  'Venezuela':'VE','Vietnam':'VN','Yemen':'YE','Zimbabwe':'ZW',
+  'Andorra':'AD','Antigua and Barbuda':'AG','Bahamas':'BS','Barbados':'BB',
+  'Belize':'BZ','Benin':'BJ','Bhutan':'BT','Botswana':'BW','Brunei':'BN',
+  'Burkina Faso':'BF','Burundi':'BI','Cape Verde':'CV',
+  'Central African Republic':'CF','Chad':'TD','Comoros':'KM',
+  'Republic of Congo':'CG','Costa Rica':'CR','Cyprus':'CY','Djibouti':'DJ',
+  'Dominica':'DM','Dominican Republic':'DO','Equatorial Guinea':'GQ',
+  'Eritrea':'ER','Estonia':'EE','Eswatini':'SZ','Fiji':'FJ','Gabon':'GA',
+  'Gambia':'GM','Grenada':'GD','Guinea':'GN','Guinea-Bissau':'GW',
+  'Guyana':'GY','Iceland':'IS','Kiribati':'KI','Kyrgyzstan':'KG','Laos':'LA',
+  'Latvia':'LV','Lesotho':'LS','Liberia':'LR','Liechtenstein':'LI',
+  'Lithuania':'LT','Luxembourg':'LU','Madagascar':'MG','Malawi':'MW',
+  'Maldives':'MV','Mali':'ML','Malta':'MT','Marshall Islands':'MH',
+  'Mauritania':'MR','Micronesia':'FM','Monaco':'MC','Montenegro':'ME',
+  'Namibia':'NA','Nauru':'NR','Nicaragua':'NI','Niger':'NE',
+  'North Macedonia':'MK','Palau':'PW','Palestine':'PS',
+  'Papua New Guinea':'PG','Saint Kitts and Nevis':'KN','Saint Lucia':'LC',
+  'Saint Vincent and the Grenadines':'VC','Samoa':'WS','San Marino':'SM',
+  'São Tomé and Príncipe':'ST','Seychelles':'SC','Sierra Leone':'SL',
+  'Solomon Islands':'SB','Suriname':'SR','Tajikistan':'TJ','Timor-Leste':'TL',
+  'Togo':'TG','Tonga':'TO','Trinidad and Tobago':'TT','Turkmenistan':'TM',
+  'Tuvalu':'TV','Vanuatu':'VU','Zambia':'ZM',
+}
+
+// ISO alpha-2 → full country name (reverse of COUNTRY_CODE_MAP)
+export const COUNTRY_NAME_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTRY_CODE_MAP).map(([name, code]) => [code, name])
+)
 
 // Map countries to their relevant timezones
 export const COUNTRY_TIMEZONES: Record<string, string[]> = {
@@ -220,8 +296,10 @@ export const COUNTRY_TIMEZONES: Record<string, string[]> = {
 /**
  * Get timezones relevant to a country — falls back to full list
  */
-export function getTimezonesForCountry(country: string): typeof TIMEZONES {
-  const values = COUNTRY_TIMEZONES[country]
+export function getTimezonesForCountry(countryOrCode: string): typeof TIMEZONES {
+  // Accept either a full name ("Australia") or an ISO code ("AU")
+  const name = COUNTRY_NAME_MAP[countryOrCode] ?? countryOrCode
+  const values = COUNTRY_TIMEZONES[name]
   if (!values || values.length === 0) return TIMEZONES
   const filtered = TIMEZONES.filter(tz => values.includes(tz.value))
   return filtered.length > 0 ? filtered : TIMEZONES

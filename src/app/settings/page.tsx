@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner, Card } from '@/components/ui'
-import { TIMEZONES, COUNTRIES, getTimezonesForCountry } from '@/lib/timezone'
+import { TIMEZONES, COUNTRIES, COUNTRY_CODE_MAP, getTimezonesForCountry } from '@/lib/timezone'
 import toast from 'react-hot-toast'
 
 interface NotifPrefs {
@@ -270,7 +270,7 @@ export default function SettingsPage() {
               }}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
               <option value="">Select your country</option>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {COUNTRIES.map(c => <option key={c} value={COUNTRY_CODE_MAP[c] ?? c}>{c}</option>)}
             </select>
           </div>
           <div className="mb-4">
