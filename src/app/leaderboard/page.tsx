@@ -270,7 +270,7 @@ export default function LeaderboardPage() {
   const amInList = filteredEntries.some(e => e.user_id === myId)
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-4 pb-24">
+    <div className="max-w-3xl mx-auto px-4 py-4 pb-36 sm:pb-24">
 
       {/* Page header + comp selector in one row */}
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -331,7 +331,7 @@ export default function LeaderboardPage() {
         const gapToAbove = above ? above.total_points - pts : 0
         const isLeading  = rank === 1
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-green-200 shadow-lg">
+          <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-green-200 shadow-lg">
             <div className="max-w-3xl mx-auto flex items-center gap-3 px-4 py-2.5">
               <div className="flex flex-col items-center w-8">
                 <Medal rank={typeof rank === 'number' ? rank : 99} />
