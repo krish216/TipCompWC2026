@@ -111,14 +111,22 @@ export async function GET(request: NextRequest) {
 
   const fixtureIds = fixtures.map((f: any) => f.id)
 
-  // ── Predictions ────────────────────────────────────────────────────────────
-  let predQ = (adminClient.from('predictions') as any)
-    .select('user_id, fixture_id, home, away, outcome, pen_winner, points_earned, standard_points, bonus_points')
-    .in('fixture_id', fixtureIds)
-    .in('user_id', memberIds)
-  if (tournamentId) predQ = predQ.eq('tournament_id', tournamentId)
-  predQ = predQ.limit(100000)
-  const { data: predRows } = await predQ
+  // ── Predictions — paginated to bypass PostgREST max_rows=1000 ──────────────
+  const PAGE_SIZE = 1000
+  let predRows: any[] = []
+  for (let page = 0; page <= 200; page++) {
+    const from = page * PAGE_SIZE
+    let q = (adminClient.from('predictions') as any)
+      .select('user_id, fixture_id, home, away, outcome, pen_winner, points_earned, standard_points, bonus_points')
+      .in('fixture_id', fixtureIds)
+      .in('user_id', memberIds)
+      .range(from, from + PAGE_SIZE - 1)
+    if (tournamentId) q = q.eq('tournament_id', tournamentId)
+    const { data: rows } = await q
+    if (!rows?.length) break
+    predRows = predRows.concat(rows)
+    if (rows.length < PAGE_SIZE) break
+  }
 
   const picks: Record<number, Record<string, any>> = {}
   ;(predRows ?? []).forEach((p: any) => {
