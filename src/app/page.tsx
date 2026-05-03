@@ -864,7 +864,7 @@ export default function HomePage() {
                       background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
                       borderRadius:12, padding:'11px 0',
                       alignSelf:'center',
-                      color:'#9e9797', fontWeight:800, fontSize:14,
+                      color:'#3d3636', fontWeight:800, fontSize:14,
                       textAlign:'center', letterSpacing:'0.1px',
                       boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
                       border:'1px solid #d5c920',
