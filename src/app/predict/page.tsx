@@ -19,6 +19,7 @@ type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
+import { TipsheetShareButton, type TipsheetFixture } from '@/components/game/ShareCard'
 type RoundTab = string
 
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
@@ -414,6 +415,30 @@ export default function PredictPage() {
     )
   }, [fixtures, activeRound, TAB_TO_ROUNDS])
 
+  // Tipsheet data for active round (used by both canvas share and print view)
+  const tipsheetFixtures = useMemo<TipsheetFixture[]>(() =>
+    visibleFixtures.map(f => {
+      const p       = predictions[f.id]
+      const r       = results[f.id]
+      const hasPred = p != null && p.home >= 0 && p.away >= 0
+      let points: number | null = null
+      if (hasPred && r) {
+        points = (p.standard_points != null && p.bonus_points != null)
+          ? p.standard_points + p.bonus_points
+          : calcPoints(p, r, f.round, !!(favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)), scoringConfig) ?? null
+      }
+      return {
+        id:         f.id,
+        home:       f.home,
+        away:       f.away,
+        prediction: hasPred ? { home: p!.home, away: p!.away } : null,
+        result:     r       ? { home: r.home,  away: r.away  } : null,
+        points,
+      }
+    }),
+    [visibleFixtures, predictions, results, favouriteTeam, scoringConfig]
+  )
+
   // Group fixtures by date label for section headers
   const fixturesByDate = useMemo(() => {
     const map: Record<string, Fixture[]> = {}
@@ -503,7 +528,8 @@ export default function PredictPage() {
   const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-4">
+    <>
+    <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
 
       {/* Practice / onboarding mode banner */}
@@ -655,6 +681,25 @@ export default function PredictPage() {
         </div>
       )}
 
+      {/* Tipsheet actions */}
+      {visibleFixtures.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <TipsheetShareButton
+            roundLabel={ROUND_TAB_LABEL[activeRound] ?? activeRound}
+            fixtures={tipsheetFixtures}
+          />
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1a1 1 0 01-1 1H7a1 1 0 01-1-1zm9-5a1 1 0 110 2 1 1 0 010-2z" clipRule="evenodd" />
+            </svg>
+            <span>Print / PDF</span>
+          </button>
+        </div>
+      )}
+
       {/* Fixtures — chronological, grouped by date */}
       {visibleFixtures.length === 0 ? (
         <EmptyState
@@ -695,5 +740,48 @@ export default function PredictPage() {
 
 
     </div>
+
+    {/* Print-only tipsheet */}
+    <div className="hidden print:block p-8 max-w-3xl mx-auto">
+      <style>{`@media print { @page { margin: 1.5cm; } }`}</style>
+      <h1 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '2px' }}>
+        ⚽ TipComp 2026 — {ROUND_TAB_LABEL[activeRound] ?? activeRound} Tipsheet
+      </h1>
+      <p style={{ fontSize: '11px', color: '#666', marginBottom: '16px' }}>
+        {new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #333' }}>
+            <th style={{ textAlign: 'left', padding: '4px 8px' }}>Home</th>
+            <th style={{ textAlign: 'center', padding: '4px 8px' }}>My Pick</th>
+            <th style={{ textAlign: 'left', padding: '4px 8px' }}>Away</th>
+            <th style={{ textAlign: 'center', padding: '4px 8px' }}>Result</th>
+            <th style={{ textAlign: 'right', padding: '4px 8px' }}>Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tipsheetFixtures.map((fx, i) => (
+            <tr key={fx.id} style={{ borderBottom: '1px solid #eee', background: i % 2 === 0 ? '#f9f9f9' : 'white' }}>
+              <td style={{ padding: '5px 8px', fontWeight: 500 }}>{fx.home}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700 }}>
+                {fx.prediction ? `${fx.prediction.home}–${fx.prediction.away}` : '—'}
+              </td>
+              <td style={{ padding: '5px 8px', fontWeight: 500 }}>{fx.away}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                {fx.result ? `${fx.result.home}–${fx.result.away}` : 'TBD'}
+              </td>
+              <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: fx.points && fx.points > 0 ? 700 : 400, color: fx.points && fx.points > 0 ? '#16a34a' : '#999' }}>
+                {fx.points !== null ? (fx.points > 0 ? `+${fx.points}` : '0') : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p style={{ fontSize: '10px', color: '#888', marginTop: '16px', textAlign: 'center' }}>
+        tip-comp-wc-2026.vercel.app
+      </p>
+    </div>
+    </>
   )
 }
