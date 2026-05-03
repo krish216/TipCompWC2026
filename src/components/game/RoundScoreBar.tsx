@@ -19,7 +19,7 @@ export function RoundScoreBar({ played, total, pts, bonusPts, correctPts, toPred
           <div className="text-sm font-bold text-green-700">{pts}</div>
         </div>
         <div>
-          <div className="text-xs text-gray-500 mb-0.5">Correct pts</div>
+          <div className="text-xs text-gray-500 mb-0.5">Base pts</div>
           <div className="text-sm font-bold text-blue-700">{correctPts}</div>
         </div>
         <div>
