@@ -54,6 +54,7 @@ export default function PredictPage() {
   const [savingFav,     setSavingFav]     = useState(false)
   const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string}[]>([])
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
+  const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
   const [allDoneBanner, setAllDoneBanner] = useState<string | null>(null)
@@ -135,6 +136,7 @@ export default function PredictPage() {
         // Round locks
         const locks: Record<string, boolean> = locksData.data ?? {}
         setRoundLocks(locks)
+        setTippingClosed(locksData.tipping_closed ?? {})
 
         // User tournament prefs (favourite team)
         const userTournData = (await userRes.json().catch(() => ({}))) as any
@@ -681,8 +683,8 @@ export default function PredictPage() {
         </div>
       )}
 
-      {/* Tipsheet actions */}
-      {visibleFixtures.length > 0 && (
+      {/* Tipsheet actions — only shown once tipping is closed for the active round */}
+      {visibleFixtures.length > 0 && (TAB_TO_ROUNDS[activeRound] ?? []).some(r => tippingClosed[r]) && (
         <div className="flex items-center gap-2 mb-3">
           <TipsheetShareButton
             roundLabel={ROUND_TAB_LABEL[activeRound] ?? activeRound}

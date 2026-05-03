@@ -932,6 +932,7 @@ export default function TribePage() {
   const [tab,            setTab]            = useState<MainTab>('leaderboard')
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
+  const [copiedComp,     setCopiedComp]     = useState(false)
   const [unreadChat,     setUnreadChat]     = useState(0)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const myId = session?.user.id ?? ''
@@ -981,7 +982,7 @@ export default function TribePage() {
         } else {
           if (raw.comp_id) {
             const { data: compRow } = await supabase
-              .from('comps').select('name, logo_url').eq('id', raw.comp_id).single()
+              .from('comps').select('name, logo_url, invite_code').eq('id', raw.comp_id).single()
             if (compRow) raw._org = compRow
           }
           const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
@@ -1205,13 +1206,31 @@ export default function TribePage() {
           <div className="mb-4 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
             <span className="text-2xl leading-none pt-0.5">👋</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-green-800 mb-0.5">Welcome to your tribe!</p>
-              <p className="text-xs text-gray-600 mb-2.5">Share your invite code to bring in friends. Everyone tips separately — then compare picks here once a round closes.</p>
-              <button onClick={copyCode}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-green-300 rounded-lg text-xs font-semibold text-green-700 hover:bg-green-50 font-mono">
-                {tribe.invite_code}
-                <span className="font-sans font-normal text-[10px] opacity-70">{copied ? '✓ Copied' : '⎘ Copy'}</span>
-              </button>
+              <p className="text-sm font-semibold text-green-800 mb-2">Welcome to {tribe.name}!</p>
+              <div className="space-y-1.5 mb-0">
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-700">📊 Tip Sheets —</span> Once a round closes, tap the <strong>Tip Sheets</strong> tab to see how everyone in your tribe tipped. Compare picks and find out who called it right.
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-700">💬 Chat —</span> Head to the <strong>Chat</strong> tab to get in on the banter, react to picks, and celebrate the wins with your tribe.
+                </p>
+              </div>
+              {(tribe as any)._org?.invite_code && (
+                <div className="mt-3 pt-2.5 border-t border-green-200">
+                  <p className="text-xs text-gray-500 mb-1.5">Know someone who wants in? Share the comp invite link:</p>
+                  <button
+                    onClick={async () => {
+                      const link = `${TS_APP_URL}/join?code=${(tribe as any)._org.invite_code}`
+                      await navigator.clipboard.writeText(link)
+                      setCopiedComp(true); setTimeout(() => setCopiedComp(false), 2000)
+                      toast.success('Invite link copied!')
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-green-300 rounded-lg text-xs font-semibold text-green-700 hover:bg-green-50 font-mono">
+                    {(tribe as any)._org.invite_code}
+                    <span className="font-sans font-normal text-[10px] opacity-70">{copiedComp ? '✓ Copied' : '⎘ Copy link'}</span>
+                  </button>
+                </div>
+              )}
             </div>
             <button
               onClick={() => { setWelcomeDismissed(true); localStorage.setItem(`tribe_welcome_${tribe.id}`, '1') }}
