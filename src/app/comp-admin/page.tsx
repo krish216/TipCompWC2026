@@ -1600,6 +1600,21 @@ export default function CompAdminPage() {
 
   const comp = selectedComp as any
 
+  // Persist checklist dismiss state per comp in localStorage
+  const checklistKey = comp?.id ? `checklist_dismissed_${comp.id}` : null
+  useEffect(() => {
+    if (!checklistKey) return
+    setFreshBannerDismissed(localStorage.getItem(checklistKey) === '1')
+  }, [checklistKey])
+  const dismissChecklist = () => {
+    setFreshBannerDismissed(true)
+    if (checklistKey) localStorage.setItem(checklistKey, '1')
+  }
+  const showChecklist = () => {
+    setFreshBannerDismissed(false)
+    if (checklistKey) localStorage.removeItem(checklistKey)
+  }
+
   useEffect(() => {
     if (!session || !comp?.id) return
     setLoading(true)
@@ -1780,31 +1795,44 @@ export default function CompAdminPage() {
         )
       })()}
 
-      {/* Comp setup checklist — shown until dismissed */}
-      {!freshBannerDismissed && (() => {
+      {/* ── Comp setup checklist ── */}
+      {(() => {
         const tipstersWithoutTribe = tipsters.filter(t => !tribes.some(tr => (tr.member_ids ?? []).includes(t.user_id)))
-        const tribesNeeded = tipsters.length > 0 ? Math.ceil(tipsters.length / Math.max(maxTribeSize, 1)) : 1
         type StepItem = { label: string; detail: string; tab: Tab; done: boolean; scrollTo?: string }
         const steps: StepItem[] = [
-          { label: 'Set an entry fee',          detail: 'Enable in Settings, then set the amount',             tab: 'settings', done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0), scrollTo: 'entry-fee-amount-section' },
-          { label: 'Configure tribe size limit', detail: 'Set max members per tribe — default is 15',          tab: 'settings', done: false, scrollTo: 'max-tribe-size-section' },
-          { label: 'Send invites',               detail: 'Invite your group to join and start tipping',        tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1 },
-          { label: 'Create New Tribes',            detail: 'Divide your comp into rival teams',                  tab: 'tribes',   done: tribes.length >= tribesNeeded, scrollTo: 'create-new-tribe-btn' },
+          { label: 'Add a comp logo',         detail: 'Brand your comp — shown on the leaderboard and invite emails',  tab: 'settings', done: !!comp?.logo_url,                                       scrollTo: 'comp-logo-section'        },
+          { label: 'Create at least one tribe', detail: 'Tipsters need a tribe to join before they can compete',        tab: 'tribes',   done: tribes.length > 0,                                      scrollTo: 'create-new-tribe-btn'     },
+          { label: 'Send your first invite',  detail: 'Invite your group to join and start tipping',                    tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1                                           },
           ...(tipstersWithoutTribe.length > 0 ? [{ label: 'Assign tipsters to tribes', detail: `${tipstersWithoutTribe.length} tipster${tipstersWithoutTribe.length !== 1 ? 's' : ''} still need a tribe`, tab: 'tribes' as Tab, done: false, scrollTo: 'not-in-tribe-section' }] : []),
-          ...(requiresFee ? [{ label: 'Track comp contributions', detail: 'Record which tipsters have paid', tab: 'payments' as Tab, done: tipsters.some(t => t.fee_paid) }] : []),
+          ...(requiresFee ? [{ label: 'Track entry fee payments', detail: 'Record which tipsters have paid their entry fee', tab: 'payments' as Tab, done: tipsters.some(t => t.fee_paid) }] : []),
         ]
+        const doneCount = steps.filter(s => s.done).length
+        const allDone   = doneCount === steps.length
+
+        if (allDone) return null
+
+        if (freshBannerDismissed) return (
+          <div className="mb-3 flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="flex-1 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.round((doneCount / steps.length) * 100)}%` }} />
+            </div>
+            <span className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">{doneCount}/{steps.length} setup steps done</span>
+            <button onClick={showChecklist} className="text-[11px] text-emerald-600 underline hover:text-emerald-800 whitespace-nowrap flex-shrink-0">
+              Show checklist
+            </button>
+          </div>
+        )
+
         return (
           <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
             <div className="flex items-start justify-between px-4 pt-4 pb-2">
               <div>
-                <p className="text-sm font-bold text-emerald-900">Comp setup checklist 🏁</p>
-                <p className="text-xs text-emerald-700 mt-0.5">Complete these steps to get your comp running.</p>
+                <p className="text-sm font-bold text-emerald-900">Get your comp ready 🏁</p>
+                <p className="text-xs text-emerald-700 mt-0.5">{doneCount}/{steps.length} steps complete — tap any step to go straight there.</p>
               </div>
-              <button
-                onClick={() => setFreshBannerDismissed(true)}
+              <button onClick={dismissChecklist}
                 className="w-6 h-6 flex items-center justify-center text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 rounded-md transition-colors text-xs flex-shrink-0 ml-2"
-                title="Dismiss"
-              >✕</button>
+                title="Dismiss">✕</button>
             </div>
             <div className="px-4 pb-4 space-y-2">
               {steps.map((step, i) => (
@@ -1823,39 +1851,10 @@ export default function CompAdminPage() {
                     <p className={`text-xs font-semibold ${step.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{step.label}</p>
                     <p className="text-[11px] text-gray-400">{step.detail}</p>
                   </div>
-                  <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors">→</span>
+                  {!step.done && <span className="text-gray-300 group-hover:text-emerald-500 text-sm transition-colors flex-shrink-0">→</span>}
                 </button>
               ))}
             </div>
-          </div>
-        )
-      })()}
-
-      {/* Mini checklist progress — visible when full checklist is dismissed */}
-      {freshBannerDismissed && (() => {
-        const tipstersWithoutTribe = tipsters.filter(t => !tribes.some(tr => (tr.member_ids ?? []).includes(t.user_id)))
-        const tribesNeeded = tipsters.length > 0 ? Math.ceil(tipsters.length / Math.max(maxTribeSize, 1)) : 1
-        const steps = [
-          { done: !requiresFee || (requiresFee && (entryFee ?? 0) > 0) },
-          { done: false },
-          { done: invitations.length > 0 || tipsters.length > 1 },
-          { done: tribes.length >= tribesNeeded },
-          ...(tipstersWithoutTribe.length > 0 ? [{ done: false }] : []),
-          ...(requiresFee ? [{ done: tipsters.some(t => t.fee_paid) }] : []),
-        ]
-        const doneCount = steps.filter(s => s.done).length
-        const total = steps.length
-        if (doneCount === total) return null
-        return (
-          <div className="mb-3 flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <div className="flex-1 h-1.5 bg-emerald-100 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.round((doneCount / total) * 100)}%` }} />
-            </div>
-            <span className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">{doneCount}/{total} setup steps done</span>
-            <button onClick={() => setFreshBannerDismissed(false)}
-              className="text-[11px] text-emerald-600 underline hover:text-emerald-800 whitespace-nowrap flex-shrink-0">
-              Show checklist
-            </button>
           </div>
         )
       })()}
