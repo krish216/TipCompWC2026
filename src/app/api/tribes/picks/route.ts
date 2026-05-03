@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const { data: memberRows } = await (adminClient.from('tribe_members') as any)
       .select('user_id, users(id, display_name, avatar_url)')
       .eq('tribe_id', tribeId)
+      .limit(5000)
     members = (memberRows ?? []).map((m: any) => {
       const u = Array.isArray(m.users) ? m.users[0] : m.users
       return { user_id: m.user_id, display_name: u?.display_name ?? 'Unknown', avatar_url: u?.avatar_url ?? null }
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
     const { data: memberRows } = await (adminClient.from('user_comps') as any)
       .select('user_id, users(id, display_name, avatar_url)')
       .eq('comp_id', compId)
+      .limit(5000)
     members = (memberRows ?? []).map((m: any) => {
       const u = Array.isArray(m.users) ? m.users[0] : m.users
       return { user_id: m.user_id, display_name: u?.display_name ?? 'Unknown', avatar_url: u?.avatar_url ?? null }
@@ -113,6 +115,7 @@ export async function GET(request: NextRequest) {
     .in('fixture_id', fixtureIds)
     .in('user_id', memberIds)
   if (tournamentId) predQ = predQ.eq('tournament_id', tournamentId)
+  predQ = predQ.limit(100000)
   const { data: predRows } = await predQ
 
   const picks: Record<number, Record<string, any>> = {}
