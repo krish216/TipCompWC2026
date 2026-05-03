@@ -1427,6 +1427,167 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
   )
 }
 
+// ── Tip-sheet canvas helpers ──────────────────────────────────────────────────
+const TS_APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tip-comp-wc-2026.vercel.app'
+
+function tsRR(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath()
+}
+
+function tsCellInfo(
+  picksMap: Record<number, Record<string, any>>, fx: any, userId: string,
+  outcomeSet: Set<string>, codeFn: (n: string) => string
+): { bg: string; fg: string; label: string; bonus: number } {
+  const pick = picksMap[fx.id]?.[userId]
+  if (!pick) return { bg: '#f3f4f6', fg: '#9ca3af', label: '?', bonus: 0 }
+  const isOut = outcomeSet.has(fx.round)
+  const oLabel = !pick.outcome ? '?' : pick.outcome === 'D' ? 'X' : pick.outcome === 'H' ? codeFn(fx.home) : codeFn(fx.away)
+  const label = isOut ? oLabel : `${pick.home}-${pick.away}`
+  const bonus = pick.bonus_points ?? 0
+  if (!fx.result) return { bg: '#fffbeb', fg: '#b45309', label, bonus }
+  const rh = Number(fx.result.home), ra = Number(fx.result.away)
+  const rOut = rh > ra ? 'H' : ra > rh ? 'A' : 'D'
+  if (isOut) {
+    if (!pick.outcome) return { bg: '#f3f4f6', fg: '#9ca3af', label: '—', bonus }
+    return pick.outcome === rOut ? { bg: '#dcfce7', fg: '#15803d', label, bonus } : { bg: '#fee2e2', fg: '#b91c1c', label, bonus }
+  }
+  const ph = Number(pick.home), pa = Number(pick.away)
+  const pOut = ph > pa ? 'H' : pa > ph ? 'A' : 'D'
+  if (ph === rh && pa === ra) return { bg: '#dcfce7', fg: '#15803d', label, bonus }
+  if (pOut === rOut) return { bg: '#dbeafe', fg: '#1d4ed8', label, bonus }
+  return { bg: '#fee2e2', fg: '#b91c1c', label, bonus }
+}
+
+function drawTribeSummaryCanvas(
+  canvas: HTMLCanvasElement, sortedMembers: any[], memberPts: Record<string, number>,
+  myId: string, roundLabel: string, scope: 'tribe' | 'comp'
+) {
+  const W = 600, ROW_H = 40, HEADER_H = 88, FOOTER_H = 48
+  const H = HEADER_H + sortedMembers.length * ROW_H + FOOTER_H
+  canvas.width = W; canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  const grad = ctx.createLinearGradient(0, 0, W, H)
+  grad.addColorStop(0, '#064e3b'); grad.addColorStop(1, '#065f46')
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H)
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1
+  for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
+  for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 16px system-ui, sans-serif'; ctx.textAlign = 'left'
+  ctx.fillText('⚽ TipComp 2026', 20, 30)
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '11px system-ui, sans-serif'
+  ctx.fillText(TS_APP_URL.replace('https://', ''), 20, 46)
+  const badge = `${scope === 'tribe' ? 'My Tribe' : 'Whole Comp'} · ${roundLabel} Standings`
+  const bw = ctx.measureText(badge).width + 20
+  ctx.fillStyle = 'rgba(52,211,153,0.3)'; tsRR(ctx, 20, 54, bw, 18, 4); ctx.fill()
+  ctx.fillStyle = '#6ee7b7'; ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillText(badge, 30, 67)
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '9px system-ui, sans-serif'; ctx.textAlign = 'center'
+  ctx.fillText('PTS', W - 28, 81); ctx.textAlign = 'left'
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(20, HEADER_H); ctx.lineTo(W - 20, HEADER_H); ctx.stroke()
+  const maxPts = Math.max(...sortedMembers.map(m => memberPts[m.user_id] ?? 0), 1)
+  for (let i = 0; i < sortedMembers.length; i++) {
+    const m = sortedMembers[i], pts = memberPts[m.user_id] ?? 0, isMe = m.user_id === myId
+    const y = HEADER_H + i * ROW_H, midY = y + ROW_H / 2 + 4
+    if (i % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(0, y, W, ROW_H) }
+    if (isMe) { ctx.fillStyle = 'rgba(52,211,153,0.08)'; ctx.fillRect(0, y, W, ROW_H) }
+    const rBg = i === 0 ? '#fef3c7' : i === 1 ? '#f3f4f6' : i === 2 ? '#fff7ed' : 'rgba(255,255,255,0.08)'
+    const rFg = i === 0 ? '#92400e' : i === 1 ? '#4b5563' : i === 2 ? '#c2410c' : 'rgba(255,255,255,0.3)'
+    ctx.fillStyle = rBg; tsRR(ctx, 16, y + (ROW_H - 22) / 2, 22, 22, 4); ctx.fill()
+    ctx.fillStyle = rFg; ctx.font = 'bold 9px system-ui, sans-serif'; ctx.textAlign = 'center'
+    ctx.fillText(String(i + 1), 27, midY - 1)
+    ctx.textAlign = 'left'; ctx.font = `${isMe ? 'bold ' : ''}12px system-ui, sans-serif`
+    ctx.fillStyle = isMe ? '#6ee7b7' : 'rgba(255,255,255,0.85)'
+    const nm = m.display_name + (isMe ? ' (you)' : '')
+    ctx.fillText(nm.length > 20 ? nm.slice(0, 19) + '…' : nm, 46, midY)
+    const BAR_X = 238, BAR_W = W - BAR_X - 72, BAR_H = 5, barY = y + (ROW_H - BAR_H) / 2
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; tsRR(ctx, BAR_X, barY, BAR_W, BAR_H, 2.5); ctx.fill()
+    if (pts > 0) { ctx.fillStyle = isMe ? '#34d399' : '#6ee7b7'; tsRR(ctx, BAR_X, barY, Math.max(BAR_W * (pts / maxPts), 4), BAR_H, 2.5); ctx.fill() }
+    ctx.textAlign = 'right'; ctx.font = 'bold 15px system-ui, sans-serif'
+    ctx.fillStyle = pts > 0 ? (isMe ? '#34d399' : 'rgba(255,255,255,0.9)') : 'rgba(255,255,255,0.25)'
+    ctx.fillText(String(pts), W - 14, midY + 1); ctx.textAlign = 'left'
+    if (i < sortedMembers.length - 1) { ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(20, y + ROW_H); ctx.lineTo(W - 20, y + ROW_H); ctx.stroke() }
+  }
+  const fY = HEADER_H + sortedMembers.length * ROW_H
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(20, fY); ctx.lineTo(W - 20, fY); ctx.stroke()
+  ctx.fillStyle = 'rgba(255,255,255,0.2)'; tsRR(ctx, 20, fY + 10, W - 40, 26, 6); ctx.fill()
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'
+  ctx.fillText('Join TipComp 2026 → ' + TS_APP_URL.replace('https://', ''), W / 2, fY + 27); ctx.textAlign = 'left'
+}
+
+function drawTribeGridCanvas(
+  canvas: HTMLCanvasElement, roundFixtures: any[], sortedMembers: any[],
+  picksMap: Record<number, Record<string, any>>, memberPts: Record<string, number>,
+  myId: string, roundLabel: string, scope: 'tribe' | 'comp',
+  codeFn: (n: string) => string, outcomeSet: Set<string>
+) {
+  const NAME_W = 138, PTS_W = 44, PAD = 12
+  const CELL_W = roundFixtures.length > 16 ? 36 : roundFixtures.length > 8 ? 44 : 52
+  const HDR_H = 50, COL_H = 48, ROW_H = 30, LEG_H = 26
+  const W = PAD + NAME_W + roundFixtures.length * CELL_W + PTS_W + PAD
+  const H = HDR_H + COL_H + sortedMembers.length * ROW_H + LEG_H
+  canvas.width = W; canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = '#064e3b'; ctx.fillRect(0, 0, W, HDR_H)
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 13px system-ui, sans-serif'; ctx.textAlign = 'left'
+  ctx.fillText(`⚽ TipComp 2026 — ${roundLabel} Picks Grid`, PAD, 21)
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '10px system-ui, sans-serif'
+  ctx.fillText(`${scope === 'tribe' ? 'My Tribe' : 'Whole Comp'} · ${sortedMembers.length} players · ${roundFixtures.length} fixtures · ${TS_APP_URL.replace('https://', '')}`, PAD, 38)
+  ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, HDR_H, W, COL_H)
+  ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
+  ;[HDR_H, HDR_H + COL_H].forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() })
+  ctx.fillStyle = '#9ca3af'; ctx.font = 'bold 9px system-ui, sans-serif'; ctx.textAlign = 'center'
+  ctx.fillText('PLAYER', PAD + NAME_W / 2, HDR_H + COL_H / 2 + 3)
+  ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD + NAME_W, HDR_H); ctx.lineTo(PAD + NAME_W, H - LEG_H); ctx.stroke()
+  for (let fi = 0; fi < roundFixtures.length; fi++) {
+    const fx = roundFixtures[fi], cx = PAD + NAME_W + fi * CELL_W + CELL_W / 2, fs = CELL_W < 40 ? 7 : 8
+    ctx.fillStyle = '#374151'; ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText(`${codeFn(fx.home)}·${codeFn(fx.away)}`, cx, HDR_H + 18)
+    if (fx.result) { ctx.fillStyle = '#15803d'; ctx.font = `bold ${fs + 1}px system-ui, sans-serif`; ctx.fillText(`${fx.result.home}-${fx.result.away}`, cx, HDR_H + 34) }
+    else { ctx.fillStyle = '#d1d5db'; ctx.font = `${fs}px system-ui, sans-serif`; ctx.fillText('TBD', cx, HDR_H + 34) }
+    if (fi < roundFixtures.length - 1) { ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(PAD + NAME_W + (fi + 1) * CELL_W, HDR_H); ctx.lineTo(PAD + NAME_W + (fi + 1) * CELL_W, H - LEG_H); ctx.stroke() }
+  }
+  const ptsX = PAD + NAME_W + roundFixtures.length * CELL_W
+  ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ptsX, HDR_H); ctx.lineTo(ptsX, H - LEG_H); ctx.stroke()
+  ctx.fillStyle = '#4b5563'; ctx.font = 'bold 9px system-ui, sans-serif'; ctx.textAlign = 'center'
+  ctx.fillText('PTS', ptsX + PTS_W / 2, HDR_H + COL_H / 2 + 3)
+  for (let ri = 0; ri < sortedMembers.length; ri++) {
+    const m = sortedMembers[ri], y = HDR_H + COL_H + ri * ROW_H, midY = y + ROW_H / 2 + 3.5
+    const isMe = m.user_id === myId, pts = memberPts[m.user_id] ?? 0
+    ctx.fillStyle = isMe ? '#ecfdf5' : ri % 2 === 0 ? '#ffffff' : '#f9fafb'; ctx.fillRect(0, y, W, ROW_H)
+    ctx.strokeStyle = '#f3f4f6'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(0, y + ROW_H); ctx.lineTo(W, y + ROW_H); ctx.stroke()
+    ctx.fillStyle = ri === 0 ? '#92400e' : ri === 1 ? '#4b5563' : ri === 2 ? '#c2410c' : '#d1d5db'
+    ctx.font = 'bold 9px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(ri + 1), PAD + 9, midY)
+    ctx.textAlign = 'left'; ctx.font = `${isMe ? 'bold ' : ''}10px system-ui, sans-serif`; ctx.fillStyle = isMe ? '#15803d' : '#374151'
+    const nm = m.display_name + (isMe ? ' ✓' : ''); ctx.fillText(nm.length > 14 ? nm.slice(0, 13) + '…' : nm, PAD + 20, midY)
+    for (let fi = 0; fi < roundFixtures.length; fi++) {
+      const fx = roundFixtures[fi], { bg, fg, label, bonus } = tsCellInfo(picksMap, fx, m.user_id, outcomeSet, codeFn)
+      const cx = PAD + NAME_W + fi * CELL_W, fs = CELL_W < 40 ? 8 : 9
+      ctx.fillStyle = bg; ctx.fillRect(cx + 1, y + 2, CELL_W - 2, ROW_H - 4)
+      ctx.fillStyle = fg; ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'
+      ctx.fillText(label.length > 5 ? label.slice(0, 4) : label, cx + CELL_W / 2, midY - (bonus > 0 ? 3 : 0))
+      if (bonus > 0) { ctx.fillStyle = '#3b82f6'; ctx.font = `bold 7px system-ui, sans-serif`; ctx.fillText(`+${bonus}`, cx + CELL_W / 2, midY + 6) }
+    }
+    ctx.textAlign = 'center'; ctx.font = `bold 12px system-ui, sans-serif`
+    ctx.fillStyle = pts > 0 ? '#111827' : '#d1d5db'; ctx.fillText(String(pts), ptsX + PTS_W / 2, midY)
+  }
+  const legY = H - LEG_H
+  ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, legY, W, LEG_H)
+  ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, legY); ctx.lineTo(W, legY); ctx.stroke()
+  let lx = PAD
+  for (const item of [{ bg: '#dcfce7', text: 'Correct score' }, { bg: '#dbeafe', text: 'Right result' }, { bg: '#fee2e2', text: 'Wrong' }, { bg: '#fffbeb', text: 'Awaiting' }]) {
+    ctx.fillStyle = item.bg; ctx.fillRect(lx, legY + 8, 9, 9)
+    ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 0.5; ctx.strokeRect(lx, legY + 8, 9, 9)
+    ctx.fillStyle = '#6b7280'; ctx.font = '8px system-ui, sans-serif'; ctx.textAlign = 'left'
+    ctx.fillText(item.text, lx + 12, legY + 16); lx += 12 + ctx.measureText(item.text).width + 10
+    if (lx > W - 80) break
+  }
+}
+
 // ── Tribe Picks View ──────────────────────────────────────────────────────────
 function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tribeId, compId, activeTournamentId }: {
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void
@@ -1437,6 +1598,8 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
   const [scope,           setScope]           = useState<'tribe' | 'comp'>('tribe')
   const [compPicksData,   setCompPicksData]   = useState<any>(null)
   const [compPicksLoading, setCompPicksLoading] = useState(false)
+  const [downloadingGrid,    setDownloadingGrid]    = useState(false)
+  const [downloadingSummary, setDownloadingSummary] = useState(false)
 
   // Active data depends on scope
   const activeData = scope === 'comp' ? compPicksData : tribePicksData
@@ -1516,8 +1679,47 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
   const effectiveRound  = byRound[activePickRound]?.length ? activePickRound : (availableRounds[0] ?? 'gs')
   const isClosedRound   = !!(tippingClosedMap as Record<string, boolean>)[effectiveRound]
 
-  return (
-    <div>
+  const roundFixtures = byRound[effectiveRound] ?? []
+  const memberRoundTotal = (userId: string) =>
+    roundFixtures.reduce((sum: number, fx: any) => sum + (picksMap[fx.id]?.[userId]?.points_earned ?? 0), 0)
+  const sortedMembers = [...members].sort((a: any, b: any) =>
+    memberRoundTotal(b.user_id) - memberRoundTotal(a.user_id))
+  const memberPts: Record<string, number> = {}
+  for (const m of members) memberPts[m.user_id] = memberRoundTotal(m.user_id)
+
+  const shareOrDownload = (canvas: HTMLCanvasElement, filename: string) => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      const file = new File([blob], filename, { type: 'image/png' })
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: 'TribePicks' }); return } catch {}
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+    })
+  }
+
+  const handleDownloadSummary = () => {
+    if (downloadingSummary) return
+    setDownloadingSummary(true)
+    const canvas = document.createElement('canvas')
+    drawTribeSummaryCanvas(canvas, sortedMembers, memberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope)
+    shareOrDownload(canvas, `tribe-summary-${effectiveRound}.png`)
+    setDownloadingSummary(false)
+  }
+
+  const handleDownloadGrid = () => {
+    if (downloadingGrid) return
+    setDownloadingGrid(true)
+    const canvas = document.createElement('canvas')
+    drawTribeGridCanvas(canvas, roundFixtures, sortedMembers, picksMap, memberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope, code, OUTCOME_ROUNDS_SET)
+    shareOrDownload(canvas, `tribe-picks-${effectiveRound}.png`)
+    setDownloadingGrid(false)
+  }
+
+  return (<>
+    <div className="print:hidden">
       {/* ── Scope toggle: My Tribe / Whole Comp ── */}
       {compId && (
         <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl border border-gray-200 w-fit">
@@ -1574,25 +1776,32 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
       )}
 
       {/* ── Results grid — shown for tipping_closed rounds ── */}
-      {isClosedRound && fixtures.length > 0 && (() => {
-        const roundFixtures = byRound[effectiveRound] ?? []
-        const memberRoundTotal = (userId: string) =>
-          roundFixtures.reduce((sum: number, fx: any) => sum + (picksMap[fx.id]?.[userId]?.points_earned ?? 0), 0)
-        const sortedMembers = [...members].sort((a: any, b: any) =>
-          memberRoundTotal(b.user_id) - memberRoundTotal(a.user_id))
-
-        return (
+      {isClosedRound && roundFixtures.length > 0 && (
           <div>
             {/* Table header */}
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <div>
                 <p className="text-xs font-semibold text-gray-700">{roundLabels[effectiveRound]}</p>
                 <p className="text-[10px] text-gray-400 mt-0.5">Sorted by round points · {sortedMembers.length} players</p>
               </div>
-              <button onClick={scope === 'tribe' ? onRefresh : () => { setCompPicksData(null) }}
-                className="text-[11px] text-blue-500 hover:text-blue-700 flex items-center gap-1">
-                <span>↻</span><span>Refresh</span>
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button onClick={handleDownloadSummary} disabled={downloadingSummary}
+                  className="text-[11px] flex items-center gap-0.5 px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 disabled:opacity-50">
+                  🏆 Summary
+                </button>
+                <button onClick={handleDownloadGrid} disabled={downloadingGrid}
+                  className="text-[11px] flex items-center gap-0.5 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-50">
+                  ⚽ Picks Grid
+                </button>
+                <button onClick={() => window.print()}
+                  className="text-[11px] flex items-center gap-0.5 px-2 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100">
+                  🖨️ PDF
+                </button>
+                <button onClick={scope === 'tribe' ? onRefresh : () => { setCompPicksData(null) }}
+                  className="text-[11px] text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                  <span>↻</span><span>Refresh</span>
+                </button>
+              </div>
             </div>
 
             {/* Picks grid */}
@@ -1694,8 +1903,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
               <div className="flex items-center gap-1"><span className="text-[9px] font-semibold text-blue-500">+N</span><span>Bonus pts</span></div>
             </div>
           </div>
-        )
-      })()}
+        )}
 
       {/* ── Tipping not yet closed ── */}
       {!isClosedRound && (
@@ -1706,5 +1914,45 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
         </div>
       )}
     </div>
-  )
+
+    {isClosedRound && roundFixtures.length > 0 && (<>
+      <style>{`@page { size: landscape; margin: 1.2cm }`}</style>
+      <div className="hidden print:block text-xs">
+        <h2 className="text-sm font-bold mb-2">{roundLabels[effectiveRound] ?? effectiveRound} · Tip Sheet</h2>
+        <table className="border-collapse w-full">
+          <thead>
+            <tr>
+              <th className="border border-gray-300 px-2 py-1 text-left bg-gray-50">Player</th>
+              {roundFixtures.map((fx: any) => (
+                <th key={fx.id} className="border border-gray-300 px-1 py-1 text-center bg-gray-50">
+                  <div className="font-semibold">{code(fx.home)} v {code(fx.away)}</div>
+                  <div className="text-[9px] text-gray-500">{fx.result ? `${fx.result.home}–${fx.result.away}` : '—'}</div>
+                </th>
+              ))}
+              <th className="border border-gray-300 px-2 py-1 text-center bg-gray-50">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedMembers.map((member: any) => {
+              const roundPts = memberPts[member.user_id] ?? 0
+              return (
+                <tr key={member.user_id} className={member.user_id === myId ? 'bg-green-50' : ''}>
+                  <td className="border border-gray-300 px-2 py-1 font-medium whitespace-nowrap">{member.display_name}</td>
+                  {roundFixtures.map((fx: any) => {
+                    const { colour, label } = cellInfo(picksMap, fx, member.user_id)
+                    return (
+                      <td key={fx.id} className={clsx('border border-gray-300 px-1 py-1 text-center', colour)}>
+                        {label}
+                      </td>
+                    )
+                  })}
+                  <td className="border border-gray-300 px-2 py-1 text-center font-bold">{roundPts}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>)}
+  </>)
 }
