@@ -25,6 +25,7 @@ const FAQS = [
   { q: 'When do predictions lock?', a: '5 minutes before the first match in the round kicks off. You can edit predictions right up until that point.' },
   { q: "What if I haven't entered a prediction?", a: 'Unpredicted matches earn 0 points regardless of the result. There is no default — blank means 0.' },
   { q: 'Do knockout matches count more?', a: 'Yes — points increase with every round. A correct result in the final is worth 25 pts vs 3 pts in the group stage. Note: the 3rd place play-off has lower points than the semi-finals.' },
+  { q: 'What happens if there is a penalty shootout in knock-out stages?', a: 'Your pick will be scored at the end of regular time or the end of extra time if the match is drawn after regular time. If a match goes to penalties it will be scored as a draw.' },
   { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team on the My Tips page. You earn double base points on any match involving that team in the Group Stage only. For example, a correct result (Home/Draw/Away) earns 6 pts instead of 3.' },
   { q: 'What happens if the Bonus Points team I picked lost?', a: 'You earn double points if you pick the correct result regardless of whether your Bonus Team wins, draws or loses.' },
   { q: 'Can I change my Bonus Points team?', a: 'Yes — go to My Tips and update your Bonus Points team at any time before the tournament kicks off. The new team applies to all unscored matches going forward.' },
@@ -33,6 +34,8 @@ const FAQS = [
   { q: 'Can I be in multiple tribes?', a: 'No — you can only belong to one tribe at a time. Leave your current tribe to join another.' },
   { q: 'What happens to my tribe after the tournament?', a: "Tribes persist for future competitions. We'll add Premier League, Champions League and more after the World Cup." },
 ]
+
+
 
 async function loadScoringConfig() {
   try {
