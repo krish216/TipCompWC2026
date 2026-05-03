@@ -13,6 +13,11 @@ import { getDefaultScoringConfig } from '@/types'
 type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = string
 
+function countryFlag(code: string | null | undefined): string {
+  if (!code || code.length !== 2) return ''
+  return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397))
+}
+
 const SCOPE_LABELS: Record<Scope, string> = {
   tribe: 'My tribe',
   comp:  'Comp',
@@ -477,6 +482,9 @@ export default function LeaderboardPage() {
                                   <Avatar name={entry.display_name} size="xs" />
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-1.5">
+                                      {countryFlag(entry.country) && (
+                                        <span className="text-xs leading-none flex-shrink-0">{countryFlag(entry.country)}</span>
+                                      )}
                                       <span className={clsx('text-xs font-medium truncate max-w-[100px]', isMe && 'text-green-700')}>
                                         {entry.display_name}{isMe && ' (you)'}
                                       </span>
@@ -569,6 +577,9 @@ export default function LeaderboardPage() {
                               <Avatar name={entry.display_name} size="xs" />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
+                                  {countryFlag(entry.country) && (
+                                    <span className="text-xs leading-none flex-shrink-0">{countryFlag(entry.country)}</span>
+                                  )}
                                   <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
                                     {entry.display_name}{isMe ? ' (you)' : ''}
                                   </p>

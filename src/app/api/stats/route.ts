@@ -11,7 +11,10 @@ export async function GET() {
       admin.from('users').select('*', { count: 'exact', head: true }),
       admin.from('comps').select('*', { count: 'exact', head: true }),
     ])
-    return NextResponse.json({ tipster_count: tipsters ?? 0, comp_count: comps ?? 0 })
+    return NextResponse.json(
+      { tipster_count: tipsters ?? 0, comp_count: comps ?? 0 },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch {
     return NextResponse.json({ tipster_count: 0, comp_count: 0 })
   }

@@ -887,6 +887,8 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
 function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; maxTribeSize: number; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
   const [name,            setName]            = useState(comp?.name ?? '')
+  const [logoUrl,         setLogoUrl]         = useState(comp?.logo_url ?? '')
+  const [savingLogo,      setSavingLogo]      = useState(false)
   const [feeEnabled,      setFeeEnabled]      = useState(requiresFee)
   const [feeAmount,       setFeeAmount]       = useState(entryFee != null ? String(entryFee) : '')
   const [savingFee,       setSavingFee]       = useState(false)
@@ -919,6 +921,17 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
     fetch(`/api/comp-admins?comp_id=${comp.id}&list=true`)
       .then(r => r.json()).then(d => setCompAdmins(d.data ?? [])).catch(() => {})
   }, [comp.id])
+
+  const saveLogo = async () => {
+    setSavingLogo(true)
+    const res = await fetch('/api/comps/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, logo_url: logoUrl.trim() || null }),
+    })
+    setSavingLogo(false)
+    if (res.ok) { onUpdate('logo_url', logoUrl.trim() || null); toast.success('Logo updated') }
+    else toast.error('Failed to update logo')
+  }
 
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
@@ -1071,6 +1084,26 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
           <div className="flex gap-2 p-4">
             <input type="text" value={name} onChange={e => setName(e.target.value)} className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
             <button onClick={saveName} disabled={savingName || name === comp?.name} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800">{savingName ? '…' : 'Save'}</button>
+          </div>
+        )},
+        { title: 'Comp logo', sub: 'Paste an image URL — shown in your comp header', id: 'comp-logo-section', content: (
+          <div className="p-4 space-y-3">
+            <div className="flex gap-2 items-center">
+              <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              <button onClick={saveLogo} disabled={savingLogo}
+                className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:bg-gray-800 flex-shrink-0">
+                {savingLogo ? '…' : 'Save'}
+              </button>
+            </div>
+            {logoUrl && (
+              <div className="flex items-center gap-3">
+                <img src={logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-gray-200"
+                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2' }} />
+                <p className="text-[11px] text-gray-400">Preview — save to apply</p>
+              </div>
+            )}
           </div>
         )},
         { title: 'Domain restriction', sub: tier === 'enterprise' ? 'Only allow emails from this domain' : '🔒 Enterprise plan required', content: (
@@ -1673,6 +1706,7 @@ export default function CompAdminPage() {
   const handleSettingUpdate = useCallback((k: string, v: any) => {
     if (k === 'domain')      setDomain(v)
     if (k === 'minAge')      setMinAge(v)
+    if (k === 'logo_url')    updateComp(comp?.id, { logo_url: v } as any)
     if (k === 'requiresFee')  { setRequiresFee(v);  updateComp(comp?.id, { requires_payment_fee: v } as any) }
     if (k === 'entryFee')     { setEntryFee(v);     updateComp(comp?.id, { entry_fee_amount: v }    as any) }
     if (k === 'maxTribeSize') setMaxTribeSize(v)
@@ -1755,7 +1789,7 @@ export default function CompAdminPage() {
 
       {/* Share invite link */}
       {comp.invite_code && (
-        <div className="flex items-center gap-2 mb-4 px-1">
+        <div className="flex flex-wrap items-center gap-2 mb-4 px-1">
           <button
             onClick={async () => {
               const link = `${window.location.origin}/join?code=${comp.invite_code}`
@@ -1764,9 +1798,19 @@ export default function CompAdminPage() {
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
             <span>📤</span>
-            Share invite link
+            Copy invite link
           </button>
-          <span className="text-[11px] text-gray-400">Fastest way to get tipsters to join</span>
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(`Join ${comp.name} on TribePicks! Tap to join: ${window.location.origin}/join?code=${comp.invite_code}`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            WhatsApp
+          </a>
+          <span className="text-[11px] text-gray-400 w-full">Fastest way to get tipsters to join</span>
         </div>
       )}
 
@@ -1800,7 +1844,6 @@ export default function CompAdminPage() {
         const tipstersWithoutTribe = tipsters.filter(t => !tribes.some(tr => (tr.member_ids ?? []).includes(t.user_id)))
         type StepItem = { label: string; detail: string; tab: Tab; done: boolean; scrollTo?: string }
         const steps: StepItem[] = [
-          { label: 'Add a comp logo',         detail: 'Brand your comp — shown on the leaderboard and invite emails',  tab: 'settings', done: !!comp?.logo_url,                                       scrollTo: 'comp-logo-section'        },
           { label: 'Create at least one tribe', detail: 'Tipsters need a tribe to join before they can compete',        tab: 'tribes',   done: tribes.length > 0,                                      scrollTo: 'create-new-tribe-btn'     },
           { label: 'Send your first invite',  detail: 'Invite your group to join and start tipping',                    tab: 'tipsters', done: invitations.length > 0 || tipsters.length > 1                                           },
           ...(tipstersWithoutTribe.length > 0 ? [{ label: 'Assign tipsters to tribes', detail: `${tipstersWithoutTribe.length} tipster${tipstersWithoutTribe.length !== 1 ? 's' : ''} still need a tribe`, tab: 'tribes' as Tab, done: false, scrollTo: 'not-in-tribe-section' }] : []),

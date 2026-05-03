@@ -311,16 +311,36 @@ function PickScreen({ match, matchIndex, total, onPick }: {
 function ResultScreen({ picks, onSignup, onContinue }: {
   picks: Pick[]; onSignup: () => void; onContinue: () => void
 }) {
-  const boldCount   = picks.filter(p => p.isBold).length
-  const score       = calcScore(picks)
-  const rank        = getProjectedRank(score, boldCount)
-  const totalPlayers = 2847
+  const boldCount = picks.filter(p => p.isBold).length
+  const score     = calcScore(picks)
 
-  const leaderboard = [
-    ...FAKE_LEADERS.slice(0, rank - 1),
-    { name: 'You 🎯', score, picks: 4, isYou: true },
-    ...FAKE_LEADERS.slice(rank - 1),
-  ].slice(0, 6)
+  const [rankData, setRankData] = useState<{ total: number; rank: number; leaders: { name: string; points: number }[] } | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/challenge-rank?score=${score}`)
+      .then(r => r.json())
+      .then(d => setRankData(d))
+      .catch(() => {})
+  }, [score])
+
+  const rank         = rankData?.rank ?? getProjectedRank(score, boldCount)
+  const totalPlayers = rankData?.total ?? 0
+  const realLeaders  = rankData?.leaders ?? []
+
+  const leaderboard = (() => {
+    const you = { name: 'You 🎯', isYou: true }
+    if (realLeaders.length === 0) {
+      return [
+        ...FAKE_LEADERS.slice(0, rank - 1),
+        { ...you, score, picks: 4 },
+        ...FAKE_LEADERS.slice(rank - 1),
+      ].slice(0, 6) as any[]
+    }
+    const rows = realLeaders.map(l => ({ name: l.name, points: l.points, isYou: false }))
+    const insertAt = Math.min(rank - 1, rows.length)
+    rows.splice(insertAt, 0, { name: 'You 🎯', points: null, isYou: true } as any)
+    return rows.slice(0, 6)
+  })()
 
   const insights: string[] = []
   if (boldCount >= 2) insights.push(`You made ${boldCount} bold picks — high risk, high reward`)
@@ -336,7 +356,10 @@ function ResultScreen({ picks, onSignup, onContinue }: {
         <h2 className="text-3xl font-black text-white mb-1">
           You'd be <span className="text-amber-400">#{rank}</span>
         </h2>
-        <p className="text-green-300 text-sm">out of {totalPlayers.toLocaleString()} players</p>
+        {totalPlayers > 0
+          ? <p className="text-green-300 text-sm">out of {totalPlayers.toLocaleString()} warm-up players</p>
+          : <p className="text-green-300 text-sm">based on the warm-up leaderboard</p>
+        }
       </div>
 
       {insights[0] && (
@@ -348,10 +371,10 @@ function ResultScreen({ picks, onSignup, onContinue }: {
       {/* Projected leaderboard */}
       <div className="bg-white/10 backdrop-blur rounded-2xl border border-white/20 overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-white/10">
-          <span className="text-xs font-bold text-green-300 uppercase tracking-wider">Projected Leaderboard</span>
+          <span className="text-xs font-bold text-green-300 uppercase tracking-wider">Warm-Up Leaderboard</span>
         </div>
-        {leaderboard.map((entry, i) => {
-          const isYou = (entry as any).isYou
+        {leaderboard.map((entry: any, i: number) => {
+          const isYou = entry.isYou
           return (
             <div key={i} className={`flex items-center gap-3 px-4 py-3 border-b border-white/10 last:border-0 ${isYou ? 'bg-amber-400/20' : ''}`}>
               <span className={`text-sm font-black w-5 ${isYou ? 'text-amber-400' : 'text-green-400'}`}>#{i + 1}</span>
@@ -359,13 +382,9 @@ function ResultScreen({ picks, onSignup, onContinue }: {
                 {entry.name}
                 {isYou && <span className="ml-2 text-xs text-amber-400">(you)</span>}
               </span>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: entry.picks }).map((_, j) => (
-                  <div key={j} className={`w-2 h-2 rounded-full ${
-                    j < entry.score ? isYou ? 'bg-amber-400' : 'bg-green-400' : 'bg-white/20'
-                  }`} />
-                ))}
-              </div>
+              {!isYou && entry.points != null && (
+                <span className="text-xs text-green-300 font-bold">{entry.points} pts</span>
+              )}
             </div>
           )
         })}
