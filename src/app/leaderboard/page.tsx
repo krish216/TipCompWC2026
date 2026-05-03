@@ -12,7 +12,6 @@ import { getDefaultScoringConfig } from '@/types'
 
 type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = string
-type MainTab   = 'leaderboard' | 'challenges'
 
 const SCOPE_LABELS: Record<Scope, string> = {
   tribe: 'My tribe',
@@ -23,124 +22,6 @@ const SCOPE_LABELS: Record<Scope, string> = {
 // ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS and ROUND_ORDER are now built
 // inside the component from scoringConfig (loaded from tournament_rounds API)
 // — no hardcoding. Static 'all' snapshot is always prepended.
-
-// ── Challenge Results tab ─────────────────────────────────────────────────────
-function ChallengeResultsTab({ selectedComp }: { selectedComp: string | null }) {
-  const { session } = useSupabase()
-  const [challenges, setChallenges] = useState<any[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const myId = session?.user.id ?? ''
-
-  useEffect(() => {
-    if (!session || !selectedComp) { setLoading(false); return }
-    setLoading(true)
-    fetch(`/api/comp-challenges?comp_id=${selectedComp}`)
-      .then(r => r.json())
-      .then(data => {
-        setChallenges((data.data ?? []).filter((c: any) => c.settled))
-        setLoading(false)
-      })
-  }, [session, selectedComp])
-
-  if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
-
-  if (!selectedComp || challenges.length === 0) return (
-    <EmptyState
-      title="No challenge results yet"
-      description="Challenges are settled automatically when match results are entered."
-    />
-  )
-
-  const MEDALS = ['🥇','🥈','🥉']
-
-  return (
-    <div className="space-y-3">
-      {challenges.map((c: any) => {
-        const fx      = Array.isArray(c.fixtures) ? c.fixtures[0] : c.fixtures
-        const winners = (c.challenge_winners ?? []) as any[]
-        const iWon    = winners.some((w: any) => w.user_id === myId)
-
-        return (
-          <div key={c.id} className={clsx(
-            'rounded-xl border p-4',
-            iWon ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
-          )}>
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {fx ? `${fx.home} vs ${fx.away}` : 'Match'}
-                  </p>
-                  {fx && (
-                    <span className="text-[11px] text-gray-400">
-                      {new Date(fx.kickoff_utc).toLocaleDateString('en-AU', {
-                        weekday: 'short', day: 'numeric', month: 'short'
-                      })}
-                    </span>
-                  )}
-                  {iWon && (
-                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                      🏆 You won!
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-purple-700 mt-0.5">
-                  🎯 {c.prize}{c.sponsor ? ` · ${c.sponsor}` : ''}
-                </p>
-                {fx?.home_score !== null && fx?.home_score !== undefined && (
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    Result: <span className="font-semibold">{fx.home_score}–{fx.away_score}</span>
-                  </p>
-                )}
-              </div>
-              <span className="text-[10px] text-gray-400 flex-shrink-0">
-                {new Date(c.challenge_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-              </span>
-            </div>
-
-            {/* Winners */}
-            {winners.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">No bonus score predictions — no winner this round</p>
-            ) : (
-              <div>
-                <p className="text-[11px] font-medium text-gray-500 mb-2 uppercase tracking-wide">
-                  {winners.length} winner{winners.length !== 1 ? 's' : ''}
-                </p>
-                <div className="space-y-1.5">
-                  {winners.map((w: any, i: number) => {
-                    const u    = Array.isArray(w.users) ? w.users[0] : w.users
-                    const isMe = w.user_id === myId
-                    return (
-                      <div key={w.user_id}
-                        className={clsx(
-                          'flex items-center gap-2 rounded-lg px-3 py-2',
-                          isMe ? 'bg-amber-100 border border-amber-300' : 'bg-gray-50'
-                        )}>
-                        <span className="text-base flex-shrink-0">
-                          {MEDALS[i] ?? `${i+1}.`}
-                        </span>
-                        <Avatar name={u?.display_name ?? '?'} size="xs" />
-                        <div className="flex-1 min-w-0">
-                          <p className={clsx('text-xs font-medium truncate', isMe && 'text-amber-800')}>
-                            {u?.display_name ?? 'Player'}{isMe ? ' (you)' : ''}
-                          </p>
-                          <p className="text-[10px] text-gray-400">
-                            Predicted: <span className="font-mono font-semibold">{w.prediction}</span>
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
@@ -181,7 +62,6 @@ export default function LeaderboardPage() {
     }
   }, [scoringConfig])
 
-  const [mainTab,    setMainTab]    = useState<MainTab>('leaderboard')
   const [userComps,  setUserComps]  = useState<{id:string;name:string}[]>([])
   const [selectedComp, setSelectedComp] = useState<string | null>(null)
   const [scope,     setScope]     = useState<Scope>('comp')
@@ -386,81 +266,63 @@ export default function LeaderboardPage() {
     return live
   }, [entries, ROUND_SNAPSHOTS, TAB_ROUNDS])
 
-  const top3     = useMemo(() => filteredEntries.slice(0, 3), [filteredEntries])
   const myId     = session?.user.id
   const amInList = filteredEntries.some(e => e.user_id === myId)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-24">
 
-      {/* Page header */}
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-gray-900">ScoreBoard</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Updates instantly when results are confirmed</p>
+      {/* Page header + comp selector in one row */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-gray-900">ScoreBoard</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Live · updates when results confirmed</p>
+        </div>
+        {userComps.length === 1 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl flex-shrink-0 max-w-[52%]">
+            <span className="text-base leading-none">🏢</span>
+            <div className="min-w-0">
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Viewing</p>
+              <p className="text-xs font-bold text-gray-900 truncate">{userComps[0].name}</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Comp selector — always visible at top, filters all tabs */}
-      {userComps.length > 0 && (
+      {/* Multi-comp selector — only shown when user is in >1 comp */}
+      {userComps.length > 1 && (
         <div className="mb-4">
-          {userComps.length === 1 ? (
-            <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-gray-200 rounded-xl">
-              <span className="text-xl">🏢</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Viewing comp</p>
-                <p className="text-sm font-bold text-gray-900 truncate">{userComps[0].name}</p>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Select comp</p>
-              <div className="flex gap-2 flex-wrap">
-                {userComps.map(c => (
-                  <button key={c.id}
-                    onClick={() => {
-                      setSelectedComp(c.id)
-                      setEntries([]); setMyEntry(null)
-                      fetchLeaderboard(scope)
-                    }}
-                    className={clsx(
-                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold',
-                      selectedComp === c.id
-                        ? 'bg-green-600 border-green-600 text-white shadow-sm scale-[1.02]'
-                        : 'bg-white border-gray-200 text-gray-700 hover:border-green-400 hover:shadow-sm'
-                    )}>
-                    <span>🏢</span>
-                    <span>{c.name}</span>
-                    {selectedComp === c.id && (
-                      <span className="flex items-center gap-0.5 text-green-200 text-[10px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"/>
-                        Active
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Select comp</p>
+          <div className="flex gap-2 flex-wrap">
+            {userComps.map(c => (
+              <button key={c.id}
+                onClick={() => {
+                  setSelectedComp(c.id)
+                  setEntries([]); setMyEntry(null)
+                  fetchLeaderboard(scope)
+                }}
+                className={clsx(
+                  'flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold',
+                  selectedComp === c.id
+                    ? 'bg-green-600 border-green-600 text-white shadow-sm scale-[1.02]'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-green-400 hover:shadow-sm'
+                )}>
+                <span>🏢</span>
+                <span>{c.name}</span>
+                {selectedComp === c.id && (
+                  <span className="flex items-center gap-0.5 text-green-200 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"/>
+                    Active
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Top-level tabs: Leaderboard / Challenge Results */}
-      <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl">
-        {([
-          { id: 'leaderboard', label: '🏆 Leaderboard' },
-          { id: 'challenges',  label: '🎯 Challenge Results' },
-        ] as { id: MainTab; label: string }[]).map(t => (
-          <button key={t.id} onClick={() => setMainTab(t.id)}
-            className={clsx(
-              'flex-1 py-2 text-xs font-medium rounded-lg transition-colors',
-              mainTab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            )}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {/* Sticky "your position" bar — always visible while scrolling */}
-      {mainTab === 'leaderboard' && (() => {
+      {(() => {
         const me = filteredEntries.find(e => e.user_id === myId) ?? myEntry
         if (!me || !myId) return null
         const rank      = me.rank ?? '?'
@@ -486,11 +348,8 @@ export default function LeaderboardPage() {
         )
       })()}
 
-      {/* Challenge Results tab */}
-      {mainTab === 'challenges' && <ChallengeResultsTab selectedComp={selectedComp} />}
-
-      {/* Leaderboard tab */}
-      {mainTab === 'leaderboard' && (
+      {/* Leaderboard */}
+      {(
         <>
           {/* Scope sub-tabs */}
           <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg">
@@ -563,36 +422,8 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Podium */}
-              {top3.length >= 3 && (
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {[top3[1], top3[0], top3[2]].map((entry, i) => {
-                    const podiumRank = [2,1,3][i]
-                    const heights   = ['h-24','h-32','h-20']
-                    const isMe = entry.user_id === myId
-                    return (
-                      <div key={entry.user_id} className="flex flex-col items-center gap-1.5">
-                        <Avatar name={entry.display_name} size="md" />
-                        <p className={clsx('text-xs font-medium text-center truncate w-full px-1', isMe && 'text-green-700')}>
-                          {entry.display_name.split(' ')[0]}{isMe && ' (you)'}
-                        </p>
-                        {scope === 'global' && entry.comp_name && (
-                          <p className="text-[9px] text-gray-400 truncate w-full text-center px-1">{entry.comp_name}</p>
-                        )}
-                        <div className={clsx('w-full flex flex-col items-center justify-end rounded-t-lg pb-3 pt-2', heights[i],
-                          podiumRank===1?'bg-amber-100':podiumRank===2?'bg-gray-100':'bg-orange-50')}>
-                          <Medal rank={podiumRank} />
-                          <span className="text-sm font-semibold text-gray-800 mt-1">{entry.total_points}</span>
-                          <span className="text-[10px] text-gray-500">pts</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
               {/* Overall view — multi-round column table, click headers to sort */}
-              {roundView === 'all' ? (() => {
+              {roundView === 'all' && (() => {
                 const activeRounds = ROUND_ORDER.filter(r =>
                   filteredEntries.some(e => (e.round_breakdown?.[r] ?? 0) > 0)
                 )
@@ -696,7 +527,9 @@ export default function LeaderboardPage() {
                     </table>
                   </div>
                 )
-              })() : (
+              })()}
+
+              {roundView !== 'all' && (
                 /* Round snapshot views — 5-column table */
                 <>
                   <Card className="overflow-hidden p-0">
@@ -827,6 +660,11 @@ export default function LeaderboardPage() {
                   </div>
                 </>
               )}
+
+              {/* Top-N footnote */}
+              <p className="mt-3 text-[11px] text-gray-400 text-center">
+                Showing top {scope === 'tribe' ? 25 : 50} · your position shown in the bar below
+              </p>
 
             </>
           )}

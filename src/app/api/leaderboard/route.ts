@@ -165,20 +165,22 @@ export async function GET(request: NextRequest) {
       tab_breakdown:        tabBreakdownMap[row.user_id]      ?? {},
     }))
 
-    // Always return current user's entry even if outside top 50
+    // Always return current user's entry even if outside top N
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
-      const myEntryQuery = (adminClient.from('leaderboard') as any)
+      let myEntryQuery = (adminClient.from('leaderboard') as any)
         .select('user_id, display_name, tribe_name, tribe_id, comp_name, comp_id, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
-      if (tournamentId) myEntryQuery.eq('tournament_id', tournamentId)
+      if (tournamentId) myEntryQuery = myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
       if (myRaw) {
         const m = myRaw as any
+        // Count people ahead within the same scope so rank is meaningful (e.g. comp rank, not global rank)
         let aheadQ = (adminClient.from('leaderboard') as any)
-          .select('user_id', { count: 'bonus', head: true })
+          .select('user_id', { count: 'exact', head: true })
           .gt('total_points', m.total_points)
         if (tournamentId) aheadQ = aheadQ.eq('tournament_id', tournamentId)
+        if (scopeUserIds) aheadQ = aheadQ.in('user_id', scopeUserIds)
         const { count: ahead } = await aheadQ
         myEntry = {
           ...m, is_me: true,

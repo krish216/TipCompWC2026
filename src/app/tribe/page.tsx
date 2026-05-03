@@ -51,7 +51,7 @@ interface Fixture {
   result?: { home: number; away: number } | null
 }
 
-type MainTab   = 'leaderboard' | 'picks' | 'chat'
+type MainTab   = 'leaderboard' | 'picks' | 'chat' | 'challenges'
 type ChatTopic = 'general' | string   // string = round_code
 
 const ROUND_LABELS: Partial<Record<RoundId, string>> = {
@@ -814,6 +814,78 @@ function NoTribePanel({
 
 
 
+// ── Challenge Results ─────────────────────────────────────────────────────────
+function ChallengeResultsTab({ compId }: { compId: string | null }) {
+  const { session } = useSupabase()
+  const [challenges, setChallenges] = useState<any[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const myId = session?.user.id ?? ''
+
+  useEffect(() => {
+    if (!session || !compId) { setLoading(false); return }
+    setLoading(true)
+    fetch(`/api/comp-challenges?comp_id=${compId}`)
+      .then(r => r.json())
+      .then(data => { setChallenges((data.data ?? []).filter((c: any) => c.settled)); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [session, compId])
+
+  if (loading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
+  if (!compId || challenges.length === 0) return (
+    <EmptyState title="No challenge results yet" description="Challenges are settled automatically when match results are entered." />
+  )
+
+  const MEDALS = ['🥇','🥈','🥉']
+  return (
+    <div className="space-y-3">
+      {challenges.map((c: any) => {
+        const fx      = Array.isArray(c.fixtures) ? c.fixtures[0] : c.fixtures
+        const winners = (c.challenge_winners ?? []) as any[]
+        const iWon    = winners.some((w: any) => w.user_id === myId)
+        return (
+          <div key={c.id} className={clsx('rounded-xl border p-4', iWon ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200')}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-900">{fx ? `${fx.home} vs ${fx.away}` : 'Match'}</p>
+                  {fx && <span className="text-[11px] text-gray-400">{new Date(fx.kickoff_utc).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })}</span>}
+                  {iWon && <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">🏆 You won!</span>}
+                </div>
+                <p className="text-[11px] text-purple-700 mt-0.5">🎯 {c.prize}{c.sponsor ? ` · ${c.sponsor}` : ''}</p>
+                {fx?.home_score != null && <p className="text-[11px] text-gray-500 mt-0.5">Result: <span className="font-semibold">{fx.home_score}–{fx.away_score}</span></p>}
+              </div>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{new Date(c.challenge_date).toLocaleDateString('en-AU', { day:'numeric', month:'short' })}</span>
+            </div>
+            {winners.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">No bonus score predictions — no winner this round</p>
+            ) : (
+              <div>
+                <p className="text-[11px] font-medium text-gray-500 mb-2 uppercase tracking-wide">{winners.length} winner{winners.length !== 1 ? 's' : ''}</p>
+                <div className="space-y-1.5">
+                  {winners.map((w: any, i: number) => {
+                    const u = Array.isArray(w.users) ? w.users[0] : w.users
+                    const isMe = w.user_id === myId
+                    return (
+                      <div key={w.user_id} className={clsx('flex items-center gap-2 rounded-lg px-3 py-2', isMe ? 'bg-amber-100 border border-amber-300' : 'bg-gray-50')}>
+                        <span className="text-base flex-shrink-0">{MEDALS[i] ?? `${i+1}.`}</span>
+                        <Avatar name={u?.display_name ?? '?'} size="xs" />
+                        <div className="flex-1 min-w-0">
+                          <p className={clsx('text-xs font-medium truncate', isMe && 'text-amber-800')}>{u?.display_name ?? 'Player'}{isMe ? ' (you)' : ''}</p>
+                          <p className="text-[10px] text-gray-400">Predicted: <span className="font-mono font-semibold">{w.prediction}</span></p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Prizes display ────────────────────────────────────────────────────────────
 function PrizesDisplay({ compId }: { compId: string }) {
   const [prizes, setPrizes] = useState<any[]>([])
@@ -996,9 +1068,10 @@ export default function TribePage() {
   )
 
   const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = [
-    { id: 'leaderboard', label: 'Standings', icon: '🏅' },
+    { id: 'leaderboard', label: 'Standings',  icon: '🏅' },
     { id: 'picks',       label: 'Tip Sheets', icon: '⚽' },
-    { id: 'chat',        label: 'Chat',      icon: '💬' },
+    { id: 'challenges',  label: 'Challenges', icon: '🎯' },
+    { id: 'chat',        label: 'Chat',       icon: '💬' },
   ]
 
   const org = selectedComp || (tribe as any)._org
@@ -1152,6 +1225,11 @@ export default function TribePage() {
           />
         )}
 
+        {/* Challenges */}
+        {tab === 'challenges' && (
+          <ChallengeResultsTab compId={(tribe as any).comp_id ?? null} />
+        )}
+
         {/* Chat */}
         {tab === 'chat' && (() => {
           const availableRounds = (['gs','r32','r16','qf','sf','tp','f'] as RoundId[])
@@ -1246,6 +1324,49 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
     <EmptyState title="No members yet" description="Share the invite code to get started." />
   )
 
+  const TOP_N = 50
+  const visibleMembers = sortedMembers.slice(0, TOP_N)
+  const myRankInTribe  = sortedMembers.findIndex(m => m.user_id === myId) + 1  // 0 if not found → +1 = 1 (handled by isMeVisible)
+  const isMeVisible    = myRankInTribe > 0 && myRankInTribe <= TOP_N
+  const myMemberRow    = !isMeVisible && myRankInTribe > 0 ? sortedMembers[myRankInTribe - 1] : null
+
+  function MemberRow({ member, rank }: { member: typeof sortedMembers[0]; rank: number }) {
+    const isMe         = member.user_id === myId
+    const breakdown    = roundBreakdown[member.user_id] ?? {}
+    const displayTotal = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0)
+    return (
+      <tr className={clsx('border-b border-gray-100 last:border-0 transition-colors', isMe ? 'bg-green-50' : 'hover:bg-gray-50')}>
+        <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white hover:bg-gray-50')}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Medal rank={rank} />
+            <Avatar name={member.display_name} src={member.avatar_url} size="xs" />
+            <span className={clsx('font-medium truncate', isMe && 'text-green-700')}>
+              {member.display_name}{isMe && ' (you)'}
+            </span>
+          </div>
+        </td>
+        {activeRounds.length === 0
+          ? <td className="px-3 py-2.5 text-center text-gray-400">—</td>
+          : activeRounds.map(r => {
+            const pts = breakdown[r] ?? 0
+            return (
+              <td key={r} className="px-2 py-2.5 text-center">
+                {pts > 0
+                  ? <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
+                      isMe ? 'bg-green-200 text-green-900' : 'bg-gray-100 text-gray-700')}>{pts}</span>
+                  : <span className="text-gray-300">—</span>
+                }
+              </td>
+            )
+          })
+        }
+        <td className="px-3 py-2.5 text-right">
+          <span className={clsx('font-bold text-sm', isMe ? 'text-green-700' : 'text-gray-900')}>{displayTotal}</span>
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <div>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -1269,61 +1390,30 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
             </tr>
           </thead>
           <tbody>
-            {sortedMembers.map((member, i) => {
-              const isMe  = member.user_id === myId
-              const breakdown = roundBreakdown[member.user_id] ?? {}
-              const displayTotal = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0)
-
-              return (
-                <tr key={member.user_id}
-                  className={clsx(
-                    'border-b border-gray-100 last:border-0 transition-colors',
-                    isMe ? 'bg-green-50' : 'hover:bg-gray-50'
-                  )}>
-                  {/* Member name */}
-                  <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white hover:bg-gray-50')}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Medal rank={i + 1} />
-                      <Avatar name={member.display_name} src={member.avatar_url} size="xs" />
-                      <span className={clsx('font-medium truncate', isMe && 'text-green-700')}>
-                        {member.display_name}{isMe && ' (you)'}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Points per round */}
-                  {activeRounds.length === 0
-                    ? <td className="px-3 py-2.5 text-center text-gray-400">—</td>
-                    : activeRounds.map(r => {
-                      const pts = breakdown[r] ?? 0
-                      return (
-                        <td key={r} className="px-2 py-2.5 text-center">
-                          {pts > 0
-                            ? <span className={clsx(
-                                'inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
-                                isMe ? 'bg-green-200 text-green-900' : 'bg-gray-100 text-gray-700'
-                              )}>{pts}</span>
-                            : <span className="text-gray-300">—</span>
-                          }
-                        </td>
-                      )
-                    })
-                  }
-
-                  {/* Total */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className={clsx('font-bold text-sm', isMe ? 'text-green-700' : 'text-gray-900')}>
-                      {displayTotal}
-                    </span>
+            {visibleMembers.map((member, i) => (
+              <MemberRow key={member.user_id} member={member} rank={i + 1} />
+            ))}
+            {/* Pinned "you" row — shown when user is ranked outside top 50 */}
+            {myMemberRow && (
+              <>
+                <tr>
+                  <td colSpan={activeRounds.length + 2} className="px-3 py-1 bg-gray-50 border-t border-dashed border-gray-300">
+                    <span className="text-[10px] text-gray-400">· · ·</span>
                   </td>
                 </tr>
-              )
-            })}
+                <MemberRow member={myMemberRow} rank={myRankInTribe} />
+              </>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Legend */}
+      {/* Footnotes */}
+      {sortedMembers.length > TOP_N && (
+        <p className="mt-2 text-[11px] text-gray-400 text-center">
+          Showing top {TOP_N} of {sortedMembers.length} members{isMeVisible ? '' : ' · your position shown below'}
+        </p>
+      )}
       {activeRounds.length > 0 && (
         <div className="mt-2 flex gap-3 flex-wrap text-[11px] text-gray-400">
           {activeRounds.map(r => (

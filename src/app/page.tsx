@@ -1000,12 +1000,20 @@ export default function HomePage() {
 
             {/* Social proof + Tip Sheet grid */}
             <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:18 }}>
-              {/* Live count */}
-              {heroStats && heroStats.tipster_count > 0 && (
+              {/* Live social proof — persona-aware */}
+              {heroStats && persona === 'tipster' && heroStats.tipster_count > 0 && (
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom:14 }}>
                   <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
                   <span style={{ fontSize:13, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
                     <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.tipster_count.toLocaleString()}</strong>{' '}tipsters already registered
+                  </span>
+                </div>
+              )}
+              {heroStats && persona === 'organiser' && heroStats.comp_count > 0 && (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, marginBottom:14 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 0 3px rgba(74,222,128,0.25)' }} />
+                  <span style={{ fontSize:13, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>
+                    <strong style={{ color:'#4ade80', fontWeight:800 }}>{heroStats.comp_count.toLocaleString()}</strong>{' '}comps already running on TribePicks
                   </span>
                 </div>
               )}
