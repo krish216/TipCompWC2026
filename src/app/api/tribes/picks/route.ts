@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+const COMP_DISPLAY_LIMIT = 100
+
 // GET /api/tribes/picks?tribe_id=  — tribe scope
 // GET /api/tribes/picks?comp_id=   — whole-comp scope (closed rounds only)
 export async function GET(request: NextRequest) {
@@ -132,5 +134,24 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  return NextResponse.json({ fixtures, members, picks, tipping_closed: tippingClosedMap })
+  // ── Cap comp scope to top COMP_DISPLAY_LIMIT by total closed-round points ──
+  const totalMemberCount = members.length
+  if (compId && members.length > COMP_DISPLAY_LIMIT) {
+    const memberTotals: Record<string, number> = {}
+    ;(predRows ?? []).forEach((p: any) => {
+      memberTotals[p.user_id] = (memberTotals[p.user_id] ?? 0) + (p.points_earned ?? 0)
+    })
+    members = [...members]
+      .sort((a, b) => (memberTotals[b.user_id] ?? 0) - (memberTotals[a.user_id] ?? 0))
+      .slice(0, COMP_DISPLAY_LIMIT)
+    const cappedSet = new Set(members.map(m => m.user_id))
+    for (const fid of Object.keys(picks)) {
+      const fixtureId = Number(fid)
+      for (const uid of Object.keys(picks[fixtureId] ?? {})) {
+        if (!cappedSet.has(uid)) delete picks[fixtureId][uid]
+      }
+    }
+  }
+
+  return NextResponse.json({ fixtures, members, picks, tipping_closed: tippingClosedMap, total_members: totalMemberCount })
 }

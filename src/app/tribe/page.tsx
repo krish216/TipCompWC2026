@@ -1665,7 +1665,7 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
     </div>
   )
 
-  const { fixtures = [], members = [], picks = {}, tipping_closed: tippingClosedMap = {} } = activeData ?? {}
+  const { fixtures = [], members = [], picks = {}, tipping_closed: tippingClosedMap = {}, total_members: totalMembers } = activeData ?? {}
   const picksMap: Record<number, Record<string, any>> = picks
 
   const byRound: Record<string, any[]> = {}
@@ -1782,7 +1782,12 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <div>
                 <p className="text-xs font-semibold text-gray-700">{roundLabels[effectiveRound]}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Sorted by round points · {sortedMembers.length} players</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {scope === 'comp' && totalMembers != null && totalMembers > sortedMembers.length
+                    ? <>Sorted by round points · <span className="text-amber-500 font-medium">Top {sortedMembers.length} of {totalMembers} players shown</span> — check the Leaderboard tab for full standings</>
+                    : <>Sorted by round points · {sortedMembers.length} players</>
+                  }
+                </p>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button onClick={handleDownloadSummary} disabled={downloadingSummary}
