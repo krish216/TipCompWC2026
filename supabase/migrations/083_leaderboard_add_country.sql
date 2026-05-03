@@ -1,6 +1,27 @@
--- Migration 083 — Add country to leaderboard materialized view
--- Rebuilds the view from migration 072 with u.country included.
+-- Migration 083 — Add country to leaderboard view + seed countries for mock users
+-- 1. Assign random countries to mock users (email @tribepicks.dev, country IS NULL)
+-- 2. Rebuild leaderboard view with u.country included.
 
+-- ── 1. Random country assignment for mock tipsters ────────────────────────────
+DO $$
+DECLARE
+  countries text[] := ARRAY[
+    'AU','AR','BR','CA','CN','CO','DE','EG','ES','FR',
+    'GB','GH','GR','IN','IT','JP','KR','MA','MX','NG',
+    'NL','PL','PT','SA','SE','SN','TR','US','UY','ZA',
+    'AT','BE','CH','CL','CZ','DK','EC','HR','HU','ID',
+    'IR','NO','NZ','PE','PH','RO','RS','SG','SK','TH',
+    'TN','UA','VN','CM','CI','SN','QA','KW','AE','JM'
+  ];
+BEGIN
+  UPDATE public.users
+  SET    country = countries[1 + floor(random() * array_length(countries, 1))::int]
+  WHERE  email   LIKE '%@tribepicks.dev'
+    AND  country IS NULL;
+END;
+$$;
+
+-- ── 2. Rebuild leaderboard with country column ────────────────────────────────
 DROP MATERIALIZED VIEW IF EXISTS public.leaderboard CASCADE;
 
 CREATE MATERIALIZED VIEW public.leaderboard AS
@@ -54,4 +75,4 @@ CREATE INDEX leaderboard_tournament
 
 REFRESH MATERIALIZED VIEW public.leaderboard;
 
-SELECT 'Migration 083 complete — country added to leaderboard view' AS status;
+SELECT '083 complete — mock users assigned random countries, leaderboard rebuilt with country' AS status;
