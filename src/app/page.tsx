@@ -309,7 +309,7 @@ export default function HomePage() {
     activeTournaments, tournsComps,
     selectedTournId, selectedCompId,
     selectedTourn,
-    isCompAdmin,
+    isCompAdmin, adminComps,
     scoringConfig,
     pickTournament, pickComp, refreshComps,
     hasTribe, refreshHasTribe,
@@ -1763,7 +1763,7 @@ export default function HomePage() {
                   </div>
                   {tournsComps.map(c => {
                     const isSel = selectedCompId === c.id
-                    const isAdm = isCompAdmin && isSel
+                    const isAdm = adminComps.some(a => a.id === c.id)
                     const rank  = compRanks[c.id]
                     const isConfirming = confirmAction?.compId === c.id
 
@@ -1785,23 +1785,29 @@ export default function HomePage() {
                       )
                     }
 
+                    const rowBg = isAdm
+                      ? isSel ? 'bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'
+                      : isSel ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'
+                    const radioColor = isAdm
+                      ? isSel ? 'border-blue-600 bg-blue-600' : 'border-blue-300'
+                      : isSel ? 'border-green-600 bg-green-600' : 'border-green-300'
+                    const nameColor = isAdm
+                      ? isSel ? 'font-semibold text-blue-800' : 'font-medium text-blue-700'
+                      : isSel ? 'font-semibold text-green-700' : 'font-medium text-green-700'
+
                     return (
                       <button key={c.id}
                         onClick={() => pickComp(c)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
-                          isSel ? 'bg-green-50' : 'hover:bg-gray-50'
-                        }`}>
-                        <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                          isSel ? 'border-green-600 bg-green-600' : 'border-gray-300'
-                        }`}>
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-100 last:border-0 ${rowBg}`}>
+                        <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${radioColor}`}>
                           {isSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </span>
-                        <span className={`flex-1 text-sm truncate ${isSel ? 'font-semibold text-green-700' : 'font-medium text-gray-700'}`}>
+                        <span className={`flex-1 text-sm truncate ${nameColor}`}>
                           {c.name}
                         </span>
                         {isAdm && (
                           <Link href="/comp-admin" onClick={e => e.stopPropagation()}
-                            className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                            className="text-[10px] font-semibold text-blue-600 bg-white border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                             ⚙️ Manage
                           </Link>
                         )}
