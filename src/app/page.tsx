@@ -352,6 +352,14 @@ export default function HomePage() {
     if (joined && session) {
       setCompWelcome(decodeURIComponent(joined))
       router.replace('/')
+      // Load the newly joined comp into context so the main view renders
+      // (not the onboarding wizard), and clear any stale pending invitation
+      refreshComps().then(() => {
+        fetch('/api/comp-invitations/pending')
+          .then(r => r.json())
+          .then(d => setPendingInvites(d.data ?? []))
+          .catch(() => {})
+      })
     }
   }, [searchParams, session])
 
