@@ -1118,7 +1118,17 @@ export default function HomePage() {
         <div style={{ marginBottom: 20 }}>
 
           {(loading || contextLoading) ? (
-            <div className="flex justify-center py-8"><Spinner className="w-6 h-6" /></div>
+            <div className="space-y-3 animate-pulse">
+              {/* Stat bar skeleton */}
+              <div className="rounded-2xl bg-gray-100 h-24 w-full" />
+              {/* Card skeletons */}
+              <div className="rounded-2xl bg-gray-100 h-32 w-full" />
+              <div className="rounded-2xl bg-gray-100 h-28 w-full" />
+              <div className="flex gap-3">
+                <div className="rounded-2xl bg-gray-100 h-20 flex-1" />
+                <div className="rounded-2xl bg-gray-100 h-20 flex-1" />
+              </div>
+            </div>
           ) : !step2Done ? (
 
             /* ── Onboarding hero — shown until user joins or creates a comp ── */

@@ -167,19 +167,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setAdminComps([])
     if (!session) { setLoading(false); return }
     ;(async () => {
-      // 1. Active tournaments (is_active flag)
-      const tournRes = await supabase
-        .from('tournaments')
-        .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts')
-        .eq('is_active', true)
-        .order('start_date', { ascending: true })
-      // Only show tournaments with is_active=true — inactive ones are hidden
+      // 1+2. Fetch tournaments and user preferences in parallel
+      const [tournRes, { data: prefs }] = await Promise.all([
+        supabase
+          .from('tournaments')
+          .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts')
+          .eq('is_active', true)
+          .order('start_date', { ascending: true }),
+        supabase
+          .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
+      ])
       const activeTourns = (tournRes.data ?? []) as Tournament[]
       setActiveTournaments(activeTourns)
-
-      // 2. User preferences
-      const { data: prefs } = await supabase
-        .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle()
       const prefTournId = (prefs as any)?.tournament_id ?? null
       const prefCompId  = (prefs as any)?.comp_id ?? null
 
@@ -190,47 +189,40 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       setSelectedTournId(startTournId)
 
       // 3. Load teams + round configs for starting tournament
-      if (startTournId) { loadTeams(startTournId) }
-
       if (startTournId) {
-        try {
-          const rr = await fetch(`/api/tournament-rounds?tournament_id=${startTournId}`)
-          const rd = await rr.json()
-          const rows: RoundConfig[] = rd.data ?? []
-          setRoundConfigs(rows)
-          if (rows.length > 0) {
-            // Merge with fallback defaults — take max pen_bonus to prevent
-            // re-running seed migrations from overwriting migration 051 values
-            const fallback = getDefaultScoringConfig()
-            const merged = rows.map(r => ({
-              ...r,
-              pen_bonus: Math.max(r.pen_bonus, ( fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
-            }))
-            setScoringConfig(buildScoringConfig(merged))
-          }
-        } catch { /* use default */ }
-      }
+        // Fire teams (non-blocking), round configs, comps, and admin check all in parallel
+        loadTeams(startTournId)
+        const [roundsData, resolvedComps, adminData] = await Promise.all([
+          fetch(`/api/tournament-rounds?tournament_id=${startTournId}`).then(r => r.json()).catch(() => ({ data: [] })),
+          loadComps(startTournId, session.user.id, prefCompId),
+          fetch('/api/comp-admins').then(r => r.json()).catch(() => ({})),
+        ])
 
-      // 4. Load comps for starting tournament
-      if (startTournId) {
-        const resolvedComps = await loadComps(startTournId, session.user.id, prefCompId)
+        const rows: RoundConfig[] = roundsData.data ?? []
+        setRoundConfigs(rows)
+        if (rows.length > 0) {
+          // Merge with fallback defaults — take max pen_bonus to prevent
+          // re-running seed migrations from overwriting migration 051 values
+          const fallback = getDefaultScoringConfig()
+          const merged = rows.map((r: RoundConfig) => ({
+            ...r,
+            pen_bonus: Math.max(r.pen_bonus, (fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
+          }))
+          setScoringConfig(buildScoringConfig(merged))
+        }
+
         if (!prefCompId && resolvedComps.length > 0) {
-          await fetch('/api/user-preferences', {
+          fetch('/api/user-preferences', {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ comp_id: resolvedComps[0].id }),
           })
         }
-      }
 
-      // Fetch all comps this user admins — stored as a Set for O(1) lookup
-      try {
-        const adminData = await fetch('/api/comp-admins').then(r => r.json())
         if (adminData.is_comp_admin && adminData.comps?.length) {
           setAdminCompIds(new Set((adminData.comps as any[]).map((c: any) => c.id)))
           setAdminComps(adminData.comps)
         }
-        // else: already reset above — user is not a comp admin
-      } catch { /* non-admin or fetch failed — adminCompIds already reset above */ }
+      }
 
       setLoading(false)
     })()
