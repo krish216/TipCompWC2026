@@ -15,9 +15,10 @@ function JoinInner() {
   const code        = params.get('code')?.toUpperCase() ?? null
   const email       = params.get('email') ?? null
 
-  const [phase,    setPhase]    = useState<Phase>('init')
-  const [compName, setCompName] = useState<string | null>(null)
-  const [errMsg,   setErrMsg]   = useState<string | null>(null)
+  const [phase,         setPhase]         = useState<Phase>('init')
+  const [compName,      setCompName]      = useState<string | null>(null)
+  const [tribeAssigned, setTribeAssigned] = useState(false)
+  const [errMsg,        setErrMsg]        = useState<string | null>(null)
   const ran = useRef(false)
 
   useEffect(() => {
@@ -49,7 +50,7 @@ function JoinInner() {
       const comp = lookupRes.data
       setCompName(comp.name)
 
-      const { success, error: joinErr } = await fetch('/api/comp-admins/self-register', {
+      const { success, error: joinErr, tribe_assigned } = await fetch('/api/comp-admins/self-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comp_id: comp.id, invite_code: code }),
@@ -59,6 +60,7 @@ function JoinInner() {
       if (!success && !joinErr?.toLowerCase().includes('already')) {
         setPhase('error'); setErrMsg(joinErr ?? 'Failed to join comp'); return
       }
+      setTribeAssigned(!!tribe_assigned)
       setPhase('done')
     })()
   }, [session, code, email])
@@ -96,7 +98,7 @@ function JoinInner() {
               </div>
               <span className="text-lg group-hover:translate-x-0.5 transition-transform">→</span>
             </Link>
-            <Link href="/"
+            <Link href={`/?joined=${encodeURIComponent(compName ?? '')}`}
               className="flex items-center gap-3 px-4 py-3.5 bg-white border border-gray-200 hover:border-gray-300 text-gray-800 rounded-xl transition-colors group">
               <span className="text-2xl flex-shrink-0">⭐</span>
               <div className="flex-1">
@@ -106,7 +108,9 @@ function JoinInner() {
               <span className="text-lg text-gray-400 group-hover:translate-x-0.5 transition-transform">→</span>
             </Link>
           </div>
-          <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
+          {!tribeAssigned && (
+            <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
+          )}
         </div>
       </div>
     )

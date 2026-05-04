@@ -342,9 +342,15 @@ export default function HomePage() {
   }, [currentRoundCode, allPredictions, allFixtures])
 
   // Auto-open the Create Comp modal when the user arrives after organiser registration
+  // Also show the comp welcome banner when arriving from /join
   useEffect(() => {
     if (searchParams.get('flow') === 'create' && session) {
       setModal('create')
+      router.replace('/')
+    }
+    const joined = searchParams.get('joined')
+    if (joined && session) {
+      setCompWelcome(decodeURIComponent(joined))
       router.replace('/')
     }
   }, [searchParams, session])
