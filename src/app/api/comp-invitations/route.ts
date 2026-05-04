@@ -164,7 +164,7 @@ function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tourna
 
   <!-- Header -->
   <div style="margin-bottom:24px;">
-    <img src="${APP_URL}/logo.png" alt="TribePicks" height="64" style="display:block;"/>
+    <img src="${APP_URL}/logo.png" alt="TribePicks" align="center" height="64" style="display:block;"/>
   </div>
 
   <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
