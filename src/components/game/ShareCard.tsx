@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tip-comp-wc-2026.vercel.app'
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://www.tribepicks.com').replace(/\/$/, '')
 
 // ── Draw a share card onto a canvas ───────────────────────────────────────
 function drawCard(canvas: HTMLCanvasElement, payload: SharePayload, flagFn: (name: string) => string) {

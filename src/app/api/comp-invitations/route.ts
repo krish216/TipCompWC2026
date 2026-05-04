@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { Resend } from 'resend'
 
 const FROM     = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
-const APP_URL  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
+const APP_URL  = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
 
 // Helper: verify caller is comp admin (or tournament admin)
 async function verifyCompAdmin(userId: string, compId: string) {
@@ -227,7 +227,7 @@ function buildTemplateHtml(
   template: string,
   tokens: { name: string; comp_name: string; join_code: string; join_link: string; tournament_name: string }
 ): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
   // Use a null-byte sentinel so we can locate {join_link} after escaping other tokens

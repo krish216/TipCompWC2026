@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   // Auto-settle challenges for this fixture (non-blocking)
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
     fetch(`${appUrl}/api/comp-challenges/settle`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Cookie': request.headers.get('cookie') ?? '' },

@@ -1491,7 +1491,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
 }
 
 // ── Tip-sheet canvas helpers ──────────────────────────────────────────────────
-const TS_APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tip-comp-wc-2026.vercel.app'
+const TS_APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://www.tribepicks.com').replace(/\/$/, '')
 
 function tsRR(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()

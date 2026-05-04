@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 }
 
 function buildHtml(compName: string, body: string): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com'
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
   const lines  = body
     .split('\n')
     .map(l => `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${l || '&nbsp;'}</p>`)

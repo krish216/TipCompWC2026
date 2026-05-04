@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { Resend } from 'resend'
 
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
+
 // Called by Vercel Cron every 15 minutes (Pro plan) or manually
 export async function GET(request: NextRequest) {
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
             include_external_user_ids:   [user.id],
             headings:                    { en: `⚽ ${window.label} to kickoff` },
             contents:                    { en: `${unpredicted.length} match${unpredicted.length > 1 ? 'es' : ''} still need your prediction: ${matchList}` },
-            url:                         `${process.env.NEXT_PUBLIC_APP_URL}/predict`,
+            url:                         `${APP_URL}/predict`,
           }),
         })
         totalSent++
@@ -100,13 +102,13 @@ function buildEmailHtml(name: string, count: number, matches: string, window: st
   <p>Kickoff is in <strong>${window}</strong> and you still have <strong>${count} unpredicted match${count > 1 ? 'es' : ''}</strong>:</p>
   <p style="background:#FAEEDA;padding:12px;border-radius:8px;color:#633806;">${matches}</p>
   <p>Predictions lock 5 minutes before kickoff — don't miss out on points!</p>
-  <a href="${process.env.NEXT_PUBLIC_APP_URL}/predict"
+  <a href="${APP_URL}/predict"
      style="display:inline-block;background:#1D9E75;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:8px;">
     Enter your predictions →
   </a>
   <p style="font-size:12px;color:#888;margin-top:24px;">
     You're receiving this because you have email reminders enabled.
-    <a href="${process.env.NEXT_PUBLIC_APP_URL}/settings">Manage notifications</a>
+    <a href="${APP_URL}/settings">Manage notifications</a>
   </p>
 </body>
 </html>`
