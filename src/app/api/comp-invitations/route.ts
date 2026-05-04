@@ -252,7 +252,8 @@ function buildTemplateHtml(
   const lines = body.split('\n').map(line => {
     if (line.trim() === JOIN_PLACEHOLDER) return joinBtn
     const replaced = line.replace(JOIN_PLACEHOLDER, joinAnchor)
-    return `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${replaced || '&nbsp;'}</p>`
+    if (!replaced.trim()) return '' // skip blank lines — paragraph margin provides spacing
+    return `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${replaced}</p>`
   }).join('')
 
   return `<!DOCTYPE html>
