@@ -25,9 +25,11 @@ function JoinInner() {
     if (!code) { setPhase('error'); setErrMsg('No invite code found in this link.'); return }
 
     if (!session) {
-      // Redirect to register page with code + email pre-filled so the post-
-      // verification emailRedirectTo can bring them back here to auto-join.
-      const qs = new URLSearchParams({ tab: 'register', code })
+      // Redirect to login/register with code + email pre-filled.
+      // `redirect` ensures that after sign-in the user is sent back to /join
+      // to complete the auto-join (new-user registration uses emailRedirectTo
+      // instead, which already points to /join?code=...).
+      const qs = new URLSearchParams({ tab: 'register', code, redirect: `/join?code=${code}` })
       if (email) qs.set('email', email)
       router.replace(`/login?${qs.toString()}`)
       return
