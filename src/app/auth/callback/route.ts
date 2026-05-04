@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    const cookieStore = await cookies()
+    const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    console.error('[auth/callback] exchangeCodeForSession failed:', error.message, '| code:', code.slice(0, 8), '| next:', next)
+  } else {
+    console.error('[auth/callback] no code param in request:', request.url)
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_failed`)
