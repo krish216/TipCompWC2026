@@ -348,18 +348,26 @@ export default function HomePage() {
       setModal('create')
       router.replace('/')
     }
-    const joined = searchParams.get('joined')
+    const joined       = searchParams.get('joined')
+    const joinedCompId = searchParams.get('comp_id')
     if (joined && session) {
       setCompWelcome(decodeURIComponent(joined))
       router.replace('/')
-      // Load the newly joined comp into context so the main view renders
-      // (not the onboarding wizard), and clear any stale pending invitation
-      refreshComps().then(() => {
+      // pickComp sets selectedCompId immediately (no selectedTournId guard),
+      // switching the homepage from the onboarding wizard to the main view so
+      // the welcome banner renders. Falls back to refreshComps if comp_id is absent.
+      // After either path, re-fetch pending invites to clear the already-joined invitation.
+      ;(async () => {
+        if (joinedCompId) {
+          await pickComp({ id: joinedCompId, name: decodeURIComponent(joined) })
+        } else {
+          await refreshComps()
+        }
         fetch('/api/comp-invitations/pending')
           .then(r => r.json())
           .then(d => setPendingInvites(d.data ?? []))
           .catch(() => {})
-      })
+      })()
     }
   }, [searchParams, session])
 
