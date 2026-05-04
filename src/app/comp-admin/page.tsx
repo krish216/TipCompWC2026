@@ -111,7 +111,8 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
   const [removing,      setRemoving]      = useState<string | null>(null)
   const [filter,        setFilter]        = useState<'all' | 'joined' | 'registered' | 'invited'>('all')
   const [search,        setSearch]        = useState('')
-  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const bodyRef       = useRef<HTMLTextAreaElement>(null)
+  const emailInputRef = useRef<HTMLInputElement>(null)
 
   // Merged view: tipsters (joined) + invitations (pending/registered)
   // A person appears once: joined tipsters take precedence over invitations
@@ -324,7 +325,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
                   className="text-[11px] text-gray-400 hover:text-gray-600 underline underline-offset-2">
                   ↺ Reset to default
                 </button>
-                <button onClick={() => setInviteStep(2)}
+                <button onClick={() => { setInviteStep(2); setTimeout(() => emailInputRef.current?.focus(), 0) }}
                   className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
                   Next: Add recipients →
                 </button>
@@ -336,7 +337,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
           {inviteStep === 2 && (
             <div className="space-y-3">
               <div className="flex gap-2">
-                <input type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
+                <input ref={emailInputRef} type="email" value={emailInput} onChange={e => setEmailInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { addRecipients(emailInput); e.preventDefault() } }}
                   placeholder="tipster@example.com"
                   className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />

@@ -163,8 +163,8 @@ function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tourna
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;padding:32px 24px;background:#ffffff;">
 
   <!-- Header -->
-  <div style="margin-bottom:24px;">
-    <img src="${APP_URL}/logo.png" alt="TribePicks" align="center" height="64" style="display:block;"/>
+  <div style="margin-bottom:24px;text-align:center;">
+    <img src="${APP_URL}/logo.png" alt="TribePicks" height="64" style="display:block;margin:0 auto;"/>
   </div>
 
   <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
@@ -259,8 +259,8 @@ function buildTemplateHtml(
 <html>
 <head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;padding:32px 24px;background:#ffffff;">
-  <div style="margin-bottom:24px;">
-    <img src="${appUrl}/logo.png" alt="TribePicks" height="64" style="display:block;"/>
+  <div style="margin-bottom:24px;text-align:center;">
+    <img src="${appUrl}/logo.png" alt="TribePicks" height="64" style="display:block;margin:0 auto;"/>
   </div>
   ${lines}
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;"/>
