@@ -63,9 +63,10 @@ export default function LoginPage() {
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
 
   // Post-registration screens
-  const [registered,    setRegistered]    = useState(false)  // show "check email"
-  const [resendLoading, setResendLoading] = useState(false)
-  const [resendSent,    setResendSent]    = useState(false)
+  const [registered,        setRegistered]        = useState(false)  // show "check email"
+  const [resendLoading,     setResendLoading]     = useState(false)
+  const [resendSent,        setResendSent]        = useState(false)
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false)
 
   // Auto-detect timezone on mount
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function LoginPage() {
   // ── Handlers ──────────────────────────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault(); setError(null)
+    e.preventDefault(); setError(null); setEmailNotConfirmed(false)
 
     if (mode === 'magic') {
       setLoading(true)
@@ -137,7 +138,15 @@ export default function LoginPage() {
       setLoading(true)
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       setLoading(false)
-      if (error) setError(error.message)
+      if (error) {
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          setEmailNotConfirmed(true)
+          setError('unconfirmed')
+        } else {
+          setEmailNotConfirmed(false)
+          setError(error.message)
+        }
+      }
       // session change triggers useEffect above which handles redirect/onboarding
       return
     }
@@ -715,7 +724,27 @@ export default function LoginPage() {
             </>
           )}
 
-          {error && <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>}
+          {error && (
+            emailNotConfirmed ? (
+              <div className="px-3 py-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1.5">
+                <p>Please check your inbox or spam for the <strong>TribePicks signup confirmation email</strong> we sent you, before continuing.</p>
+                <p>
+                  {"You can resend the email from this page if you didn't receive it. "}
+                  {resendSent ? (
+                    <span className="text-green-700 font-medium">✓ Confirmation email resent!</span>
+                  ) : (
+                    <button type="button" onClick={handleResend} disabled={resendLoading}
+                      className="font-semibold text-green-700 hover:text-green-800 underline disabled:opacity-50 inline-flex items-center gap-1">
+                      {resendLoading && <Spinner className="w-3 h-3" />}
+                      Resend confirmation email
+                    </button>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+            )
+          )}
 
           <button type="submit" disabled={loading}
             className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2">

@@ -64,6 +64,7 @@ export default function PredictPage() {
   const nextUnpredictedIdRef   = useRef<number | null>(null)
   const tabCompletionFired     = useRef<Set<string>>(new Set())
   const prevRoundPredCountsRef = useRef<Record<string, { entered: number; total: number }>>({})
+  const hasAutoSelectedRound   = useRef(false)
 
   // ── Refresh a single prediction from the server (gets DB-trigger-computed scores) ─
   const refreshPrediction = useCallback(async (fixtureId: number) => {
@@ -316,6 +317,14 @@ export default function PredictPage() {
       })
     }) ?? (ROUND_TABS[0] ?? 'gs')
   }, [roundLocks, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
+
+  // Auto-select the current active round once on initial load
+  useEffect(() => {
+    if (!loading && !hasAutoSelectedRound.current) {
+      hasAutoSelectedRound.current = true
+      setActiveRound(currentRoundTab)
+    }
+  }, [loading, currentRoundTab])
 
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
