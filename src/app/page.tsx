@@ -1814,15 +1814,25 @@ export default function HomePage() {
                         {rank != null && (
                           <span className="text-xs text-gray-400 flex-shrink-0">#{rank}</span>
                         )}
-                        {isSel && (
+                        {isSel && isAdm && (
                           <button
                             onClick={e => {
                               e.stopPropagation()
-                              setConfirmAction({ compId: c.id, action: isAdm ? 'delete' : 'leave', name: c.name })
+                              setConfirmAction({ compId: c.id, action: 'delete', name: c.name })
                             }}
-                            title={isAdm ? 'Delete comp' : 'Leave comp'}
+                            title="Delete comp"
                             className="text-gray-300 hover:text-red-400 transition-colors px-1 flex-shrink-0 text-base leading-none">
                             ···
+                          </button>
+                        )}
+                        {isSel && !isAdm && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              setConfirmAction({ compId: c.id, action: 'leave', name: c.name })
+                            }}
+                            className="text-[11px] font-semibold text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 bg-white px-2 py-0.5 rounded-full flex-shrink-0 transition-colors">
+                            Leave
                           </button>
                         )}
                       </button>

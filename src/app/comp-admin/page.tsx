@@ -252,19 +252,6 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /><b>Invited</b> — email sent, no app account yet</span>
       </div>
 
-      {/* Invite code */}
-      <Section title="Comp join code" sub="Tipsters enter this on the home page to join">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-center">
-            <span className="text-xl font-mono font-black tracking-[0.3em] text-gray-800 select-all">{comp?.invite_code ?? '—'}</span>
-          </div>
-          <button onClick={async () => { await navigator.clipboard.writeText(comp?.invite_code ?? ''); toast.success('Copied!') }}
-            className="px-3 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors">
-            Copy
-          </button>
-        </div>
-      </Section>
-
       {/* Invite by email — 3-step stepper */}
       <Section title="Invite by email">
         {/* Step progress bar */}
@@ -1830,6 +1817,15 @@ export default function CompAdminPage() {
       {/* Share invite link */}
       {comp.invite_code && (
         <div className="flex flex-wrap items-center gap-2 mb-4 px-1">
+          {/* Invite code badge */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl">
+            <span className="text-xs text-gray-500 font-semibold">Code</span>
+            <span className="font-mono font-black tracking-widest text-gray-800 text-sm select-all">{comp.invite_code}</span>
+            <button onClick={async () => { await navigator.clipboard.writeText(comp.invite_code); toast.success('Code copied!') }}
+              className="text-[11px] text-gray-400 hover:text-gray-700 font-semibold transition-colors">
+              copy
+            </button>
+          </div>
           <button
             onClick={async () => {
               const link = `${window.location.origin}/join?code=${comp.invite_code}`
