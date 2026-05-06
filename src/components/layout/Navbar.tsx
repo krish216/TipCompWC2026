@@ -66,27 +66,55 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
     router.refresh()
   }
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href)
+  const isActive = (href: string) => {
+    const [hPath, hQuery] = href.split('?')
+    if (hPath === '/') return pathname === '/'
+    if (!pathname.startsWith(hPath)) return false
+    // If the link has a ?tab= param, match it against the current URL's tab param
+    if (hQuery) {
+      const tabParam = new URLSearchParams(hQuery).get('tab')
+      if (typeof window !== 'undefined') {
+        const currentTab = new URLSearchParams(window.location.search).get('tab')
+        return tabParam === (currentTab ?? 'tipsters')
+      }
+    }
+    return true
+  }
+
+  const isCompAdminPage = pathname.startsWith('/comp-admin')
 
   // Desktop nav items (shown in top bar on sm+)
-  const desktopItems = [
-    { href: '/',            label: 'My Comps'   },
-    ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
-    { href: '/leaderboard', label: 'ScoreBoard'  },
-    { href: '/tribe',       label: 'My Tribe'   },
-  ]
+  const desktopItems = isCompAdminPage
+    ? [
+        { href: '/',                           label: 'My Comps'  },
+        { href: '/comp-admin?tab=tipsters',    label: 'Tipsters'  },
+        { href: '/comp-admin?tab=tribes',      label: 'Tribes'    },
+        { href: '/comp-admin?tab=insights',    label: 'Insights'  },
+      ]
+    : [
+        { href: '/',            label: 'My Comps'  },
+        ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
+        { href: '/leaderboard', label: 'ScoreBoard' },
+        { href: '/tribe',       label: 'My Tribe'  },
+      ]
 
-  // Mobile bottom tab items (4 always + optional Manage)
-  const bottomTabs = [
-    { href: '/',            icon: '🏠', label: 'Home',   disabled: false           },
-    { href: '/predict',     icon: '🎯', label: 'My Tips', disabled: !selectedCompId },
-    { href: '/leaderboard', icon: '🏆', label: 'Scores', disabled: false           },
-    { href: '/tribe',       icon: '👥', label: 'Tribe',  disabled: false           },
-    ...(isCompAdmin && selectedCompId
-      ? [{ href: '/comp-admin', icon: '⚙️', label: 'Manage', disabled: false }]
-      : []),
-  ]
+  // Mobile bottom tab items
+  const bottomTabs = isCompAdminPage
+    ? [
+        { href: '/',                        icon: '🏠', label: 'Home',      disabled: false },
+        { href: '/comp-admin?tab=tipsters', icon: '🙋', label: 'Tipsters',  disabled: false },
+        { href: '/comp-admin?tab=tribes',   icon: '👥', label: 'Tribes',    disabled: false },
+        { href: '/comp-admin?tab=insights', icon: '📊', label: 'Insights',  disabled: false },
+      ]
+    : [
+        { href: '/',            icon: '🏠', label: 'Home',    disabled: false           },
+        { href: '/predict',     icon: '🎯', label: 'My Tips', disabled: !selectedCompId },
+        { href: '/leaderboard', icon: '🏆', label: 'Scores',  disabled: false           },
+        { href: '/tribe',       icon: '👥', label: 'Tribe',   disabled: false           },
+        ...(isCompAdmin && selectedCompId
+          ? [{ href: '/comp-admin', icon: '⚙️', label: 'Manage', disabled: false }]
+          : []),
+      ]
 
   return (
     <>
@@ -120,7 +148,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                     )}
                   </Link>
                 ))}
-                {isCompAdmin && selectedCompId && (
+                {isCompAdmin && selectedCompId && !isCompAdminPage && (
                   <Link href="/comp-admin"
                     className={clsx(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
@@ -152,9 +180,9 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
             {/* User section */}
             {session ? (
               <div className="relative flex items-center gap-2 flex-shrink-0">
-                {/* Chat icon with unread badge — mobile only, in header */}
+                {/* Chat icon with unread badge — mobile only, hidden on comp-admin */}
                 <Link href="/tribe"
-                  className="sm:hidden relative w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                  className={clsx('sm:hidden relative w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors', isCompAdminPage && 'hidden')}
                   aria-label="Tribe chat">
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H7l-4 3V5z" fill="currentColor" fillOpacity=".15" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>

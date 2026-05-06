@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { Spinner, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -1810,8 +1811,13 @@ function InsightsTab({ comp }: { comp: any }) {
 export default function CompAdminPage() {
   const { session }                                         = useSupabase()
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
+  const searchParams = useSearchParams()
 
-  const [activeTab,    setActiveTab]    = useState<Tab>('tipsters')
+  const [activeTab,    setActiveTab]    = useState<Tab>(() => {
+    const t = searchParams.get('tab') as Tab | null
+    const valid: Tab[] = ['tipsters','payments','email','settings','tribes','challenges','insights']
+    return (t && valid.includes(t)) ? t : 'tipsters'
+  })
   const [loading,      setLoading]      = useState(false)
   const [tipsters,     setTipsters]     = useState<Tipster[]>([])
   const [invitations,  setInvitations]  = useState<Invitation[]>([])
