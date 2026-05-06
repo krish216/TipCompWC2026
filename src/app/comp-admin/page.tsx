@@ -599,6 +599,7 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
     }
   }
 
+
   return (
     <div>
       {/* Summary */}
@@ -624,6 +625,51 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
           <span>Total expected: <span className="font-bold text-gray-700">${totalExpected.toFixed(2)}</span></span>
         </div>
       )}
+
+      {/* Payment reminder email */}
+      <Section
+        title="Payment reminder"
+        sub={unpaidCount === 0 ? 'All tipsters paid 🎉' : `${unpaidCount} yet to pay`}>
+        <div className="p-4">
+          {unpaidCount === 0 ? (
+            <p className="text-xs text-green-600 text-center py-2">🎉 All tipsters have paid!</p>
+          ) : !showPayReminder ? (
+            <PremiumButton className="w-full">
+              <button
+                onClick={() => {
+                  const feeStr = entryFeeDefault ? ` The entry fee is $${entryFeeDefault.toFixed(2)}.` : ''
+                  setPayReminderSubject(`Payment reminder — ${comp.name ?? 'your comp'}`)
+                  setPayReminderBody(`Hi there,\n\nJust a friendly reminder that we haven't received your entry fee for ${comp.name ?? 'your comp'} yet.${feeStr}\n\nPlease reach out to your comp admin if you have any questions.\n\nThanks!`)
+                  setShowPayReminder(true)
+                }}
+                className="w-full py-2.5 text-xs font-bold text-amber-700 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors">
+                Draft payment reminder →
+              </button>
+            </PremiumButton>
+          ) : (
+            <div className="space-y-3">
+              <input type="text" value={payReminderSubject} onChange={e => setPayReminderSubject(e.target.value)}
+                placeholder="Subject"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              <textarea rows={5} value={payReminderBody} onChange={e => setPayReminderBody(e.target.value)}
+                placeholder="Message…"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
+              <p className="text-[10px] text-gray-400">Sending to {unpaidCount} unpaid tipster{unpaidCount !== 1 ? 's' : ''}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowPayReminder(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={sendPayReminder} disabled={payReminderSending || !payReminderSubject.trim() || !payReminderBody.trim()}
+                  className="flex-1 py-2 text-xs font-bold bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl transition-colors">
+                  {payReminderSending ? 'Sending…' : `Send to ${unpaidCount} unpaid →`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
 
       {/* List */}
       <Section
@@ -745,49 +791,6 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
         ))}
       </Section>
 
-      {/* Payment reminder email */}
-      <Section
-        title="Payment reminder"
-        sub={unpaidCount === 0 ? 'All tipsters paid 🎉' : `${unpaidCount} yet to pay`}>
-        <div className="p-4">
-          {unpaidCount === 0 ? (
-            <p className="text-xs text-green-600 text-center py-2">🎉 All tipsters have paid!</p>
-          ) : !showPayReminder ? (
-            <PremiumButton className="w-full">
-              <button
-                onClick={() => {
-                  const feeStr = entryFeeDefault ? ` The entry fee is $${entryFeeDefault.toFixed(2)}.` : ''
-                  setPayReminderSubject(`Payment reminder — ${comp.name ?? 'your comp'}`)
-                  setPayReminderBody(`Hi there,\n\nJust a friendly reminder that we haven't received your entry fee for ${comp.name ?? 'your comp'} yet.${feeStr}\n\nPlease reach out to your comp admin if you have any questions.\n\nThanks!`)
-                  setShowPayReminder(true)
-                }}
-                className="w-full py-2.5 text-xs font-bold text-amber-700 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors">
-                Draft payment reminder →
-              </button>
-            </PremiumButton>
-          ) : (
-            <div className="space-y-3">
-              <input type="text" value={payReminderSubject} onChange={e => setPayReminderSubject(e.target.value)}
-                placeholder="Subject"
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-              <textarea rows={5} value={payReminderBody} onChange={e => setPayReminderBody(e.target.value)}
-                placeholder="Message…"
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
-              <p className="text-[10px] text-gray-400">Sending to {unpaidCount} unpaid tipster{unpaidCount !== 1 ? 's' : ''}</p>
-              <div className="flex gap-2">
-                <button onClick={() => setShowPayReminder(false)}
-                  className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                  Cancel
-                </button>
-                <button onClick={sendPayReminder} disabled={payReminderSending || !payReminderSubject.trim() || !payReminderBody.trim()}
-                  className="flex-1 py-2 text-xs font-bold bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl transition-colors">
-                  {payReminderSending ? 'Sending…' : `Send to ${unpaidCount} unpaid →`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Section>
 
       {showPayModal && selectedTournId && (
         <UpgradeModal
