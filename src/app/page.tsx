@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
-import { Spinner, UpgradeModal } from '@/components/ui'
+import { Spinner, UpgradeModal, CrownBadge } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 
 const SAMPLE_TIP_SHEET = {
@@ -1803,8 +1803,9 @@ export default function HomePage() {
                         </Link>
                       ) : (
                         <button onClick={() => setShowUpgradeModal(true)}
-                          className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                           Send reminder →
+                          <CrownBadge />
                         </button>
                       )}
                     </div>

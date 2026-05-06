@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge } from '@/components/ui'
+import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, UpgradeModal } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
@@ -506,14 +506,19 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
   setTipsters:     React.Dispatch<React.SetStateAction<Tipster[]>>
   entryFeeDefault: number | null
 }) {
-  const { isPremium }                = useUserPrefs()
+  const { isPremium, selectedTournId, selectedTourn } = useUserPrefs()
   const { session }                  = useSupabase()
-  const [saving,      setSaving]      = useState<string | null>(null)
-  const [filter,      setFilter]      = useState<'all' | 'paid' | 'unpaid'>('all')
-  const [search,      setSearch]      = useState('')
-  const [editingNote, setEditingNote] = useState<string | null>(null)
-  const [editingAmt,  setEditingAmt]  = useState<string | null>(null)
-  const [amtDraft,    setAmtDraft]    = useState('')
+  const [saving,             setSaving]             = useState<string | null>(null)
+  const [filter,             setFilter]             = useState<'all' | 'paid' | 'unpaid'>('all')
+  const [search,             setSearch]             = useState('')
+  const [editingNote,        setEditingNote]        = useState<string | null>(null)
+  const [editingAmt,         setEditingAmt]         = useState<string | null>(null)
+  const [amtDraft,           setAmtDraft]           = useState('')
+  const [showPayModal,       setShowPayModal]       = useState(false)
+  const [showPayReminder,    setShowPayReminder]    = useState(false)
+  const [payReminderSubject, setPayReminderSubject] = useState('')
+  const [payReminderBody,    setPayReminderBody]    = useState('')
+  const [payReminderSending, setPayReminderSending] = useState(false)
 
   // Free tier: only show the comp-admin's own payment row
   const visibleTipsters = isPremium
@@ -575,6 +580,25 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
   const totalExpected  = tipsters.length * (entryFeeDefault ?? 0)
   const outstanding    = unpaidCount * (entryFeeDefault ?? 0)
 
+  const sendPayReminder = async () => {
+    const unpaidEmails = tipsters.filter(t => !t.fee_paid).map(t => t.email)
+    if (!unpaidEmails.length) { toast.error('No unpaid tipsters'); return }
+    setPayReminderSending(true)
+    const res = await fetch('/api/comp-announcements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, title: payReminderSubject, body: payReminderBody, recipients: unpaidEmails }),
+    })
+    setPayReminderSending(false)
+    if (res.ok) {
+      toast.success(`Payment reminder sent to ${unpaidEmails.length} tipster${unpaidEmails.length !== 1 ? 's' : ''}`)
+      setShowPayReminder(false)
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? 'Failed to send')
+    }
+  }
+
   return (
     <div>
       {/* Summary */}
@@ -601,14 +625,6 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
         </div>
       )}
 
-      {/* Pro nudge for free users */}
-      {!isPremium && (
-        <div className="flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-amber-50 border border-amber-200">
-          <CrownBadge />
-          <p className="text-xs text-amber-700 flex-1">Showing your status only — <span className="font-semibold">upgrade to Pro</span> to track all members' payments.</p>
-        </div>
-      )}
-
       {/* List */}
       <Section
         title="Payment status"
@@ -628,6 +644,16 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
             placeholder="Search tipster…"
             className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
           />
+          {!isPremium && (
+            <p className="text-[11px] text-amber-700">
+              Showing your status only — upgrade to{' '}
+              <button onClick={() => setShowPayModal(true)}
+                className="inline-flex items-center align-middle hover:opacity-75 transition-opacity">
+                <CrownBadge />
+              </button>
+              {' '}to track all members&apos; payments.
+            </p>
+          )}
         </div>
 
         {tipsters.length === 0 ? (
@@ -718,6 +744,58 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
           </div>
         ))}
       </Section>
+
+      {/* Payment reminder email */}
+      <Section
+        title="Payment reminder"
+        sub={unpaidCount === 0 ? 'All tipsters paid 🎉' : `${unpaidCount} yet to pay`}>
+        <div className="p-4">
+          {unpaidCount === 0 ? (
+            <p className="text-xs text-green-600 text-center py-2">🎉 All tipsters have paid!</p>
+          ) : !showPayReminder ? (
+            <PremiumButton className="w-full">
+              <button
+                onClick={() => {
+                  const feeStr = entryFeeDefault ? ` The entry fee is $${entryFeeDefault.toFixed(2)}.` : ''
+                  setPayReminderSubject(`Payment reminder — ${comp.name ?? 'your comp'}`)
+                  setPayReminderBody(`Hi there,\n\nJust a friendly reminder that we haven't received your entry fee for ${comp.name ?? 'your comp'} yet.${feeStr}\n\nPlease reach out to your comp admin if you have any questions.\n\nThanks!`)
+                  setShowPayReminder(true)
+                }}
+                className="w-full py-2.5 text-xs font-bold text-amber-700 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors">
+                Draft payment reminder →
+              </button>
+            </PremiumButton>
+          ) : (
+            <div className="space-y-3">
+              <input type="text" value={payReminderSubject} onChange={e => setPayReminderSubject(e.target.value)}
+                placeholder="Subject"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              <textarea rows={5} value={payReminderBody} onChange={e => setPayReminderBody(e.target.value)}
+                placeholder="Message…"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
+              <p className="text-[10px] text-gray-400">Sending to {unpaidCount} unpaid tipster{unpaidCount !== 1 ? 's' : ''}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowPayReminder(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={sendPayReminder} disabled={payReminderSending || !payReminderSubject.trim() || !payReminderBody.trim()}
+                  className="flex-1 py-2 text-xs font-bold bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl transition-colors">
+                  {payReminderSending ? 'Sending…' : `Send to ${unpaidCount} unpaid →`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {showPayModal && selectedTournId && (
+        <UpgradeModal
+          tournamentId={selectedTournId}
+          tournamentName={selectedTourn?.name ?? 'this tournament'}
+          onClose={() => setShowPayModal(false)}
+        />
+      )}
 
       {/* Export */}
       {tipsters.length > 0 && (
