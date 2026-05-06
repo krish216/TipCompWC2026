@@ -4,9 +4,6 @@ import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-// Stripe sends raw bodies — Next.js must not parse this route
-export const config = { api: { bodyParser: false } }
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' })
 
 export async function POST(request: NextRequest) {
