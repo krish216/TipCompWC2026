@@ -726,43 +726,59 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
 
 // ─── Tab: Email ────────────────────────────────────────────────────────────────
 function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; preset?: string }) {
-  const TEMPLATES = useMemo(() => [
-    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,                  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
-    { label: '⏰ Reminder', subject: `Don't forget your tips!`,                     body: `Hi {name},\n\nJust a reminder — predictions are open! Log in and get your tips in before the next match locks.\n\nGood luck!\n\nThe ${comp?.name} team` },
-    { label: '🏆 Results',  subject: `Round results are in!`,                       body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
-    { label: '💰 Pay up',   subject: `Entry fee reminder for ${comp?.name}`,        body: `Hi {name},\n\nFriendly reminder that your entry fee for ${comp?.name} is still outstanding.\n\nPlease arrange payment when you get a chance.\n\nThanks!\n\nThe ${comp?.name} team` },
-  ], [comp?.name, comp?.invite_code])
+  const [roundInfo, setRoundInfo] = useState<{ round_name: string | null; deadline: string | null; untipped: { user_id: string; display_name: string; email: string }[] }>({ round_name: null, deadline: null, untipped: [] })
+  const [loadingRoundInfo, setLoadingRoundInfo] = useState(false)
 
-  const reminderTemplate = TEMPLATES.find(t => t.label === '⏰ Reminder')!
+  // Fetch open-round info (name, deadline, untipped list) once on mount
+  useEffect(() => {
+    if (!comp?.id) return
+    setLoadingRoundInfo(true)
+    fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => setRoundInfo({ round_name: d.round_name ?? null, deadline: d.deadline ?? null, untipped: d.untipped ?? [] }))
+      .catch(() => {})
+      .finally(() => setLoadingRoundInfo(false))
+  }, [comp?.id])
+
+  const reminderBody = useMemo(() => {
+    const roundName = roundInfo.round_name ?? '[round name]'
+    const deadline  = roundInfo.deadline
+      ? new Date(roundInfo.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '[deadline]'
+    return `Hi {name},\n\nJust a reminder — Tipping is open for round: ${roundName}. Please note that tipping for this round will close on ${deadline}.\n\nGood luck!\n\nThe ${comp?.name} team`
+  }, [roundInfo.round_name, roundInfo.deadline, comp?.name])
+
+  const TEMPLATES = useMemo(() => [
+    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,           body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
+    { label: '⏰ Reminder', subject: `Don't forget your tips!`,              body: reminderBody },
+    { label: '🏆 Results',  subject: `Round results are in!`,                body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
+    { label: '💰 Pay up',   subject: `Entry fee reminder for ${comp?.name}`, body: `Hi {name},\n\nFriendly reminder that your entry fee for ${comp?.name} is still outstanding.\n\nPlease arrange payment when you get a chance.\n\nThanks!\n\nThe ${comp?.name} team` },
+  ], [comp?.name, comp?.invite_code, reminderBody])
 
   const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
-  const [subject,        setSubject]        = useState(preset === 'reminder' ? reminderTemplate.subject : '')
-  const [body,           setBody]           = useState(preset === 'reminder' ? reminderTemplate.body    : '')
+  const [subject,        setSubject]        = useState(preset === 'reminder' ? `Don't forget your tips!` : '')
+  const [body,           setBody]           = useState(preset === 'reminder' ? reminderBody : '')
   const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
   const [customEmails,   setCustomEmails]   = useState('')
   const [customSearch,   setCustomSearch]   = useState('')
   const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
   const [sending,        setSending]        = useState(false)
   const [preview,        setPreview]        = useState(false)
-  const [notTipped,      setNotTipped]      = useState<{ user_id: string; display_name: string; email: string }[]>([])
-  const [loadingNotTipped, setLoadingNotTipped] = useState(false)
 
-  // Fetch untipped tipsters whenever not_tipped is selected
+  // Once round info loads, update the Reminder body if it's the active template
+  // (useState initialiser ran before the fetch completed)
+  const roundInfoLoaded = useRef(false)
   useEffect(() => {
-    if (recipients !== 'not_tipped' || !comp?.id) return
-    setLoadingNotTipped(true)
-    fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
-      .then(r => r.json())
-      .then(d => { setNotTipped(d.untipped ?? []) })
-      .catch(() => { setNotTipped([]) })
-      .finally(() => setLoadingNotTipped(false))
-  }, [recipients, comp?.id])
+    if (!roundInfo.round_name || roundInfoLoaded.current) return
+    roundInfoLoaded.current = true
+    if (activeTemplate === '⏰ Reminder') setBody(reminderBody)
+  }, [roundInfo.round_name, reminderBody, activeTemplate])
 
   const recipientList = useMemo(() => {
     if (recipients === 'all')        return tipsters.map(t => t.email)
-    if (recipients === 'not_tipped') return notTipped.map(t => t.email)
+    if (recipients === 'not_tipped') return roundInfo.untipped.map(t => t.email)
     return tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
-  }, [recipients, tipsters, customSelected, notTipped])
+  }, [recipients, tipsters, customSelected, roundInfo.untipped])
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return }
@@ -815,7 +831,7 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                 <button onClick={() => setRecipients('not_tipped')}
                   className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
                     recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                  {loadingNotTipped ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${notTipped.length})` : ''}`}
+                  {loadingRoundInfo ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${roundInfo.untipped.length})` : ''}`}
                 </button>
               )}
               <button onClick={() => setRecipients('custom')}
@@ -824,13 +840,13 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                 Custom list
               </button>
             </div>
-            {recipients === 'not_tipped' && !loadingNotTipped && notTipped.length === 0 && (
+            {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length === 0 && (
               <p className="mt-2 text-xs text-gray-400">All tipsters have tipped this round 🎉</p>
             )}
-            {recipients === 'not_tipped' && !loadingNotTipped && notTipped.length > 0 && (
+            {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length > 0 && (
               <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
                 <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
-                  {notTipped.map(t => (
+                  {roundInfo.untipped.map(t => (
                     <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
                       <Avi name={t.display_name} size="sm" />
                       <div className="flex-1 min-w-0">
