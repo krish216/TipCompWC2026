@@ -324,7 +324,9 @@ export default function AdminPage() {
   }
 
   // ── Retroactive predictions toggle ───────────────────────────
-  const [togglingRetroactive, setTogglingRetroactive] = useState(false)
+  const [togglingRetroactive,    setTogglingRetroactive]    = useState(false)
+  const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
+
   const handleToggleRetroactive = async () => {
     if (!tournamentData) return
     const next = !tournamentData.allow_retroactive_predictions
@@ -337,6 +339,23 @@ export default function AdminPage() {
     if (res.ok) {
       setTournamentData((prev: any) => ({ ...prev, allow_retroactive_predictions: next }))
       toast.success(next ? '🧪 Practice Mode enabled' : 'Practice Mode disabled')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const handleToggleEnforcePremium = async () => {
+    if (!tournamentData) return
+    const next = !tournamentData.enforce_premium
+    setTogglingEnforcePremium(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, enforce_premium: next }),
+    })
+    setTogglingEnforcePremium(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, enforce_premium: next }))
+      toast.success(next ? '👑 Premium features enforced' : 'Premium enforcement disabled — all features free')
     } else {
       toast.error('Failed to update setting')
     }
@@ -778,6 +797,28 @@ export default function AdminPage() {
           <div className="bg-white border border-red-100 rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-bold text-red-500 uppercase tracking-wide mb-3">⚠️ Danger Zone</h3>
             <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl">
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">👑 Enforce Premium Features</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {tournamentData?.enforce_premium
+                      ? 'ON — comp organisers must pay to access Pro features'
+                      : 'OFF — all Pro features free for everyone (soft-launch mode)'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleEnforcePremium}
+                  disabled={togglingEnforcePremium || !tournamentData}
+                  className={clsx(
+                    'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                    tournamentData?.enforce_premium ? 'bg-amber-500' : 'bg-gray-200'
+                  )}>
+                  <span className={clsx(
+                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                    tournamentData?.enforce_premium ? 'translate-x-5' : 'translate-x-0'
+                  )} />
+                </button>
+              </div>
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
                 <div>
                   <p className="text-xs font-semibold text-gray-800">🧪 Practice Mode</p>

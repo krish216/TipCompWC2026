@@ -1,6 +1,8 @@
 import { type ReactNode } from 'react'
 import { clsx } from 'clsx'
 
+export { CrownBadge, PremiumSection, PremiumButton, UpgradeModal } from './PremiumGate'
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 export function Avatar({
   name,

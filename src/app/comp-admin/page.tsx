@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Spinner, EmptyState } from '@/components/ui'
+import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
@@ -506,12 +506,19 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
   setTipsters:     React.Dispatch<React.SetStateAction<Tipster[]>>
   entryFeeDefault: number | null
 }) {
+  const { isPremium }                = useUserPrefs()
+  const { session }                  = useSupabase()
   const [saving,      setSaving]      = useState<string | null>(null)
   const [filter,      setFilter]      = useState<'all' | 'paid' | 'unpaid'>('all')
   const [search,      setSearch]      = useState('')
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [editingAmt,  setEditingAmt]  = useState<string | null>(null)
   const [amtDraft,    setAmtDraft]    = useState('')
+
+  // Free tier: only show the comp-admin's own payment row
+  const visibleTipsters = isPremium
+    ? tipsters
+    : tipsters.filter(t => t.user_id === session?.user.id)
 
   const patch = async (userId: string, changes: Partial<Tipster>) => {
     setSaving(userId)
@@ -550,7 +557,7 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
   }
 
   const filtered = useMemo(() => {
-    let list = tipsters
+    let list = visibleTipsters
     if (filter === 'paid')   list = list.filter(t => t.fee_paid)
     if (filter === 'unpaid') list = list.filter(t => !t.fee_paid)
     if (search) {
@@ -560,7 +567,7 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
       )
     }
     return list
-  }, [tipsters, filter, search])
+  }, [visibleTipsters, filter, search])
 
   const paidCount      = tipsters.filter(t => t.fee_paid).length
   const unpaidCount    = tipsters.filter(t => !t.fee_paid).length
@@ -591,6 +598,14 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
         <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl mb-4 text-xs text-gray-500">
           <span>Entry fee: <span className="font-bold text-gray-700">${entryFeeDefault.toFixed(2)}</span></span>
           <span>Total expected: <span className="font-bold text-gray-700">${totalExpected.toFixed(2)}</span></span>
+        </div>
+      )}
+
+      {/* Pro nudge for free users */}
+      {!isPremium && (
+        <div className="flex items-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-amber-50 border border-amber-200">
+          <CrownBadge />
+          <p className="text-xs text-amber-700 flex-1">Showing your status only — <span className="font-semibold">upgrade to Pro</span> to track all members' payments.</p>
         </div>
       )}
 
@@ -934,10 +949,12 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
             )}
             <p className="text-[10px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise with each tipster's display name</p>
           </div>
-          <button onClick={send} disabled={sending || !subject.trim() || !body.trim() || !recipientList.length}
-            className="w-full py-2.5 bg-gray-900 disabled:opacity-40 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
-            {sending ? <><Spinner className="w-4 h-4 text-white" />Sending…</> : `✉️ Send to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}
-          </button>
+          <PremiumButton className="w-full">
+            <button onClick={send} disabled={sending || !subject.trim() || !body.trim() || !recipientList.length}
+              className="w-full py-2.5 bg-gray-900 disabled:opacity-40 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+              {sending ? <><Spinner className="w-4 h-4 text-white" />Sending…</> : `✉️ Send to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}
+            </button>
+          </PremiumButton>
         </div>
       </Section>
     </div>
@@ -1184,10 +1201,12 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
                 )}
               </div>
               <div>
-                <label className="cursor-pointer px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors block mb-1.5">
-                  {uploadingLogo ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo'}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                </label>
+                <PremiumButton className="block mb-1.5">
+                  <label className="cursor-pointer px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors block">
+                    {uploadingLogo ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                </PremiumButton>
                 <p className="text-[11px] text-gray-400">Max 2MB · JPG, PNG</p>
               </div>
             </div>
@@ -1653,9 +1672,11 @@ function ChallengesTab({ comp }: { comp: any }) {
       </div>
 
       {!showForm ? (
-        <button onClick={() => setShowForm(true)} className="w-full mb-4 py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
-          <span className="text-lg">+</span> Add challenge
-        </button>
+        <PremiumButton className="w-full mb-4">
+          <button onClick={() => setShowForm(true)} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-2xl text-sm font-semibold text-gray-500 hover:border-gray-900 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
+            <span className="text-lg">+</span> Add challenge
+          </button>
+        </PremiumButton>
       ) : (
         <Section title="New challenge">
           <div className="p-4 space-y-3">
@@ -1783,28 +1804,31 @@ function InsightsTab({ comp }: { comp: any }) {
 
       {/* Drop-off alerts */}
       {dropOffs.length > 0 && (
-        <Section title="Drop-off Alert" sub="Tipsters who tipped early but have gone quiet">
-          <div className="divide-y divide-gray-100">
-            {dropOffs.map((d: any) => (
-              <div key={d.user_id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
-                  {d.display_name?.[0]?.toUpperCase() ?? '?'}
+        <PremiumSection title="Drop-off Analysis">
+          <Section title="Drop-off Alert" sub="Tipsters who tipped early but have gone quiet">
+            <div className="divide-y divide-gray-100">
+              {dropOffs.map((d: any) => (
+                <div key={d.user_id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
+                    {d.display_name?.[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{d.display_name}</p>
+                    <p className="text-[11px] text-gray-400">Last tipped: <span className="font-semibold text-amber-600">{d.last_round.toUpperCase()}</span> · {d.tipped_rounds} round{d.tipped_rounds !== 1 ? 's' : ''} total</p>
+                  </div>
+                  <span className="text-amber-400 text-base flex-shrink-0">⚠️</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-800 truncate">{d.display_name}</p>
-                  <p className="text-[11px] text-gray-400">Last tipped: <span className="font-semibold text-amber-600">{d.last_round.toUpperCase()}</span> · {d.tipped_rounds} round{d.tipped_rounds !== 1 ? 's' : ''} total</p>
-                </div>
-                <span className="text-amber-400 text-base flex-shrink-0">⚠️</span>
-              </div>
-            ))}
-          </div>
-          <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
-            <p className="text-[11px] text-amber-700">Send a reminder email from the <button className="font-semibold underline hover:text-amber-900" onClick={() => {}}>Email tab</button> to re-engage these tipsters.</p>
-          </div>
-        </Section>
+              ))}
+            </div>
+            <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
+              <p className="text-[11px] text-amber-700">Send a reminder email from the <button className="font-semibold underline hover:text-amber-900" onClick={() => {}}>Email tab</button> to re-engage these tipsters.</p>
+            </div>
+          </Section>
+        </PremiumSection>
       )}
 
       {/* End-of-round summary */}
+      <PremiumSection title="Round Summary">
       <Section
         title="Round Summary"
         sub="Top scorers and match accuracy for a completed round"
@@ -1873,6 +1897,7 @@ function InsightsTab({ comp }: { comp: any }) {
           </div>
         )}
       </Section>
+      </PremiumSection>
     </div>
   )
 }

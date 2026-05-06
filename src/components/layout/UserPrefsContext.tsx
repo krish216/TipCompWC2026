@@ -21,8 +21,9 @@ export interface Tournament {
   final_date?:    string | null
   first_match?:   string | null
   teams?:         string[] | null
-  max_base_pts?:  number | null
-  max_bonus_pts?: number | null
+  max_base_pts?:    number | null
+  max_bonus_pts?:   number | null
+  enforce_premium?: boolean
 }
 
 export interface Comp {
@@ -58,6 +59,8 @@ interface UserPrefsCtx {
   selectedTribeId:    string | null
   refreshHasTribe:    () => Promise<void>
   loading:            boolean
+  isPremium:          boolean
+  enforcePremium:     boolean
 }
 
 const UserPrefsContext = createContext<UserPrefsCtx | null>(null)
@@ -84,6 +87,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [teamsMap,      setTeamsMap]      = useState<TeamsMap>({})
   const [hasTribe,        setHasTribe]        = useState<boolean | null>(null)
   const [selectedTribeId, setSelectedTribeId] = useState<string | null>(null)
+  const [isPremiumOrg,    setIsPremiumOrg]    = useState(false)
+  const [enforcePremium,  setEnforcePremium]  = useState(false)
 
   const fetchHasTribe = useCallback(async (compId: string) => {
     try {
@@ -171,7 +176,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const [tournRes, { data: prefs }] = await Promise.all([
         supabase
           .from('tournaments')
-          .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts')
+          .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium')
           .eq('is_active', true)
           .order('start_date', { ascending: true }),
         supabase
@@ -190,13 +195,19 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
       // 3. Load teams + round configs for starting tournament
       if (startTournId) {
-        // Fire teams (non-blocking), round configs, comps, and admin check all in parallel
+        // Set enforce_premium from the fetched tournament row
+        const startTourn = activeTourns.find(t => t.id === startTournId)
+        setEnforcePremium(startTourn?.enforce_premium ?? false)
+
+        // Fire teams (non-blocking), round configs, comps, admin check, and premium status in parallel
         loadTeams(startTournId)
-        const [roundsData, resolvedComps, adminData] = await Promise.all([
+        const [roundsData, resolvedComps, adminData, premiumRow] = await Promise.all([
           fetch(`/api/tournament-rounds?tournament_id=${startTournId}`).then(r => r.json()).catch(() => ({ data: [] })),
           loadComps(startTournId, session.user.id, prefCompId),
           fetch('/api/comp-admins').then(r => r.json()).catch(() => ({})),
+          supabase.from('user_tournaments').select('is_premium').eq('user_id', session.user.id).eq('tournament_id', startTournId).maybeSingle(),
         ])
+        setIsPremiumOrg(!!(premiumRow.data as any)?.is_premium)
 
         const rows: RoundConfig[] = roundsData.data ?? []
         setRoundConfigs(rows)
@@ -233,6 +244,20 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setSelectedTournId(id)
     setSelectedCompId(null)
     setTournsComps([])
+    // Refresh premium state for new tournament
+    setActiveTournaments(prev => {
+      const t = prev.find(t => t.id === id)
+      setEnforcePremium(t?.enforce_premium ?? false)
+      return prev
+    })
+    if (session) {
+      ;(async () => {
+        try {
+          const { data } = await supabase.from('user_tournaments').select('is_premium').eq('user_id', session.user.id).eq('tournament_id', id).maybeSingle()
+          setIsPremiumOrg(!!(data as any)?.is_premium)
+        } catch { /* non-critical */ }
+      })()
+    }
     // Reload round configs for new tournament
     try {
       const rr = await fetch(`/api/tournament-rounds?tournament_id=${id}`)
@@ -288,7 +313,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setTournsComps(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
   }, [])
   // Derived synchronously — true whenever the selected comp is one the user admins
-  const isCompAdmin   = selectedCompId != null && adminCompIds.has(selectedCompId)
+  const isCompAdmin = selectedCompId != null && adminCompIds.has(selectedCompId)
+  // isPremium: true when enforcement is off (everyone free) OR user has paid for this tournament
+  const isPremium   = !enforcePremium || isPremiumOrg
 
   return (
     <UserPrefsContext.Provider value={{
@@ -301,6 +328,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       pickTournament, pickComp, refreshComps,
       hasTribe, selectedTribeId, refreshHasTribe,
       loading,
+      isPremium, enforcePremium,
     }}>
       {children}
     </UserPrefsContext.Provider>

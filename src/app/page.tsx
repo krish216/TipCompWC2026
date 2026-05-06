@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
-import { Spinner } from '@/components/ui'
+import { Spinner, UpgradeModal } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 
 const SAMPLE_TIP_SHEET = {
@@ -314,6 +314,7 @@ export default function HomePage() {
     pickTournament, pickComp, refreshComps,
     hasTribe, refreshHasTribe,
     loading: contextLoading,
+    isPremium,
   } = useUserPrefs()
 
   // Current round = the open round with the lowest round_order.
@@ -465,6 +466,7 @@ export default function HomePage() {
   const [nameError,        setNameError]        = useState<string | null>(null)
   const [nameSaving,       setNameSaving]       = useState(false)
   const [engagementAlert,  setEngagementAlert]  = useState<{ round_name: string; untipped_count: number; total_tipsters: number; deadline: string | null } | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -1787,18 +1789,32 @@ export default function HomePage() {
                     <div className="flex items-start justify-between gap-3 px-3 py-2.5 bg-orange-50 border-b border-orange-100">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-orange-800 mb-0.5">
-                          ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name} round
+                          ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} yet to tip for {engagementAlert.round_name} round
                         </p>
                         <p className="text-xs text-orange-600">
                           {`${engagementAlert.total_tipsters - engagementAlert.untipped_count}/${engagementAlert.total_tipsters} tipped`}
                           {engagementAlert.deadline ? ` · Deadline ${new Date(engagementAlert.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
                         </p>
                       </div>
-                      <Link href="/comp-admin?tab=email&preset=reminder"
-                        className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                        Send reminder →
-                      </Link>
+                      {isPremium ? (
+                        <Link href="/comp-admin?tab=email&preset=reminder"
+                          className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                          Send reminder →
+                        </Link>
+                      ) : (
+                        <button onClick={() => setShowUpgradeModal(true)}
+                          className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                          Send reminder →
+                        </button>
+                      )}
                     </div>
+                  )}
+                  {showUpgradeModal && selectedTournId && (
+                    <UpgradeModal
+                      tournamentId={selectedTournId}
+                      tournamentName={selectedTourn?.name ?? 'this tournament'}
+                      onClose={() => setShowUpgradeModal(false)}
+                    />
                   )}
 
                   {tournsComps.map(c => {

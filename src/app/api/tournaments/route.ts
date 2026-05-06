@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest) {
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions } = await request.json()
+  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions, enforce_premium } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const updates: any = {}
@@ -71,6 +71,7 @@ export async function PATCH(request: NextRequest) {
   if (total_teams    !== undefined) updates.total_teams    = total_teams
   if (total_rounds   !== undefined) updates.total_rounds   = total_rounds
   if (allow_retroactive_predictions !== undefined) updates.allow_retroactive_predictions = allow_retroactive_predictions
+  if (enforce_premium !== undefined) updates.enforce_premium = enforce_premium
   if (start_date  !== undefined) updates.start_date  = start_date
   if (end_date    !== undefined) updates.end_date    = end_date
 
