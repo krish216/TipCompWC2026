@@ -1556,38 +1556,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Fresh comp prompt — shown to comp admin when no other tipsters have joined */}
-              {isCompAdmin && step3Done && selectedCompId && (compSizes[selectedCompId] ?? 2) <= 1 && (
-                <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold text-blue-800 mb-0.5">Your comp is ready!</p>
-                    <p className="text-xs text-blue-600">Invite tipsters to join and compete.</p>
-                  </div>
-                  <Link href="/comp-admin"
-                    className="flex-shrink-0 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                    Manage comp →
-                  </Link>
-                </div>
-              )}
-
-              {/* Engagement alert — API only returns data for comp admins, so engagementAlert alone gates this */}
-              {engagementAlert && (
-                <div className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-orange-800 mb-0.5">
-                      ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name} round
-                    </p>
-                    <p className="text-xs text-orange-600">
-                      {`${engagementAlert.total_tipsters - engagementAlert.untipped_count}/${engagementAlert.total_tipsters} tipped`}
-                      {engagementAlert.deadline ? ` · Deadline ${new Date(engagementAlert.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
-                    </p>
-                  </div>
-                  <Link href="/comp-admin?tab=email&preset=reminder"
-                    className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                    Send reminder →
-                  </Link>
-                </div>
-              )}
 
               {/* Pending invitations from other comps */}
               {pendingInvites.length > 0 && (
@@ -1799,6 +1767,40 @@ export default function HomePage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Fresh comp prompt */}
+                  {isCompAdmin && step3Done && selectedCompId && (compSizes[selectedCompId] ?? 2) <= 1 && (
+                    <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-blue-50 border-b border-blue-100">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-800 mb-0.5">Your comp is ready!</p>
+                        <p className="text-xs text-blue-600">Invite tipsters to join and compete.</p>
+                      </div>
+                      <Link href="/comp-admin"
+                        className="flex-shrink-0 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                        Manage comp →
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Engagement alert */}
+                  {engagementAlert && (
+                    <div className="flex items-start justify-between gap-3 px-3 py-2.5 bg-orange-50 border-b border-orange-100">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-orange-800 mb-0.5">
+                          ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name} round
+                        </p>
+                        <p className="text-xs text-orange-600">
+                          {`${engagementAlert.total_tipsters - engagementAlert.untipped_count}/${engagementAlert.total_tipsters} tipped`}
+                          {engagementAlert.deadline ? ` · Deadline ${new Date(engagementAlert.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                        </p>
+                      </div>
+                      <Link href="/comp-admin?tab=email&preset=reminder"
+                        className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                        Send reminder →
+                      </Link>
+                    </div>
+                  )}
+
                   {tournsComps.map(c => {
                     const isSel = selectedCompId === c.id
                     const isAdm = adminComps.some(a => a.id === c.id)
