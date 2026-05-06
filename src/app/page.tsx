@@ -601,9 +601,14 @@ export default function HomePage() {
     }).catch(() => {})
   }, [session, selectedTournId])
 
-  // Engagement alert: fetch untipped count for comp admins when selected comp changes
+  // Engagement alert: fetch untipped count when selected comp is one the user admins.
+  // Depends on adminComps (array ref) rather than the derived isCompAdmin boolean to avoid
+  // a race where selectedCompId updates before pickComp's async /api/comp-admins re-fetch
+  // completes, causing isCompAdmin to briefly be false and the effect to return early.
   useEffect(() => {
-    if (!session || !isCompAdmin || !selectedCompId) { setEngagementAlert(null); return }
+    if (!session || !selectedCompId) { setEngagementAlert(null); return }
+    const isAdminOfSelected = adminComps.some(a => a.id === selectedCompId)
+    if (!isAdminOfSelected) { setEngagementAlert(null); return }
     fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
       .then(r => r.json())
       .then(d => {
@@ -614,7 +619,7 @@ export default function HomePage() {
         }
       })
       .catch(() => setEngagementAlert(null))
-  }, [session, isCompAdmin, selectedCompId])
+  }, [session, adminComps, selectedCompId])
 
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
