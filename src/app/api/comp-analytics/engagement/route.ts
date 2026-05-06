@@ -33,12 +33,14 @@ export async function GET(request: NextRequest) {
     const tournId: string | null = (compRow as any)?.tournament_id ?? null
     if (!tournId) return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
 
-    // 2. Find the open tipping round (is_open=true, tipping_closed=false)
+    // 2. Find the open tipping round (is_open=true, tipping_closed IS NOT TRUE)
+    // Must use .not('tipping_closed','is',true) — .eq('tipping_closed',false) silently
+    // drops rows where tipping_closed is NULL (PostgreSQL NULL=false evaluates to NULL).
     const { data: lockRows } = await (admin.from('round_locks') as any)
       .select('round_code, is_open, tipping_closed')
       .eq('tournament_id', tournId)
       .eq('is_open', true)
-      .eq('tipping_closed', false)
+      .not('tipping_closed', 'is', true)
 
     if (!lockRows?.length) {
       return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })

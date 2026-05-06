@@ -605,28 +605,18 @@ export default function HomePage() {
   // get a 403 which has no round_code, so the alert clears). Cancellation token ensures
   // a slow response for comp A doesn't overwrite the result for comp B.
   useEffect(() => {
-    console.log('[engagement] effect fired — session:', !!session, '| selectedCompId:', selectedCompId)
-    if (!session || !selectedCompId) {
-      console.log('[engagement] early return — clearing alert')
-      setEngagementAlert(null); return
-    }
+    if (!session || !selectedCompId) { setEngagementAlert(null); return }
     let cancelled = false
     fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
-      .then(r => { console.log('[engagement] HTTP status:', r.status); return r.json() })
+      .then(r => r.json())
       .then(d => {
-        console.log('[engagement] response:', d)
-        if (cancelled) { console.log('[engagement] cancelled — ignoring response'); return }
-        const next = d.round_code && d.untipped_count > 0
+        if (cancelled) return
+        setEngagementAlert(d.round_code && d.untipped_count > 0
           ? { round_name: d.round_name, untipped_count: d.untipped_count, total_tipsters: d.total_tipsters, deadline: d.deadline }
-          : null
-        console.log('[engagement] setting alert to:', next)
-        setEngagementAlert(next)
+          : null)
       })
-      .catch(err => {
-        console.error('[engagement] fetch error:', err)
-        if (!cancelled) setEngagementAlert(null)
-      })
-    return () => { console.log('[engagement] cleanup — cancelling for comp:', selectedCompId); cancelled = true }
+      .catch(() => { if (!cancelled) setEngagementAlert(null) })
+    return () => { cancelled = true }
   }, [session, selectedCompId])
 
   // Fire "You're all set" celebration once when tribe step completes
