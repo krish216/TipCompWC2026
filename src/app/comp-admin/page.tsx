@@ -735,6 +735,7 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
 
   const reminderTemplate = TEMPLATES.find(t => t.label === '⏰ Reminder')!
 
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
   const [subject,        setSubject]        = useState(preset === 'reminder' ? reminderTemplate.subject : '')
   const [body,           setBody]           = useState(preset === 'reminder' ? reminderTemplate.body    : '')
   const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
@@ -780,13 +781,23 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     <div>
       <Section title="Quick templates" sub="Click to pre-fill">
         <div className="grid grid-cols-2 gap-2 p-3">
-          {TEMPLATES.map(t => (
-            <button key={t.label} onClick={() => { setSubject(t.subject); setBody(t.body); setPreview(false) }}
-              className="text-left px-3 py-2.5 border border-gray-200 rounded-xl hover:border-gray-900 hover:bg-gray-50 transition-all">
-              <p className="text-xs font-bold text-gray-700">{t.label}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5 truncate">{t.subject}</p>
-            </button>
-          ))}
+          {TEMPLATES.map(t => {
+            const active = activeTemplate === t.label
+            return (
+              <button key={t.label} onClick={() => {
+                setSubject(t.subject); setBody(t.body); setPreview(false)
+                setActiveTemplate(t.label)
+                if (t.label !== '⏰ Reminder' && recipients === 'not_tipped') setRecipients('all')
+              }}
+                className={clsx('text-left px-3 py-2.5 border-2 rounded-xl transition-all',
+                  active
+                    ? 'border-gray-900 bg-gray-900 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50')}>
+                <p className={clsx('text-xs font-bold', active ? 'text-white' : 'text-gray-700')}>{t.label}</p>
+                <p className={clsx('text-[10px] mt-0.5 truncate', active ? 'text-gray-300' : 'text-gray-400')}>{t.subject}</p>
+              </button>
+            )
+          })}
         </div>
       </Section>
 
@@ -800,11 +811,13 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                   recipients === 'all' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
                 All joined tipsters ({tipsters.length})
               </button>
-              <button onClick={() => setRecipients('not_tipped')}
-                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                  recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                {loadingNotTipped ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${notTipped.length})` : ''}`}
-              </button>
+              {activeTemplate === '⏰ Reminder' && (
+                <button onClick={() => setRecipients('not_tipped')}
+                  className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                    recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                  {loadingNotTipped ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${notTipped.length})` : ''}`}
+                </button>
+              )}
               <button onClick={() => setRecipients('custom')}
                 className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
                   recipients === 'custom' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
