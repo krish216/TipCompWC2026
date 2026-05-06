@@ -464,6 +464,7 @@ export default function HomePage() {
   const [nameInput,        setNameInput]        = useState('')
   const [nameError,        setNameError]        = useState<string | null>(null)
   const [nameSaving,       setNameSaving]       = useState(false)
+  const [engagementAlert,  setEngagementAlert]  = useState<{ round_name: string; untipped_count: number; total_tipsters: number; deadline: string | null } | null>(null)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -599,6 +600,21 @@ export default function HomePage() {
       setFavouriteTeam(myEnrol?.favourite_team ?? null)
     }).catch(() => {})
   }, [session, selectedTournId])
+
+  // Engagement alert: fetch untipped count for comp admins when selected comp changes
+  useEffect(() => {
+    if (!session || !isCompAdmin || !selectedCompId) { setEngagementAlert(null); return }
+    fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.round_code && d.untipped_count > 0) {
+          setEngagementAlert({ round_name: d.round_name, untipped_count: d.untipped_count, total_tipsters: d.total_tipsters, deadline: d.deadline })
+        } else {
+          setEngagementAlert(null)
+        }
+      })
+      .catch(() => setEngagementAlert(null))
+  }, [session, isCompAdmin, selectedCompId])
 
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
@@ -1547,6 +1563,25 @@ export default function HomePage() {
                   <Link href="/comp-admin"
                     className="flex-shrink-0 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                     Manage comp →
+                  </Link>
+                </div>
+              )}
+
+              {/* Engagement alert — shown to comp admins when tipsters haven't tipped yet */}
+              {isCompAdmin && engagementAlert && (
+                <div className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-orange-800 mb-0.5">
+                      ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name}
+                    </p>
+                    <p className="text-xs text-orange-600">
+                      {`${engagementAlert.total_tipsters - engagementAlert.untipped_count}/${engagementAlert.total_tipsters} tipped`}
+                      {engagementAlert.deadline ? ` · Deadline ${new Date(engagementAlert.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </p>
+                  </div>
+                  <Link href="/comp-admin"
+                    className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    Send reminder →
                   </Link>
                 </div>
               )}

@@ -32,7 +32,7 @@ interface Tribe     { id: string; name: string; description?: string | null; inv
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
-type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges'
+type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges' | 'insights'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'tipsters',   icon: '🙋', label: 'Tipsters'   },
@@ -41,6 +41,7 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
   { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
   { id: 'challenges', icon: '⚡',  label: 'Challenges' },
+  { id: 'insights',   icon: '📊',  label: 'Insights'   },
 ]
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -1635,6 +1636,176 @@ function ChallengesTab({ comp }: { comp: any }) {
   )
 }
 
+// ─── Tab: Insights ─────────────────────────────────────────────────────────────
+function InsightsTab({ comp }: { comp: any }) {
+  const [insightsData, setInsightsData] = useState<any>(null)
+  const [summaryData,  setSummaryData]  = useState<any>(null)
+  const [selectedRound, setSelectedRound] = useState<string>('')
+  const [loading,      setLoading]      = useState(true)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+
+  useEffect(() => {
+    if (!comp?.id) return
+    setLoading(true)
+    fetch(`/api/comp-analytics/insights?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => { setInsightsData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [comp?.id])
+
+  useEffect(() => {
+    if (!comp?.id) return
+    const url = selectedRound
+      ? `/api/comp-analytics/round-summary?comp_id=${comp.id}&round_code=${selectedRound}`
+      : `/api/comp-analytics/round-summary?comp_id=${comp.id}`
+    setSummaryLoading(true)
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { setSummaryData(d); setSummaryLoading(false) })
+      .catch(() => setSummaryLoading(false))
+  }, [comp?.id, selectedRound])
+
+  if (loading) return <div className="flex justify-center py-12"><Spinner className="w-5 h-5" /></div>
+
+  const rounds: any[]    = insightsData?.rounds    ?? []
+  const dropOffs: any[]  = insightsData?.drop_offs ?? []
+
+  const closedRounds  = rounds.filter((r: any) => r.tipping_closed)
+  const hasData       = closedRounds.length > 0
+
+  return (
+    <div className="space-y-4">
+      {/* Per-round engagement */}
+      <Section title="Round Engagement" sub="% of tipsters who tipped in each round">
+        {!hasData ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet — data will appear once a round closes.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {rounds.filter((r: any) => r.tipping_closed || r.is_open).map((r: any) => (
+              <div key={r.round_code} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-bold text-gray-800">{r.round_name}</p>
+                    {r.is_open && !r.tipping_closed && (
+                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full">Live</span>
+                    )}
+                    {r.tipping_closed && (
+                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">Closed</span>
+                    )}
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={clsx('h-full rounded-full transition-all', r.rate >= 80 ? 'bg-green-500' : r.rate >= 50 ? 'bg-amber-400' : 'bg-red-400')}
+                      style={{ width: `${r.rate}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={clsx('text-sm font-black', r.rate >= 80 ? 'text-green-700' : r.rate >= 50 ? 'text-amber-600' : 'text-red-600')}>{r.rate}%</p>
+                  <p className="text-[10px] text-gray-400">{r.tipped_count}/{r.total_members}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* Drop-off alerts */}
+      {dropOffs.length > 0 && (
+        <Section title="Drop-off Alert" sub="Tipsters who tipped early but have gone quiet">
+          <div className="divide-y divide-gray-100">
+            {dropOffs.map((d: any) => (
+              <div key={d.user_id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
+                  {d.display_name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 truncate">{d.display_name}</p>
+                  <p className="text-[11px] text-gray-400">Last tipped: <span className="font-semibold text-amber-600">{d.last_round.toUpperCase()}</span> · {d.tipped_rounds} round{d.tipped_rounds !== 1 ? 's' : ''} total</p>
+                </div>
+                <span className="text-amber-400 text-base flex-shrink-0">⚠️</span>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
+            <p className="text-[11px] text-amber-700">Send a reminder email from the <button className="font-semibold underline hover:text-amber-900" onClick={() => {}}>Email tab</button> to re-engage these tipsters.</p>
+          </div>
+        </Section>
+      )}
+
+      {/* End-of-round summary */}
+      <Section
+        title="Round Summary"
+        sub="Top scorers and match accuracy for a completed round"
+        right={
+          (summaryData?.available_rounds ?? []).length > 1 ? (
+            <select
+              value={selectedRound || summaryData?.round_code || ''}
+              onChange={e => setSelectedRound(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+            >
+              {(summaryData?.available_rounds ?? []).map((r: any) => (
+                <option key={r.round_code} value={r.round_code}>{r.round_name}</option>
+              ))}
+            </select>
+          ) : undefined
+        }
+      >
+        {summaryLoading ? (
+          <div className="flex justify-center py-8"><Spinner className="w-4 h-4" /></div>
+        ) : !summaryData?.round_code ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet.</div>
+        ) : (
+          <div>
+            {/* Top scorers */}
+            <div className="px-4 pt-3 pb-1">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Top Scorers — {summaryData.round_name}</p>
+              <div className="space-y-1.5">
+                {(summaryData.top_scorers ?? []).slice(0, 5).map((s: any) => (
+                  <div key={s.user_id} className="flex items-center gap-2.5">
+                    <span className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0',
+                      s.rank === 1 ? 'bg-amber-100 text-amber-700' : s.rank === 2 ? 'bg-gray-100 text-gray-600' : s.rank === 3 ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400')}>
+                      {s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank}
+                    </span>
+                    <p className="flex-1 text-xs text-gray-700 truncate">{s.display_name}</p>
+                    <p className="text-xs font-black text-gray-800">{s.points} pts</p>
+                    <p className="text-[10px] text-gray-400 w-12 text-right">{s.correct_count} correct</p>
+                  </div>
+                ))}
+                {(summaryData.top_scorers ?? []).length === 0 && (
+                  <p className="text-xs text-gray-400 py-2">No scored predictions yet for this round.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Match accuracy */}
+            {(summaryData.match_stats ?? []).length > 0 && (
+              <div className="px-4 pt-3 pb-3 border-t border-gray-100 mt-2">
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Match Accuracy</p>
+                <div className="space-y-1.5">
+                  {(summaryData.match_stats ?? []).map((m: any) => (
+                    <div key={m.fixture_id} className="flex items-center gap-2">
+                      <p className="flex-1 text-[11px] text-gray-700 truncate min-w-0">{m.home} vs {m.away}</p>
+                      <p className="text-[10px] text-gray-400 whitespace-nowrap">{m.correct_count}/{m.total_tippers}</p>
+                      <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${m.accuracy_pct}%` }} />
+                      </div>
+                      <p className={clsx('text-[10px] font-bold w-8 text-right flex-shrink-0',
+                        m.accuracy_pct >= 60 ? 'text-green-600' : m.accuracy_pct >= 30 ? 'text-amber-600' : 'text-red-500')}>
+                        {m.accuracy_pct}%
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function CompAdminPage() {
   const { session }                                         = useSupabase()
@@ -1974,6 +2145,7 @@ export default function CompAdminPage() {
       {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
+      {activeTab === 'insights'   && <InsightsTab   comp={comp} />}
     </div>
   )
 }
