@@ -1813,11 +1813,18 @@ export default function CompAdminPage() {
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
   const searchParams = useSearchParams()
 
+  const VALID_TABS: Tab[] = ['tipsters','payments','email','settings','tribes','challenges','insights']
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const t = searchParams.get('tab') as Tab | null
-    const valid: Tab[] = ['tipsters','payments','email','settings','tribes','challenges','insights']
-    return (t && valid.includes(t)) ? t : 'tipsters'
+    return (t && VALID_TABS.includes(t)) ? t : 'tipsters'
   })
+
+  // Sync tab whenever the ?tab= query param changes (client-side nav on same page)
+  useEffect(() => {
+    const t = searchParams.get('tab') as Tab | null
+    if (t && VALID_TABS.includes(t)) setActiveTab(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [loading,      setLoading]      = useState(false)
   const [tipsters,     setTipsters]     = useState<Tipster[]>([])
   const [invitations,  setInvitations]  = useState<Invitation[]>([])
