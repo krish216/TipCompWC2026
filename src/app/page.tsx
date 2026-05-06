@@ -605,22 +605,18 @@ export default function HomePage() {
   // get a 403 which has no round_code, so the alert clears). Cancellation token ensures
   // a slow response for comp A doesn't overwrite the result for comp B.
   useEffect(() => {
-    console.log('[engagement] fired — session:', !!session, '| compId:', selectedCompId)
     if (!session || !selectedCompId) { setEngagementAlert(null); return }
     let cancelled = false
     fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
-      .then(r => { console.log('[engagement] status:', r.status); return r.json() })
+      .then(r => r.json())
       .then(d => {
-        console.log('[engagement] response:', JSON.stringify(d))
-        if (cancelled) { console.log('[engagement] cancelled — skipping'); return }
-        const next = d.round_code && d.untipped_count > 0
+        if (cancelled) return
+        setEngagementAlert(d.round_code && d.untipped_count > 0
           ? { round_name: d.round_name, untipped_count: d.untipped_count, total_tipsters: d.total_tipsters, deadline: d.deadline }
-          : null
-        console.log('[engagement] setting alert:', next)
-        setEngagementAlert(next)
+          : null)
       })
-      .catch(err => { console.error('[engagement] error:', err); if (!cancelled) setEngagementAlert(null) })
-    return () => { console.log('[engagement] cleanup for comp:', selectedCompId); cancelled = true }
+      .catch(() => { if (!cancelled) setEngagementAlert(null) })
+    return () => { cancelled = true }
   }, [session, selectedCompId])
 
   // Fire "You're all set" celebration once when tribe step completes
@@ -1579,7 +1575,7 @@ export default function HomePage() {
                 <div className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-orange-800 mb-0.5">
-                      ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name}
+                      ⏰ {engagementAlert.untipped_count} tipster{engagementAlert.untipped_count !== 1 ? 's' : ''} haven't tipped for {engagementAlert.round_name} round
                     </p>
                     <p className="text-xs text-orange-600">
                       {`${engagementAlert.total_tipsters - engagementAlert.untipped_count}/${engagementAlert.total_tipsters} tipped`}

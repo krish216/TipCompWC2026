@@ -31,38 +31,36 @@ export async function GET(request: NextRequest) {
     const { data: compRow } = await (admin.from('comps') as any)
       .select('tournament_id').eq('id', compId).single()
     const tournId: string | null = (compRow as any)?.tournament_id ?? null
-    if (!tournId) return NextResponse.json({ _debug: 'no tournament_id on comp', round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+    if (!tournId) return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
 
-    // 2. Find the open tipping round (is_open=true, tipping_closed IS NOT TRUE)
-    const { data: lockRows, error: lockErr } = await (admin.from('round_locks') as any)
+    // 2. Find the open tipping round — is_open is the sole gate
+    const { data: lockRows } = await (admin.from('round_locks') as any)
       .select('round_code, is_open, tipping_closed')
       .eq('tournament_id', tournId)
+      .eq('is_open', true)
 
-    const allLocks = lockRows ?? []
-    const openLocks = allLocks.filter((r: any) => r.is_open === true && r.tipping_closed !== true)
+    const openLocks = (lockRows ?? []) as any[]
 
     if (!openLocks.length) {
-      return NextResponse.json({
-        _debug: {
-          tournament_id: tournId,
-          lock_error:    lockErr?.message ?? null,
-          all_locks:     allLocks,
-          open_locks:    openLocks,
-        },
-        round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [],
-      })
+      return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
     }
 
-    // Use first open round; prefer 'gs' over knockout if multiple open simultaneously
-    const openRound = openLocks.find((r: any) => r.round_code === 'gs') ?? openLocks[0]
-    const roundCode: string = openRound.round_code
+    // Pick the open round with the lowest round_order from tournament_rounds
+    const openRoundCodes = openLocks.map((r: any) => r.round_code)
+    const { data: orderRows } = await (admin.from('tournament_rounds') as any)
+      .select('round_code, round_name, round_order')
+      .eq('tournament_id', tournId)
+      .in('round_code', openRoundCodes)
+      .order('round_order', { ascending: true })
 
-    // 3. Get round name and fixtures
-    const [{ data: roundRow }, { data: fixRows }] = await Promise.all([
-      (admin.from('tournament_rounds') as any)
-        .select('round_name').eq('tournament_id', tournId).eq('round_code', roundCode).single(),
-      admin.from('fixtures').select('id, kickoff_utc').eq('round', roundCode).order('kickoff_utc', { ascending: true }),
-    ])
+    const firstRoundRow = (orderRows as any[])?.[0]
+    if (!firstRoundRow) return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+
+    const roundCode: string = firstRoundRow.round_code
+
+    // 3. Get fixtures for that round
+    const { data: fixRows } = await admin
+      .from('fixtures').select('id, kickoff_utc').eq('round', roundCode).order('kickoff_utc', { ascending: true })
 
     const fixtureIds: number[] = ((fixRows ?? []) as any[]).map((f: any) => f.id)
     // Deadline = earliest upcoming kickoff; fallback to first fixture
@@ -71,7 +69,7 @@ export async function GET(request: NextRequest) {
     const deadline: string | null = upcoming[0]?.kickoff_utc ?? (fixRows as any[])?.[0]?.kickoff_utc ?? null
 
     if (!fixtureIds.length) {
-      return NextResponse.json({ round_code: roundCode, round_name: (roundRow as any)?.round_name ?? roundCode, deadline, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+      return NextResponse.json({ round_code: roundCode, round_name: firstRoundRow.round_name ?? roundCode, deadline, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
     }
 
     // 4. Get all comp members with user info
@@ -86,7 +84,7 @@ export async function GET(request: NextRequest) {
     }))
 
     if (!members.length) {
-      return NextResponse.json({ round_code: roundCode, round_name: (roundRow as any)?.round_name ?? roundCode, deadline, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+      return NextResponse.json({ round_code: roundCode, round_name: firstRoundRow.round_name ?? roundCode, deadline, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
     }
 
     const memberIds = members.map(m => m.user_id)
@@ -103,7 +101,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       round_code:     roundCode,
-      round_name:     (roundRow as any)?.round_name ?? roundCode,
+      round_name:     firstRoundRow.round_name ?? roundCode,
       deadline,
       total_tipsters: members.length,
       tipped_count:   tippedSet.size,
