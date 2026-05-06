@@ -1775,9 +1775,9 @@ export default function HomePage() {
                         <p className="text-xs font-semibold text-blue-800 mb-0.5">Your comp is ready!</p>
                         <p className="text-xs text-blue-600">Invite tipsters to join and compete.</p>
                       </div>
-                      <Link href="/comp-admin"
+                      <Link href="/comp-admin?tab=tipsters"
                         className="flex-shrink-0 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                        Manage comp →
+                        Invite Tipsters →
                       </Link>
                     </div>
                   )}
