@@ -278,6 +278,13 @@ export function MatchRow({
                 })}
               </div>
 
+              {/* Not Tipped label — shown above Draw when locked+result+no prediction */}
+              {noTip && (
+                <p className="text-[10px] font-semibold text-gray-400 italic text-center -mb-0.5">
+                  Not Tipped
+                </p>
+              )}
+
               {/* Label row: home team · Draw · away team */}
               <div className="flex w-full text-[10px] text-gray-400 font-medium">
                 <span className="flex-1 text-center">{short(fixture.home)}</span>
@@ -295,6 +302,11 @@ export function MatchRow({
           ) : (
             /* Exact score inputs (tp, f) */
             <>
+              {noTip && (
+                <p className="text-[10px] font-semibold text-gray-400 italic text-center">
+                  Not Tipped
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <input type="number" min={0} max={20}
                   value={localHome} disabled={inputDisabled}
