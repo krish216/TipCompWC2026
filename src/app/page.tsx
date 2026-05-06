@@ -601,25 +601,23 @@ export default function HomePage() {
     }).catch(() => {})
   }, [session, selectedTournId])
 
-  // Engagement alert: fetch untipped count when selected comp is one the user admins.
-  // Depends on adminComps (array ref) rather than the derived isCompAdmin boolean to avoid
-  // a race where selectedCompId updates before pickComp's async /api/comp-admins re-fetch
-  // completes, causing isCompAdmin to briefly be false and the effect to return early.
+  // Engagement alert: re-fetch on every comp switch. The API handles auth (non-admins
+  // get a 403 which has no round_code, so the alert clears). Cancellation token ensures
+  // a slow response for comp A doesn't overwrite the result for comp B.
   useEffect(() => {
     if (!session || !selectedCompId) { setEngagementAlert(null); return }
-    const isAdminOfSelected = adminComps.some(a => a.id === selectedCompId)
-    if (!isAdminOfSelected) { setEngagementAlert(null); return }
+    let cancelled = false
     fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
       .then(r => r.json())
       .then(d => {
-        if (d.round_code && d.untipped_count > 0) {
-          setEngagementAlert({ round_name: d.round_name, untipped_count: d.untipped_count, total_tipsters: d.total_tipsters, deadline: d.deadline })
-        } else {
-          setEngagementAlert(null)
-        }
+        if (cancelled) return
+        setEngagementAlert(d.round_code && d.untipped_count > 0
+          ? { round_name: d.round_name, untipped_count: d.untipped_count, total_tipsters: d.total_tipsters, deadline: d.deadline }
+          : null)
       })
-      .catch(() => setEngagementAlert(null))
-  }, [session, adminComps, selectedCompId])
+      .catch(() => { if (!cancelled) setEngagementAlert(null) })
+    return () => { cancelled = true }
+  }, [session, selectedCompId])
 
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
@@ -1572,8 +1570,8 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Engagement alert — shown to comp admins when tipsters haven't tipped yet */}
-              {isCompAdmin && engagementAlert && (
+              {/* Engagement alert — API only returns data for comp admins, so engagementAlert alone gates this */}
+              {engagementAlert && (
                 <div className="mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-orange-800 mb-0.5">
