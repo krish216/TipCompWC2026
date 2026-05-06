@@ -605,7 +605,7 @@ export default function HomePage() {
   // get a 403 which has no round_code, so the alert clears). Cancellation token ensures
   // a slow response for comp A doesn't overwrite the result for comp B.
   useEffect(() => {
-    if (!session || !selectedCompId) { setEngagementAlert(null); return }
+    if (!session || !selectedCompId || !isCompAdmin) { setEngagementAlert(null); return }
     let cancelled = false
     fetch(`/api/comp-analytics/engagement?comp_id=${selectedCompId}`)
       .then(r => r.json())
@@ -617,7 +617,7 @@ export default function HomePage() {
       })
       .catch(() => { if (!cancelled) setEngagementAlert(null) })
     return () => { cancelled = true }
-  }, [session, selectedCompId])
+  }, [session, selectedCompId, isCompAdmin])
 
   // Fire "You're all set" celebration once when tribe step completes
   useEffect(() => {
@@ -1582,7 +1582,7 @@ export default function HomePage() {
                       {engagementAlert.deadline ? ` · Deadline ${new Date(engagementAlert.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
                     </p>
                   </div>
-                  <Link href="/comp-admin"
+                  <Link href="/comp-admin?tab=email&preset=reminder"
                     className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                     Send reminder →
                   </Link>

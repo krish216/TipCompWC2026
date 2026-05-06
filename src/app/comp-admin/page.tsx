@@ -725,28 +725,43 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
 }
 
 // ─── Tab: Email ────────────────────────────────────────────────────────────────
-function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
-  const [subject,        setSubject]        = useState('')
-  const [body,           setBody]           = useState('')
-  const [recipients,     setRecipients]     = useState<'all'|'custom'>('all')
+function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; preset?: string }) {
+  const TEMPLATES = useMemo(() => [
+    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,                  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
+    { label: '⏰ Reminder', subject: `Don't forget your tips!`,                     body: `Hi {name},\n\nJust a reminder — predictions are open! Log in and get your tips in before the next match locks.\n\nGood luck!\n\nThe ${comp?.name} team` },
+    { label: '🏆 Results',  subject: `Round results are in!`,                       body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
+    { label: '💰 Pay up',   subject: `Entry fee reminder for ${comp?.name}`,        body: `Hi {name},\n\nFriendly reminder that your entry fee for ${comp?.name} is still outstanding.\n\nPlease arrange payment when you get a chance.\n\nThanks!\n\nThe ${comp?.name} team` },
+  ], [comp?.name, comp?.invite_code])
+
+  const reminderTemplate = TEMPLATES.find(t => t.label === '⏰ Reminder')!
+
+  const [subject,        setSubject]        = useState(preset === 'reminder' ? reminderTemplate.subject : '')
+  const [body,           setBody]           = useState(preset === 'reminder' ? reminderTemplate.body    : '')
+  const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
   const [customEmails,   setCustomEmails]   = useState('')
   const [customSearch,   setCustomSearch]   = useState('')
   const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
   const [sending,        setSending]        = useState(false)
   const [preview,        setPreview]        = useState(false)
+  const [notTipped,      setNotTipped]      = useState<{ user_id: string; display_name: string; email: string }[]>([])
+  const [loadingNotTipped, setLoadingNotTipped] = useState(false)
 
-  const TEMPLATES = [
-    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,                  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
-    { label: '⏰ Reminder', subject: `Don't forget your tips!`,                     body: `Hi {name},\n\nJust a reminder — predictions are open! Log in and get your tips in before the next match locks.\n\nGood luck!\n\nThe ${comp?.name} team` },
-    { label: '🏆 Results',  subject: `Round results are in!`,                       body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
-    { label: '💰 Pay up',   subject: `Entry fee reminder for ${comp?.name}`,        body: `Hi {name},\n\nFriendly reminder that your entry fee for ${comp?.name} is still outstanding.\n\nPlease arrange payment when you get a chance.\n\nThanks!\n\nThe ${comp?.name} team` },
-  ]
+  // Fetch untipped tipsters whenever not_tipped is selected
+  useEffect(() => {
+    if (recipients !== 'not_tipped' || !comp?.id) return
+    setLoadingNotTipped(true)
+    fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => { setNotTipped(d.untipped ?? []) })
+      .catch(() => { setNotTipped([]) })
+      .finally(() => setLoadingNotTipped(false))
+  }, [recipients, comp?.id])
 
-  const recipientList = useMemo(() =>
-    recipients === 'all'
-      ? tipsters.map(t => t.email)
-      : tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
-  , [recipients, tipsters, customSelected])
+  const recipientList = useMemo(() => {
+    if (recipients === 'all')        return tipsters.map(t => t.email)
+    if (recipients === 'not_tipped') return notTipped.map(t => t.email)
+    return tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
+  }, [recipients, tipsters, customSelected, notTipped])
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return }
@@ -779,15 +794,41 @@ function EmailTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
         <div className="p-4 space-y-3">
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">Recipients</label>
-            <div className="flex gap-2">
-              {(['all','custom'] as const).map(r => (
-                <button key={r} onClick={() => setRecipients(r)}
-                  className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                    recipients === r ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                  {r === 'all' ? `All joined tipsters (${tipsters.length})` : 'Custom list'}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setRecipients('all')}
+                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                  recipients === 'all' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                All joined tipsters ({tipsters.length})
+              </button>
+              <button onClick={() => setRecipients('not_tipped')}
+                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                  recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                {loadingNotTipped ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${notTipped.length})` : ''}`}
+              </button>
+              <button onClick={() => setRecipients('custom')}
+                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                  recipients === 'custom' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                Custom list
+              </button>
             </div>
+            {recipients === 'not_tipped' && !loadingNotTipped && notTipped.length === 0 && (
+              <p className="mt-2 text-xs text-gray-400">All tipsters have tipped this round 🎉</p>
+            )}
+            {recipients === 'not_tipped' && !loadingNotTipped && notTipped.length > 0 && (
+              <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
+                <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
+                  {notTipped.map(t => (
+                    <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
+                      <Avi name={t.display_name} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                        <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {recipients === 'custom' && (
               <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
                 {/* Search */}
@@ -2154,7 +2195,7 @@ export default function CompAdminPage() {
               </button>
             </div>
       )}
-      {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} />}
+      {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} preset={searchParams.get('preset') ?? undefined} />}
       {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
