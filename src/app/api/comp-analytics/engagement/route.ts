@@ -31,23 +31,30 @@ export async function GET(request: NextRequest) {
     const { data: compRow } = await (admin.from('comps') as any)
       .select('tournament_id').eq('id', compId).single()
     const tournId: string | null = (compRow as any)?.tournament_id ?? null
-    if (!tournId) return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+    if (!tournId) return NextResponse.json({ _debug: 'no tournament_id on comp', round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
 
     // 2. Find the open tipping round (is_open=true, tipping_closed IS NOT TRUE)
-    // Must use .not('tipping_closed','is',true) — .eq('tipping_closed',false) silently
-    // drops rows where tipping_closed is NULL (PostgreSQL NULL=false evaluates to NULL).
-    const { data: lockRows } = await (admin.from('round_locks') as any)
+    const { data: lockRows, error: lockErr } = await (admin.from('round_locks') as any)
       .select('round_code, is_open, tipping_closed')
       .eq('tournament_id', tournId)
-      .eq('is_open', true)
-      .not('tipping_closed', 'is', true)
 
-    if (!lockRows?.length) {
-      return NextResponse.json({ round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [] })
+    const allLocks = lockRows ?? []
+    const openLocks = allLocks.filter((r: any) => r.is_open === true && r.tipping_closed !== true)
+
+    if (!openLocks.length) {
+      return NextResponse.json({
+        _debug: {
+          tournament_id: tournId,
+          lock_error:    lockErr?.message ?? null,
+          all_locks:     allLocks,
+          open_locks:    openLocks,
+        },
+        round_code: null, total_tipsters: 0, tipped_count: 0, untipped_count: 0, untipped: [],
+      })
     }
 
     // Use first open round; prefer 'gs' over knockout if multiple open simultaneously
-    const openRound = (lockRows as any[]).find((r: any) => r.round_code === 'gs') ?? (lockRows as any[])[0]
+    const openRound = openLocks.find((r: any) => r.round_code === 'gs') ?? openLocks[0]
     const roundCode: string = openRound.round_code
 
     // 3. Get round name and fixtures
