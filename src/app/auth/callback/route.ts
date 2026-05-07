@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 // Handles PKCE code exchange for:
 //   - Google / Apple OAuth redirects
@@ -24,8 +25,14 @@ export async function GET(request: NextRequest) {
         },
       }
     )
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      // Fire welcome email for new users (no-op if already sent or email service unconfigured)
+      if (sessionData?.user?.id) {
+        sendWelcomeIfNeeded(sessionData.user.id).catch(err =>
+          console.error('[auth/callback] welcome email error:', err)
+        )
+      }
       return NextResponse.redirect(`${origin}${next}`)
     }
     console.error('[auth/callback] exchangeCodeForSession failed:', error.message, '| code:', code.slice(0, 8), '| next:', next)

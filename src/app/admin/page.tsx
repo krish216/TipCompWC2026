@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Spinner, EmptyState, Card } from '@/components/ui'
+import { DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY } from '@/lib/welcome-email-defaults'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -168,6 +169,12 @@ export default function AdminPage() {
   const [logoUploading,   setLogoUploading]   = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
+  // Welcome email template state
+  const [welcomeSubject,         setWelcomeSubject]         = useState('')
+  const [welcomeBody,            setWelcomeBody]            = useState('')
+  const [savingWelcomeTemplate,  setSavingWelcomeTemplate]  = useState(false)
+  const [welcomeTemplateLoaded,  setWelcomeTemplateLoaded]  = useState(false)
+
   // ── Load ─────────────────────────────────────────────────
   // Set initial active round from DB when rounds load
   useEffect(() => {
@@ -216,6 +223,37 @@ export default function AdminPage() {
       if (t) setTournamentData(t)
     })
   }, [selectedTournId])
+
+  // Load welcome email template for the selected tournament
+  useEffect(() => {
+    if (!selectedTournId) return
+    setWelcomeTemplateLoaded(false)
+    fetch(`/api/admin/email-templates?tournament_id=${selectedTournId}&template_key=welcome`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        setWelcomeSubject(data?.subject ?? DEFAULT_WELCOME_SUBJECT)
+        setWelcomeBody(data?.body ?? DEFAULT_WELCOME_BODY)
+        setWelcomeTemplateLoaded(true)
+      })
+  }, [selectedTournId])
+
+  const handleSaveWelcomeTemplate = async () => {
+    if (!selectedTournId) return
+    setSavingWelcomeTemplate(true)
+    const res = await fetch('/api/admin/email-templates', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, template_key: 'welcome', subject: welcomeSubject, body: welcomeBody }),
+    })
+    setSavingWelcomeTemplate(false)
+    if (res.ok) toast.success('Welcome email template saved')
+    else { const d = await res.json(); toast.error(d.error ?? 'Save failed') }
+  }
+
+  const handleResetWelcomeTemplate = () => {
+    setWelcomeSubject(DEFAULT_WELCOME_SUBJECT)
+    setWelcomeBody(DEFAULT_WELCOME_BODY)
+  }
 
   // ── Results handlers ──────────────────────────────────────
   const handleSave = useCallback(async (fixtureId: number, home: number, away: number, penWinner?: string | null) => {
@@ -771,6 +809,52 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
+            )}
+          </div>
+
+          {/* Welcome email template */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Welcome Email Template</h3>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Sent once when a new user verifies their account (email or Google sign-in).
+              Use <code className="bg-gray-100 px-1 rounded">{'{{first_name}}'}</code> as a merge tag.
+            </p>
+            {!welcomeTemplateLoaded ? (
+              <div className="flex justify-center py-6"><Spinner className="w-5 h-5" /></div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={welcomeSubject}
+                    onChange={e => setWelcomeSubject(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Body</label>
+                  <textarea
+                    rows={16}
+                    value={welcomeBody}
+                    onChange={e => setWelcomeBody(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-y font-mono leading-relaxed"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleResetWelcomeTemplate}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    Reset to default
+                  </button>
+                  <button
+                    onClick={handleSaveWelcomeTemplate}
+                    disabled={savingWelcomeTemplate || !welcomeSubject.trim() || !welcomeBody.trim()}
+                    className="flex-1 py-2 text-xs font-bold bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white rounded-xl transition-colors">
+                    {savingWelcomeTemplate ? 'Saving…' : 'Save template'}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
