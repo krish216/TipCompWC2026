@@ -4,8 +4,10 @@ import { Suspense, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import confetti from 'canvas-confetti'
+import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 function ConfirmedInner() {
+  const { supabase, session } = useSupabase()
   const router  = useRouter()
   const params  = useSearchParams()
   const next    = params.get('next') ?? '/'
@@ -25,6 +27,15 @@ function ConfirmedInner() {
     const timer = setTimeout(() => router.replace(next), 3000)
     return () => clearTimeout(timer)
   }, [next, router])
+
+  // Mark the user's email as verified in our users table so the
+  // EmailVerificationBanner knows to stop showing.
+  useEffect(() => {
+    if (!session?.user?.id) return
+    ;(supabase.from('users') as any)
+      .update({ email_verified: true })
+      .eq('id', session.user.id)
+  }, [session?.user?.id])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

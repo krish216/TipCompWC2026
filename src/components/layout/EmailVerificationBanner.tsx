@@ -1,16 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 
 export function EmailVerificationBanner() {
   const { supabase, session } = useSupabase()
+  const [verified,      setVerified]      = useState<boolean | null>(null) // null = loading
   const [dismissed,     setDismissed]     = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSent,    setResendSent]    = useState(false)
 
-  if (!session || session.user.email_confirmed_at || dismissed) return null
+  useEffect(() => {
+    if (!session?.user?.id) { setVerified(null); return }
+    supabase
+      .from('users')
+      .select('email_verified')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => setVerified(!!(data as any)?.email_verified))
+  }, [session?.user?.id])
+
+  // Don't render until we know the state, or if verified / dismissed
+  if (!session || verified === null || verified || dismissed) return null
 
   const handleResend = async () => {
     setResendLoading(true)
