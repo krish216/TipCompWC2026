@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase'
 
 // Handles PKCE code exchange for:
 //   - Google / Apple OAuth redirects
-//   - Email confirmation links (when emailRedirectTo routes through here)
+//   - Magic link clicks (email verification from welcome email)
 // After exchanging the code, redirects to ?next= or '/'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -25,10 +26,21 @@ export async function GET(request: NextRequest) {
       }
     )
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
+    if (!error && sessionData?.user) {
+      const provider = sessionData.user.app_metadata?.provider ?? 'email'
+      // OAuth users (Google, Apple, etc.) have their email verified by the provider —
+      // mark our custom column immediately so the verification banner never appears.
+      if (provider !== 'email') {
+        const admin = createAdminClient()
+        await (admin.from('users') as any)
+          .update({ email_verified: true })
+          .eq('id', sessionData.user.id)
+      }
       return NextResponse.redirect(`${origin}${next}`)
     }
-    console.error('[auth/callback] exchangeCodeForSession failed:', error.message, '| code:', code.slice(0, 8), '| next:', next)
+    if (error) {
+      console.error('[auth/callback] exchangeCodeForSession failed:', error.message, '| code:', code.slice(0, 8), '| next:', next)
+    }
   } else {
     console.error('[auth/callback] no code param in request:', request.url)
   }

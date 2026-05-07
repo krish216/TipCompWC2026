@@ -631,7 +631,7 @@ export default function HomePage() {
       step3WasRef.current = step3Done
       return
     }
-    if (step3Done && !step3WasRef.current && step2Done) {
+    if (step3Done && !step3WasRef.current && step2Done && emailVerified !== false) {
       const key = `allset_${session.user.id}`
       if (!localStorage.getItem(key)) {
         localStorage.setItem(key, '1')
@@ -643,7 +643,7 @@ export default function HomePage() {
       }
     }
     step3WasRef.current = step3Done
-  }, [step3Done, step2Done, contextLoading, loading, session])
+  }, [step3Done, step2Done, contextLoading, loading, session, emailVerified])
 
   const joinPendingInvite = async (inv: { comp_id: string; invite_code: string; invitation_id: string; comp_name: string; comp_logo_url: string | null }) => {
     setJoiningInvite(inv.invitation_id)
@@ -1384,6 +1384,17 @@ export default function HomePage() {
                       className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">
                       ✕
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Email verification reminder — shown in main view until step 1 is complete */}
+              {emailVerified === false && (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">!</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Verify your email address</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Check your inbox — we sent you a verification link in your welcome email. Click it to complete onboarding.</p>
                   </div>
                 </div>
               )}
