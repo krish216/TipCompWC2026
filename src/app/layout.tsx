@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
 import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
+import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
@@ -54,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SupabaseProvider initialSession={session}>
           <UserPrefsProvider>
             <Navbar isAdmin={isAdmin} />
+            <EmailVerificationBanner />
             {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}

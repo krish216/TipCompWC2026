@@ -276,8 +276,12 @@ export default function LoginPage() {
           }).catch(() => {}) // fire-and-forget — row written before email confirmation
         }
 
-        // Show "check your email" confirmation
-        setSentMode('register'); setRegistered(true)
+        // If Supabase email confirmations are disabled, a session is returned
+        // immediately — the session useEffect handles the redirect. Only show
+        // the check-email screen when no session (confirmation still required).
+        if (!signUpData.session) {
+          setSentMode('register'); setRegistered(true)
+        }
       }
     }
   }
@@ -323,13 +327,13 @@ export default function LoginPage() {
         title:   'Check your email',
         body:    `We sent a verification link to`,
         detail:  isChallenge
-          ? 'Your warm-up picks are saved — click the link to activate your account and lock them in!'
+          ? 'Your warm-up picks are saved — click the link to verify your account and lock them in!'
           : isOrganiser
-          ? "Click the link to activate your account — you'll be taken straight to comp creation."
+          ? "Click the link to verify your account — you'll be taken straight to comp creation."
           : codeParam
-          ? "Click the link to activate your account — you'll be automatically added to the comp and can start tipping straight away!"
-          : 'Click the link to activate your account, then come back here to sign in.',
-        warning: true,
+          ? "Click the link to verify your account — you'll be automatically added to the comp and can start tipping straight away!"
+          : "Click the link to verify your account. You can already sign in and start using TribePicks!",
+        warning: false,
       },
       magic: {
         icon:    '✨',
