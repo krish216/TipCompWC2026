@@ -6,10 +6,10 @@ export { DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY }
 
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 
-// Called from the auth callback after a successful session exchange.
+// Called after a user is added to user_tournaments (enrol endpoint).
 // Sends the welcome email once per user; no-ops silently if already sent or
 // if the email service is not configured.
-export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
+export async function sendWelcomeIfNeeded(userId: string, tournamentId: string): Promise<void> {
   if (!process.env.RESEND_API_KEY) return
 
   const admin = createAdminClient()
@@ -27,28 +27,17 @@ export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
   }
   if (!profile || (profile as any).welcome_email_sent) return
 
-  // Look up the active tournament to find a custom template
-  const { data: setting, error: settingError } = await (admin.from('app_settings') as any)
-    .select('value')
-    .eq('key', 'active_tournament_id')
-    .single()
-
-  if (settingError) console.error('[welcome-email] app_settings lookup failed:', settingError.message)
-  else console.log('[welcome-email] active_tournament_id:', setting?.value ?? 'not set')
-
   let subject = DEFAULT_WELCOME_SUBJECT
   let body    = DEFAULT_WELCOME_BODY
 
-  if (setting?.value) {
-    const { data: tpl, error: tplError } = await (admin.from('tournament_email_templates') as any)
-      .select('subject, body')
-      .eq('tournament_id', setting.value)
-      .eq('template_key', 'welcome')
-      .maybeSingle()
-    if (tplError) console.error('[welcome-email] template fetch failed:', tplError.message)
-    else if (tpl) { subject = tpl.subject; body = tpl.body; console.log('[welcome-email] using custom template') }
-    else console.warn('[welcome-email] no custom template saved for this tournament — using default')
-  }
+  const { data: tpl, error: tplError } = await (admin.from('tournament_email_templates') as any)
+    .select('subject, body')
+    .eq('tournament_id', tournamentId)
+    .eq('template_key', 'welcome')
+    .maybeSingle()
+  if (tplError) console.error('[welcome-email] template fetch failed:', tplError.message)
+  else if (tpl) { subject = tpl.subject; body = tpl.body; console.log('[welcome-email] using custom template') }
+  else console.warn('[welcome-email] no custom template saved for this tournament — using default')
 
   // Apply merge tags
   const firstName = ((profile as any).display_name ?? 'there').split(' ')[0]
@@ -68,7 +57,7 @@ export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
     return
   }
 
-  // Mark sent so subsequent logins don't resend
+  // Mark sent so subsequent enrolments don't resend
   await (admin.from('users') as any).update({ welcome_email_sent: true }).eq('id', userId)
 }
 

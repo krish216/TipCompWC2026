@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 // Handles PKCE code exchange for:
 //   - Google / Apple OAuth redirects
@@ -27,11 +26,6 @@ export async function GET(request: NextRequest) {
     )
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Send welcome email for new users before redirecting — must be awaited
-      // because Vercel kills un-awaited promises the moment the response is sent.
-      if (sessionData?.user?.id) {
-        await sendWelcomeIfNeeded(sessionData.user.id)
-      }
       return NextResponse.redirect(`${origin}${next}`)
     }
     console.error('[auth/callback] exchangeCodeForSession failed:', error.message, '| code:', code.slice(0, 8), '| next:', next)

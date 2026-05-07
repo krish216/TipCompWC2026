@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 // POST /api/user-tournaments/enrol
 // Called immediately after signUp() during registration — before email confirmation.
@@ -28,5 +29,9 @@ export async function POST(request: NextRequest) {
     )
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Send welcome email — tournament_id is known here so template lookup is exact
+  await sendWelcomeIfNeeded(user_id, tournament_id)
+
   return NextResponse.json({ success: true })
 }
