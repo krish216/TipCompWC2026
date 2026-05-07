@@ -467,6 +467,7 @@ export default function HomePage() {
   const [nameSaving,       setNameSaving]       = useState(false)
   const [engagementAlert,  setEngagementAlert]  = useState<{ round_name: string; untipped_count: number; total_tipsters: number; deadline: string | null } | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [emailVerified,    setEmailVerified]    = useState<boolean | null>(null)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -485,7 +486,7 @@ export default function HomePage() {
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
       const [userRes, lbRes, predRes, fxRes, invRes] = await Promise.all([
-        supabase.from('users').select('display_name, avatar_url').eq('id', session.user.id).maybeSingle(),
+        supabase.from('users').select('display_name, avatar_url, email_verified').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&no_breakdown=true'),
         fetch('/api/predictions'),
         fetch('/api/fixtures'),
@@ -494,6 +495,7 @@ export default function HomePage() {
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
       if (ud?.avatar_url) setAvatar(ud.avatar_url)
+      setEmailVerified(ud?.email_verified === true)
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
@@ -1173,13 +1175,24 @@ export default function HomePage() {
               {/* Step list on white background */}
               <div className="bg-white border border-t-0 border-gray-200 rounded-b-2xl divide-y divide-gray-100">
 
-                {/* Step 1 — done */}
+                {/* Step 1 — verified / pending */}
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
+                  {emailVerified !== false ? (
+                    <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
+                  ) : (
+                    <span className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">!</span>
+                  )}
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-700">Verified your account</p>
+                    <p className="text-sm font-semibold text-gray-700">Verify your account</p>
+                    {emailVerified === false && (
+                      <p className="text-[11px] text-amber-600 mt-0.5">Check your inbox — click the link we sent you</p>
+                    )}
                   </div>
-                  <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Done</span>
+                  {emailVerified !== false ? (
+                    <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Done</span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Pending</span>
+                  )}
                 </div>
 
                 {/* Step 2 — active */}
@@ -1301,11 +1314,20 @@ export default function HomePage() {
                       <p className="text-xs font-bold text-gray-800 group-hover:text-green-700">Join a comp</p>
                       <p className="text-[10px] text-gray-400">Have an invite code</p>
                     </button>
-                    <button onClick={() => setModal('create')}
-                      className="flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 border-emerald-400 bg-emerald-50 hover:bg-emerald-100 transition-all text-center">
+                    <button
+                      onClick={() => emailVerified === false ? undefined : setModal('create')}
+                      disabled={emailVerified === false}
+                      title={emailVerified === false ? 'Verify your email first' : undefined}
+                      className={`flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 transition-all text-center ${
+                        emailVerified === false
+                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          : 'border-emerald-400 bg-emerald-50 hover:bg-emerald-100'
+                      }`}>
                       <span className="text-2xl">🏆</span>
-                      <p className="text-xs font-bold text-emerald-700">Create a comp</p>
-                      <p className="text-[10px] text-emerald-500">For my group</p>
+                      <p className={`text-xs font-bold ${emailVerified === false ? 'text-gray-400' : 'text-emerald-700'}`}>Create a comp</p>
+                      <p className={`text-[10px] ${emailVerified === false ? 'text-gray-400' : 'text-emerald-500'}`}>
+                        {emailVerified === false ? 'Verify email first' : 'For my group'}
+                      </p>
                     </button>
                   </div>
 

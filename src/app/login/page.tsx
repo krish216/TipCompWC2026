@@ -78,7 +78,7 @@ export default function LoginPage() {
     fetch('/api/tournaments')
       .then(r => r.json())
       .then(async ({ data }) => {
-        const active = (data ?? []).filter((t: any) => t.is_active === true && t.status !== 'ended')
+        const active = (data ?? []).filter((t: any) => t.is_active === true && (t.status === 'upcoming' || t.status === 'active'))
         setTournaments(active)
         if (active.length === 1) setSelectedTourn(active[0].id)
       })
@@ -260,6 +260,8 @@ export default function LoginPage() {
           first_name:          firstName.trim() || null,
           timezone:            timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           onboarding_complete: false,
+          // Registering via an email invite link proves ownership of the address
+          email_verified:      !!codeParam,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
         // Enrol in selected tournament immediately — write directly to user_tournaments
