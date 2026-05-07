@@ -27,11 +27,10 @@ export async function GET(request: NextRequest) {
     )
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Fire welcome email for new users (no-op if already sent or email service unconfigured)
+      // Send welcome email for new users before redirecting — must be awaited
+      // because Vercel kills un-awaited promises the moment the response is sent.
       if (sessionData?.user?.id) {
-        sendWelcomeIfNeeded(sessionData.user.id).catch(err =>
-          console.error('[auth/callback] welcome email error:', err)
-        )
+        await sendWelcomeIfNeeded(sessionData.user.id)
       }
       return NextResponse.redirect(`${origin}${next}`)
     }

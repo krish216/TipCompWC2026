@@ -15,12 +15,16 @@ export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
   const admin = createAdminClient()
 
   // Check profile and sent flag in one query
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from('users')
     .select('email, display_name, welcome_email_sent')
     .eq('id', userId)
     .single()
 
+  if (profileError) {
+    console.error('[welcome-email] profile fetch failed:', profileError.message)
+    return
+  }
   if (!profile || (profile as any).welcome_email_sent) return
 
   // Look up the active tournament to find a custom template
