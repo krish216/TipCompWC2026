@@ -848,7 +848,6 @@ function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,           body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
     { label: '⏰ Reminder', subject: `Don't forget your tips!`,              body: reminderBody },
     { label: '🏆 Results',  subject: `Round results are in!`,                body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
-    { label: '💰 Pay up',   subject: `Entry fee reminder for ${comp?.name}`, body: `Hi {name},\n\nFriendly reminder that your entry fee for ${comp?.name} is still outstanding.\n\nPlease arrange payment when you get a chance.\n\nThanks!\n\nThe ${comp?.name} team` },
   ], [comp?.name, comp?.invite_code, reminderBody])
 
   const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
@@ -1113,7 +1112,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   const saveName = async () => {
     if (!name.trim() || name === comp?.name) return
     setSavingName(true)
-    const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: comp.id, name: name.trim() }) })
+    const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, name: name.trim() }) })
     setSavingName(false)
     if (res.ok) { onUpdate('name', name.trim()); toast.success('Name updated') } else toast.error('Failed')
   }
