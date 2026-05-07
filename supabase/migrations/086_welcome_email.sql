@@ -17,7 +17,7 @@ CREATE POLICY "Service role only" ON public.tournament_email_templates
   USING (true) WITH CHECK (true);
 
 -- Track whether the welcome email has been sent to each user (prevents duplicates)
-ALTER TABLE public.profiles
+ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS welcome_email_sent boolean NOT NULL DEFAULT false;
 
-SELECT 'Migration 086 complete — tournament_email_templates + profiles.welcome_email_sent' AS status;
+SELECT 'Migration 086 complete — tournament_email_templates + users.welcome_email_sent' AS status;

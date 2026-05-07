@@ -16,7 +16,7 @@ export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
 
   // Check profile and sent flag in one query
   const { data: profile } = await admin
-    .from('profiles')
+    .from('users')
     .select('email, display_name, welcome_email_sent')
     .eq('id', userId)
     .single()
@@ -60,7 +60,7 @@ export async function sendWelcomeIfNeeded(userId: string): Promise<void> {
   }
 
   // Mark sent so subsequent logins don't resend
-  await (admin.from('profiles') as any).update({ welcome_email_sent: true }).eq('id', userId)
+  await (admin.from('users') as any).update({ welcome_email_sent: true }).eq('id', userId)
 }
 
 function buildHtml(body: string): string {
