@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui'
 
 export function EmailVerificationBanner() {
   const { supabase, session } = useSupabase()
+  // supabase used only for DB read; resend is done via API route
   const [verified,      setVerified]      = useState<boolean | null>(null) // null = loading
   const [dismissed,     setDismissed]     = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
@@ -26,10 +27,12 @@ export function EmailVerificationBanner() {
 
   const handleResend = async () => {
     setResendLoading(true)
-    await supabase.auth.resend({ type: 'signup', email: session.user.email! })
-    setResendSent(true)
+    const res = await fetch('/api/auth/resend-verification', { method: 'POST' }).catch(() => null)
+    if (res?.ok) {
+      setResendSent(true)
+      setTimeout(() => setResendSent(false), 8000)
+    }
     setResendLoading(false)
-    setTimeout(() => setResendSent(false), 8000)
   }
 
   return (
