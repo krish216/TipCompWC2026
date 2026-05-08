@@ -1446,7 +1446,10 @@ export default function HomePage() {
                       )}
                     </div>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      We sent a link to <strong>{session?.user?.email}</strong>. Check your inbox.
+                      {resendSent
+                        ? <>New link sent to <strong>{session?.user?.email}</strong> — check your inbox.</>
+                        : <>We sent a link to <strong>{session?.user?.email}</strong>. Check your inbox.</>
+                      }
                     </p>
                   </div>
                 </div>
