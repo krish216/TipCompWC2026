@@ -1369,7 +1369,7 @@ export default function HomePage() {
                   <div className="p-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-black text-white mb-0.5">🎉 Welcome to {compWelcome}!</p>
-                      {emailVerified === false ? (
+                      {/* {emailVerified === false ? (
                         <>
                           <p className="text-sm text-green-200 mb-2">You're now a member.</p>
                           <p className="text-xs text-amber-300 font-medium">⚠️ Verify your email to start tipping — check your inbox.</p>
@@ -1382,7 +1382,12 @@ export default function HomePage() {
                             Start tipping →
                           </Link>
                         </>
-                      )}
+                      )} */}
+                        <p className="text-sm text-green-200 mb-3">You're now a member. Time to start tipping!</p>
+                          <Link href="/predict"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
+                            Start tipping →
+                          </Link>
                     </div>
                     <button onClick={() => setCompWelcome(null)}
                       className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">
