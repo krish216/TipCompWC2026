@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { createNotifications } from '@/lib/notifications'
 import { Resend } from 'resend'
 
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
@@ -51,6 +52,26 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
     sent += slice.length
   }
+
+  // Also write in-app notifications — look up user_ids from recipient emails
+  ;(async () => {
+    try {
+      const { data: userRows } = await (adminClient.from('users') as any)
+        .select('id')
+        .in('email', recipients as string[])
+      const userIds = ((userRows ?? []) as any[]).map((u: any) => u.id as string)
+      if (!userIds.length) return
+
+      const preview = emailBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
+      await createNotifications(userIds.map(uid => ({
+        user_id: uid,
+        type:    'comp_announcement' as const,
+        title:   `📢 ${title.trim()}`,
+        body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
+        data:    { comp_id },
+      })))
+    } catch {}
+  })()
 
   return NextResponse.json({ sent })
 }

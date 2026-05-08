@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { createNotifications } from '@/lib/notifications'
 
 // GET /api/user-comps?tournament_id=  — list comps the user has joined
 // Uses admin client to bypass RLS entirely (avoids comp_admins recursion bug)
@@ -76,6 +77,47 @@ export async function POST(request: NextRequest) {
   const { error } = await (adminClient.from('user_comps') as any)
     .upsert({ user_id: user.id, comp_id }, { onConflict: 'user_id,comp_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fire-and-forget: notify comp admins about the new member
+  ;(async () => {
+    try {
+      const [{ data: compRow }, { data: admins }, { data: memberRow }, { count: memberCount }] =
+        await Promise.all([
+          (adminClient.from('comps') as any).select('name').eq('id', comp_id).single(),
+          (adminClient.from('comp_admins') as any).select('user_id').eq('comp_id', comp_id),
+          (adminClient.from('users') as any).select('display_name').eq('id', user.id).single(),
+          (adminClient.from('user_comps') as any)
+            .select('*', { count: 'exact', head: true }).eq('comp_id', comp_id),
+        ])
+
+      const compName   = (compRow as any)?.name ?? 'your comp'
+      const memberName = (memberRow as any)?.display_name ?? 'Someone'
+      const total      = memberCount ?? 0
+      const adminIds   = ((admins ?? []) as any[]).map((a: any) => a.user_id as string)
+      if (!adminIds.length) return
+
+      const rows: Parameters<typeof createNotifications>[0] = adminIds.map(adminId => ({
+        user_id: adminId,
+        type:    'member_joined' as const,
+        title:   `🙋 ${memberName} joined ${compName}`,
+        body:    `${total} member${total !== 1 ? 's' : ''} now in your comp`,
+        data:    { comp_id, user_id: user.id },
+      }))
+
+      const MILESTONES = [5, 10, 20]
+      if (MILESTONES.includes(total)) {
+        adminIds.forEach(adminId => rows.push({
+          user_id: adminId,
+          type:    'member_milestone' as const,
+          title:   `🎉 ${compName} has ${total} members!`,
+          body:    'Share the invite link to keep growing your comp.',
+          data:    { comp_id, count: total },
+        }))
+      }
+
+      await createNotifications(rows)
+    } catch {}
+  })()
 
   return NextResponse.json({ success: true })
 }

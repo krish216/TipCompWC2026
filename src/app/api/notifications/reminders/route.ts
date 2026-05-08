@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { createNotifications } from '@/lib/notifications'
 import { Resend } from 'resend'
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
@@ -46,29 +47,39 @@ export async function GET(request: NextRequest) {
     const allUsers = (usersRaw ?? []) as any[]
     if (!allUsers.length) continue
 
-    for (const user of allUsers) {
-      const prefs = user.notification_prefs?.[0]
-      if (!prefs?.email_enabled && !prefs?.push_enabled) continue
+    const inAppRows: Parameters<typeof createNotifications>[0] = []
 
+    for (const user of allUsers) {
       const { data: predsRaw } = await supabase
         .from('predictions')
         .select('fixture_id')
         .eq('user_id', user.id)
         .in('fixture_id', fixtureIds)
 
-      const existingPreds = (predsRaw ?? []) as any[]
-      const predictedIds  = new Set(existingPreds.map((p: any) => p.fixture_id))
-      const unpredicted   = fixtures.filter((f: any) => !predictedIds.has(f.id))
+      const predictedIds = new Set(((predsRaw ?? []) as any[]).map((p: any) => p.fixture_id))
+      const unpredicted  = fixtures.filter((f: any) => !predictedIds.has(f.id))
       if (!unpredicted.length) continue
 
       const matchList = unpredicted.map((f: any) => `${f.home} vs ${f.away}`).join(', ')
+      const count     = unpredicted.length
 
+      // In-app notification for every user with unpredicted fixtures
+      inAppRows.push({
+        user_id: user.id,
+        type:    'round_deadline',
+        title:   `⏰ ${window.label} to kickoff — ${count} match${count > 1 ? 'es' : ''} to tip`,
+        body:    matchList,
+        data:    { fixture_ids: unpredicted.map((f: any) => f.id) },
+      })
+
+      // Email + push only if user has those channels enabled
+      const prefs = user.notification_prefs?.[0]
       if (resend && prefs?.email_enabled && user.email) {
         await resend.emails.send({
           from:    process.env.RESEND_FROM ?? 'TribePicks <reminders@mail.tribepicks.com>',
           to:      user.email,
-          subject: `⚽ ${window.label} reminder — ${unpredicted.length} match${unpredicted.length > 1 ? 'es' : ''} need your prediction`,
-          html:    buildEmailHtml(user.display_name, unpredicted.length, matchList, window.label),
+          subject: `⚽ ${window.label} reminder — ${count} match${count > 1 ? 'es' : ''} need your prediction`,
+          html:    buildEmailHtml(user.display_name, count, matchList, window.label),
         })
         totalSent++
       }
@@ -78,16 +89,18 @@ export async function GET(request: NextRequest) {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Basic ${process.env.ONESIGNAL_API_KEY}` },
           body:    JSON.stringify({
-            app_id:                      process.env.ONESIGNAL_APP_ID,
-            include_external_user_ids:   [user.id],
-            headings:                    { en: `⚽ ${window.label} to kickoff` },
-            contents:                    { en: `${unpredicted.length} match${unpredicted.length > 1 ? 'es' : ''} still need your prediction: ${matchList}` },
-            url:                         `${APP_URL}/predict`,
+            app_id:                    process.env.ONESIGNAL_APP_ID,
+            include_external_user_ids: [user.id],
+            headings:                  { en: `⚽ ${window.label} to kickoff` },
+            contents:                  { en: `${count} match${count > 1 ? 'es' : ''} still need your prediction: ${matchList}` },
+            url:                       `${APP_URL}/predict`,
           }),
         })
         totalSent++
       }
     }
+
+    if (inAppRows.length) await createNotifications(inAppRows)
   }
 
   return NextResponse.json({ sent: totalSent, checked_at: now.toISOString() })
