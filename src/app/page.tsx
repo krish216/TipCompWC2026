@@ -1594,7 +1594,7 @@ export default function HomePage() {
               {/* Compact progress nudge — shown until tribe joined (tipsters) or comp set up (admins) */}
               {!step3Done && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center justify-between gap-3">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-amber-800 mb-1">Almost there!</p>
                     <div className="flex items-center gap-1.5 text-xs flex-wrap">
                       <span className="text-green-600 font-medium">✅ TribePicks</span>
@@ -1604,20 +1604,12 @@ export default function HomePage() {
                       {isCompAdmin ? (
                         <span className="text-amber-700 font-medium">○ Comp Setup</span>
                       ) : (
-                        <span className="flex items-center gap-1 text-amber-700 font-medium">
-                          ○ Tribe
-                          <button
-                            type="button"
-                            onClick={() => setTribeInfoOpen(v => !v)}
-                            className="w-3.5 h-3.5 rounded-full border border-amber-400 inline-flex items-center justify-center text-[9px] font-bold leading-none text-amber-500 hover:border-amber-600 hover:text-amber-700 flex-shrink-0">
-                            i
-                          </button>
-                        </span>
+                        <span className="text-amber-700 font-medium">○ Tribe</span>
                       )}
                     </div>
-                    {tribeInfoOpen && !isCompAdmin && (
-                      <p className="mt-2 text-[11px] text-green-800 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
-                        A Tribe is a small group within your comp. Join or create one to get a private chat and a mini-leaderboard with your friends.
+                    {!isCompAdmin && (
+                      <p className="mt-1.5 text-[11px] text-amber-700">
+                        Join a tribe to unlock <strong>chat</strong> and <strong>tip sheets</strong>
                       </p>
                     )}
                   </div>
@@ -1629,7 +1621,7 @@ export default function HomePage() {
                   ) : (
                     <Link href="/tribe"
                       className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-                      Find a tribe →
+                      Join a tribe →
                     </Link>
                   )}
                 </div>
@@ -1875,6 +1867,15 @@ export default function HomePage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Verify-to-create nudge — shown briefly when unverified user taps + Create */}
+                  {showVerifyToCreate && (
+                    <div className="px-3 py-2 bg-amber-50 border-b border-amber-100">
+                      <p className="text-xs text-amber-700 font-medium">
+                        ⚠️ Verify your email first — check your inbox for the link we sent you.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Fresh comp prompt */}
                   {isCompAdmin && step3Done && selectedCompId && (compSizes[selectedCompId] ?? 2) <= 1 && (

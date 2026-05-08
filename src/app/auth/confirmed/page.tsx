@@ -12,7 +12,7 @@ function ConfirmedInner() {
 
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSent,    setResendSent]    = useState(false)
-  const [resendErr,     setResendErr]     = useState(false)
+  const [resendErr,     setResendErr]     = useState<'not_signed_in' | 'generic' | false>(false)
 
   useEffect(() => {
     // Only fire confetti on the success path (no error param).
@@ -31,8 +31,9 @@ function ConfirmedInner() {
   const handleResend = async () => {
     setResendLoading(true); setResendErr(false)
     const res = await fetch('/api/auth/resend-verification', { method: 'POST' }).catch(() => null)
-    if (res?.ok) { setResendSent(true) }
-    else         { setResendErr(true) }
+    if (res?.ok)            { setResendSent(true) }
+    else if (res?.status === 401) { setResendErr('not_signed_in') }
+    else                    { setResendErr('generic') }
     setResendLoading(false)
   }
 
@@ -64,7 +65,11 @@ function ConfirmedInner() {
             </div>
           ) : resendErr ? (
             <div className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-700">Failed to send — make sure you're signed in, then try again.</p>
+              <p className="text-sm text-red-700">
+                {resendErr === 'not_signed_in'
+                  ? 'Sign in first, then resend from your account settings.'
+                  : 'Failed to send — please try again.'}
+              </p>
             </div>
           ) : (
             <button

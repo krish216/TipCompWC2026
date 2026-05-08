@@ -4,7 +4,7 @@ export const DEFAULT_WELCOME_SUBJECT =
 
 export const DEFAULT_WELCOME_BODY = `Hi {{first_name}},
 
-Welcome to TribePicks! Your account has been verified and you're all set to start tipping.
+Welcome to TribePicks!
 
 You've joined a community of fans competing to predict the biggest matches of the 2026 FIFA World Cup. Here's everything you need to know to hit the ground running.
 
