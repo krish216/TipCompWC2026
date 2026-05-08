@@ -83,11 +83,15 @@ export async function sendWelcomeIfNeeded(userId: string, tournamentId: string):
   await (admin.from('users') as any).update({ welcome_email_sent: true }).eq('id', userId)
 }
 
+const linkify = (text: string) =>
+  text.replace(/https?:\/\/[^\s<>"']+/g, url =>
+    `<a href="${url}" style="color:#16a34a;text-decoration:underline;">${url}</a>`)
+
 function buildHtml(body: string, verifyUrl?: string): string {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
   const lines  = body
     .split('\n')
-    .map(l => `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${l || '&nbsp;'}</p>`)
+    .map(l => `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#374151;">${l ? linkify(l) : '&nbsp;'}</p>`)
     .join('')
 
   const verifyBlock = verifyUrl ? `
