@@ -438,20 +438,6 @@ export default function LoginPage() {
         {/* Value strip + fixture teaser — cold register visitors only */}
         {mode === 'register' && !codeParam && !isChallenge && !isOrganiser && (
           <>
-            {/* Three-column value strip */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {([
-                { icon: '🏆', label: 'Predict every match' },
-                { icon: '👥', label: 'Compete in a private comp' },
-                { icon: '📊', label: 'Live leaderboard' },
-              ] as const).map(({ icon, label }) => (
-                <div key={label} className="flex flex-col items-center gap-1.5 px-2 py-3 bg-white rounded-xl border border-gray-200 text-center">
-                  <span className="text-xl">{icon}</span>
-                  <span className="text-[11px] font-medium text-gray-700 leading-tight">{label}</span>
-                </div>
-              ))}
-            </div>
-
             {/* Fixture teaser */}
             {teaserFixtures.length > 0 && (
               <div className="mb-4">
