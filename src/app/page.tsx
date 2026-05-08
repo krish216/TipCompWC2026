@@ -1739,8 +1739,8 @@ export default function HomePage() {
                 )
               })()}
 
-              {/* Prediction CTA — shown when the round is open and tips are incomplete */}
-              {currentRoundCode && fixtureCount > 0 && predCount < fixtureCount && (
+              {/* Prediction CTA — shown when the round is open, tips are incomplete, and email is verified */}
+              {emailVerified !== false && currentRoundCode && fixtureCount > 0 && predCount < fixtureCount && (
                 <Link href="/predict" className="block mb-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4 hover:border-green-300 hover:shadow-sm transition-all group">
                   <div className="flex items-center justify-between gap-3">
                     <div>
