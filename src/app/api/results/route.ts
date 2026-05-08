@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { createNotifications } from '@/lib/notifications'
 import { z } from 'zod'
 
 const ResultSchema = z.object({
@@ -82,6 +83,31 @@ export async function POST(request: NextRequest) {
     .select('id', { count: 'exact', head: true })
     .eq('fixture_id', fixture_id)
     .not('points_earned', 'is', null)
+
+  // Fire-and-forget: score_update in-app notifications for every user who tipped
+  ;(async () => {
+    try {
+      const { data: preds } = await (admin.from('predictions') as any)
+        .select('user_id, points_earned, home_pred, away_pred')
+        .eq('fixture_id', fixture_id)
+        .not('points_earned', 'is', null)
+      if (!preds?.length) return
+
+      const homeName = (data as any).home ?? 'Home'
+      const awayName = (data as any).away ?? 'Away'
+
+      await createNotifications((preds as any[]).map(p => {
+        const pts = p.points_earned ?? 0
+        return {
+          user_id: p.user_id,
+          type:    'score_update' as const,
+          title:   `⚽ ${homeName} ${home}–${away} ${awayName} — ${pts} pt${pts !== 1 ? 's' : ''} earned`,
+          body:    `Your tip: ${p.home_pred}–${p.away_pred}`,
+          data:    { fixture_id, points_earned: pts },
+        }
+      }))
+    } catch {}
+  })()
 
   // Auto-settle challenges for this fixture (non-blocking)
   try {
