@@ -62,6 +62,15 @@ function JoinInner() {
       if (!success && !joinErr?.toLowerCase().includes('already')) {
         setPhase('error'); setErrMsg(joinErr ?? 'Failed to join comp'); return
       }
+
+      // If the link had no pre-filled email the user is unverified — skip the
+      // "You're in" tipping prompt and go to homepage where the onboarding flow
+      // and email verification banner will guide them.
+      if (!email) {
+        router.replace(`/?joined=${encodeURIComponent(comp.name)}&comp_id=${encodeURIComponent(comp.id)}`)
+        return
+      }
+
       setTribeAssigned(!!tribe_assigned)
       setPhase('done')
     })()
