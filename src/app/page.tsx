@@ -1409,24 +1409,26 @@ export default function HomePage() {
                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">!</span>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-amber-800">Verify your email address</p>
-                    <p className="text-xs text-amber-700 mt-0.5">Check your inbox — we sent you a verification link in your welcome email. Click it to complete onboarding.</p>
-                    <div className="mt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-amber-800">Verify your email address</p>
                       {resendSent ? (
-                        <span className="text-xs text-green-600 font-medium">✓ Email sent!</span>
+                        <span className="text-xs text-green-600 font-medium flex-shrink-0">✓ Sent!</span>
                       ) : resendError ? (
-                        <span className="text-xs text-red-600 font-medium">Failed — try again</span>
+                        <span className="text-xs text-red-600 font-medium flex-shrink-0">Failed — try again</span>
                       ) : (
                         <button
                           onClick={handleResendVerification}
                           disabled={resendLoading}
-                          className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline disabled:opacity-50 flex items-center gap-1"
+                          className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline disabled:opacity-50 flex-shrink-0 flex items-center gap-1"
                         >
                           {resendLoading && <Spinner className="w-3 h-3" />}
-                          Resend verification email
+                          Resend
                         </button>
                       )}
                     </div>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      We sent a link to <strong>{session?.user?.email}</strong>. Check your inbox.
+                    </p>
                   </div>
                 </div>
               )}
