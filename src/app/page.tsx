@@ -247,12 +247,15 @@ function CompModal({
               </div>
               {createdComp.invite_code && (
                 <div>
-                  <p className="text-xs font-medium text-gray-600 mb-1.5">Invite code</p>
+                  <p className="text-xs font-medium text-gray-600 mb-1.5">Invite link</p>
                   <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
-                    <span className="flex-1 text-sm font-mono font-bold text-gray-800 tracking-widest">{createdComp.invite_code}</span>
+                    <span className="flex-1 text-xs text-gray-700 truncate">
+                      {typeof window !== 'undefined' ? window.location.host : 'tribepicks.com'}/join?code={createdComp.invite_code}
+                    </span>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(createdComp.invite_code!)
+                        const url = `${window.location.origin}/join?code=${createdComp!.invite_code!}`
+                        navigator.clipboard.writeText(url)
                         setCopied(true)
                         setTimeout(() => setCopied(false), 2000)
                       }}
@@ -260,7 +263,21 @@ function CompModal({
                       {copied ? '✓ Copied' : 'Copy'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Share this code with your group to join</p>
+                  <button
+                    onClick={async () => {
+                      const url = `${window.location.origin}/join?code=${createdComp!.invite_code!}`
+                      if (navigator.share) {
+                        try { await navigator.share({ title: `Join ${createdComp!.name} on TribePicks`, text: `I've set up a World Cup tipping comp — join here:`, url }) } catch {}
+                      } else {
+                        window.open(`https://wa.me/?text=${encodeURIComponent(`Join ${createdComp!.name} on TribePicks: ${url}`)}`, '_blank')
+                      }
+                    }}
+                    className="mt-2 w-full flex items-center justify-center gap-2 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-700 rounded-xl transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    Send to your group →
+                  </button>
                 </div>
               )}
               <button
