@@ -467,6 +467,9 @@ export default function HomePage() {
   const [engagementAlert,  setEngagementAlert]  = useState<{ round_name: string; untipped_count: number; total_tipsters: number; deadline: string | null } | null>(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [emailVerified,    setEmailVerified]    = useState<boolean | null>(null)
+  const [resendLoading,    setResendLoading]    = useState(false)
+  const [resendSent,       setResendSent]       = useState(false)
+  const [resendError,      setResendError]      = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -639,6 +642,14 @@ export default function HomePage() {
       }
     }
   }, [step3Done, step2Done, emailVerified, contextLoading, loading, session])
+
+  const handleResendVerification = async () => {
+    setResendLoading(true); setResendError(false)
+    const res = await fetch('/api/auth/resend-verification', { method: 'POST' }).catch(() => null)
+    if (res?.ok) { setResendSent(true); setTimeout(() => setResendSent(false), 8000) }
+    else         { setResendError(true); setTimeout(() => setResendError(false), 6000) }
+    setResendLoading(false)
+  }
 
   const joinPendingInvite = async (inv: { comp_id: string; invite_code: string; invitation_id: string; comp_name: string; comp_logo_url: string | null }) => {
     setJoiningInvite(inv.invitation_id)
@@ -1369,7 +1380,7 @@ export default function HomePage() {
                   <div className="p-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-black text-white mb-0.5">🎉 Welcome to {compWelcome}!</p>
-                      {/* {emailVerified === false ? (
+                      {emailVerified === false ? (
                         <>
                           <p className="text-sm text-green-200 mb-2">You're now a member.</p>
                           <p className="text-xs text-amber-300 font-medium">⚠️ Verify your email to start tipping — check your inbox.</p>
@@ -1382,12 +1393,8 @@ export default function HomePage() {
                             Start tipping →
                           </Link>
                         </>
-                      )} */}
-                        <p className="text-sm text-green-200 mb-3">You're now a member. Time to start tipping!</p>
-                          <Link href="/predict"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
-                            Start tipping →
-                          </Link>
+                      )}
+
                     </div>
                     <button onClick={() => setCompWelcome(null)}
                       className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">
@@ -1401,9 +1408,25 @@ export default function HomePage() {
               {emailVerified === false && (
                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">!</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-semibold text-amber-800">Verify your email address</p>
                     <p className="text-xs text-amber-700 mt-0.5">Check your inbox — we sent you a verification link in your welcome email. Click it to complete onboarding.</p>
+                    <div className="mt-2">
+                      {resendSent ? (
+                        <span className="text-xs text-green-600 font-medium">✓ Email sent!</span>
+                      ) : resendError ? (
+                        <span className="text-xs text-red-600 font-medium">Failed — try again</span>
+                      ) : (
+                        <button
+                          onClick={handleResendVerification}
+                          disabled={resendLoading}
+                          className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {resendLoading && <Spinner className="w-3 h-3" />}
+                          Resend verification email
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1744,8 +1767,8 @@ export default function HomePage() {
                 )
               })()}
 
-              {/* Prediction CTA — shown when the round is open, tips are incomplete, and email is verified */}
-              {emailVerified !== false && currentRoundCode && fixtureCount > 0 && predCount < fixtureCount && (
+              {/* Prediction CTA — shown when the round is open and tips are incomplete */}
+              {currentRoundCode && fixtureCount > 0 && predCount < fixtureCount && (
                 <Link href="/predict" className="block mb-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4 hover:border-green-300 hover:shadow-sm transition-all group">
                   <div className="flex items-center justify-between gap-3">
                     <div>
