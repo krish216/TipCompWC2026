@@ -98,10 +98,7 @@ function buildHtml(body: string, verifyUrl?: string): string {
 <html>
 <head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">
-  <div style="margin-bottom:20px;">
-    <p style="margin:0;font-size:20px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks</p>
-    <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">Welcome aboard 🏆</p>
-  </div>
+  <img src="https://tribepicks.com/logo.png" alt="TribePicks" height="96" style="display:block;margin-bottom:24px"/>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;"/>
   ${verifyBlock}
   ${lines}

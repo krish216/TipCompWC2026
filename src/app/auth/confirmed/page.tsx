@@ -1,14 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import confetti from 'canvas-confetti'
-import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 function ConfirmedInner() {
-  const { supabase, session } = useSupabase()
-  const router  = useRouter()
   const params  = useSearchParams()
   const next    = params.get('next') ?? '/'
   const fired   = useRef(false)
@@ -16,26 +13,13 @@ function ConfirmedInner() {
   useEffect(() => {
     if (fired.current) return
     fired.current = true
-
     confetti({
       particleCount: 160,
       spread: 85,
       origin: { y: 0.5 },
       colors: ['#22c55e', '#16a34a', '#4ade80', '#fbbf24', '#ffffff'],
     })
-
-    const timer = setTimeout(() => router.replace(next), 3000)
-    return () => clearTimeout(timer)
-  }, [next, router])
-
-  // Mark the user's email as verified in our users table so the
-  // EmailVerificationBanner knows to stop showing.
-  useEffect(() => {
-    if (!session?.user?.id) return
-    ;(supabase.from('users') as any)
-      .update({ email_verified: true })
-      .eq('id', session.user.id)
-  }, [session?.user?.id])
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -47,19 +31,8 @@ function ConfirmedInner() {
           </svg>
         </div>
 
-        <h1 className="text-2xl font-black text-gray-900 mb-2">Email confirmed!</h1>
-        <p className="text-sm text-gray-500 mb-1">You&apos;re all set. Taking you to TribePicks now…</p>
-        <p className="text-xs text-gray-400 mb-7">You&apos;ll be redirected automatically in a moment.</p>
-
-        {/* Animated dots */}
-        <div className="flex justify-center gap-1.5 mb-7">
-          {[0, 1, 2].map(i => (
-            <div key={i}
-              className="w-2 h-2 rounded-full bg-green-400 animate-bounce"
-              style={{ animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Email verified!</h1>
+        <p className="text-sm text-gray-500 mb-7">Your account is now fully verified. Head back to TribePicks to continue.</p>
 
         <Link href={next}
           className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">

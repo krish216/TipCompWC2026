@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -448,7 +448,6 @@ export default function HomePage() {
   const [blockFuture,    setBlockFuture]    = useState(false)
   const [showAllSet,     setShowAllSet]     = useState(false)
   const [heroStats,      setHeroStats]      = useState<{ tipster_count: number; comp_count: number } | null>(null)
-  const step3WasRef = useRef<boolean | null>(null)
   const [decliningBusy,    setDecliningBusy]    = useState(false)
   const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
   const [cameFromChallenge, setCameFromChallenge] = useState(false)
@@ -623,15 +622,12 @@ export default function HomePage() {
     return () => { cancelled = true }
   }, [session, selectedCompId, isCompAdmin])
 
-  // Fire "You're all set" celebration once when tribe step completes
+  // Fire "You're all set" once when all three onboarding steps are complete.
+  // Using localStorage to deduplicate means this fires correctly regardless of
+  // which step completes last (including email verification happening after tribe).
   useEffect(() => {
-    if (contextLoading || loading || !session) return
-    if (step3WasRef.current === null) {
-      // First stable read — record baseline without celebrating
-      step3WasRef.current = step3Done
-      return
-    }
-    if (step3Done && !step3WasRef.current && step2Done && emailVerified !== false) {
+    if (contextLoading || loading || !session || emailVerified === null) return
+    if (step2Done && step3Done && emailVerified === true) {
       const key = `allset_${session.user.id}`
       if (!localStorage.getItem(key)) {
         localStorage.setItem(key, '1')
@@ -642,8 +638,7 @@ export default function HomePage() {
         }), 150)
       }
     }
-    step3WasRef.current = step3Done
-  }, [step3Done, step2Done, contextLoading, loading, session, emailVerified])
+  }, [step3Done, step2Done, emailVerified, contextLoading, loading, session])
 
   const joinPendingInvite = async (inv: { comp_id: string; invite_code: string; invitation_id: string; comp_name: string; comp_logo_url: string | null }) => {
     setJoiningInvite(inv.invitation_id)
@@ -1374,11 +1369,20 @@ export default function HomePage() {
                   <div className="p-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-black text-white mb-0.5">🎉 Welcome to {compWelcome}!</p>
-                      <p className="text-sm text-green-200 mb-3">You're now a member. Time to start tipping!</p>
-                      <Link href="/predict"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
-                        Start tipping →
-                      </Link>
+                      {emailVerified === false ? (
+                        <>
+                          <p className="text-sm text-green-200 mb-2">You're now a member.</p>
+                          <p className="text-xs text-amber-300 font-medium">⚠️ Verify your email to start tipping — check your inbox.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-green-200 mb-3">You're now a member. Time to start tipping!</p>
+                          <Link href="/predict"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
+                            Start tipping →
+                          </Link>
+                        </>
+                      )}
                     </div>
                     <button onClick={() => setCompWelcome(null)}
                       className="text-green-300 hover:text-white text-lg leading-none flex-shrink-0 mt-0.5">

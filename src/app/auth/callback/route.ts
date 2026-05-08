@@ -6,7 +6,8 @@ import { createAdminClient } from '@/lib/supabase'
 // Handles PKCE code exchange for:
 //   - Google / Apple OAuth redirects
 //   - Magic link clicks (email verification from welcome email)
-// After exchanging the code, redirects to ?next= or '/'
+// Every successful code exchange proves the user owns their email address,
+// so we mark email_verified=true for all cases.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -26,16 +27,11 @@ export async function GET(request: NextRequest) {
       }
     )
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error && sessionData?.user) {
-      const provider = sessionData.user.app_metadata?.provider ?? 'email'
-      // OAuth users (Google, Apple, etc.) have their email verified by the provider —
-      // mark our custom column immediately so the verification banner never appears.
-      if (provider !== 'email') {
-        const admin = createAdminClient()
-        await (admin.from('users') as any)
-          .update({ email_verified: true })
-          .eq('id', sessionData.user.id)
-      }
+    if (!error && sessionData?.user?.id) {
+      const admin = createAdminClient()
+      await (admin.from('users') as any)
+        .update({ email_verified: true })
+        .eq('id', sessionData.user.id)
       return NextResponse.redirect(`${origin}${next}`)
     }
     if (error) {
