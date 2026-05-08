@@ -349,6 +349,13 @@ export default function HomePage() {
       setModal('create')
       router.replace('/')
     }
+    if (searchParams.get('verified') === '1' && session) {
+      setEmailVerified(true)
+      setShowVerifiedToast(true)
+      setTimeout(() => setShowVerifiedToast(false), 5000)
+      router.replace('/')
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#22c55e', '#16a34a', '#4ade80', '#fbbf24', '#ffffff'] })
+    }
     const joined       = searchParams.get('joined')
     const joinedCompId = searchParams.get('comp_id')
     if (joined && session) {
@@ -470,6 +477,8 @@ export default function HomePage() {
   const [resendLoading,    setResendLoading]    = useState(false)
   const [resendSent,       setResendSent]       = useState(false)
   const [resendError,      setResendError]      = useState(false)
+  const [showVerifiedToast,  setShowVerifiedToast]  = useState(false)
+  const [showVerifyToCreate, setShowVerifyToCreate] = useState(false)
 
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
@@ -1321,21 +1330,31 @@ export default function HomePage() {
                       <p className="text-[10px] text-gray-400">Have an invite code</p>
                     </button>
                     <button
-                      onClick={() => emailVerified === false ? undefined : setModal('create')}
-                      disabled={emailVerified === false}
-                      title={emailVerified === false ? 'Verify your email first' : undefined}
+                      onClick={() => {
+                        if (emailVerified === false) {
+                          setShowVerifyToCreate(true)
+                          setTimeout(() => setShowVerifyToCreate(false), 4000)
+                        } else {
+                          setModal('create')
+                        }
+                      }}
                       className={`flex flex-col items-center gap-1.5 py-4 px-3 rounded-xl border-2 transition-all text-center ${
                         emailVerified === false
-                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          ? 'border-gray-200 bg-gray-50 opacity-60'
                           : 'border-emerald-400 bg-emerald-50 hover:bg-emerald-100'
                       }`}>
                       <span className="text-2xl">🏆</span>
                       <p className={`text-xs font-bold ${emailVerified === false ? 'text-gray-400' : 'text-emerald-700'}`}>Create a comp</p>
-                      <p className={`text-[10px] ${emailVerified === false ? 'text-gray-400' : 'text-emerald-500'}`}>
-                        {emailVerified === false ? 'Verify email first' : 'For my group'}
-                      </p>
+                      <p className={`text-[10px] ${emailVerified === false ? 'text-gray-400' : 'text-emerald-500'}`}>For my group</p>
                     </button>
                   </div>
+
+                  {/* Verify-to-create nudge — appears briefly when unverified user taps Create */}
+                  {showVerifyToCreate && (
+                    <p className="mt-2 text-xs text-center text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      ⚠️ Verify your email first — check your inbox for the link we sent you.
+                    </p>
+                  )}
 
                   {/* No invite fallback */}
                   <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-center">
@@ -1433,6 +1452,14 @@ export default function HomePage() {
                 </div>
               )}
 
+              {/* Email verified toast — shown briefly after clicking the verification link */}
+              {showVerifiedToast && (
+                <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
+                  <p className="text-sm font-semibold text-green-800">Email verified! You&apos;re all set.</p>
+                </div>
+              )}
+
               {/* You're all set — fires once when tribe step completes */}
               {showAllSet && (
                 <div className="mb-4 rounded-2xl overflow-hidden shadow-lg"
@@ -1476,6 +1503,10 @@ export default function HomePage() {
                           <Link href="/predict"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-bold rounded-lg">
                             Start Tipping! →
+                          </Link>
+                          <Link href="/tribe"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-semibold rounded-lg">
+                            View tribe
                           </Link>
                           <Link href="/leaderboard"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-semibold rounded-lg">
@@ -1830,7 +1861,15 @@ export default function HomePage() {
                         className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
                         🔑 Join
                       </button>
-                      <button onClick={() => setModal('create')}
+                      <button
+                        onClick={() => {
+                          if (emailVerified === false) {
+                            setShowVerifyToCreate(true)
+                            setTimeout(() => setShowVerifyToCreate(false), 4000)
+                          } else {
+                            setModal('create')
+                          }
+                        }}
                         className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
                         + Create
                       </button>

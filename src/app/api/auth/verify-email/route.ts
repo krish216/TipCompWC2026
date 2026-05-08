@@ -60,5 +60,7 @@ export async function GET(req: NextRequest) {
     console.warn('[verify-email] user_metadata sync failed:', e?.message)
   }
 
-  return NextResponse.redirect(`${appUrl}/auth/confirmed`)
+  // Redirect straight to homepage with ?verified=1 so the app can celebrate
+  // inline — avoids the full-page /auth/confirmed detour.
+  return NextResponse.redirect(`${appUrl}/?verified=1`)
 }

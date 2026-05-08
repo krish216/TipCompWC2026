@@ -62,7 +62,8 @@ function buildHtml(verifyUrl: string, appUrl: string): string {
   <div style="text-align:center;margin-bottom:24px;">
     <a href="${verifyUrl}" style="display:inline-block;padding:12px 32px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">Verify my email →</a>
   </div>
-  <p style="margin:0 0 24px;font-size:12px;color:#6b7280;text-align:center;">Button not working? <a href="${verifyUrl}" style="color:#6b7280;">Click here</a></p>
+  <p style="margin:0 0 16px;font-size:12px;color:#6b7280;text-align:center;">Button not working? <a href="${verifyUrl}" style="color:#6b7280;">Click here</a></p>
+  <p style="margin:0 0 24px;font-size:11px;color:#9ca3af;text-align:center;">This link expires in 72 hours.</p>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">
     You're receiving this because you registered at

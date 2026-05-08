@@ -95,7 +95,7 @@ function buildHtml(body: string, verifyUrl?: string): string {
     <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#166534;">Step 1 — Verify your email address</p>
     <p style="margin:0 0 16px;font-size:13px;color:#4b7c5a;line-height:1.5;">Click the button below to confirm your email and unlock all features.</p>
     <a href="${verifyUrl}" style="display:inline-block;padding:11px 28px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">Verify my email →</a>
-    <p style="margin:12px 0 0;font-size:11px;color:#6b7280;">Button not working? <a href="${verifyUrl}" style="color:#6b7280;">Copy this link</a></p>
+    <p style="margin:12px 0 0;font-size:11px;color:#6b7280;">Button not working? <a href="${verifyUrl}" style="color:#6b7280;">Copy this link</a> &nbsp;·&nbsp; Link expires in 72 hours.</p>
   </div>` : ''
 
   return `<!DOCTYPE html>
