@@ -229,7 +229,11 @@ export default function LoginPage() {
       const { data: signUpData, error } = await supabase.auth.signUp({
         email, password,
         options: {
-          data: { display_name: displayName, ...(inviteCompName ? { invite_comp_name: inviteCompName } : {}) },
+          data: {
+            display_name:   displayName,
+            email_verified: !!codeParam,  // invite-link registrations are pre-verified
+            ...(inviteCompName ? { invite_comp_name: inviteCompName } : {}),
+          },
           emailRedirectTo: redirectTo,
           captchaToken: turnstileToken!,
         },

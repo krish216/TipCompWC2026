@@ -14,27 +14,23 @@ export async function POST() {
   }
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
-  // Bare callback URL — more likely to match Supabase's redirect allowlist.
-  // auth/callback defaults next to /auth/confirmed when no ?next= is present.
-  const callbackUrl = `${appUrl}/auth/callback`
 
   const admin = createAdminClient()
-  let verifyUrl: string | undefined
-  try {
-    const { data: linkData, error: linkError } = await (admin.auth as any).admin.generateLink({
-      type:    'magiclink',
-      email:   user.email,
-      options: { redirectTo: callbackUrl },
-    })
-    if (linkError) console.error('[resend-verification] generateLink error:', linkError.message)
-    verifyUrl = linkData?.properties?.action_link
-  } catch (e: any) {
-    console.error('[resend-verification] generateLink threw:', e?.message)
-  }
 
-  if (!verifyUrl) {
+  // Custom UUID token stored in the users table — bypasses Supabase magic links
+  // which used hash-based redirects incompatible with our server-side /auth/callback.
+  const token    = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
+  const { error: tokenError } = await (admin.from('users') as any)
+    .update({ email_verify_token: token, email_verify_token_expires_at: expiresAt })
+    .eq('id', user.id)
+
+  if (tokenError) {
+    console.error('[resend-verification] token store failed:', tokenError.message)
     return NextResponse.json({ error: 'Failed to generate verification link' }, { status: 500 })
   }
+
+  const verifyUrl = `${appUrl}/api/auth/verify-email?token=${token}`
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.emails.send({
@@ -57,7 +53,9 @@ function buildHtml(verifyUrl: string, appUrl: string): string {
 <html>
 <head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">
-  <img src="https://tribepicks.com/logo.png" alt="TribePicks" height="96" style="display:block;margin-bottom:24px"/>
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="https://tribepicks.com/logo.png" alt="TribePicks" height="96" style="display:inline-block;"/>
+  </div>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 24px;"/>
   <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">Verify your email address</p>
   <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#374151;">Click the button below to verify your TribePicks account. This link will sign you in and confirm your email.</p>

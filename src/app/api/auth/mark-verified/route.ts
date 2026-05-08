@@ -20,5 +20,14 @@ export async function POST() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Sync to auth user_metadata so middleware can read email_verified from JWT
+  try {
+    await (admin.auth as any).admin.updateUserById(user.id, {
+      user_metadata: { email_verified: true },
+    })
+  } catch (e: any) {
+    console.warn('[mark-verified] user_metadata sync failed:', e?.message)
+  }
+
   return NextResponse.json({ success: true })
 }

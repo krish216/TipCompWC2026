@@ -38,9 +38,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Already logged in → send away from login page
+  // Already logged in → send away from login page.
+  // Verified users go to /predict; unverified go to homepage (onboarding).
+  // email_verified in user_metadata is set at signup and updated when the user
+  // clicks their verification link — readable from the JWT without a DB query.
+  // Existing users without this metadata field default to /predict (all were
+  // backfilled as verified in migration 087).
   if (user && AUTH_ROUTES.some(r => pathname === r)) {
-    return NextResponse.redirect(new URL('/predict', request.url))
+    const emailVerified = (user as any).user_metadata?.email_verified
+    const dest = emailVerified === false ? '/' : '/predict'
+    return NextResponse.redirect(new URL(dest, request.url))
   }
 
   // NOTE: Admin check is intentionally NOT done in middleware.

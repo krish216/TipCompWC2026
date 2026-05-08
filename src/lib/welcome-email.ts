@@ -45,23 +45,25 @@ export async function sendWelcomeIfNeeded(userId: string, tournamentId: string):
   subject = subject.replace(/\{\{first_name\}\}/g, firstName)
   body    = body.replace(/\{\{first_name\}\}/g, firstName)
 
-  // Generate a magic link so the welcome email doubles as the verification email.
-  // Clicking it goes through /auth/callback → /auth/confirmed which marks email_verified=true.
+  // Generate a custom UUID token for email verification.
+  // Stored in the users table with a 72-hour expiry and used as a query param
+  // on /api/auth/verify-email — bypasses Supabase magic links entirely, which
+  // used hash-based redirects that couldn't be handled server-side.
   let verifyUrl: string | undefined
   try {
-    // Use bare /auth/callback (no query params) so the URL is more likely to
-    // match Supabase's redirect allowlist. The callback defaults next to /auth/confirmed.
-    const callbackUrl = `${appUrl}/auth/callback`
-    const { data: linkData } = await (admin.auth as any).admin.generateLink({
-      type:    'magiclink',
-      email:   (profile as any).email,
-      options: { redirectTo: callbackUrl },
-    })
-    verifyUrl = linkData?.properties?.action_link
-    if (verifyUrl) console.log('[welcome-email] verification link generated')
-    else           console.warn('[welcome-email] generateLink returned no action_link')
+    const token    = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
+    const { error: tokenError } = await (admin.from('users') as any)
+      .update({ email_verify_token: token, email_verify_token_expires_at: expiresAt })
+      .eq('id', userId)
+    if (tokenError) {
+      console.warn('[welcome-email] token store failed:', tokenError.message)
+    } else {
+      verifyUrl = `${appUrl}/api/auth/verify-email?token=${token}`
+      console.log('[welcome-email] verification token generated')
+    }
   } catch (e: any) {
-    console.warn('[welcome-email] generateLink failed:', e?.message ?? e)
+    console.warn('[welcome-email] token generation failed:', e?.message ?? e)
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY)
@@ -100,7 +102,9 @@ function buildHtml(body: string, verifyUrl?: string): string {
 <html>
 <head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">
-  <img src="https://tribepicks.com/logo.png" alt="TribePicks" height="96" style="display:block;margin-bottom:24px"/>
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="https://tribepicks.com/logo.png" alt="TribePicks" height="96" style="display:inline-block;"/>
+  </div>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;"/>
   ${verifyBlock}
   ${lines}
