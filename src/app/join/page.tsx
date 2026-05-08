@@ -68,6 +68,7 @@ function JoinInner() {
       // and email verification banner will guide them.
       if (!email) {
         router.replace(`/?joined=${encodeURIComponent(comp.name)}&comp_id=${encodeURIComponent(comp.id)}`)
+        router.refresh()
         return
       }
 
