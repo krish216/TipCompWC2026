@@ -10,6 +10,37 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const CHAT_SEEN_KEY = (tribeId: string) => `tc_chat_seen_${tribeId}`
 
+interface AppNotification {
+  id:         string
+  type:       string
+  title:      string
+  body?:      string | null
+  data?:      Record<string, unknown> | null
+  read_at:    string | null
+  created_at: string
+}
+
+const NOTIF_ICONS: Record<string, string> = {
+  round_deadline:    '⏰',
+  score_update:      '⚽',
+  leaderboard_move:  '📈',
+  comp_announcement: '📢',
+  member_joined:     '🙋',
+  member_milestone:  '🎉',
+  low_tipping_alert: '⚠️',
+  round_complete:    '🏁',
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1)  return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
@@ -20,6 +51,11 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const [hasUnread,    setHasUnread]    = useState(false)
   const lastSeenRef = useRef<string | null>(null)
   useEffect(() => setMounted(true), [])
+
+  const [notifOpen,    setNotifOpen]    = useState(false)
+  const [notifs,       setNotifs]       = useState<AppNotification[]>([])
+  const [unreadCount,  setUnreadCount]  = useState(0)
+  const [notifLoading, setNotifLoading] = useState(false)
 
   // Mark chat as seen when on /tribe
   useEffect(() => {
@@ -58,6 +94,52 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
 
     return () => { supabase.removeChannel(channel) }
   }, [supabase, session, selectedTribeId, pathname])
+
+  // Fetch notification count on session start
+  useEffect(() => {
+    if (!session) return
+    fetch('/api/notifications')
+      .then(r => r.json())
+      .then(({ data, unread_count }) => {
+        if (Array.isArray(data))               setNotifs(data)
+        if (typeof unread_count === 'number')  setUnreadCount(unread_count)
+      })
+      .catch(() => {})
+  }, [session])
+
+  // Realtime: increment badge when a new notification is inserted for this user
+  useEffect(() => {
+    if (!session) return
+    const channel = supabase
+      .channel(`notifs-${session.user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: `user_id=eq.${session.user.id}`,
+      }, payload => {
+        const n = payload.new as AppNotification
+        setNotifs(prev => [n, ...prev].slice(0, 30))
+        setUnreadCount(c => c + 1)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, session])
+
+  const openNotifPanel = async () => {
+    setNotifOpen(true)
+    setNotifLoading(true)
+    try {
+      const { data, unread_count } = await fetch('/api/notifications').then(r => r.json())
+      if (Array.isArray(data))              setNotifs(data)
+      if (typeof unread_count === 'number') setUnreadCount(unread_count)
+    } catch {}
+    setNotifLoading(false)
+  }
+
+  const handleMarkAllRead = async () => {
+    setNotifs(prev => prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })))
+    setUnreadCount(0)
+    await fetch('/api/notifications', { method: 'POST' }).catch(() => {})
+  }
 
   const signOut = async () => {
     setUserMenuOpen(false)
@@ -180,6 +262,83 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
             {/* User section */}
             {session ? (
               <div className="relative flex items-center gap-2 flex-shrink-0">
+                {/* Notification bell — visible on all screen sizes */}
+                <button
+                  onClick={() => notifOpen ? setNotifOpen(false) : openNotifPanel()}
+                  className="relative w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                  aria-label="Notifications">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                  {unreadCount > 0 && (
+                    <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification dropdown panel */}
+                {notifOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-bold text-gray-900">Notifications</p>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-xs text-green-600 hover:text-green-700 font-medium">
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      {/* List */}
+                      <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                        {notifLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <svg className="w-5 h-5 animate-spin text-gray-300" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            </svg>
+                          </div>
+                        ) : notifs.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-10 gap-2">
+                            <span className="text-3xl">🔔</span>
+                            <p className="text-sm text-gray-400">No notifications yet</p>
+                          </div>
+                        ) : (
+                          notifs.map(n => (
+                            <div key={n.id}
+                              className={clsx(
+                                'flex items-start gap-3 px-4 py-3 transition-colors',
+                                !n.read_at ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'
+                              )}>
+                              <span className="text-lg leading-none mt-0.5 flex-shrink-0">
+                                {NOTIF_ICONS[n.type] ?? '🔔'}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className={clsx('text-xs leading-snug', !n.read_at ? 'font-semibold text-gray-900' : 'font-medium text-gray-700')}>
+                                  {n.title}
+                                </p>
+                                {n.body && (
+                                  <p className="text-[11px] text-gray-500 mt-0.5 leading-snug line-clamp-2">{n.body}</p>
+                                )}
+                                <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
+                              </div>
+                              {!n.read_at && (
+                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-1.5" />
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {/* Chat icon with unread badge — mobile only, hidden on comp-admin */}
                 <Link href="/tribe"
                   className={clsx('sm:hidden relative w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors', isCompAdminPage && 'hidden')}
