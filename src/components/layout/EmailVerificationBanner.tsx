@@ -11,6 +11,7 @@ export function EmailVerificationBanner() {
   const [dismissed,     setDismissed]     = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSent,    setResendSent]    = useState(false)
+  const [resendError,   setResendError]   = useState(false)
 
   useEffect(() => {
     if (!session?.user?.id) { setVerified(null); return }
@@ -27,10 +28,14 @@ export function EmailVerificationBanner() {
 
   const handleResend = async () => {
     setResendLoading(true)
+    setResendError(false)
     const res = await fetch('/api/auth/resend-verification', { method: 'POST' }).catch(() => null)
     if (res?.ok) {
       setResendSent(true)
       setTimeout(() => setResendSent(false), 8000)
+    } else {
+      setResendError(true)
+      setTimeout(() => setResendError(false), 6000)
     }
     setResendLoading(false)
   }
@@ -44,7 +49,9 @@ export function EmailVerificationBanner() {
         </p>
         <div className="flex items-center gap-4 shrink-0">
           {resendSent ? (
-            <span className="text-xs text-green-600 font-medium">✓ Email resent!</span>
+            <span className="text-xs text-green-600 font-medium">✓ Email sent!</span>
+          ) : resendError ? (
+            <span className="text-xs text-red-600 font-medium">Failed — try again</span>
           ) : (
             <button
               onClick={handleResend}

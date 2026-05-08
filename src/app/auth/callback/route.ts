@@ -11,7 +11,9 @@ import { createAdminClient } from '@/lib/supabase'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+  // Magic-link verification has no ?next= — send them to the confirmed page.
+  // OAuth flows always set ?next= explicitly, so the default is only hit by verification clicks.
+  const next = searchParams.get('next') ?? '/auth/confirmed'
 
   if (code) {
     const cookieStore = cookies()

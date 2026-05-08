@@ -49,7 +49,9 @@ export async function sendWelcomeIfNeeded(userId: string, tournamentId: string):
   // Clicking it goes through /auth/callback → /auth/confirmed which marks email_verified=true.
   let verifyUrl: string | undefined
   try {
-    const callbackUrl = `${appUrl}/auth/callback?next=${encodeURIComponent('/auth/confirmed')}`
+    // Use bare /auth/callback (no query params) so the URL is more likely to
+    // match Supabase's redirect allowlist. The callback defaults next to /auth/confirmed.
+    const callbackUrl = `${appUrl}/auth/callback`
     const { data: linkData } = await (admin.auth as any).admin.generateLink({
       type:    'magiclink',
       email:   (profile as any).email,

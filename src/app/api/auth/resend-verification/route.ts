@@ -14,19 +14,22 @@ export async function POST() {
   }
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
-  const callbackUrl = `${appUrl}/auth/callback?next=${encodeURIComponent('/auth/confirmed')}`
+  // Bare callback URL — more likely to match Supabase's redirect allowlist.
+  // auth/callback defaults next to /auth/confirmed when no ?next= is present.
+  const callbackUrl = `${appUrl}/auth/callback`
 
   const admin = createAdminClient()
   let verifyUrl: string | undefined
   try {
-    const { data: linkData } = await (admin.auth as any).admin.generateLink({
+    const { data: linkData, error: linkError } = await (admin.auth as any).admin.generateLink({
       type:    'magiclink',
       email:   user.email,
       options: { redirectTo: callbackUrl },
     })
+    if (linkError) console.error('[resend-verification] generateLink error:', linkError.message)
     verifyUrl = linkData?.properties?.action_link
   } catch (e: any) {
-    console.error('[resend-verification] generateLink failed:', e?.message)
+    console.error('[resend-verification] generateLink threw:', e?.message)
   }
 
   if (!verifyUrl) {

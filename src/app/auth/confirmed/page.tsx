@@ -19,6 +19,9 @@ function ConfirmedInner() {
       origin: { y: 0.5 },
       colors: ['#22c55e', '#16a34a', '#4ade80', '#fbbf24', '#ffffff'],
     })
+    // Belt-and-suspenders: ensure email_verified=true even if auth/callback's
+    // server-side update didn't fire (e.g. hash-based redirect from older Supabase flow).
+    fetch('/api/auth/mark-verified', { method: 'POST' }).catch(() => {})
   }, [])
 
   return (
