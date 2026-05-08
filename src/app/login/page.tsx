@@ -217,13 +217,17 @@ export default function LoginPage() {
       const confirmedUrl = `/auth/confirmed?next=${encodeURIComponent(destinationUrl)}`
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(confirmedUrl)}`
 
-      // If registering via an invite link, fetch the comp name so the verification
-      // email template can reference it via {{ .Data.invite_comp_name }}.
+      // If registering via an invite link, fetch comp details. If the invite link
+      // also pre-filled an email, check whether that email is in comp_invitations
+      // — only formally invited emails are auto-verified on registration.
       let inviteCompName: string | undefined
+      let emailVerifiedByInvite = false
       if (codeParam) {
-        const { data: compData } = await fetch(`/api/comps?code=${codeParam}`)
+        const emailQuery = emailParam ? `&email=${encodeURIComponent(emailParam.trim())}` : ''
+        const { data: compData } = await fetch(`/api/comps?code=${codeParam}${emailQuery}`)
           .then(r => r.json()).catch(() => ({ data: null }))
         if (compData?.name) inviteCompName = compData.name
+        if (emailParam) emailVerifiedByInvite = !!compData?.email_invited
       }
 
       const { data: signUpData, error } = await supabase.auth.signUp({
@@ -231,7 +235,7 @@ export default function LoginPage() {
         options: {
           data: {
             display_name:   displayName,
-            email_verified: !!codeParam,  // invite-link registrations are pre-verified
+            email_verified: emailVerifiedByInvite,
             ...(inviteCompName ? { invite_comp_name: inviteCompName } : {}),
           },
           emailRedirectTo: redirectTo,
@@ -265,7 +269,7 @@ export default function LoginPage() {
           timezone:            timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           onboarding_complete: false,
           // Registering via an email invite link proves ownership of the address
-          email_verified:      !!codeParam,
+          email_verified:      emailVerifiedByInvite,
         }, { onConflict: 'id', ignoreDuplicates: false })
 
         // Enrol in selected tournament immediately — write directly to user_tournaments

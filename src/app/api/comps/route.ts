@@ -24,7 +24,22 @@ export async function GET(request: NextRequest) {
       .neq('slug', 'public')
       .single()
     if (error || !data) return NextResponse.json({ data: null, error: 'Code not found — check with your Comp Manager' }, { status: 200 })
-    return NextResponse.json({ data })
+
+    // If an email is provided, check whether it appears in comp_invitations.
+    // Uses the admin client to bypass RLS (anon users can't read invitations).
+    let email_invited = false
+    const emailParam = searchParams.get('email')?.trim().toLowerCase()
+    if (emailParam) {
+      const admin = createAdminClient()
+      const { data: inv } = await (admin.from('comp_invitations') as any)
+        .select('id')
+        .eq('comp_id', (data as any).id)
+        .ilike('email', emailParam)
+        .maybeSingle()
+      email_invited = !!inv
+    }
+
+    return NextResponse.json({ data: { ...(data as any), email_invited } })
   }
 
   const user = await getSessionUser()
