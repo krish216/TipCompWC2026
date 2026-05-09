@@ -1160,6 +1160,63 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
+
+              {/* Mini Comp Admin preview — organisers only */}
+              {persona === 'organiser' && (
+                <div style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)', borderRadius:14, overflow:'hidden' }}>
+
+                  {/* Comp header */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:12 }}>🏆</span>
+                      <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.75)' }}>The Friday Five</span>
+                    </div>
+                    <span style={{ fontSize:9, fontWeight:600, color:'rgba(255,255,255,0.38)', background:'rgba(255,255,255,0.08)', padding:'2px 8px', borderRadius:10 }}>Round of 16</span>
+                  </div>
+
+                  {/* Member rows */}
+                  {([
+                    { name:'GoalMaster99', pts:11, status:'tipped'  },
+                    { name:'TikiTaka07',   pts: 8, status:'tipped'  },
+                    { name:'PenaltyKing',  pts: 0, status:'pending' },
+                    { name:'Cruyff_Jr',    pts: 0, status:'missing' },
+                  ] as const).map((m, i, arr) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 12px', borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
+                      {/* Status dot */}
+                      <span style={{
+                        width:7, height:7, borderRadius:'50%', flexShrink:0,
+                        background:   m.status === 'tipped'  ? '#4ade80'
+                                    : m.status === 'pending' ? '#fbbf24'
+                                    : 'rgba(239,68,68,0.85)',
+                        boxShadow:    m.status === 'tipped'  ? '0 0 0 2.5px rgba(74,222,128,0.20)'
+                                    : m.status === 'pending' ? '0 0 0 2.5px rgba(251,191,36,0.20)'
+                                    : undefined,
+                      }} />
+                      {/* Name */}
+                      <span style={{ flex:1, fontSize:11.5, fontWeight:600, color:'rgba(255,255,255,0.78)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.name}</span>
+                      {/* Status label */}
+                      <span style={{
+                        fontSize:9.5, fontWeight:700, flexShrink:0,
+                        color: m.status === 'tipped'  ? 'rgba(74,222,128,0.80)'
+                             : m.status === 'pending' ? 'rgba(251,191,36,0.80)'
+                             : 'rgba(239,68,68,0.75)',
+                      }}>
+                        {m.status === 'tipped' ? '✓ Tipped' : m.status === 'pending' ? '⏰ Not yet' : '✗ Not tipped'}
+                      </span>
+                      {/* Points */}
+                      <span style={{ fontSize:11, fontWeight:800, color: m.pts > 0 ? '#4ade80' : 'rgba(255,255,255,0.18)', width:22, textAlign:'right', flexShrink:0 }}>
+                        {m.pts > 0 ? m.pts : '—'}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Footer nudge CTA */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+                    <span style={{ fontSize:9.5, color:'rgba(255,255,255,0.30)' }}>2 tipsters haven&apos;t tipped yet</span>
+                    <span style={{ fontSize:9.5, fontWeight:700, color:'#60a5fa' }}>Nudge them →</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
