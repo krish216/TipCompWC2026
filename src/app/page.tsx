@@ -1958,7 +1958,7 @@ export default function HomePage() {
                     <strong>{newResultsCount} result{newResultsCount !== 1 ? 's' : ''} landed since your last visit</strong>
                     {' — '}
                     {newPtsEarned > 0
-                      ? <>you earned <strong>{newPtsEarned} pt{newPtsEarned !== 1 ? 's' : ''}</strong> →</>
+                      ? <>you earned <strong>{newPtsEarned} more pt{newPtsEarned !== 1 ? 's' : ''}</strong> 👏 check it out →</>
                       : <>see how you did →</>
                     }
                   </Link>
