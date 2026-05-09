@@ -519,6 +519,59 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Tipster teaser — static preview shown alongside comp invite */}
+        {codeParam && (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 pt-2.5 pb-2">
+              Here's how it works
+            </p>
+
+            {/* Mock fixture — correct prediction */}
+            <div className="mx-3 mb-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 flex items-center gap-2">
+              <span className="text-base flex-shrink-0">🇧🇷</span>
+              <div className="flex gap-1.5 flex-1">
+                {([['Brazil', true], ['Draw', false], ['Argentina', false]] as const).map(([label, selected]) => (
+                  <div key={label} className={`flex-1 flex flex-col items-center rounded-lg py-1.5 border text-[10px] font-medium transition-colors
+                    ${selected ? 'bg-white border-green-400 text-green-800' : 'bg-white/60 border-gray-200 text-gray-400'}`}>
+                    <div className={`w-3 h-3 rounded-full border mb-0.5 flex-shrink-0
+                      ${selected ? 'border-green-500 bg-green-500' : 'border-gray-300'}`} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <span className="text-base flex-shrink-0">🇦🇷</span>
+              <span className="ml-1 text-[10px] font-bold text-green-700 bg-green-100 rounded px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap">✓ 3 pts</span>
+            </div>
+
+            {/* Mock fixture — not yet tipped */}
+            <div className="mx-3 mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2 flex items-center gap-2 opacity-55">
+              <span className="text-base flex-shrink-0">🇫🇷</span>
+              <div className="flex gap-1.5 flex-1">
+                {['France', 'Draw', 'Germany'].map(label => (
+                  <div key={label} className="flex-1 flex flex-col items-center rounded-lg py-1.5 border border-gray-200 text-[10px] font-medium text-gray-400">
+                    <div className="w-3 h-3 rounded-full border border-gray-300 mb-0.5" />
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <span className="text-base flex-shrink-0">🇩🇪</span>
+              <span className="ml-1 text-[10px] text-gray-400 flex-shrink-0">Tip →</span>
+            </div>
+
+            {/* Mini leaderboard */}
+            <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-4">
+              {([{ pos: 1, name: 'GoalMaster99', pts: 9 }, { pos: 2, name: 'You', pts: 3 }] as const).map(r => (
+                <div key={r.pos} className="flex items-center gap-1.5">
+                  <span className={`text-[10px] font-black ${r.name === 'You' ? 'text-blue-600' : 'text-gray-400'}`}>#{r.pos}</span>
+                  <span className={`text-[10px] font-semibold ${r.name === 'You' ? 'text-blue-700' : 'text-gray-600'}`}>{r.name}</span>
+                  <span className={`text-[10px] ${r.name === 'You' ? 'text-blue-500' : 'text-gray-400'}`}>{r.pts} pts</span>
+                </div>
+              ))}
+              <span className="text-[9px] text-gray-400 ml-auto">Private leaderboard</span>
+            </div>
+          </div>
+        )}
+
         {/* Mode tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg mb-6">
           {(['login','register','magic','reset'] as Mode[]).map(m => (
