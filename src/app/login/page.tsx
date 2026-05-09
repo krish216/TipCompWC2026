@@ -593,6 +593,7 @@ export default function LoginPage() {
                 </label>
                 <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
                   placeholder="Alex" maxLength={50} required
+                  autoComplete="given-name"
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
                 <p className="text-[11px] text-gray-400 mt-1">Personalises your experience — not visible to other players.</p>
               </div>
@@ -681,6 +682,7 @@ export default function LoginPage() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Email</label>
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
+              autoComplete="email"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
             {mode === 'register' && (
               <p className="text-[11px] text-gray-400 mt-1">Used to log in and for reminders &amp; notifications.</p>
