@@ -2021,29 +2021,19 @@ export default function HomePage() {
 
               {/* Round wrap-up — shown after a round fully scores, dismissed per round */}
               {lastCompletedRound && lastCompletedRound !== dismissedWrapUpRound && roundWrapUpData && (
-                <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-indigo-900">
-                        🏁 {(scoringConfig.rounds as any)[lastCompletedRound]?.round_name ?? lastCompletedRound} wrap-up
-                      </p>
-                      <p className="text-xs text-indigo-700 mt-0.5">
-                        You scored <strong>{roundWrapUpData.pts} pt{roundWrapUpData.pts !== 1 ? 's' : ''}</strong> from{' '}
-                        <strong>{roundWrapUpData.correct}/{roundWrapUpData.total}</strong> correct prediction{roundWrapUpData.total !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Link href="/leaderboard"
-                        className="text-xs font-semibold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
-                        See rank →
-                      </Link>
-                      <button
-                        onClick={() => setDismissedWrapUpRound(lastCompletedRound)}
-                        className="text-indigo-400 hover:text-indigo-600 text-lg leading-none px-1"
-                        aria-label="Dismiss"
-                      >×</button>
-                    </div>
+                <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <span className="text-base flex-shrink-0">🏁</span>
+                  <div className="flex-1 min-w-0 text-xs text-amber-800">
+                    <strong>{(scoringConfig.rounds as any)[lastCompletedRound]?.round_name ?? lastCompletedRound} wrap-up</strong>
+                    {' — '}you scored <strong>{roundWrapUpData.pts} pt{roundWrapUpData.pts !== 1 ? 's' : ''}</strong> from{' '}
+                    <strong>{roundWrapUpData.correct}/{roundWrapUpData.total}</strong> correct —{' '}
+                    <Link href="/leaderboard" className="underline font-semibold">see rank →</Link>
                   </div>
+                  <button
+                    onClick={() => setDismissedWrapUpRound(lastCompletedRound)}
+                    className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 px-1"
+                    aria-label="Dismiss"
+                  >×</button>
                 </div>
               )}
 
