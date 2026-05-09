@@ -396,9 +396,12 @@ export default function HomePage() {
     }
   }, [searchParams, session])
 
-  // Ticks every 30s so deadline labels stay fresh without a full reload
-  const [tickNow, setTickNow] = useState(() => Date.now())
+  // Ticks every 30s so deadline labels stay fresh without a full reload.
+  // Initialised to 0 (not Date.now()) so server and client agree on the first render,
+  // avoiding a React hydration mismatch. The useEffect sets the real value immediately.
+  const [tickNow, setTickNow] = useState(0)
   useEffect(() => {
+    setTickNow(Date.now())
     const id = setInterval(() => setTickNow(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [])
@@ -419,7 +422,7 @@ export default function HomePage() {
 
   // Deadline label + urgency level derived from time to next kickoff
   const { deadlineLabel, urgencyLevel } = useMemo(() => {
-    if (!nextKickoff) return { deadlineLabel: null, urgencyLevel: 'none' as const }
+    if (!nextKickoff || !tickNow) return { deadlineLabel: null, urgencyLevel: 'none' as const }
     const msLeft  = nextKickoff - tickNow
     const hrsLeft = msLeft / 3_600_000
     if (hrsLeft > 48) {
