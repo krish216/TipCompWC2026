@@ -510,37 +510,41 @@ export default function HomePage() {
     return { roundCode, roundName, kickoff }
   }, [currentRoundCode, allFixtures, scoringConfig])
 
-  // Most recently completed round + user's pts/correct count for the round wrap-up card
+  // Round wrap-up: only the round immediately before the current/next open round.
+  // Nothing shows if there is no previous closed round (e.g. first round still in progress).
   const { lastCompletedRound, roundWrapUpData } = useMemo(() => {
     const empty = { lastCompletedRound: null as string | null, roundWrapUpData: null as { pts: number; correct: number; total: number } | null }
     if (!allFixtures.length) return empty
 
-    const roundFixtures: Record<string, any[]> = {}
-    allFixtures.forEach((f: any) => {
-      if (!roundFixtures[f.round]) roundFixtures[f.round] = []
-      roundFixtures[f.round].push(f)
-    })
+    // Ordered round codes from scoringConfig
+    const orderedRounds = Object.entries(scoringConfig.rounds as Record<string, any>)
+      .sort((a, b) => (a[1].round_order ?? 0) - (b[1].round_order ?? 0))
+      .map(([code]) => code)
 
-    // Rounds where every fixture has a result (fully scored)
-    const completed = Object.entries(roundFixtures)
-      .filter(([, fxs]) => fxs.every((f: any) => f.result !== null))
-      .map(([r]) => r)
-      .sort((a, b) => ((scoringConfig.rounds as any)[b]?.round_order ?? 0) - ((scoringConfig.rounds as any)[a]?.round_order ?? 0))
+    // Reference point: current open round, or next upcoming round if between rounds
+    const referenceRound = currentRoundCode ?? nextRoundInfo?.roundCode ?? null
+    if (!referenceRound) return empty  // no anchor — nothing to look back from
 
-    if (!completed.length) return empty
-    const lastRound = completed[0]
+    const refIdx = orderedRounds.indexOf(referenceRound)
+    if (refIdx <= 0) return empty     // no previous round exists
+
+    const prevRound = orderedRounds[refIdx - 1]
+
+    // Only show if the previous round is fully scored
+    const prevFxs = allFixtures.filter((f: any) => f.round === prevRound)
+    if (!prevFxs.length || prevFxs.some((f: any) => f.result === null)) return empty
 
     let pts = 0, correct = 0, total = 0
     allPredictions.forEach((p: any) => {
-      if (p.fixtures?.round !== lastRound) return
+      if (p.fixtures?.round !== prevRound) return
       total++
       pts     += (p.standard_points ?? 0) + (p.bonus_points ?? 0)
       correct += (p.standard_points ?? 0) > 0 ? 1 : 0
     })
 
     if (total === 0) return empty
-    return { lastCompletedRound: lastRound, roundWrapUpData: { pts, correct, total } }
-  }, [allFixtures, allPredictions, scoringConfig])
+    return { lastCompletedRound: prevRound, roundWrapUpData: { pts, correct, total } }
+  }, [allFixtures, allPredictions, scoringConfig, currentRoundCode, nextRoundInfo])
 
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
