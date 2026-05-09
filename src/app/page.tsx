@@ -1020,7 +1020,7 @@ export default function HomePage() {
             {/* Primary CTAs */}
             {persona === 'tipster' ? (
               <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
-                <Link href="/login?tab=register" style={{
+                <Link href="/login?tab=register&role=tipster" style={{
                   display:'inline-flex', alignItems:'center', gap:6,
                   padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
                   background:'#16a34a', color:'#fff', textDecoration:'none',

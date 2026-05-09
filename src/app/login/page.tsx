@@ -24,8 +24,9 @@ export default function LoginPage() {
   const params  = useSearchParams()
   const redirect = params.get('redirect') ?? '/'
   const tabParam    = params.get('tab') as Mode | null
+  const roleParam   = params.get('role')
   const isChallenge = params.get('challenge') === '1'
-  const isOrganiser = params.get('role') === 'organiser'
+  const isOrganiser = roleParam === 'organiser'
 
   const [mode, setMode] = useState<Mode>('login')
   const [role, setRole] = useState<'tipster' | 'organiser' | null>(null)
@@ -35,10 +36,11 @@ export default function LoginPage() {
 
   // Sync mode + role from URL params — runs on mount and whenever params change.
   // Keeping initial state as safe SSR defaults ('login', null) prevents hydration mismatches.
+  // Default role is always tipster — organiser only when explicitly ?role=organiser.
   useEffect(() => {
     if (tabParam === 'register') setMode('register')
     else if (tabParam === 'login') setMode('login')
-    setRole(isOrganiser ? 'organiser' : isChallenge ? 'tipster' : null)
+    setRole(isOrganiser ? 'organiser' : 'tipster')
   }, [tabParam, isOrganiser, isChallenge])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
@@ -84,9 +86,9 @@ export default function LoginPage() {
       .catch(() => {})
   }, [])
 
-  // Fetch upcoming fixtures for the teaser (cold register visitors only)
+  // Fetch upcoming fixtures for the teaser — available for tipster role
   useEffect(() => {
-    if (codeParam || isChallenge || isOrganiser) return
+    if (codeParam || isChallenge) return
     fetch('/api/fixtures')
       .then(r => r.json())
       .then(({ data }) => {
@@ -433,38 +435,61 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Value strip + fixture teaser — cold register visitors only */}
-        {mode === 'register' && !codeParam && !isChallenge && !isOrganiser && (
-          <>
-            {/* Fixture teaser */}
-            {teaserFixtures.length > 0 && (
-              <div className="mb-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Upcoming matches</p>
-                <div className="space-y-1.5">
-                  {teaserFixtures.map(f => (
-                    <div key={f.id} className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2.5 gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-800">{f.home} vs {f.away}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">
-                          {new Date(f.kickoff_utc).toLocaleString('en-AU', {
-                            weekday: 'short', day: 'numeric', month: 'short',
-                            hour: '2-digit', minute: '2-digit',
-                            timeZone: timezone || 'UTC',
-                          })}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] text-gray-400 flex-shrink-0">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Sign up to tip
-                      </div>
-                    </div>
-                  ))}
+        {/* Fixture teaser — tipster role, not an invite or challenge */}
+        {mode === 'register' && role === 'tipster' && !codeParam && !isChallenge && teaserFixtures.length > 0 && (
+          <div className="mb-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Upcoming matches</p>
+            <div className="space-y-1.5">
+              {teaserFixtures.map(f => (
+                <div key={f.id} className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2.5 gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800">{f.home} vs {f.away}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {new Date(f.kickoff_utc).toLocaleString('en-AU', {
+                        weekday: 'short', day: 'numeric', month: 'short',
+                        hour: '2-digit', minute: '2-digit',
+                        timeZone: timezone || 'UTC',
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] text-gray-400 flex-shrink-0">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Sign up to tip
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Organiser pitch — organiser role, not an invite */}
+        {mode === 'register' && role === 'organiser' && !codeParam && (
+          <div className="mb-4 px-4 py-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+            <p className="text-emerald-900 text-sm font-bold mb-2">🏆 Run your group's World Cup comp</p>
+            <ul className="space-y-1.5 mb-3">
+              {[
+                'Invite your group via a single WhatsApp link',
+                'Automatic scoring — no spreadsheets',
+                'See who\'s tipped and send nudges',
+              ].map(item => (
+                <li key={item} className="flex items-start gap-2">
+                  <span className="text-emerald-500 font-bold text-xs mt-0.5 flex-shrink-0">✓</span>
+                  <span className="text-emerald-800 text-xs">{item}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-2">
+              {['Create account', 'Set up comp', 'Invite friends'].map((s, i) => (
+                <div key={s} className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                  <span className="text-[11px] font-semibold text-emerald-800">{s}</span>
+                  {i < 2 && <span className="text-emerald-300 text-[10px]">→</span>}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Challenge banner — shown when arriving from /su-challenge */}
@@ -483,23 +508,6 @@ export default function LoginPage() {
               ? <p className="text-blue-600 text-xs mt-0.5">Your email is already registered — sign in below to accept your invite.</p>
               : <p className="text-blue-600 text-xs mt-0.5">Already have an account? <button type="button" onClick={() => setMode('login')} className="font-semibold underline">Sign in</button> to accept your invite.</p>
             }
-          </div>
-        )}
-
-        {/* Organiser context banner */}
-        {isOrganiser && mode === 'register' && (
-          <div className="mb-4 px-4 py-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-            <p className="text-emerald-900 text-sm font-bold mb-1">🏆 You're setting up a comp</p>
-            <p className="text-emerald-700 text-xs mb-2.5">Create your account and you'll be taken straight to comp setup — takes about 10 minutes.</p>
-            <div className="flex items-center gap-3">
-              {['Create account', 'Set up comp', 'Invite friends'].map((s, i) => (
-                <div key={s} className="flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
-                  <span className="text-[11px] font-semibold text-emerald-800">{s}</span>
-                  {i < 2 && <span className="text-emerald-300 text-xs">→</span>}
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -543,28 +551,34 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           {mode === 'register' && (
             <>
-              {/* Role selection — skip for invite links, challenge flow, and direct organiser entry */}
-              {!codeParam && !isChallenge && !isOrganiser && (
+              {/* Role radio — only when no explicit role in URL; hidden for invites + challenges */}
+              {!roleParam && !codeParam && !isChallenge && (
                 <div>
                   <p className="text-xs font-semibold text-gray-700 mb-2">I want to…</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex gap-2">
                     {([
-                      { value: 'tipster',   icon: '🎯', label: 'Join a comp',     sub: 'Predict & compete' },
-                      { value: 'organiser', icon: '🏆', label: 'Run my own comp', sub: 'Set up & manage'   },
-                    ] as const).map(({ value, icon, label, sub }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setRole(value)}
-                        className={`flex flex-col items-center gap-1 px-3 py-3 rounded-xl border-2 text-center transition-all ${
-                          role === value
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                      { value: 'tipster',   icon: '🎯', label: 'Join a comp' },
+                      { value: 'organiser', icon: '🏆', label: 'Run a comp'  },
+                    ] as const).map(({ value, icon, label }) => (
+                      <label key={value} className={`flex items-center gap-2 flex-1 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        role === value
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}>
+                        <input type="radio" name="role" value={value} checked={role === value}
+                          onChange={() => setRole(value)} className="sr-only" />
+                        <span className="text-base leading-none">{icon}</span>
+                        <span className="text-xs font-semibold text-gray-800 flex-1">{label}</span>
+                        <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-all ${
+                          role === value ? 'border-green-500 bg-green-500' : 'border-gray-300'
                         }`}>
-                        <span className="text-2xl">{icon}</span>
-                        <span className="text-xs font-semibold text-gray-800">{label}</span>
-                        <span className="text-[10px] text-gray-400">{sub}</span>
-                      </button>
+                          {role === value && (
+                            <span className="flex items-center justify-center w-full h-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white block" />
+                            </span>
+                          )}
+                        </span>
+                      </label>
                     ))}
                   </div>
                 </div>
