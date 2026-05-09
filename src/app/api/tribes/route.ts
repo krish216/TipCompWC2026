@@ -148,7 +148,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data: tribe }, { status: 201 })
 }
 
-// PATCH /api/tribes — join a tribe by invite code (must be same org)
+// PATCH /api/tribes — three sub-operations distinguished by body shape:
+//   { tribe_id, set_default: true }  → set as default
+//   { tribe_id, name }               → rename (comp-admin only, unique within comp)
+//   { invite_code }                  → join tribe by invite code
 export async function PATCH(request: NextRequest) {
   const supabase     = createServerSupabaseClient()
   const adminClient  = createAdminClient()
@@ -157,7 +160,35 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
 
-  // Set-default path: body has { tribe_id, set_default: true } (no invite_code)
+  // ── Rename path ─────────────────────────────────────────────────────────────
+  if (body?.name !== undefined && body?.tribe_id && !body?.invite_code && !body?.set_default) {
+    const tribeId = body.tribe_id as string
+    const newName = (body.name as string ?? '').trim()
+    if (!newName || newName.length < 2 || newName.length > 50) {
+      return NextResponse.json({ error: 'Tribe name must be 2–50 characters' }, { status: 422 })
+    }
+
+    const { data: tribe } = await (adminClient.from('tribes') as any)
+      .select('id, comp_id, name').eq('id', tribeId).single()
+    if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+
+    const { data: adminRow } = await (adminClient.from('comp_admins') as any)
+      .select('comp_id').eq('user_id', user.id).eq('comp_id', (tribe as any).comp_id).single()
+    if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    // Uniqueness check within comp, excluding the tribe being renamed
+    const { data: clash } = await (adminClient.from('tribes') as any)
+      .select('id').ilike('name', newName).eq('comp_id', (tribe as any).comp_id)
+      .neq('id', tribeId).maybeSingle()
+    if (clash) return NextResponse.json({ error: `A tribe named "${newName}" already exists in this comp` }, { status: 409 })
+
+    const { data: updated, error } = await (adminClient.from('tribes') as any)
+      .update({ name: newName }).eq('id', tribeId).select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: updated })
+  }
+
+  // ── Set-default path: body has { tribe_id, set_default: true } (no invite_code)
   if (body?.set_default === true) {
     const tribeId = body?.tribe_id as string | undefined
     if (!tribeId) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
@@ -232,6 +263,13 @@ export async function DELETE(request: NextRequest) {
       const { data: adminRow } = await (adminClient.from('comp_admins') as any)
         .select('comp_id').eq('user_id', user.id).eq('comp_id', (tribe as any).comp_id).single()
       if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      // Guard: cannot delete the last tribe in a comp
+      const { count: tribeCount } = await (adminClient.from('tribes') as any)
+        .select('*', { count: 'exact', head: true }).eq('comp_id', (tribe as any).comp_id)
+      if ((tribeCount ?? 0) <= 1) {
+        return NextResponse.json({ error: 'Cannot delete the only tribe — a comp must have at least one tribe' }, { status: 409 })
+      }
 
       // Remove all members first, then delete the tribe
       await (adminClient.from('tribe_members') as any).delete().eq('tribe_id', tribeId)

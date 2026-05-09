@@ -1414,6 +1414,10 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
   const [showForm,       setShowForm]       = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [deleting,       setDeleting]       = useState<string | null>(null)
+  const [renamingId,     setRenamingId]     = useState<string | null>(null)
+  const [renameValue,    setRenameValue]    = useState('')
+  const [renameSaving,   setRenameSaving]   = useState(false)
+  const [renameError,    setRenameError]    = useState<string | null>(null)
   const [expandedTribeId,setExpandedTribeId]= useState<string | null>(null)
   const [removingMember, setRemovingMember] = useState<string | null>(null)
   const [settingDefault,   setSettingDefault]   = useState<string | null>(null)
@@ -1474,6 +1478,33 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
     setDeleting(null)
     if (res.ok) { toast.success(`Tribe "${tribe.name}" deleted`); setTribes(prev => prev.filter(t => t.id !== tribe.id)) }
     else { const d = await res.json(); toast.error(d.error ?? 'Failed to delete tribe') }
+  }
+
+  const startRename = (tribe: Tribe) => {
+    setRenamingId(tribe.id)
+    setRenameValue(tribe.name)
+    setRenameError(null)
+  }
+
+  const cancelRename = () => { setRenamingId(null); setRenameValue(''); setRenameError(null) }
+
+  const saveRename = async (tribe: Tribe) => {
+    const trimmed = renameValue.trim()
+    if (!trimmed || trimmed === tribe.name) { cancelRename(); return }
+    setRenameSaving(true); setRenameError(null)
+    const res = await fetch('/api/tribes', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tribe_id: tribe.id, name: trimmed }),
+    })
+    setRenameSaving(false)
+    if (res.ok) {
+      setTribes(prev => prev.map(t => t.id === tribe.id ? { ...t, name: trimmed } : t))
+      toast.success(`Tribe renamed to "${trimmed}"`)
+      cancelRename()
+    } else {
+      const d = await res.json()
+      setRenameError(d.error ?? 'Failed to rename tribe')
+    }
   }
 
   const removeFromTribe = async (userId: string, tribeId: string) => {
@@ -1582,37 +1613,72 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
             return (
               <div key={t.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="flex items-start justify-between px-4 py-3 gap-2 bg-gray-50/50">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-gray-800">{t.name}</p>
-                      {t.is_default && (
-                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Default</span>
-                      )}
-                    </div>
-                    {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <button onClick={() => setExpandedTribeId(expanded ? null : t.id)}
-                        className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors">
-                        {t.member_count ?? 0} members {expanded ? '▲' : '▼'}
-                      </button>
-                      <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
-                        className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
-                        {t.invite_code} · copy
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {!t.is_default && (
-                      <button onClick={() => setDefaultTribe(t)} disabled={settingDefault === t.id}
-                        className="text-[11px] text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40">
-                        {settingDefault === t.id ? '…' : 'Set default'}
-                      </button>
+                  <div className="min-w-0 flex-1">
+                    {renamingId === t.id ? (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={e => { setRenameValue(e.target.value); setRenameError(null) }}
+                          onKeyDown={e => { if (e.key === 'Enter') saveRename(t); if (e.key === 'Escape') cancelRename() }}
+                          maxLength={50}
+                          autoFocus
+                          className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
+                        />
+                        {renameError && <p className="text-[11px] text-red-600">{renameError}</p>}
+                        <div className="flex gap-1.5">
+                          <button onClick={() => saveRename(t)} disabled={renameSaving || !renameValue.trim()}
+                            className="px-3 py-1 bg-gray-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-40 hover:bg-gray-700">
+                            {renameSaving ? '…' : 'Save'}
+                          </button>
+                          <button onClick={cancelRename} className="px-3 py-1 border border-gray-200 text-[11px] font-semibold text-gray-600 rounded-lg hover:bg-gray-50">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-gray-800">{t.name}</p>
+                          {t.is_default && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Default</span>
+                          )}
+                        </div>
+                        {t.description && <p className="text-[11px] text-gray-400 mt-0.5">{t.description}</p>}
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <button onClick={() => setExpandedTribeId(expanded ? null : t.id)}
+                            className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors">
+                            {t.member_count ?? 0} members {expanded ? '▲' : '▼'}
+                          </button>
+                          <button onClick={async () => { await navigator.clipboard.writeText(t.invite_code); toast.success('Tribe code copied!') }}
+                            className="font-mono text-[11px] bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg text-gray-600 transition-colors">
+                            {t.invite_code} · copy
+                          </button>
+                        </div>
+                      </>
                     )}
-                    <button onClick={() => deleteTribe(t)} disabled={deleting === t.id}
-                      className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40">
-                      {deleting === t.id ? '…' : 'Delete'}
-                    </button>
                   </div>
+                  {renamingId !== t.id && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button onClick={() => startRename(t)}
+                        className="text-[11px] text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-2 py-1.5 rounded-lg transition-colors">
+                        Rename
+                      </button>
+                      {!t.is_default && (
+                        <button onClick={() => setDefaultTribe(t)} disabled={settingDefault === t.id}
+                          className="text-[11px] text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40">
+                          {settingDefault === t.id ? '…' : 'Set default'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteTribe(t)}
+                        disabled={deleting === t.id || tribes.length <= 1}
+                        title={tribes.length <= 1 ? 'Cannot delete the only tribe' : undefined}
+                        className="text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                        {deleting === t.id ? '…' : 'Delete'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {expanded && (
