@@ -2011,7 +2011,7 @@ export default function HomePage() {
                       </p>
                       {nextRoundKickoff && (
                         <p className="text-xs text-green-600 mt-0.5">
-                          {nextRoundKickoff.roundName} kicks off{' '}
+                          {nextRoundKickoff.roundName} round kicks off{' '}
                           {new Date(nextRoundKickoff.kickoff).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </p>
                       )}
