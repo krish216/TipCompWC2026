@@ -1940,8 +1940,9 @@ export default function HomePage() {
                         onClick={() => setCompStatsKey(k => k + 1)}
                         disabled={compStatsLoading}
                         title="Refresh comp stats"
-                        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40">
-                        {compStatsLoading ? '…' : '↻'}
+                        className="flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800 px-2.5 py-1 rounded-lg hover:bg-blue-50 border border-blue-200 transition-colors disabled:opacity-40">
+                        <span className={compStatsLoading ? 'animate-spin inline-block' : ''}>↻</span>
+                        {compStatsLoading ? 'Refreshing…' : 'Refresh'}
                       </button>
                       <button onClick={() => setModal('join')}
                         className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">

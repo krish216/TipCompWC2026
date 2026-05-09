@@ -537,6 +537,8 @@ export default function PredictPage() {
   )
 
   const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
+  const anyFavRoundOpen = scoringConfig.fav_team_rounds.length > 0 &&
+    scoringConfig.fav_team_rounds.some(r => isRoundOpen(r as RoundId))
 
   return (
     <>
@@ -567,7 +569,7 @@ export default function PredictPage() {
 
 
       {/* Fav team picker */}
-      {teamsList.length > 0 && (
+      {teamsList.length > 0 && anyFavRoundOpen && (
         <FavTeamPicker
           teams={teamsList}
           value={favouriteTeam}
