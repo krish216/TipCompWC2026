@@ -720,18 +720,19 @@ export default function AdminPage() {
           <p className="text-xs text-gray-500 mb-3">Scoring rules loaded from the <code className="bg-gray-100 px-1 rounded">tournament_rounds</code> table. Update via Supabase dashboard or the API.</p>
 
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="grid grid-cols-[1.5fr_80px_80px_80px_80px_80px] px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+            <div className="grid grid-cols-[1.5fr_60px_60px_60px_60px_60px_60px] px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
               <span>Round</span>
               <span className="text-center">Mode</span>
               <span className="text-center">Result</span>
               <span className="text-center">Exact +</span>
+              <span className="text-center">Margin +</span>
               <span className="text-center">Pen +</span>
               <span className="text-center">Fav 2×</span>
             </div>
             {ALL_ROUNDS.map(r => {
               const cfg = (scoringConfig ?? getDefaultScoringConfig()).rounds[r]
               return (
-                <div key={r} className="grid grid-cols-[1.5fr_80px_80px_80px_80px_80px] px-4 py-3 border-b border-gray-100 last:border-0 items-center">
+                <div key={r} className="grid grid-cols-[1.5fr_60px_60px_60px_60px_60px_60px] px-4 py-3 border-b border-gray-100 last:border-0 items-center">
                   <span className="text-sm font-medium text-gray-800">{ROUND_LABELS[r]}</span>
                   <div className="text-center">
                     <span className={clsx(
@@ -743,11 +744,29 @@ export default function AdminPage() {
                   </div>
                   <div className="text-center text-sm font-bold text-gray-800">{cfg?.result_pts ?? '—'}</div>
                   <div className="text-center text-sm font-bold text-purple-600">{(cfg?.exact_bonus ?? 0) > 0 ? `+${cfg.exact_bonus}` : '—'}</div>
+                  <div className="text-center text-sm font-bold text-sky-500">{(cfg?.margin_bonus ?? 0) > 0 ? `+${cfg.margin_bonus}` : '—'}</div>
                   <div className="text-center text-sm font-bold text-amber-600">{(cfg?.pen_bonus ?? 0) > 0 ? `+${cfg.pen_bonus}` : '—'}</div>
                   <div className="text-center text-sm">{cfg?.fav_team_2x ? '✓' : '—'}</div>
                 </div>
               )
             })}
+          </div>
+
+          {/* Scoring key */}
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-gray-600">
+            {[
+              { color: 'bg-purple-100 text-purple-700', label: 'Score mode', desc: 'Predict exact score (home–away)' },
+              { color: 'bg-blue-50 text-blue-600',      label: '1/X/2 mode', desc: 'Predict win / draw / loss only' },
+              { color: 'text-purple-600 font-bold',     label: 'Exact +',    desc: 'Predicted exact scoreline' },
+              { color: 'text-sky-500 font-bold',        label: 'Margin +',   desc: 'Right margin (e.g. 2–0 → 3–1), wrong score' },
+              { color: 'text-amber-600 font-bold',      label: 'Pen +',      desc: 'Predicted penalty shootout winner' },
+              { color: 'text-gray-700 font-bold',       label: 'Fav 2×',     desc: 'Points doubled on Bonus Team matches' },
+            ].map(({ color, label, desc }) => (
+              <div key={label} className="flex items-start gap-1.5">
+                <span className={`mt-px flex-shrink-0 ${color}`}>{label}:</span>
+                <span className="text-gray-500">{desc}</span>
+              </div>
+            ))}
           </div>
 
           <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">

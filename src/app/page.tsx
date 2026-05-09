@@ -2046,6 +2046,11 @@ export default function HomePage() {
                         <span className={`flex-1 text-sm truncate ${nameColor}`}>
                           {c.name}
                         </span>
+                        {isAdm && (compSizes[c.id] ?? 0) > 1 && (
+                          <span className="text-[10px] font-semibold text-blue-400 flex-shrink-0 whitespace-nowrap">
+                            {compSizes[c.id]} members
+                          </span>
+                        )}
                         {isAdm && (
                           <Link href="/comp-admin" onClick={e => e.stopPropagation()}
                             className="text-[10px] font-semibold text-blue-600 bg-white border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
