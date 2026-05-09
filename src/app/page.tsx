@@ -490,24 +490,33 @@ export default function HomePage() {
     return { newResultsCount: count, newPtsEarned: pts }
   }, [allFixtures, allPredictions, lastPredictViewedAt])
 
-  // Next round's first kickoff when the current round IS open — used for "all tipped" state
+  // Round with the next higher round_order than the current round — used for "all tipped" state
   const nextRoundKickoff = useMemo(() => {
     if (!currentRoundCode) return null
-    const now = Date.now()
-    const roundFirstKickoff: Record<string, number> = {}
-    allFixtures.forEach((f: any) => {
-      if (f.round === currentRoundCode) return
-      const t = new Date(f.kickoff_utc).getTime()
-      if (t > now) {
-        if (!roundFirstKickoff[f.round] || t < roundFirstKickoff[f.round])
-          roundFirstKickoff[f.round] = t
-      }
-    })
-    const entries = Object.entries(roundFirstKickoff).sort(([, a], [, b]) => a - b)
-    if (!entries.length) return null
-    const [roundCode, kickoff] = entries[0]
-    const roundName = (scoringConfig.rounds as any)[roundCode]?.round_name ?? roundCode
-    return { roundCode, roundName, kickoff }
+    const currentOrder: number = (scoringConfig.rounds as any)[currentRoundCode]?.round_order ?? 0
+
+    // Find the lowest round_order strictly greater than the current one
+    const nextOrder = Object.values(scoringConfig.rounds as Record<string, any>)
+      .map((r: any) => r.round_order as number)
+      .filter(o => o > currentOrder)
+      .reduce((min, o) => (o < min ? o : min), Infinity)
+    if (!isFinite(nextOrder)) return null
+
+    // Pick the first round code at that order (sorted alphabetically for determinism)
+    const nextRoundCode = Object.entries(scoringConfig.rounds as Record<string, any>)
+      .filter(([, r]) => r.round_order === nextOrder)
+      .map(([code]) => code)
+      .sort()[0] ?? null
+    if (!nextRoundCode) return null
+
+    const roundName = (scoringConfig.rounds as any)[nextRoundCode]?.round_name ?? nextRoundCode
+    const kickoffs  = allFixtures
+      .filter((f: any) => f.round === nextRoundCode)
+      .map((f: any)   => new Date(f.kickoff_utc).getTime())
+      .sort((a, b)    => a - b)
+    if (!kickoffs.length) return null
+
+    return { roundCode: nextRoundCode, roundName, kickoff: kickoffs[0] }
   }, [currentRoundCode, allFixtures, scoringConfig])
 
   // Round wrap-up: only the round immediately before the current/next open round.
