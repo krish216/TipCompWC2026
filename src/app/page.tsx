@@ -466,6 +466,8 @@ export default function HomePage() {
   const [tribeInfoOpen,  setTribeInfoOpen]  = useState(false)
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
+  const [compStatsKey,   setCompStatsKey]   = useState(0)  // bump to re-fetch ranks + counts
+  const [compStatsLoading, setCompStatsLoading] = useState(false)
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
   const [decliningId,    setDecliningId]    = useState<string | null>(null)
@@ -548,25 +550,33 @@ export default function HomePage() {
       .catch(() => {})
   }, [session, selectedTournId])
 
-  // Fetch comp ranks and member counts in parallel for all comps the user belongs to
+  // Fetch comp ranks (leaderboard) + accurate member counts (user_comps, no 50-row cap).
+  // compStatsKey is bumped by the refresh button to force a re-fetch on demand.
   useEffect(() => {
     if (!session || !tournsComps.length) return
     const tid = selectedTournId ? `&tournament_id=${selectedTournId}` : ''
-    Promise.all(
-      tournsComps.map(c =>
-        fetch(`/api/leaderboard?scope=comp&comp_id=${c.id}&no_breakdown=true${tid}`)
-          .then(r => r.json())
-          .then(d => ({ id: c.id, rank: (d.my_entry?.rank ?? null) as number | null, size: (d.data?.length ?? 0) as number }))
-          .catch(() => ({ id: c.id, rank: null as number | null, size: 0 }))
-      )
-    ).then(results => {
+    const compIds = tournsComps.map(c => c.id)
+    setCompStatsLoading(true)
+    Promise.all([
+      Promise.all(
+        compIds.map(id =>
+          fetch(`/api/leaderboard?scope=comp&comp_id=${id}&no_breakdown=true${tid}`)
+            .then(r => r.json())
+            .then(d => ({ id, rank: (d.my_entry?.rank ?? null) as number | null }))
+            .catch(() => ({ id, rank: null as number | null }))
+        )
+      ),
+      fetch(`/api/comp-members/counts?comp_ids=${compIds.join(',')}`)
+        .then(r => r.json())
+        .then(d => d.data as Record<string, number>)
+        .catch(() => ({} as Record<string, number>)),
+    ]).then(([rankResults, countData]) => {
       const rankMap: Record<string, number | null> = {}
-      const sizeMap: Record<string, number> = {}
-      results.forEach(({ id, rank, size }) => { rankMap[id] = rank; sizeMap[id] = size })
+      rankResults.forEach(({ id, rank }) => { rankMap[id] = rank })
       setCompRanks(rankMap)
-      setCompSizes(sizeMap)
-    })
-  }, [session, tournsComps, selectedTournId])
+      setCompSizes(countData)
+    }).finally(() => setCompStatsLoading(false))
+  }, [session, tournsComps, selectedTournId, compStatsKey])
 
   // Refresh tribe status when the tab regains focus (user returns after joining a tribe)
   useEffect(() => {
@@ -1926,6 +1936,13 @@ export default function HomePage() {
                   <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">My Comps</p>
                     <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setCompStatsKey(k => k + 1)}
+                        disabled={compStatsLoading}
+                        title="Refresh comp stats"
+                        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40">
+                        {compStatsLoading ? '…' : '↻'}
+                      </button>
                       <button onClick={() => setModal('join')}
                         className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
                         🔑 Join
