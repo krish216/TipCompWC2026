@@ -471,8 +471,9 @@ export default function HomePage() {
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
   const [compStatsKey,       setCompStatsKey]       = useState(0)  // bump to re-fetch ranks + counts
   const [compStatsLoading,   setCompStatsLoading]   = useState(false)
-  const [lastPredictViewedAt, setLastPredictViewedAt] = useState<string | null>(null)
-  const [nudgeDismissed,      setNudgeDismissed]      = useState(false)
+  const [lastPredictViewedAt,  setLastPredictViewedAt]  = useState<string | null>(null)
+  const [nudgeDismissed,       setNudgeDismissed]       = useState(false)
+  const [dismissedWrapUpRound, setDismissedWrapUpRound] = useState<string | null>(null)
 
   const { newResultsCount, newPtsEarned } = useMemo(() => {
     if (!lastPredictViewedAt) return { newResultsCount: 0, newPtsEarned: 0 }
@@ -488,6 +489,58 @@ export default function HomePage() {
     })
     return { newResultsCount: count, newPtsEarned: pts }
   }, [allFixtures, allPredictions, lastPredictViewedAt])
+
+  // Next round's first kickoff when the current round IS open — used for "all tipped" state
+  const nextRoundKickoff = useMemo(() => {
+    if (!currentRoundCode) return null
+    const now = Date.now()
+    const roundFirstKickoff: Record<string, number> = {}
+    allFixtures.forEach((f: any) => {
+      if (f.round === currentRoundCode) return
+      const t = new Date(f.kickoff_utc).getTime()
+      if (t > now) {
+        if (!roundFirstKickoff[f.round] || t < roundFirstKickoff[f.round])
+          roundFirstKickoff[f.round] = t
+      }
+    })
+    const entries = Object.entries(roundFirstKickoff).sort(([, a], [, b]) => a - b)
+    if (!entries.length) return null
+    const [roundCode, kickoff] = entries[0]
+    const roundName = (scoringConfig.rounds as any)[roundCode]?.round_name ?? roundCode
+    return { roundCode, roundName, kickoff }
+  }, [currentRoundCode, allFixtures, scoringConfig])
+
+  // Most recently completed round + user's pts/correct count for the round wrap-up card
+  const { lastCompletedRound, roundWrapUpData } = useMemo(() => {
+    const empty = { lastCompletedRound: null as string | null, roundWrapUpData: null as { pts: number; correct: number; total: number } | null }
+    if (!allFixtures.length) return empty
+
+    const roundFixtures: Record<string, any[]> = {}
+    allFixtures.forEach((f: any) => {
+      if (!roundFixtures[f.round]) roundFixtures[f.round] = []
+      roundFixtures[f.round].push(f)
+    })
+
+    // Rounds where every fixture has a result (fully scored)
+    const completed = Object.entries(roundFixtures)
+      .filter(([, fxs]) => fxs.every((f: any) => f.result !== null))
+      .map(([r]) => r)
+      .sort((a, b) => ((scoringConfig.rounds as any)[b]?.round_order ?? 0) - ((scoringConfig.rounds as any)[a]?.round_order ?? 0))
+
+    if (!completed.length) return empty
+    const lastRound = completed[0]
+
+    let pts = 0, correct = 0, total = 0
+    allPredictions.forEach((p: any) => {
+      if (p.fixtures?.round !== lastRound) return
+      total++
+      pts     += (p.standard_points ?? 0) + (p.bonus_points ?? 0)
+      correct += (p.standard_points ?? 0) > 0 ? 1 : 0
+    })
+
+    if (total === 0) return empty
+    return { lastCompletedRound: lastRound, roundWrapUpData: { pts, correct, total } }
+  }, [allFixtures, allPredictions, scoringConfig])
 
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
@@ -1933,6 +1986,61 @@ export default function HomePage() {
                   </div>
                   <p className="text-[10px] text-green-600 mt-1">{Math.round((predCount / fixtureCount) * 100)}% complete</p>
                 </Link>
+              )}
+
+              {/* All tipped — shown when round is open but every fixture is predicted */}
+              {currentRoundCode && fixtureCount > 0 && predCount >= fixtureCount && (
+                <div className="mb-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-green-800">
+                        ✅ All tipped for {(scoringConfig.rounds as any)[currentRoundCode]?.round_name ?? currentRoundCode}!
+                      </p>
+                      {nextRoundKickoff && (
+                        <p className="text-xs text-green-600 mt-0.5">
+                          {nextRoundKickoff.roundName} kicks off{' '}
+                          {new Date(nextRoundKickoff.kickoff).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </p>
+                      )}
+                    </div>
+                    <Link href="/predict"
+                      className="flex-shrink-0 text-xs font-semibold text-green-700 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                      View picks →
+                    </Link>
+                  </div>
+                  <div className="mt-3 h-1.5 bg-green-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full" style={{ width: '100%' }} />
+                  </div>
+                  <p className="text-[10px] text-green-600 mt-1">100% complete</p>
+                </div>
+              )}
+
+              {/* Round wrap-up — shown after a round fully scores, dismissed per round */}
+              {lastCompletedRound && lastCompletedRound !== dismissedWrapUpRound && roundWrapUpData && (
+                <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-indigo-900">
+                        🏁 {(scoringConfig.rounds as any)[lastCompletedRound]?.round_name ?? lastCompletedRound} wrap-up
+                      </p>
+                      <p className="text-xs text-indigo-700 mt-0.5">
+                        You scored <strong>{roundWrapUpData.pts} pt{roundWrapUpData.pts !== 1 ? 's' : ''}</strong> from{' '}
+                        <strong>{roundWrapUpData.correct}/{roundWrapUpData.total}</strong> correct prediction{roundWrapUpData.total !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link href="/leaderboard"
+                        className="text-xs font-semibold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                        See rank →
+                      </Link>
+                      <button
+                        onClick={() => setDismissedWrapUpRound(lastCompletedRound)}
+                        className="text-indigo-400 hover:text-indigo-600 text-lg leading-none px-1"
+                        aria-label="Dismiss"
+                      >×</button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* No open round — next round teaser */}
