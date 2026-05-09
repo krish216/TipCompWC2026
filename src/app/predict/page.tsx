@@ -91,6 +91,12 @@ export default function PredictPage() {
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
     if (!session) return
+    // Record that the user has viewed their predictions — clears the homepage results nudge
+    fetch('/api/user-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ last_predict_viewed_at: new Date().toISOString() }),
+    }).catch(() => {})
     const load = async () => {
       setLoading(true)
       try {

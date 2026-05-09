@@ -466,8 +466,22 @@ export default function HomePage() {
   const [tribeInfoOpen,  setTribeInfoOpen]  = useState(false)
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
-  const [compStatsKey,   setCompStatsKey]   = useState(0)  // bump to re-fetch ranks + counts
-  const [compStatsLoading, setCompStatsLoading] = useState(false)
+  const [compStatsKey,       setCompStatsKey]       = useState(0)  // bump to re-fetch ranks + counts
+  const [compStatsLoading,   setCompStatsLoading]   = useState(false)
+  const [lastPredictViewedAt, setLastPredictViewedAt] = useState<string | null>(null)
+  const [nudgeDismissed,      setNudgeDismissed]      = useState(false)
+
+  const newResultsCount = useMemo(() => {
+    if (!lastPredictViewedAt) return 0
+    const since = new Date(lastPredictViewedAt)
+    const predictedIds = new Set(allPredictions.map((p: any) => p.fixture_id))
+    return allFixtures.filter((f: any) =>
+      f.result !== null &&
+      new Date(f.kickoff_utc) > since &&
+      predictedIds.has(f.id)
+    ).length
+  }, [allFixtures, allPredictions, lastPredictViewedAt])
+
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
   const [joiningInvite,  setJoiningInvite]  = useState<string | null>(null)
   const [decliningId,    setDecliningId]    = useState<string | null>(null)
@@ -515,12 +529,13 @@ export default function HomePage() {
 
     const load = async () => {
       // 1. User profile + leaderboard + admin check (parallel)
-      const [userRes, lbRes, predRes, fxRes, invRes] = await Promise.all([
+      const [userRes, lbRes, predRes, fxRes, invRes, prefsRes] = await Promise.all([
         supabase.from('users').select('display_name, avatar_url, email_verified').eq('id', session.user.id).maybeSingle(),
         fetch('/api/leaderboard?scope=global&no_breakdown=true'),
         fetch('/api/predictions'),
         fetch('/api/fixtures'),
         fetch('/api/comp-invitations/pending'),
+        fetch('/api/user-preferences'),
       ])
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
@@ -531,10 +546,11 @@ export default function HomePage() {
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
       if (myRow) { setTotalPts(myRow.total_points); setMyRank(myRow.rank) }
 
-      const [predData, fxData, invData] = await Promise.all([predRes.json(), fxRes.json(), invRes.json()])
+      const [predData, fxData, invData, prefsData] = await Promise.all([predRes.json(), fxRes.json(), invRes.json(), prefsRes.json()])
       setAllPredictions(predData.data ?? [])
       setAllFixtures(fxData.data ?? [])
       setPendingInvites(invData.data ?? [])
+      setLastPredictViewedAt((prefsData.data as any)?.last_predict_viewed_at ?? null)
 
       setLoading(false)
     }
@@ -1927,6 +1943,21 @@ export default function HomePage() {
                     className="flex-shrink-0 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                     Preview →
                   </Link>
+                </div>
+              )}
+
+              {/* Results nudge — shown when new results have landed since the user last visited /predict */}
+              {!nudgeDismissed && newResultsCount > 0 && (
+                <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <span className="text-base flex-shrink-0">🏁</span>
+                  <Link href="/predict" className="flex-1 text-xs text-amber-800">
+                    <strong>{newResultsCount} result{newResultsCount !== 1 ? 's' : ''} landed since your last visit</strong> — see how you did →
+                  </Link>
+                  <button
+                    onClick={() => setNudgeDismissed(true)}
+                    className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 px-1"
+                    aria-label="Dismiss"
+                  >×</button>
                 </div>
               )}
 
