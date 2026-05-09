@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { Suspense } from 'react'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
@@ -54,7 +55,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={inter.className}>
         <SupabaseProvider initialSession={session}>
           <UserPrefsProvider>
-            <Navbar isAdmin={isAdmin} />
+            <Suspense fallback={<div className="h-12 bg-white border-b border-gray-200" />}>
+              <Navbar isAdmin={isAdmin} />
+            </Suspense>
             <EmailVerificationBanner />
             {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">

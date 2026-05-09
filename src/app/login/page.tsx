@@ -27,21 +27,19 @@ export default function LoginPage() {
   const isChallenge = params.get('challenge') === '1'
   const isOrganiser = params.get('role') === 'organiser'
 
-  const [mode, setMode] = useState<Mode>(tabParam === 'register' ? 'register' : 'login')
-  const [role, setRole] = useState<'tipster' | 'organiser' | null>(
-    isOrganiser ? 'organiser' : isChallenge ? 'tipster' : null
-  )
+  const [mode, setMode] = useState<Mode>('login')
+  const [role, setRole] = useState<'tipster' | 'organiser' | null>(null)
   // Pre-filled from magic join link: /join?code=XXXX&email=... → /login?tab=register&code=XXXX&email=...
   const codeParam  = (params.get('code') ?? '').toUpperCase()
   const emailParam = params.get('email') ?? ''
 
-  // Sync tab from URL param — handles Navbar links pressing Register or Sign in
-  // while the page is already mounted
+  // Sync mode + role from URL params — runs on mount and whenever params change.
+  // Keeping initial state as safe SSR defaults ('login', null) prevents hydration mismatches.
   useEffect(() => {
-    if (tabParam === 'register' && mode !== 'register') setMode('register')
-    else if ((tabParam === 'login' || !tabParam) && mode !== 'login' && !tabParam) {/* no-op on null */}
+    if (tabParam === 'register') setMode('register')
     else if (tabParam === 'login') setMode('login')
-  }, [tabParam])
+    setRole(isOrganiser ? 'organiser' : isChallenge ? 'tipster' : null)
+  }, [tabParam, isOrganiser, isChallenge])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [sentMode, setSentMode] = useState<Mode>('register')

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Avatar } from '@/components/ui'
@@ -42,8 +42,9 @@ function timeAgo(dateStr: string): string {
 }
 
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
-  const pathname = usePathname()
-  const router   = useRouter()
+  const pathname      = usePathname()
+  const router        = useRouter()
+  const searchParams  = useSearchParams()
   const { supabase, session } = useSupabase()
   const { isCompAdmin, selectedCompId, selectedTribeId } = useUserPrefs()
   const [mounted,      setMounted]      = useState(false)
@@ -152,13 +153,10 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
     const [hPath, hQuery] = href.split('?')
     if (hPath === '/') return pathname === '/'
     if (!pathname.startsWith(hPath)) return false
-    // If the link has a ?tab= param, match it against the current URL's tab param
     if (hQuery) {
-      const tabParam = new URLSearchParams(hQuery).get('tab')
-      if (typeof window !== 'undefined') {
-        const currentTab = new URLSearchParams(window.location.search).get('tab')
-        return tabParam === (currentTab ?? 'tipsters')
-      }
+      const tabParam  = new URLSearchParams(hQuery).get('tab')
+      const currentTab = searchParams.get('tab')
+      return tabParam === (currentTab ?? 'tipsters')
     }
     return true
   }
