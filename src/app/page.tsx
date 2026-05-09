@@ -471,15 +471,19 @@ export default function HomePage() {
   const [lastPredictViewedAt, setLastPredictViewedAt] = useState<string | null>(null)
   const [nudgeDismissed,      setNudgeDismissed]      = useState(false)
 
-  const newResultsCount = useMemo(() => {
-    if (!lastPredictViewedAt) return 0
+  const { newResultsCount, newPtsEarned } = useMemo(() => {
+    if (!lastPredictViewedAt) return { newResultsCount: 0, newPtsEarned: 0 }
     const since = new Date(lastPredictViewedAt)
-    const predictedIds = new Set(allPredictions.map((p: any) => p.fixture_id))
-    return allFixtures.filter((f: any) =>
-      f.result !== null &&
-      new Date(f.kickoff_utc) > since &&
-      predictedIds.has(f.id)
-    ).length
+    const predMap = new Map(allPredictions.map((p: any) => [p.fixture_id, p]))
+    let count = 0, pts = 0
+    allFixtures.forEach((f: any) => {
+      if (f.result !== null && new Date(f.kickoff_utc) > since && predMap.has(f.id)) {
+        count++
+        const pred = predMap.get(f.id)
+        pts += (pred?.standard_points ?? 0) + (pred?.bonus_points ?? 0)
+      }
+    })
+    return { newResultsCount: count, newPtsEarned: pts }
   }, [allFixtures, allPredictions, lastPredictViewedAt])
 
   const [pendingInvites, setPendingInvites] = useState<any[]>([])
@@ -1951,7 +1955,12 @@ export default function HomePage() {
                 <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                   <span className="text-base flex-shrink-0">🏁</span>
                   <Link href="/predict" className="flex-1 text-xs text-amber-800">
-                    <strong>{newResultsCount} result{newResultsCount !== 1 ? 's' : ''} landed since your last visit</strong> — see how you did →
+                    <strong>{newResultsCount} result{newResultsCount !== 1 ? 's' : ''} landed since your last visit</strong>
+                    {' — '}
+                    {newPtsEarned > 0
+                      ? <>you earned <strong>{newPtsEarned} pt{newPtsEarned !== 1 ? 's' : ''}</strong> →</>
+                      : <>see how you did →</>
+                    }
                   </Link>
                   <button
                     onClick={() => setNudgeDismissed(true)}
