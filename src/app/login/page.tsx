@@ -62,6 +62,7 @@ export default function LoginPage() {
   const [tournaments,  setTournaments]  = useState<{id:string;name:string;slug:string;status:string;start_date?:string}[]>([])
   const [selectedTourn,  setSelectedTourn]  = useState<string>('')
   const [teaserFixtures, setTeaserFixtures] = useState<{id:string;home:string;away:string;kickoff_utc:string;round:string}[]>([])
+  const displayNameRef = useRef<HTMLInputElement>(null)
 
   // Post-registration screens
   const [registered,        setRegistered]        = useState(false)  // show "check email"
@@ -95,7 +96,7 @@ export default function LoginPage() {
         if (!Array.isArray(data)) return
         const now = new Date()
         const upcoming = (data as any[])
-          .filter(f => f.result_outcome === null && new Date(f.kickoff_utc) > now)
+          .filter(f => f.result === null && new Date(f.kickoff_utc) > now)
           .slice(0, 3)
         setTeaserFixtures(upcoming)
       })
@@ -564,14 +565,14 @@ export default function LoginPage() {
                   <p className="text-xs font-semibold text-gray-700 mb-2">I want to…</p>
                   <div className="flex gap-2">
                     {([
-                      { value: 'tipster',   icon: '🎯', label: 'Join a comp', activeClass: 'border-green-500 bg-green-50', dotClass: 'border-green-500 bg-green-500' },
+                      { value: 'tipster',   icon: '🎯', label: 'Join a Tipping comp', activeClass: 'border-green-500 bg-green-50', dotClass: 'border-green-500 bg-green-500' },
                       { value: 'organiser', icon: '🏆', label: 'Run a comp',  activeClass: 'border-blue-500 bg-blue-50',  dotClass: 'border-blue-500 bg-blue-500'  },
                     ] as const).map(({ value, icon, label, activeClass, dotClass }) => (
                       <label key={value} className={`flex items-center gap-2 flex-1 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                         role === value ? activeClass : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}>
                         <input type="radio" name="role" value={value} checked={role === value}
-                          onChange={() => setRole(value)} className="sr-only" />
+                          onChange={() => { setRole(value); setTimeout(() => displayNameRef.current?.focus(), 0) }} className="sr-only" />
                         <span className="text-base leading-none">{icon}</span>
                         <span className="text-xs font-semibold text-gray-800 flex-1">{label}</span>
                         <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-all ${
@@ -593,7 +594,7 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Display name <span className="text-red-500">*</span>
                 </label>
-                <input type="text" value={name}
+                <input type="text" value={name} ref={displayNameRef}
                   onChange={e => setName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                   placeholder="GoalMaster99" maxLength={40} required
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white ${
