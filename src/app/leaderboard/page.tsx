@@ -172,9 +172,8 @@ export default function LeaderboardPage() {
     if (roundView === 'all') {
       const base = entries.filter(e => (e.total_points ?? 0) > 0)
       // Insert current user if they're outside the API's top-N
-      if (myEntry && !base.some(e => e.user_id === myEntry.user_id) && (myEntry.total_points ?? 0) > 0) {
-        base.push({ ...myEntry })
-      }
+      const meOutsideTopN = myEntry && !base.some(e => e.user_id === myEntry.user_id) && (myEntry.total_points ?? 0) > 0
+      if (meOutsideTopN) base.push({ ...myEntry })
       const compareFn = sortRound
         ? (a: any, b: any) => {
             const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
@@ -182,7 +181,15 @@ export default function LeaderboardPage() {
             return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
           }
         : (a: any, b: any) => (b.total_points ?? 0) - (a.total_points ?? 0)
-      return [...base].sort(compareFn).map((e, i) => ({ ...e, rank: i + 1 }))
+      const result = [...base].sort(compareFn).map((e, i) => ({ ...e, rank: i + 1 }))
+      // Position-based rank underestimates the true rank when the user is outside the top-N
+      // (e.g. rank 75 would show as 51). Restore the API-computed rank which correctly
+      // counts all scope members ahead of the user.
+      if (meOutsideTopN && myEntry!.rank) {
+        const idx = result.findIndex(e => e.user_id === myEntry!.user_id)
+        if (idx !== -1) result[idx] = { ...result[idx], rank: myEntry!.rank }
+      }
+      return result
     }
 
     const tabsUpTo = CUMULATIVE_TABS[roundView as string] ?? []
