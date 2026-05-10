@@ -266,6 +266,13 @@ export async function GET(request: NextRequest) {
 
     // Always return current user's entry even if outside top N
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
+    if (myEntry) {
+      // Rank the current user at the top of their tied group — consistent with the
+      // frontend sort tiebreaker (is_me wins ties). Count only rows with strictly
+      // more total_points to get the best rank within the tied band.
+      const betterRank = rows.filter((r: any) => r.total_points > myEntry!.total_points).length + 1
+      myEntry = { ...myEntry, rank: betterRank }
+    }
     if (!myEntry) {
       let myEntryQuery = (adminClient.from('leaderboard') as any)
         .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
