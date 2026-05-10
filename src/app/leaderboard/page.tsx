@@ -178,9 +178,16 @@ export default function LeaderboardPage() {
         ? (a: any, b: any) => {
             const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
             const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
-            return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
+            if (bRnd !== aRnd) return bRnd - aRnd
+            const ptsDiff = (b.total_points ?? 0) - (a.total_points ?? 0)
+            if (ptsDiff !== 0) return ptsDiff
+            return a.is_me ? -1 : b.is_me ? 1 : 0
           }
-        : (a: any, b: any) => (b.total_points ?? 0) - (a.total_points ?? 0)
+        : (a: any, b: any) => {
+            const ptsDiff = (b.total_points ?? 0) - (a.total_points ?? 0)
+            if (ptsDiff !== 0) return ptsDiff
+            return a.is_me ? -1 : b.is_me ? 1 : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
+          }
       const result = [...base].sort(compareFn).map((e, i) => ({ ...e, rank: i + 1 }))
       // Position-based rank underestimates the true rank when the user is outside the top-N
       // (e.g. rank 75 would show as 51). Restore the API-computed rank which correctly
@@ -217,11 +224,10 @@ export default function LeaderboardPage() {
     }
 
     return mapped
-      .sort((a, b) =>
-        b.total_points !== a.total_points
-          ? b.total_points - a.total_points
-          : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
-      )
+      .sort((a, b) => {
+        if (b.total_points !== a.total_points) return b.total_points - a.total_points
+        return a.is_me ? -1 : b.is_me ? 1 : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
+      })
       .map((e, i) => ({ ...e, rank: i + 1 }))
   }, [entries, myEntry, roundView, sortRound, CUMULATIVE_TABS])
 
@@ -237,7 +243,10 @@ export default function LeaderboardPage() {
         return { ...e, total_points: pts }
       })
       .filter(e => e.total_points > 0)
-      .sort((a, b) => b.total_points !== a.total_points ? b.total_points - a.total_points : (b.bonus_count ?? 0) - (a.bonus_count ?? 0))
+      .sort((a, b) => {
+        if (b.total_points !== a.total_points) return b.total_points - a.total_points
+        return a.is_me ? -1 : b.is_me ? 1 : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
+      })
       .map((e, i) => ({ ...e, rank: i + 1 }))
   }, [entries, roundView, ROUND_SNAPSHOTS, CUMULATIVE_TABS])
 
