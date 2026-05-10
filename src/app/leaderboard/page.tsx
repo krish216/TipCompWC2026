@@ -350,13 +350,30 @@ export default function LeaderboardPage() {
 
       {/* Sticky "your position" bar — always visible while scrolling */}
       {(() => {
-        const me = filteredEntries.find(e => e.user_id === myId) ?? myEntry
-        if (!me || !myId) return null
-        const rank      = me.rank ?? '?'
-        const pts       = me.total_points ?? 0
-        const above     = typeof rank === 'number' && rank > 1 ? filteredEntries[rank - 2] : null
+        if (!myId) return null
+
+        // Derive round-scoped me: prefer the already-computed filteredEntries entry;
+        // if absent (0 pts for this view), compute pts + rank from round_breakdown.
+        const inList = filteredEntries.find(e => e.user_id === myId)
+        const me: any = inList ?? (() => {
+          if (!myEntry) return null
+          if (roundView === 'all') return myEntry
+          const validRounds = new Set<string>(SNAPSHOT_TO_ROUNDS[roundView] ?? [])
+          const pts = Object.entries(myEntry.round_breakdown ?? {})
+            .filter(([r]) => validRounds.has(r))
+            .reduce((s, [, v]) => s + Number(v), 0)
+          const rank = filteredEntries.filter(e => e.total_points > pts).length + 1
+          return { ...myEntry, total_points: pts, rank }
+        })()
+        if (!me) return null
+
+        const rank       = me.rank ?? '?'
+        const pts        = me.total_points ?? 0
+        const above      = typeof rank === 'number' && rank > 1 ? filteredEntries[rank - 2] : null
         const gapToAbove = above ? above.total_points - pts : 0
         const isLeading  = rank === 1
+        const snapLabel  = ROUND_SNAPSHOTS.find(r => r.id === roundView)?.label ?? 'Overall'
+
         return (
           <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-green-200 shadow-lg">
             <div className="max-w-3xl mx-auto flex items-center gap-3 px-4 py-2.5">
@@ -367,6 +384,7 @@ export default function LeaderboardPage() {
                 <p className="text-xs font-semibold text-green-800 truncate">{me.display_name} · {pts} pts</p>
                 <p className="text-[11px] text-gray-500">
                   {isLeading ? '🏆 Leading' : gapToAbove > 0 ? `${gapToAbove} pts behind #${(rank as number) - 1}` : `Tied #${(rank as number) - 1}`}
+                  <span className="ml-1.5 text-gray-400">· {snapLabel}</span>
                 </p>
               </div>
               <span className="text-xl font-bold text-green-700">#{rank}</span>
