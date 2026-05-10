@@ -57,7 +57,8 @@ export default function PredictPage() {
   const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
-  const [allDoneBanner, setAllDoneBanner] = useState<string | null>(null)
+  const [allDoneBanner,      setAllDoneBanner]      = useState<string | null>(null)
+  const [firstWinCelebrated, setFirstWinCelebrated] = useState<boolean | null>(null)
 
   const saveTimers             = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const fixtureRefs            = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -100,13 +101,14 @@ export default function PredictPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [fxRes, predRes, resRes, locksRes, userRes, teamsRes] = await Promise.all([
+        const [fxRes, predRes, resRes, locksRes, userRes, teamsRes, prefsRes] = await Promise.all([
           fetch('/api/fixtures'),
           fetch('/api/predictions'),
           fetch('/api/results'),
           fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks'),
           fetch('/api/user-tournaments'),
           selectedTournId ? fetch(`/api/tournament-teams?tournament_id=${selectedTournId}`) : Promise.resolve(null),
+          fetch('/api/user-preferences'),
         ])
 
         const [fxData, predData, resData, locksData] = await Promise.all([
@@ -157,6 +159,10 @@ export default function PredictPage() {
           const teamsData = await teamsRes.json().catch(() => ({}))
           setTeamsList(teamsData.teams ?? [])
         }
+
+        // Check whether first-win has already been celebrated (cross-device)
+        const prefsData = await prefsRes.json().catch(() => ({}))
+        setFirstWinCelebrated(!!(prefsData.data as any)?.first_win_celebrated_at)
 
       } catch (e) {
         console.error('[predict] load error', e)
@@ -295,6 +301,16 @@ export default function PredictPage() {
 
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
+
+  const firstCorrectFixtureId = useMemo(() => {
+    const sorted = [...allFixtures].sort(
+      (a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
+    )
+    for (const f of sorted) {
+      if ((predictions[f.id]?.standard_points ?? 0) > 0) return f.id
+    }
+    return null
+  }, [allFixtures, predictions])
 
   const isRoundOpen = useCallback((roundId: RoundId) => {
     const hasLocks = Object.keys(roundLocks).length > 0
@@ -751,6 +767,24 @@ export default function PredictPage() {
                   </div>
                 )}
                 {renderMatchRow(f)}
+                {f.id === firstCorrectFixtureId && firstWinCelebrated === false && (
+                  <div className="mt-1.5 mb-2 flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-800">
+                    <span className="text-sm flex-shrink-0">🎯</span>
+                    <span className="flex-1 font-medium">Nice call! Your first correct call — you're on the board!</span>
+                    <button
+                      onClick={() => {
+                        setFirstWinCelebrated(true)
+                        fetch('/api/user-preferences', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ first_win_celebrated_at: new Date().toISOString() }),
+                        }).catch(() => {})
+                      }}
+                      className="text-green-400 hover:text-green-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
+                      ×
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

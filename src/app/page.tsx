@@ -475,6 +475,7 @@ export default function HomePage() {
   const [lastPredictViewedAt,  setLastPredictViewedAt]  = useState<string | null>(null)
   const [nudgeDismissed,       setNudgeDismissed]       = useState(false)
   const [dismissedWrapUpRound, setDismissedWrapUpRound] = useState<string | null>(null)
+  const [firstWinCelebrated,   setFirstWinCelebrated]   = useState(false)
 
   const { newResultsCount, newPtsEarned } = useMemo(() => {
     if (!lastPredictViewedAt) return { newResultsCount: 0, newPtsEarned: 0 }
@@ -490,6 +491,11 @@ export default function HomePage() {
     })
     return { newResultsCount: count, newPtsEarned: pts }
   }, [allFixtures, allPredictions, lastPredictViewedAt])
+
+  const hasFirstWin = useMemo(
+    () => allPredictions.some((p: any) => (p.standard_points ?? 0) > 0),
+    [allPredictions]
+  )
 
   // Round with the next higher round_order than the current round — used for "all tipped" state
   const nextRoundKickoff = useMemo(() => {
@@ -625,6 +631,7 @@ export default function HomePage() {
       setAllFixtures(fxData.data ?? [])
       setPendingInvites(invData.data ?? [])
       setLastPredictViewedAt((prefsData.data as any)?.last_predict_viewed_at ?? null)
+      setFirstWinCelebrated(!!(prefsData.data as any)?.first_win_celebrated_at)
 
       setLoading(false)
     }
@@ -2032,6 +2039,29 @@ export default function HomePage() {
                     <div className="h-full bg-green-500 rounded-full" style={{ width: '100%' }} />
                   </div>
                   <p className="text-[10px] text-green-600 mt-1">100% complete</p>
+                </div>
+              )}
+
+              {/* First correct prediction celebration — shown once, dismissed cross-device */}
+              {hasFirstWin && !firstWinCelebrated && (
+                <div className="mb-3 flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                  <span className="text-base flex-shrink-0">🎯</span>
+                  <div className="flex-1 min-w-0 text-xs text-green-800">
+                    <strong>Nice call!</strong> You won your first points —{' '}
+                    <Link href="/predict" className="underline font-semibold">see your pick →</Link>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFirstWinCelebrated(true)
+                      fetch('/api/user-preferences', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ first_win_celebrated_at: new Date().toISOString() }),
+                      })
+                    }}
+                    className="text-green-400 hover:text-green-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
+                    ×
+                  </button>
                 </div>
               )}
 

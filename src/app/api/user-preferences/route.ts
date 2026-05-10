@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('user_preferences')
-    .select('tournament_id, comp_id, last_predict_viewed_at, updated_at')
+    .select('tournament_id, comp_id, last_predict_viewed_at, first_win_celebrated_at, updated_at')
     .eq('user_id', user.id)
     .single()
 
@@ -47,7 +47,8 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}))
   const payload: Record<string, any> = { user_id: user.id }
-  if (body.last_predict_viewed_at !== undefined) payload.last_predict_viewed_at = body.last_predict_viewed_at
+  if (body.last_predict_viewed_at    !== undefined) payload.last_predict_viewed_at    = body.last_predict_viewed_at
+  if (body.first_win_celebrated_at   !== undefined) payload.first_win_celebrated_at   = body.first_win_celebrated_at
 
   const { error } = await (supabase.from('user_preferences') as any)
     .upsert(payload, { onConflict: 'user_id' })
