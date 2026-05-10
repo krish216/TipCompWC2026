@@ -232,8 +232,8 @@ export default function SettingsPage() {
               <p className="text-[11px] text-gray-400 mt-1">Max 2MB · JPG, PNG, GIF</p>
             </div>
           </div>
-          <form onSubmit={saveDisplayName} className="flex gap-2 items-end mb-4">
-            <div className="flex-1">
+          <form onSubmit={saveDisplayName} className="mb-4 space-y-3">
+            <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Display name</label>
               <input
                 type="text"
@@ -242,6 +242,18 @@ export default function SettingsPage() {
                 maxLength={40}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">First name</label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={e => setFirstName(e.target.value)}
+                maxLength={40}
+                placeholder="e.g. Priya"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Shown beneath your display name on comp leaderboards when enabled below.</p>
             </div>
             <button
               type="submit"
