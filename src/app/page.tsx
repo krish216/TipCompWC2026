@@ -709,6 +709,12 @@ export default function HomePage() {
     fetch('/api/stats').then(r => r.json()).then(d => setHeroStats(d)).catch(() => {})
   }, [session])
 
+  // Hydrate dismissed card state from localStorage so dismissals survive page remounts
+  useEffect(() => {
+    setDismissedWrapUpRound(localStorage.getItem('dismissed_wrapup_round'))
+    setDismissedTipsheetRound(localStorage.getItem('dismissed_tipsheet_round'))
+  }, [])
+
   // Hydrate challenge picks from localStorage after login/signup
   useEffect(() => {
     if (!session) return
@@ -2066,7 +2072,10 @@ export default function HomePage() {
                     <Link href="/tribe?tab=picks" className="underline font-semibold">see how your tribe tipped →</Link>
                   </div>
                   <button
-                    onClick={() => setDismissedTipsheetRound(closedForTippingRound)}
+                    onClick={() => {
+                      setDismissedTipsheetRound(closedForTippingRound)
+                      localStorage.setItem('dismissed_tipsheet_round', closedForTippingRound!)
+                    }}
                     className="text-blue-400 hover:text-blue-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
                     ×
                   </button>
@@ -2107,7 +2116,10 @@ export default function HomePage() {
                     <Link href="/leaderboard" className="underline font-semibold">see rank →</Link>
                   </div>
                   <button
-                    onClick={() => setDismissedWrapUpRound(lastCompletedRound)}
+                    onClick={() => {
+                      setDismissedWrapUpRound(lastCompletedRound)
+                      localStorage.setItem('dismissed_wrapup_round', lastCompletedRound!)
+                    }}
                     className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 px-1"
                     aria-label="Dismiss"
                   >×</button>
@@ -2145,7 +2157,16 @@ export default function HomePage() {
                     }
                   </Link>
                   <button
-                    onClick={() => setNudgeDismissed(true)}
+                    onClick={() => {
+                      const now = new Date().toISOString()
+                      setNudgeDismissed(true)
+                      setLastPredictViewedAt(now)
+                      fetch('/api/user-preferences', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ last_predict_viewed_at: now }),
+                      })
+                    }}
                     className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 px-1"
                     aria-label="Dismiss"
                   >×</button>
