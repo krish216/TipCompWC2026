@@ -645,7 +645,12 @@ export default function HomePage() {
       setAllPredictions(predData.data ?? [])
       setAllFixtures(fxData.data ?? [])
       setPendingInvites(invData.data ?? [])
-      setLastPredictViewedAt((prefsData.data as any)?.last_predict_viewed_at ?? null)
+      const dbViewedAt    = (prefsData.data as any)?.last_predict_viewed_at ?? null
+      const localViewedAt = typeof window !== 'undefined' ? localStorage.getItem('nudge_last_viewed_at') : null
+      const effectiveViewedAt = dbViewedAt && localViewedAt
+        ? (new Date(localViewedAt) > new Date(dbViewedAt) ? localViewedAt : dbViewedAt)
+        : (localViewedAt ?? dbViewedAt)
+      setLastPredictViewedAt(effectiveViewedAt)
       setFirstWinCelebrated(!!(prefsData.data as any)?.first_win_celebrated_at)
 
       setLoading(false)
@@ -713,6 +718,7 @@ export default function HomePage() {
   useEffect(() => {
     setDismissedWrapUpRound(localStorage.getItem('dismissed_wrapup_round'))
     setDismissedTipsheetRound(localStorage.getItem('dismissed_tipsheet_round'))
+    if (localStorage.getItem('nudge_last_viewed_at')) setNudgeDismissed(true)
   }, [])
 
   // Hydrate challenge picks from localStorage after login/signup
@@ -2161,6 +2167,7 @@ export default function HomePage() {
                       const now = new Date().toISOString()
                       setNudgeDismissed(true)
                       setLastPredictViewedAt(now)
+                      localStorage.setItem('nudge_last_viewed_at', now)
                       fetch('/api/user-preferences', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
