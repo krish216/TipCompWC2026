@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     // no further limit is applied — every member is returned for accurate round rankings.
     // Global scope caps at 100 to keep response size reasonable.
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, first_name, show_first_name, avatar_url, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+      .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
     if (tournamentId) lbQuery = lbQuery.eq('tournament_id', tournamentId)
@@ -98,6 +98,23 @@ export async function GET(request: NextRequest) {
 
     // Always include current user in downstream queries even if outside top N
     const userIds = [...new Set([...rows.map((r: any) => r.user_id), user.id])]
+
+    // Profile fields (first_name, avatar_url, show_first_name) fetched live from users
+    // so that profile updates in Settings are immediately reflected without waiting for
+    // the next leaderboard view refresh (which only triggers on prediction scoring).
+    const profileMap: Record<string, { first_name: string | null; avatar_url: string | null; show_first_name: boolean }> = {}
+    if (userIds.length > 0) {
+      const { data: profileRows } = await (adminClient.from('users') as any)
+        .select('id, first_name, avatar_url, show_first_name')
+        .in('id', userIds)
+      ;(profileRows ?? []).forEach((p: any) => {
+        profileMap[p.id] = {
+          first_name:      p.first_name      ?? null,
+          avatar_url:      p.avatar_url      ?? null,
+          show_first_name: p.show_first_name ?? true,
+        }
+      })
+    }
 
     // Tribe info: look up within the viewing comp so each row shows the correct tribe.
     // For tribe scope all users share one tribe; for comp scope each user may differ.
@@ -252,18 +269,21 @@ export async function GET(request: NextRequest) {
     }
 
     // first_name is only exposed in comp/tribe scope and only when the user opted in
-    // (or it is the requesting user's own row).
-    const resolveFirstName = (row: any) => {
+    // (or it is the requesting user's own row). Reads from profileMap (live users table).
+    const resolveFirstName = (uid: string) => {
       if (scope === 'global') return null
-      if (row.user_id === user.id) return row.first_name ?? null
-      return row.show_first_name ? (row.first_name ?? null) : null
+      const p = profileMap[uid]
+      if (!p) return null
+      if (uid === user.id) return p.first_name
+      return p.show_first_name ? p.first_name : null
     }
 
     const ranked = rows.map((row: any, i: number) => ({
       ...row,
       rank:                i + 1,
       is_me:               row.user_id === user.id,
-      first_name:          resolveFirstName(row),
+      first_name:          resolveFirstName(row.user_id),
+      avatar_url:          profileMap[row.user_id]?.avatar_url  ?? null,
       tribe_id:            tribeInfoMap[row.user_id]?.tribe_id   ?? null,
       tribe_name:          tribeInfoMap[row.user_id]?.tribe_name ?? null,
       round_breakdown:     breakdownMap[row.user_id]         ?? {},
@@ -284,7 +304,7 @@ export async function GET(request: NextRequest) {
     }
     if (!myEntry) {
       let myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, first_name, show_first_name, avatar_url, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+        .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery = myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
@@ -299,7 +319,8 @@ export async function GET(request: NextRequest) {
         myEntry = {
           ...m, is_me: true,
           rank:                (ahead ?? 0) + 1,
-          first_name:          m.first_name ?? null, // own row — always shown
+          first_name:          profileMap[user.id]?.first_name  ?? null,
+          avatar_url:          profileMap[user.id]?.avatar_url  ?? null,
           tribe_id:            tribeInfoMap[user.id]?.tribe_id   ?? null,
           tribe_name:          tribeInfoMap[user.id]?.tribe_name ?? null,
           round_breakdown:     breakdownMap[user.id]         ?? {},
