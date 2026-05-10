@@ -268,9 +268,9 @@ export default function LeaderboardPage() {
     if (filteredEntries.length <= 1) return {} as Record<string, number>
     const max: Record<string, number> = {}
     for (const e of filteredEntries) {
-      for (const [r, pts] of Object.entries(e.round_breakdown ?? {})) {
+      for (const [t, pts] of Object.entries(e.tab_breakdown ?? {})) {
         const n = Number(pts)
-        if (n > 0 && (max[r] == null || n > max[r])) max[r] = n
+        if (n > 0 && (max[t] == null || n > max[t])) max[t] = n
       }
     }
     return max
@@ -693,32 +693,28 @@ export default function LeaderboardPage() {
                             </div>
                           </button>
 
-                          {isExpanded && entry.round_breakdown && (() => {
-                            const sorted = (Object.entries(entry.round_breakdown) as [RoundId, number][])
-                              .filter(([, pts]) => Number(pts) > 0)
-                              .sort(([a], [b]) => {
-                                const ai = ROUND_ORDER.indexOf(a as RoundId)
-                                const bi = ROUND_ORDER.indexOf(b as RoundId)
-                                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-                              })
-                            const maxPts = Math.max(...sorted.map(([, v]) => Number(v)), 1)
+                          {isExpanded && entry.tab_breakdown && (() => {
+                            const tabBars = ROUND_SNAPSHOTS.slice(1)
+                              .map(snap => ({ snap, pts: Number(entry.tab_breakdown?.[snap.id] ?? 0) }))
+                              .filter(({ pts }) => pts > 0)
+                            const maxPts = Math.max(...tabBars.map(({ pts }) => pts), 1)
+                            if (tabBars.length === 0) return null
                             return (
                               <div className="px-4 pt-3 pb-4 bg-gray-50 border-b border-gray-100">
                                 <p className="text-[11px] font-medium text-gray-500 mb-3 uppercase tracking-wide">Points by round</p>
                                 <div className="flex items-end gap-3 flex-wrap">
-                                  {sorted.map(([round, pts]) => {
-                                    const n       = Number(pts)
-                                    const barH    = Math.max(Math.round((n / maxPts) * 52), 6)
-                                    const isCrown = roundWinnerPts[round] === n && n > 0
+                                  {tabBars.map(({ snap, pts }) => {
+                                    const barH    = Math.max(Math.round((pts / maxPts) * 52), 6)
+                                    const isCrown = roundWinnerPts[snap.id] === pts && pts > 0
                                     return (
-                                      <div key={round} className="flex flex-col items-center gap-1 min-w-[36px]">
-                                        <span className="text-[10px] font-bold text-gray-700">{n}</span>
+                                      <div key={snap.id} className="flex flex-col items-center gap-1 min-w-[36px]">
+                                        <span className="text-[10px] font-bold text-gray-700">{pts}</span>
                                         {isCrown && <span className="text-[11px] leading-none">👑</span>}
                                         <div
                                           className={clsx('w-8 rounded-t-md transition-all', isCrown ? 'bg-amber-400' : isMe ? 'bg-green-400' : 'bg-blue-300')}
                                           style={{ height: `${barH}px` }}
                                         />
-                                        <span className="text-[9px] text-gray-400 font-medium uppercase">{round}</span>
+                                        <span className="text-[9px] text-gray-400 font-medium uppercase">{snap.id.toUpperCase()}</span>
                                       </div>
                                     )
                                   })}
