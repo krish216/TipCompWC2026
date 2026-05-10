@@ -476,6 +476,8 @@ export default function HomePage() {
   const [nudgeDismissed,       setNudgeDismissed]       = useState(false)
   const [dismissedWrapUpRound, setDismissedWrapUpRound] = useState<string | null>(null)
   const [firstWinCelebrated,   setFirstWinCelebrated]   = useState(false)
+  const [tippingClosed,        setTippingClosed]        = useState<Record<string, boolean>>({})
+  const [dismissedTipsheetRound, setDismissedTipsheetRound] = useState<string | null>(null)
 
   const { newResultsCount, newPtsEarned } = useMemo(() => {
     if (!lastPredictViewedAt) return { newResultsCount: 0, newPtsEarned: 0 }
@@ -496,6 +498,19 @@ export default function HomePage() {
     () => allPredictions.some((p: any) => (p.standard_points ?? 0) > 0),
     [allPredictions]
   )
+
+  // Most recently tipping-closed round (highest round_order with tipping_closed = true)
+  const closedForTippingRound = useMemo(() => {
+    const closed = Object.entries(tippingClosed)
+      .filter(([, v]) => v)
+      .map(([code]) => code)
+    if (!closed.length) return null
+    return closed.reduce((best, code) => {
+      const bestOrder = (scoringConfig.rounds as any)[best]?.round_order ?? 0
+      const thisOrder = (scoringConfig.rounds as any)[code]?.round_order ?? 0
+      return thisOrder > bestOrder ? code : best
+    })
+  }, [tippingClosed, scoringConfig])
 
   // Round with the next higher round_order than the current round — used for "all tipped" state
   const nextRoundKickoff = useMemo(() => {
@@ -643,7 +658,7 @@ export default function HomePage() {
     if (!session || !selectedTournId) return
     fetch(`/api/round-locks?tournament_id=${selectedTournId}`)
       .then(r => r.json())
-      .then(d => setRoundLocks(d.data ?? {}))
+      .then(d => { setRoundLocks(d.data ?? {}); setTippingClosed(d.tipping_closed ?? {}) })
       .catch(() => {})
   }, [session, selectedTournId])
 
@@ -2039,6 +2054,22 @@ export default function HomePage() {
                     <div className="h-full bg-green-500 rounded-full" style={{ width: '100%' }} />
                   </div>
                   <p className="text-[10px] text-green-600 mt-1">100% complete</p>
+                </div>
+              )}
+
+              {/* Tipsheet nudge — fires as soon as tipping closes for a round */}
+              {hasTribe && closedForTippingRound && closedForTippingRound !== dismissedTipsheetRound && (
+                <div className="mb-3 flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                  <span className="text-base flex-shrink-0">⚽</span>
+                  <div className="flex-1 min-w-0 text-xs text-blue-800">
+                    Tipping for <strong>{(scoringConfig.rounds as any)[closedForTippingRound]?.round_name ?? closedForTippingRound}</strong> has closed —{' '}
+                    <Link href="/tribe?tab=picks" className="underline font-semibold">see how your tribe tipped →</Link>
+                  </div>
+                  <button
+                    onClick={() => setDismissedTipsheetRound(closedForTippingRound)}
+                    className="text-blue-400 hover:text-blue-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
+                    ×
+                  </button>
                 </div>
               )}
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -929,6 +930,7 @@ export default function TribePage() {
   const [picksLoading,   setPicksLoading]   = useState(false)
   const [fixtures,       setFixtures]       = useState<Fixture[]>([])
   const [loading,        setLoading]        = useState(true)
+  const searchParams = useSearchParams()
   const [tab,            setTab]            = useState<MainTab>('leaderboard')
   const [chatTopic,      setChatTopic]      = useState<ChatTopic>('general')
   const [copied,         setCopied]         = useState(false)
@@ -946,6 +948,11 @@ export default function TribePage() {
     setTribePicksData(data)
     setPicksLoading(false)
   }
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as MainTab | null
+    if (tabParam && ['leaderboard','picks','chat','about'].includes(tabParam)) setTab(tabParam)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
