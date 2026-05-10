@@ -33,7 +33,7 @@ export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
   const { scoringConfig } = useUserPrefs()
 
-  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, ROUND_ORDER, TAB_ROUNDS } = useMemo(() => {
+  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, CUMULATIVE_TABS, ROUND_ORDER, TAB_ROUNDS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
     const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
@@ -59,9 +59,17 @@ export default function LeaderboardPage() {
       cumulative = [...cumulative, ...g.rounds] as RoundId[]
       snapshotToRounds[tab] = [...cumulative] as RoundId[]
     }
+    // Map snapshot id → cumulative tab_group list up to + including that snapshot.
+    // Used with tab_breakdown (materialized view) for After [Round] point sums.
+    const cumulativeTabs: Record<string, string[]> = {}
+    for (let i = 1; i < snapshots.length; i++) {
+      cumulativeTabs[snapshots[i].id] = snapshots.slice(1, i + 1).map(s => s.id)
+    }
+
     return {
       ROUND_SNAPSHOTS: snapshots,
       SNAPSHOT_TO_ROUNDS: snapshotToRounds,
+      CUMULATIVE_TABS: cumulativeTabs,
       ROUND_ORDER: rounds.map(r => r.round_code) as RoundId[],
       TAB_ROUNDS: Object.fromEntries(Object.entries(tabGroups).map(([k, v]) => [k, v.rounds as RoundId[]])),
     }
@@ -177,33 +185,31 @@ export default function LeaderboardPage() {
       return [...base].sort(compareFn).map((e, i) => ({ ...e, rank: i + 1 }))
     }
 
-    const validRounds = new Set(
-      SNAPSHOT_TO_ROUNDS[roundView as string] ??
-      (ROUND_ORDER.includes(roundView as RoundId)
-        ? ROUND_ORDER.slice(0, ROUND_ORDER.indexOf(roundView as RoundId) + 1)
-        : ROUND_ORDER)
-    )
-    const sumForRounds = (map: Record<string, number>) =>
-      Object.entries(map)
-        .filter(([r]) => validRounds.has(r as RoundId))
-        .reduce((sum, [, v]) => sum + Number(v), 0)
+    const tabsUpTo = CUMULATIVE_TABS[roundView as string] ?? []
+    const sumTabs = (bd: Record<string, number>) =>
+      tabsUpTo.reduce((s, t) => s + Number(bd[t] ?? 0), 0)
 
-    const mapped = entries.map(e => ({
-      ...e,
-      total_points:       sumForRounds(e.round_breakdown    ?? {}),
-      round_standard_pts: sumForRounds(e.standard_breakdown ?? {}),
-      round_bonus_pts:    sumForRounds(e.bonus_breakdown    ?? {}),
-    })).filter(e => e.total_points > 0)
+    // bonus_breakdown is still keyed by round_code; validRounds used only for bonus/standard
+    const validRounds = new Set(SNAPSHOT_TO_ROUNDS[roundView as string] ?? [] as RoundId[])
+    const sumRounds = (map: Record<string, number>) =>
+      Object.entries(map).filter(([r]) => validRounds.has(r as RoundId)).reduce((s, [, v]) => s + Number(v), 0)
+
+    const mapped = entries.map(e => {
+      const pts    = sumTabs(e.tab_breakdown    ?? {})
+      const bonPts = sumRounds(e.bonus_breakdown ?? {})
+      return { ...e, total_points: pts, round_standard_pts: pts - bonPts, round_bonus_pts: bonPts }
+    }).filter(e => e.total_points > 0)
 
     // Insert current user if outside top-N but has points for this round view
     if (myEntry && !mapped.some(e => e.user_id === myEntry.user_id)) {
-      const myPts = sumForRounds(myEntry.round_breakdown ?? {})
+      const myPts    = sumTabs(myEntry.tab_breakdown    ?? {})
+      const myBonPts = sumRounds(myEntry.bonus_breakdown ?? {})
       if (myPts > 0) {
         mapped.push({
           ...myEntry,
           total_points:       myPts,
-          round_standard_pts: sumForRounds(myEntry.standard_breakdown ?? {}),
-          round_bonus_pts:    sumForRounds(myEntry.bonus_breakdown    ?? {}),
+          round_standard_pts: myPts - myBonPts,
+          round_bonus_pts:    myBonPts,
         })
       }
     }
@@ -221,19 +227,17 @@ export default function LeaderboardPage() {
   const prevFilteredEntries = useMemo(() => {
     const currentIdx = ROUND_SNAPSHOTS.findIndex(r => r.id === roundView)
     if (currentIdx < 2) return null // 'all'(0) or first round(1) has no meaningful previous
-    const prevSnap = ROUND_SNAPSHOTS[currentIdx - 1]
-    const validRounds = new Set(SNAPSHOT_TO_ROUNDS[prevSnap.id] ?? [] as RoundId[])
+    const prevSnap   = ROUND_SNAPSHOTS[currentIdx - 1]
+    const prevTabs   = CUMULATIVE_TABS[prevSnap.id] ?? []
     return entries
       .map(e => {
-        const pts = Object.entries(e.round_breakdown ?? {})
-          .filter(([r]) => validRounds.has(r as RoundId))
-          .reduce((s, [, v]) => s + Number(v), 0)
+        const pts = prevTabs.reduce((s, t) => s + Number(e.tab_breakdown?.[t] ?? 0), 0)
         return { ...e, total_points: pts }
       })
       .filter(e => e.total_points > 0)
       .sort((a, b) => b.total_points !== a.total_points ? b.total_points - a.total_points : (b.bonus_count ?? 0) - (a.bonus_count ?? 0))
       .map((e, i) => ({ ...e, rank: i + 1 }))
-  }, [entries, roundView, ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS])
+  }, [entries, roundView, ROUND_SNAPSHOTS, CUMULATIVE_TABS])
 
   // rank change per user: positive = moved up, negative = moved down
   const movementMap = useMemo(() => {
@@ -272,20 +276,20 @@ export default function LeaderboardPage() {
     return max
   }, [filteredEntries])
 
-  // The latest snapshot tab whose own (non-cumulative) rounds have scoring data — shown as LIVE
+  // The latest snapshot tab with any scoring data — shown as LIVE
   const liveSnapshotId = useMemo(() => {
-    const roundsWithData = new Set<string>()
+    const tabsWithData = new Set<string>()
     for (const e of entries) {
-      for (const [r, pts] of Object.entries(e.round_breakdown ?? {})) {
-        if (Number(pts) > 0) roundsWithData.add(r)
+      for (const [t, pts] of Object.entries(e.tab_breakdown ?? {})) {
+        if (Number(pts) > 0) tabsWithData.add(t)
       }
     }
     let live: string | null = null
     for (const snap of ROUND_SNAPSHOTS.filter(s => s.id !== 'all')) {
-      if ((TAB_ROUNDS[snap.id] ?? []).some(r => roundsWithData.has(r))) live = snap.id
+      if (tabsWithData.has(snap.id)) live = snap.id
     }
     return live
-  }, [entries, ROUND_SNAPSHOTS, TAB_ROUNDS])
+  }, [entries, ROUND_SNAPSHOTS])
 
   // rank movement for the Overall view — compare cumulative pts through previous tab vs current total
   const overallMovementMap = useMemo(() => {
@@ -374,10 +378,8 @@ export default function LeaderboardPage() {
         const me: any = inList ?? (() => {
           if (!myEntry) return null
           if (roundView === 'all') return myEntry
-          const validRounds = new Set<string>(SNAPSHOT_TO_ROUNDS[roundView] ?? [])
-          const pts = Object.entries(myEntry.round_breakdown ?? {})
-            .filter(([r]) => validRounds.has(r))
-            .reduce((s, [, v]) => s + Number(v), 0)
+          const tabsUpTo = CUMULATIVE_TABS[roundView] ?? []
+          const pts = tabsUpTo.reduce((s, t) => s + Number(myEntry.tab_breakdown?.[t] ?? 0), 0)
           const rank = filteredEntries.filter(e => e.total_points > pts).length + 1
           return { ...myEntry, total_points: pts, rank }
         })()
