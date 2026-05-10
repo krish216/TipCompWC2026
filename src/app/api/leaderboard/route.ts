@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     // no further limit is applied — every member is returned for accurate round rankings.
     // Global scope caps at 100 to keep response size reasonable.
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, first_name, show_first_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+      .select('user_id, display_name, first_name, show_first_name, avatar_url, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
     if (tournamentId) lbQuery = lbQuery.eq('tournament_id', tournamentId)
@@ -284,7 +284,7 @@ export async function GET(request: NextRequest) {
     }
     if (!myEntry) {
       let myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, first_name, show_first_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+        .select('user_id, display_name, first_name, show_first_name, avatar_url, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery = myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()

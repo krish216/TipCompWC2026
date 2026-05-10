@@ -34,6 +34,7 @@ SELECT
   u.display_name,
   u.first_name,
   u.show_first_name,
+  u.avatar_url,
   u.country,
   pa.total_points,
   pa.total_bonus_points,
