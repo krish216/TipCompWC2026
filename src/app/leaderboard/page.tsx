@@ -165,8 +165,8 @@ export default function LeaderboardPage() {
       const base = entries.filter(e => (e.total_points ?? 0) > 0)
       if (sortRound) {
         const sorted = [...base].sort((a, b) => {
-          const aRnd = Number(a.round_breakdown?.[sortRound] ?? 0)
-          const bRnd = Number(b.round_breakdown?.[sortRound] ?? 0)
+          const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
+          const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
           return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
         })
         return sorted.map((e, i) => ({ ...e, rank: i + 1 }))
@@ -469,8 +469,8 @@ export default function LeaderboardPage() {
 
               {/* Overall view — multi-round column table, click headers to sort */}
               {roundView === 'all' && (() => {
-                const activeRounds = ROUND_ORDER.filter(r =>
-                  filteredEntries.some(e => (e.round_breakdown?.[r] ?? 0) > 0)
+                const activeRounds = ROUND_SNAPSHOTS.slice(1).filter(s =>
+                  filteredEntries.some(e => (e.tab_breakdown?.[s.id] ?? 0) > 0)
                 )
                 return (
                   <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -482,16 +482,16 @@ export default function LeaderboardPage() {
                             Player
                           </th>
                           {activeRounds.map(r => (
-                            <th key={r}
-                              onClick={() => setSortRound(sortRound === r ? null : r)}
+                            <th key={r.id}
+                              onClick={() => setSortRound(sortRound === r.id ? null : r.id)}
                               className={clsx(
                                 'px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide cursor-pointer select-none transition-colors min-w-[44px]',
-                                sortRound === r
+                                sortRound === r.id
                                   ? 'text-green-700 bg-green-50'
                                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                               )}>
-                              {r.toUpperCase()}
-                              {sortRound === r && <span className="ml-0.5 text-[9px]">▼</span>}
+                              {r.id.toUpperCase()}
+                              {sortRound === r.id && <span className="ml-0.5 text-[9px]">▼</span>}
                             </th>
                           ))}
                           <th
@@ -555,10 +555,10 @@ export default function LeaderboardPage() {
                                 </div>
                               </td>
                               {activeRounds.map(r => {
-                                const pts      = entry.round_breakdown?.[r] ?? 0
-                                const isSorted = sortRound === r
+                                const pts      = entry.tab_breakdown?.[r.id] ?? 0
+                                const isSorted = sortRound === r.id
                                 return (
-                                  <td key={r} className="px-2 py-2.5 text-center">
+                                  <td key={r.id} className="px-2 py-2.5 text-center">
                                     {pts > 0
                                       ? <span className={clsx(
                                           'inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
