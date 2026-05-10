@@ -123,6 +123,9 @@ export async function GET(request: NextRequest) {
     const standardBreakdownMap: Record<string, Record<RoundId, number>> = {}
     const bonusBreakdownMap:    Record<string, Record<RoundId, number>> = {}
 
+    // Hoisted so prevRoundRank can reuse without a second query
+    let trRows: any[] = []
+
     if (!noBreakdown && userIds.length > 0) {
       // Build fixture → round map (single query, no join)
       let fixQuery = adminClient.from('fixtures').select('id, round').not('home_score', 'is', null)
@@ -130,6 +133,20 @@ export async function GET(request: NextRequest) {
       const { data: fixRows } = await fixQuery
       const fixtureRoundMap: Record<number, RoundId> = {}
       ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
+
+      // Fetch tournament_rounds once — needed for round→tab fallback and prevRoundRank
+      const roundTabMap: Record<string, string> = {}
+      if (tournamentId) {
+        const { data: trs } = await adminClient
+          .from('tournament_rounds')
+          .select('round_code, tab_group, round_order')
+          .eq('tournament_id', tournamentId)
+          .order('round_order', { ascending: true })
+        trRows = (trs ?? []) as any[]
+        for (const tr of trRows) {
+          roundTabMap[tr.round_code as string] = (tr.tab_group ?? tr.round_code) as string
+        }
+      }
 
       let predQuery = (adminClient.from('predictions') as any)
         .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
@@ -160,6 +177,20 @@ export async function GET(request: NextRequest) {
           if (!tabBreakdownMap[row.user_id]) tabBreakdownMap[row.user_id] = {}
           tabBreakdownMap[row.user_id][row.tab_group] = Number(row.points)
         })
+
+        // Fallback: if a user has round_breakdown data but nothing from the materialized view
+        // (view may be stale or not yet refreshed), derive tab_breakdown from round_breakdown.
+        // This ensures users outside the top-N always have tab_breakdown populated.
+        for (const [uid, rbd] of Object.entries(breakdownMap)) {
+          if (!tabBreakdownMap[uid] && Object.keys(rbd).length > 0) {
+            const derived: Record<string, number> = {}
+            for (const [roundCode, pts] of Object.entries(rbd)) {
+              const tab = roundTabMap[roundCode] ?? roundCode
+              derived[tab] = (derived[tab] ?? 0) + Number(pts)
+            }
+            if (Object.keys(derived).length > 0) tabBreakdownMap[uid] = derived
+          }
+        }
       }
     }
 
@@ -167,13 +198,7 @@ export async function GET(request: NextRequest) {
     let prevRoundRank: number | null = null
     let prevRoundTab: string | null = null
     if (!noBreakdown && tournamentId && Object.keys(breakdownMap).length > 0) {
-      const { data: trRows } = await adminClient
-        .from('tournament_rounds')
-        .select('round_code, tab_group, round_order')
-        .eq('tournament_id', tournamentId)
-        .order('round_order', { ascending: true })
-
-      if (trRows && (trRows as any[]).length > 0) {
+      if (trRows.length > 0) {
         const tabOrder: string[] = []
         const tabRounds: Record<string, string[]> = {}
         for (const tr of trRows as any[]) {
