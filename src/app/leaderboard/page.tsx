@@ -428,7 +428,7 @@ export default function LeaderboardPage() {
           {/* Scope sub-tabs */}
           <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg">
             {(['tribe','comp','global'] as Scope[]).map(s => (
-              <button key={s} onClick={() => { setScope(s); setExpanded(null) }}
+              <button key={s} onClick={() => { setScope(s); setExpanded(null); if (s === 'global') setRoundView('all') }}
                 className={clsx(
                   'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
                   scope === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -438,8 +438,8 @@ export default function LeaderboardPage() {
             ))}
           </div>
 
-          {/* Round snapshot pills — segmented control, horizontal scroll, matches predict page */}
-          <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+          {/* Round snapshot pills — hidden on global scope (no round breakdown returned) */}
+          <div className={clsx('mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide', scope === 'global' && 'hidden')}>
             <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
               {ROUND_SNAPSHOTS.map(r => {
                 const isActive = roundView === r.id
