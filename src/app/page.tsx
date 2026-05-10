@@ -468,6 +468,7 @@ export default function HomePage() {
 
   const [tribeInfoOpen,  setTribeInfoOpen]  = useState(false)
   const [compRanks,      setCompRanks]      = useState<Record<string, number | null>>({})
+  const [compPrevRanks,  setCompPrevRanks]  = useState<Record<string, number | null>>({})
   const [compSizes,      setCompSizes]      = useState<Record<string, number>>({})
   const [compStatsKey,       setCompStatsKey]       = useState(0)  // bump to re-fetch ranks + counts
   const [compStatsLoading,   setCompStatsLoading]   = useState(false)
@@ -649,10 +650,14 @@ export default function HomePage() {
     Promise.all([
       Promise.all(
         compIds.map(id =>
-          fetch(`/api/leaderboard?scope=comp&comp_id=${id}&no_breakdown=true${tid}`)
+          fetch(`/api/leaderboard?scope=comp&comp_id=${id}&no_tab_breakdown=true${tid}`)
             .then(r => r.json())
-            .then(d => ({ id, rank: (d.my_entry?.rank ?? null) as number | null }))
-            .catch(() => ({ id, rank: null as number | null }))
+            .then(d => ({
+              id,
+              rank:     (d.my_entry?.rank           ?? null) as number | null,
+              prevRank: (d.my_entry?.prev_round_rank ?? null) as number | null,
+            }))
+            .catch(() => ({ id, rank: null as number | null, prevRank: null as number | null }))
         )
       ),
       fetch(`/api/comp-members/counts?comp_ids=${compIds.join(',')}`)
@@ -661,8 +666,10 @@ export default function HomePage() {
         .catch(() => ({} as Record<string, number>)),
     ]).then(([rankResults, countData]) => {
       const rankMap: Record<string, number | null> = {}
-      rankResults.forEach(({ id, rank }) => { rankMap[id] = rank })
+      const prevRankMap: Record<string, number | null> = {}
+      rankResults.forEach(({ id, rank, prevRank }) => { rankMap[id] = rank; prevRankMap[id] = prevRank ?? null })
       setCompRanks(rankMap)
+      setCompPrevRanks(prevRankMap)
       setCompSizes(countData)
     }).finally(() => setCompStatsLoading(false))
   }, [session, tournsComps, selectedTournId, compStatsKey])
@@ -2035,7 +2042,7 @@ export default function HomePage() {
                   <div className="flex-1 min-w-0 text-xs text-amber-800">
                     <strong>{(scoringConfig.rounds as any)[lastCompletedRound]?.round_name ?? lastCompletedRound} wrap-up</strong>
                     {' — '}you scored <strong>{roundWrapUpData.pts} pt{roundWrapUpData.pts !== 1 ? 's' : ''}</strong> from{' '}
-                    <strong>{roundWrapUpData.correct}/{roundWrapUpData.total}</strong> correct —{' '}
+                    <strong>{roundWrapUpData.correct}/{roundWrapUpData.total}</strong> correct picks —{' '}
                     <Link href="/leaderboard" className="underline font-semibold">see rank →</Link>
                   </div>
                   <button
@@ -2175,9 +2182,11 @@ export default function HomePage() {
                   )}
 
                   {tournsComps.map(c => {
-                    const isSel = selectedCompId === c.id
-                    const isAdm = adminComps.some(a => a.id === c.id)
-                    const rank  = compRanks[c.id]
+                    const isSel      = selectedCompId === c.id
+                    const isAdm      = adminComps.some(a => a.id === c.id)
+                    const rank       = compRanks[c.id]
+                    const prevRank   = compPrevRanks[c.id]
+                    const rankDelta  = (rank != null && prevRank != null) ? prevRank - rank : null
                     const isConfirming = confirmAction?.compId === c.id
 
                     if (isConfirming) {
@@ -2230,7 +2239,14 @@ export default function HomePage() {
                           </Link>
                         )}
                         {rank != null && (
-                          <span className="text-xs text-gray-400 flex-shrink-0">#{rank}</span>
+                          <span className="flex items-center gap-1 flex-shrink-0">
+                            <span className="text-xs text-gray-400">#{rank}</span>
+                            {rankDelta != null && rankDelta !== 0 && (
+                              <span className={`text-[10px] font-bold leading-none ${rankDelta > 0 ? 'text-green-600' : 'text-red-400'}`}>
+                                {rankDelta > 0 ? `▲${rankDelta}` : `▼${Math.abs(rankDelta)}`}
+                              </span>
+                            )}
+                          </span>
                         )}
                         {isSel && isAdm && (
                           <button

@@ -271,6 +271,28 @@ export default function LeaderboardPage() {
     return live
   }, [entries, ROUND_SNAPSHOTS, TAB_ROUNDS])
 
+  // rank movement for the Overall view — compare cumulative pts through previous tab vs current total
+  const overallMovementMap = useMemo(() => {
+    if (roundView !== 'all') return {} as Record<string, number>
+    const liveIdx = ROUND_SNAPSHOTS.findIndex(s => s.id === liveSnapshotId)
+    if (liveIdx < 2) return {} as Record<string, number>
+    const tabsUpToPrev = ROUND_SNAPSHOTS.slice(1, liveIdx).map(s => s.id)
+    const prevPts = (e: any) =>
+      tabsUpToPrev.reduce((sum, tab) => sum + Number(e.tab_breakdown?.[tab] ?? 0), 0)
+    const prevRanked = [...filteredEntries]
+      .map(e => ({ user_id: e.user_id, pts: prevPts(e), bonus: e.bonus_count ?? 0 }))
+      .filter(e => e.pts > 0)
+      .sort((a, b) => b.pts !== a.pts ? b.pts - a.pts : b.bonus - a.bonus)
+    const prevRankMap: Record<string, number> = {}
+    prevRanked.forEach((e, i) => { prevRankMap[e.user_id] = i + 1 })
+    const map: Record<string, number> = {}
+    for (const e of filteredEntries) {
+      const prev = prevRankMap[e.user_id]
+      if (prev != null) map[e.user_id] = prev - (e.rank ?? 0)
+    }
+    return map
+  }, [roundView, filteredEntries, liveSnapshotId, ROUND_SNAPSHOTS])
+
   const myId     = session?.user.id
   const amInList = filteredEntries.some(e => e.user_id === myId)
 
@@ -468,6 +490,7 @@ export default function LeaderboardPage() {
                         {filteredEntries.map((entry, i) => {
                           const isMe   = entry.user_id === myId
                           const myRank = entry.rank ?? i + 1
+                          const move   = overallMovementMap[entry.user_id]
                           return (
                             <tr key={entry.user_id}
                               className={clsx(
@@ -475,7 +498,14 @@ export default function LeaderboardPage() {
                                 isMe ? 'bg-green-50' : 'hover:bg-gray-50'
                               )}>
                               <td className="px-2 py-2.5 text-center">
-                                <Medal rank={myRank} />
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <Medal rank={myRank} />
+                                  {move != null && move !== 0 && (
+                                    <span className={clsx('text-[9px] font-bold leading-none', move > 0 ? 'text-green-500' : 'text-red-400')}>
+                                      {move > 0 ? `▲${move}` : `▼${Math.abs(move)}`}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white')}>
                                 <div className="flex items-center gap-2 min-w-0">

@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       const fixtureRoundMap: Record<number, RoundId> = {}
       ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
 
-      const userIds = rows.map((r: any) => r.user_id)
+      const userIds = [...new Set([...rows.map((r: any) => r.user_id), user.id])]
 
       if (userIds.length > 0) {
         const { data: predRows } = await (adminClient.from('predictions') as any)
@@ -155,6 +155,58 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Compute rank at end of the previous completed tab group (used by homepage My Comps card)
+    let prevRoundRank: number | null = null
+    let prevRoundTab: string | null = null
+    if (!noBreakdown && tournamentId && Object.keys(breakdownMap).length > 0) {
+      const { data: trRows } = await adminClient
+        .from('tournament_rounds')
+        .select('round_code, tab_group, round_order')
+        .eq('tournament_id', tournamentId)
+        .order('round_order', { ascending: true })
+
+      if (trRows && (trRows as any[]).length > 0) {
+        const tabOrder: string[] = []
+        const tabRounds: Record<string, string[]> = {}
+        for (const tr of trRows as any[]) {
+          const tab = (tr.tab_group ?? tr.round_code) as string
+          if (!tabRounds[tab]) { tabRounds[tab] = []; tabOrder.push(tab) }
+          tabRounds[tab].push(tr.round_code as string)
+        }
+
+        const roundsWithData = new Set<string>()
+        for (const bd of Object.values(breakdownMap)) {
+          for (const [r, pts] of Object.entries(bd)) {
+            if (Number(pts) > 0) roundsWithData.add(r)
+          }
+        }
+        const tabsWithData = tabOrder.filter(tab =>
+          (tabRounds[tab] ?? []).some(r => roundsWithData.has(r))
+        )
+
+        if (tabsWithData.length >= 2) {
+          const prevTab = tabsWithData[tabsWithData.length - 2]
+          prevRoundTab = prevTab
+          const prevTabIdx = tabOrder.indexOf(prevTab)
+          const cumulativeRounds = new Set(
+            tabOrder.slice(0, prevTabIdx + 1).flatMap(t => tabRounds[t] ?? [])
+          )
+          const sumThrough = (bd: Record<string, number>) =>
+            Object.entries(bd)
+              .filter(([r]) => cumulativeRounds.has(r))
+              .reduce((s, [, v]) => s + Number(v), 0)
+
+          const myPts = sumThrough(breakdownMap[user.id] ?? {})
+          let ahead = 0
+          for (const row of rows) {
+            if (row.user_id === user.id) continue
+            if (sumThrough(breakdownMap[row.user_id] ?? {}) > myPts) ahead++
+          }
+          prevRoundRank = ahead + 1
+        }
+      }
+    }
+
     const ranked = rows.map((row: any, i: number) => ({
       ...row,
       rank:                 i + 1,
@@ -189,6 +241,10 @@ export async function GET(request: NextRequest) {
           tab_breakdown:   tabBreakdownMap[user.id] ?? {},
         }
       }
+    }
+
+    if (myEntry) {
+      myEntry = { ...myEntry, prev_round_rank: prevRoundRank, prev_round_tab: prevRoundTab }
     }
 
     return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length })
