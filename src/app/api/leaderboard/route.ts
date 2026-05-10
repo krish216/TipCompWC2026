@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const scope          = searchParams.get('scope') ?? 'comp'
-    const limit          = scope === 'tribe' ? 25 : 50
-    const noBreakdown    = searchParams.get('no_breakdown')     === 'true'
-    const noTabBreakdown = searchParams.get('no_tab_breakdown') === 'true'
+    // Global scope: overall-only — no round breakdown needed, capped at top 50
+    const noBreakdown    = scope === 'global' || searchParams.get('no_breakdown')     === 'true'
+    const noTabBreakdown = scope === 'global' || searchParams.get('no_tab_breakdown') === 'true'
 
     // Resolve comp + tournament from user_preferences
     const { data: prefs } = await supabase
@@ -80,14 +80,17 @@ export async function GET(request: NextRequest) {
       if (!scopeUserIds?.length) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     }
 
-    // Query leaderboard view — tribe/comp columns removed, fetched contextually below
+    // Query leaderboard view — tribe/comp columns removed, fetched contextually below.
+    // For comp/tribe scopes, scopeUserIds already bounds the result to that group so
+    // no further limit is applied — every member is returned for accurate round rankings.
+    // Global scope caps at 100 to keep response size reasonable.
     let lbQuery = (adminClient.from('leaderboard') as any)
       .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
-      .limit(limit)
     if (tournamentId) lbQuery = lbQuery.eq('tournament_id', tournamentId)
     if (scopeUserIds) lbQuery = lbQuery.in('user_id', scopeUserIds)
+    else              lbQuery = lbQuery.limit(50)
 
     const { data: lbData, error: lbError } = await lbQuery
     if (lbError) return NextResponse.json({ error: lbError.message }, { status: 500 })
