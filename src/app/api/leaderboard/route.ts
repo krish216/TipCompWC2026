@@ -248,8 +248,10 @@ export async function GET(request: NextRequest) {
           rank:               (ahead ?? 0) + 1,
           tribe_id:           tribeInfoMap[user.id]?.tribe_id   ?? null,
           tribe_name:         tribeInfoMap[user.id]?.tribe_name ?? null,
-          round_breakdown:    breakdownMap[user.id] ?? {},
-          tab_breakdown:      tabBreakdownMap[user.id] ?? {},
+          round_breakdown:    breakdownMap[user.id]         ?? {},
+          standard_breakdown: standardBreakdownMap[user.id] ?? {},
+          bonus_breakdown:    bonusBreakdownMap[user.id]    ?? {},
+          tab_breakdown:      tabBreakdownMap[user.id]      ?? {},
         }
       }
     }
