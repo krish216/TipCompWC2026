@@ -163,15 +163,18 @@ export default function LeaderboardPage() {
   const filteredEntries = useMemo(() => {
     if (roundView === 'all') {
       const base = entries.filter(e => (e.total_points ?? 0) > 0)
-      if (sortRound) {
-        const sorted = [...base].sort((a, b) => {
-          const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
-          const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
-          return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
-        })
-        return sorted.map((e, i) => ({ ...e, rank: i + 1 }))
+      // Insert current user if they're outside the API's top-N
+      if (myEntry && !base.some(e => e.user_id === myEntry.user_id) && (myEntry.total_points ?? 0) > 0) {
+        base.push({ ...myEntry })
       }
-      return base.map((e, i) => ({ ...e, rank: i + 1 }))
+      const compareFn = sortRound
+        ? (a: any, b: any) => {
+            const aRnd = Number(a.tab_breakdown?.[sortRound] ?? 0)
+            const bRnd = Number(b.tab_breakdown?.[sortRound] ?? 0)
+            return bRnd !== aRnd ? bRnd - aRnd : (b.total_points ?? 0) - (a.total_points ?? 0)
+          }
+        : (a: any, b: any) => (b.total_points ?? 0) - (a.total_points ?? 0)
+      return [...base].sort(compareFn).map((e, i) => ({ ...e, rank: i + 1 }))
     }
 
     const validRounds = new Set(
@@ -185,21 +188,34 @@ export default function LeaderboardPage() {
         .filter(([r]) => validRounds.has(r as RoundId))
         .reduce((sum, [, v]) => sum + Number(v), 0)
 
-    return entries
-      .map(e => {
-        const pts    = sumForRounds(e.round_breakdown    ?? {})
-        const stdPts = sumForRounds(e.standard_breakdown ?? {})
-        const bonPts = sumForRounds(e.bonus_breakdown    ?? {})
-        return { ...e, total_points: pts, round_standard_pts: stdPts, round_bonus_pts: bonPts }
-      })
-      .filter(e => e.total_points > 0)
+    const mapped = entries.map(e => ({
+      ...e,
+      total_points:       sumForRounds(e.round_breakdown    ?? {}),
+      round_standard_pts: sumForRounds(e.standard_breakdown ?? {}),
+      round_bonus_pts:    sumForRounds(e.bonus_breakdown    ?? {}),
+    })).filter(e => e.total_points > 0)
+
+    // Insert current user if outside top-N but has points for this round view
+    if (myEntry && !mapped.some(e => e.user_id === myEntry.user_id)) {
+      const myPts = sumForRounds(myEntry.round_breakdown ?? {})
+      if (myPts > 0) {
+        mapped.push({
+          ...myEntry,
+          total_points:       myPts,
+          round_standard_pts: sumForRounds(myEntry.standard_breakdown ?? {}),
+          round_bonus_pts:    sumForRounds(myEntry.bonus_breakdown    ?? {}),
+        })
+      }
+    }
+
+    return mapped
       .sort((a, b) =>
         b.total_points !== a.total_points
           ? b.total_points - a.total_points
           : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
       )
       .map((e, i) => ({ ...e, rank: i + 1 }))
-  }, [entries, roundView, sortRound, SNAPSHOT_TO_ROUNDS, ROUND_ORDER])
+  }, [entries, myEntry, roundView, sortRound, SNAPSHOT_TO_ROUNDS, ROUND_ORDER])
 
   // Previous snapshot rankings — for movement arrows (compare consecutive non-'all' snapshots)
   const prevFilteredEntries = useMemo(() => {
