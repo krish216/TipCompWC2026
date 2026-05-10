@@ -5,18 +5,18 @@ import type { RoundId } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/leaderboard?scope=tribe|org|global
+// GET /api/leaderboard?scope=tribe|comp|global
 export async function GET(request: NextRequest) {
   try {
-    const supabase     = createServerSupabaseClient()
-    const adminClient  = createAdminClient()
+    const supabase    = createServerSupabaseClient()
+    const adminClient = createAdminClient()
 
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
-    const scope = searchParams.get('scope') ?? 'comp'
-    const limit = scope === 'tribe' ? 25 : 50
+    const scope          = searchParams.get('scope') ?? 'comp'
+    const limit          = scope === 'tribe' ? 25 : 50
     const noBreakdown    = searchParams.get('no_breakdown')     === 'true'
     const noTabBreakdown = searchParams.get('no_tab_breakdown') === 'true'
 
@@ -26,22 +26,25 @@ export async function GET(request: NextRequest) {
     const compId = (prefs as any)?.comp_id ?? null
     let tournamentId = searchParams.get('tournament_id') ?? (prefs as any)?.tournament_id ?? null
 
+    // effectiveCompId in outer scope — used for both scope filtering and tribe lookup
+    const explicitCompId  = searchParams.get('comp_id')
+    const effectiveCompId = explicitCompId ?? compId
+
     // Resolve tribe scoped to the user's selected comp
-    // Use adminClient — user-scoped client with .single() can silently fail on RLS edge cases
     let tribeId: string | null = null
-    if (compId) {
+    if (effectiveCompId) {
       const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
         .select('tribe_id, tribes!inner(comp_id)')
         .eq('user_id', user.id)
-        .eq('tribes.comp_id', compId)
+        .eq('tribes.comp_id', effectiveCompId)
         .limit(1)
       tribeId = (tribeRows?.[0] as any)?.tribe_id ?? null
     } else {
-      // Fallback: any tribe this user is in
       const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
         .select('tribe_id').eq('user_id', user.id).limit(1)
       tribeId = (tribeRows?.[0] as any)?.tribe_id ?? null
     }
+
     if (!tournamentId) {
       const { data: active } = await supabase
         .from('tournaments').select('id').eq('is_active', true)
@@ -57,8 +60,6 @@ export async function GET(request: NextRequest) {
     if (scope === 'tribe' && !tribeId) {
       return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'You are not in a tribe yet.' })
     }
-
-    // Global scope with no tournament — nothing to show yet
     if (scope === 'global' && !tournamentId) {
       return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'No active tournament found.' })
     }
@@ -72,9 +73,6 @@ export async function GET(request: NextRequest) {
       scopeUserIds = (members ?? []).map((m: any) => m.user_id)
       if (!scopeUserIds?.length) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     } else if (scope === 'comp') {
-      const explicitCompId = searchParams.get('comp_id')
-      const effectiveCompId = explicitCompId ?? compId
-      // No comp selected — return empty rather than showing everyone's data
       if (!effectiveCompId) return NextResponse.json({ data: [], my_entry: null, total: 0, message: 'No comp selected' })
       const { data: members } = await (adminClient.from('user_comps') as any)
         .select('user_id').eq('comp_id', effectiveCompId)
@@ -82,21 +80,42 @@ export async function GET(request: NextRequest) {
       if (!scopeUserIds?.length) return NextResponse.json({ data: [], my_entry: null, total: 0 })
     }
 
-    // Query leaderboard view
+    // Query leaderboard view — tribe/comp columns removed, fetched contextually below
     let lbQuery = (adminClient.from('leaderboard') as any)
-      .select('user_id, display_name, country, tribe_name, tribe_id, comp_name, comp_id, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+      .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
       .limit(limit)
-
-    // Always filter by tournament
     if (tournamentId) lbQuery = lbQuery.eq('tournament_id', tournamentId)
-
     if (scopeUserIds) lbQuery = lbQuery.in('user_id', scopeUserIds)
 
     const { data: lbData, error: lbError } = await lbQuery
     if (lbError) return NextResponse.json({ error: lbError.message }, { status: 500 })
     const rows = (lbData ?? []) as any[]
+
+    // Always include current user in downstream queries even if outside top N
+    const userIds = [...new Set([...rows.map((r: any) => r.user_id), user.id])]
+
+    // Tribe info: look up within the viewing comp so each row shows the correct tribe.
+    // For tribe scope all users share one tribe; for comp scope each user may differ.
+    const tribeInfoMap: Record<string, { tribe_id: string; tribe_name: string }> = {}
+    if (userIds.length > 0) {
+      if (scope === 'tribe' && tribeId) {
+        const { data: t } = await (adminClient.from('tribes') as any)
+          .select('id, name').eq('id', tribeId).single()
+        if (t) {
+          for (const uid of userIds) tribeInfoMap[uid] = { tribe_id: (t as any).id, tribe_name: (t as any).name }
+        }
+      } else if (effectiveCompId) {
+        const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
+          .select('user_id, tribes!inner(id, name)')
+          .in('user_id', userIds)
+          .eq('tribes.comp_id', effectiveCompId)
+        ;(tribeRows ?? []).forEach((row: any) => {
+          tribeInfoMap[row.user_id] = { tribe_id: row.tribes.id, tribe_name: row.tribes.name }
+        })
+      }
+    }
 
     // Build round/tab breakdowns (skipped when no_breakdown=true for faster responses)
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
@@ -104,53 +123,42 @@ export async function GET(request: NextRequest) {
     const standardBreakdownMap: Record<string, Record<RoundId, number>> = {}
     const bonusBreakdownMap:    Record<string, Record<RoundId, number>> = {}
 
-    if (!noBreakdown) {
+    if (!noBreakdown && userIds.length > 0) {
       // Build fixture → round map (single query, no join)
-      const { data: fixRows } = await adminClient
-        .from('fixtures').select('id, round').not('home_score', 'is', null)
+      let fixQuery = adminClient.from('fixtures').select('id, round').not('home_score', 'is', null)
+      if (tournamentId) fixQuery = (fixQuery as any).eq('tournament_id', tournamentId)
+      const { data: fixRows } = await fixQuery
       const fixtureRoundMap: Record<number, RoundId> = {}
       ;(fixRows ?? []).forEach((f: any) => { fixtureRoundMap[f.id] = f.round })
 
-      const userIds = [...new Set([...rows.map((r: any) => r.user_id), user.id])]
+      let predQuery = (adminClient.from('predictions') as any)
+        .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
+        .in('user_id', userIds)
+        .not('points_earned', 'is', null)
+        .gt('points_earned', 0)
+      if (tournamentId) predQuery = predQuery.eq('tournament_id', tournamentId)
+      const { data: predRows } = await predQuery
 
-      if (userIds.length > 0) {
-        const { data: predRows } = await (adminClient.from('predictions') as any)
-          .select('user_id, fixture_id, points_earned, standard_points, bonus_points')
+      ;(predRows ?? []).forEach((p: any) => {
+        const round = fixtureRoundMap[p.fixture_id]
+        if (!round) return
+        if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
+        if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
+        if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
+        breakdownMap[p.user_id][round]         = (breakdownMap[p.user_id][round]         ?? 0) + (Number(p.points_earned)    || 0)
+        standardBreakdownMap[p.user_id][round] = (standardBreakdownMap[p.user_id][round] ?? 0) + (Number(p.standard_points) || 0)
+        bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
+      })
+
+      // Single query on materialized view — replaces N per-user RPC calls to get_user_tab_breakdown
+      if (!noTabBreakdown && tournamentId) {
+        const { data: tabRows } = await (adminClient.from('leaderboard_round_breakdown') as any)
+          .select('user_id, tab_group, points')
+          .eq('tournament_id', tournamentId)
           .in('user_id', userIds)
-          .not('points_earned', 'is', null)
-          .gt('points_earned', 0)
-
-        ;(predRows ?? []).forEach((p: any) => {
-          const round = fixtureRoundMap[p.fixture_id]
-          if (!round) return
-          if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
-          if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
-          if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
-          breakdownMap[p.user_id][round]         = (breakdownMap[p.user_id][round]         ?? 0) + (Number(p.points_earned)    || 0)
-          standardBreakdownMap[p.user_id][round] = (standardBreakdownMap[p.user_id][round] ?? 0) + (Number(p.standard_points) || 0)
-          bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
-        })
-
-        const userTabBreakdowns = noTabBreakdown
-          ? []
-          : await Promise.allSettled(userIds.map(async (userId) => {
-              const { data, error } = await (adminClient.rpc as any)('get_user_tab_breakdown', { p_user_id: userId })
-              if (error) {
-                console.warn(`Tab breakdown for user ${userId} failed:`, error.message)
-                return { userId, rows: [] }
-              }
-              return { userId, rows: (data ?? []) as any[] }
-            }))
-
-        userTabBreakdowns.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            const { userId, rows } = result.value
-            const map: Record<string, number> = {}
-            rows.forEach((row) => {
-              map[row.tab_group] = Number(row.points ?? 0)
-            })
-            tabBreakdownMap[userId] = map
-          }
+        ;(tabRows ?? []).forEach((row: any) => {
+          if (!tabBreakdownMap[row.user_id]) tabBreakdownMap[row.user_id] = {}
+          tabBreakdownMap[row.user_id][row.tab_group] = Number(row.points)
         })
       }
     }
@@ -185,8 +193,8 @@ export async function GET(request: NextRequest) {
         )
 
         if (tabsWithData.length >= 2) {
-          const prevTab = tabsWithData[tabsWithData.length - 2]
-          prevRoundTab = prevTab
+          const prevTab    = tabsWithData[tabsWithData.length - 2]
+          prevRoundTab     = prevTab
           const prevTabIdx = tabOrder.indexOf(prevTab)
           const cumulativeRounds = new Set(
             tabOrder.slice(0, prevTabIdx + 1).flatMap(t => tabRounds[t] ?? [])
@@ -209,25 +217,26 @@ export async function GET(request: NextRequest) {
 
     const ranked = rows.map((row: any, i: number) => ({
       ...row,
-      rank:                 i + 1,
-      is_me:                row.user_id === user.id,
-      round_breakdown:      breakdownMap[row.user_id]         ?? {},
-      standard_breakdown:   standardBreakdownMap[row.user_id] ?? {},
-      bonus_breakdown:      bonusBreakdownMap[row.user_id]    ?? {},
-      tab_breakdown:        tabBreakdownMap[row.user_id]      ?? {},
+      rank:               i + 1,
+      is_me:              row.user_id === user.id,
+      tribe_id:           tribeInfoMap[row.user_id]?.tribe_id   ?? null,
+      tribe_name:         tribeInfoMap[row.user_id]?.tribe_name ?? null,
+      round_breakdown:    breakdownMap[row.user_id]         ?? {},
+      standard_breakdown: standardBreakdownMap[row.user_id] ?? {},
+      bonus_breakdown:    bonusBreakdownMap[row.user_id]    ?? {},
+      tab_breakdown:      tabBreakdownMap[row.user_id]      ?? {},
     }))
 
     // Always return current user's entry even if outside top N
     let myEntry = ranked.find((r: any) => r.is_me) ?? null
     if (!myEntry) {
       let myEntryQuery = (adminClient.from('leaderboard') as any)
-        .select('user_id, display_name, country, tribe_name, tribe_id, comp_name, comp_id, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
+        .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery = myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
       if (myRaw) {
         const m = myRaw as any
-        // Count people ahead within the same scope so rank is meaningful (e.g. comp rank, not global rank)
         let aheadQ = (adminClient.from('leaderboard') as any)
           .select('user_id', { count: 'exact', head: true })
           .gt('total_points', m.total_points)
@@ -236,9 +245,11 @@ export async function GET(request: NextRequest) {
         const { count: ahead } = await aheadQ
         myEntry = {
           ...m, is_me: true,
-          rank: (ahead ?? 0) + 1,
-          round_breakdown: breakdownMap[user.id] ?? {},
-          tab_breakdown:   tabBreakdownMap[user.id] ?? {},
+          rank:               (ahead ?? 0) + 1,
+          tribe_id:           tribeInfoMap[user.id]?.tribe_id   ?? null,
+          tribe_name:         tribeInfoMap[user.id]?.tribe_name ?? null,
+          round_breakdown:    breakdownMap[user.id] ?? {},
+          tab_breakdown:      tabBreakdownMap[user.id] ?? {},
         }
       }
     }
