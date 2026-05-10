@@ -13,7 +13,6 @@ import { FavTeamPicker } from '@/components/ui/FavTeamPicker'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
-import toast from 'react-hot-toast'
 
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; standard_points?: number|null; bonus_points?: number|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
@@ -59,6 +58,8 @@ export default function PredictPage() {
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
   const [allDoneBanner,      setAllDoneBanner]      = useState<string | null>(null)
   const [firstWinCelebrated, setFirstWinCelebrated] = useState<boolean | null>(null)
+  const [failedSaves,        setFailedSaves]        = useState<Set<number>>(new Set())
+  const [saveVisible,        setSaveVisible]        = useState(false)
 
   const saveTimers             = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const fixtureRefs            = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -66,6 +67,8 @@ export default function PredictPage() {
   const tabCompletionFired     = useRef<Set<string>>(new Set())
   const prevRoundPredCountsRef = useRef<Record<string, { entered: number; total: number }>>({})
   const hasAutoSelectedRound   = useRef(false)
+  const savedTimerRef          = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const failedPayloads         = useRef<Map<number, object>>(new Map())
 
   // ── Refresh a single prediction from the server (gets DB-trigger-computed scores) ─
   const refreshPrediction = useCallback(async (fixtureId: number) => {
@@ -214,17 +217,29 @@ export default function PredictPage() {
     }))
     const p = predictions[fixtureId]
     if (!p) return
+    const penPayload = { fixture_id: fixtureId, home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: team }
+    failedPayloads.current.set(fixtureId, penPayload)
     setSaving(prev => new Set(prev).add(fixtureId))
+    let penOk = false
     try {
-      // Save outcome + pen_winner together (this is the completing action for knockout draws)
-      await fetch('/api/predictions', {
+      const res = await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: team }] }),
+        body: JSON.stringify({ predictions: [penPayload] }),
       })
-    } catch { toast.error('Network error — penalty pick not saved') }
+      penOk = res.ok
+    } catch { penOk = false }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      if (penOk) {
+        setFailedSaves(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+        failedPayloads.current.delete(fixtureId)
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        setSaveVisible(true)
+        savedTimerRef.current = setTimeout(() => setSaveVisible(false), 3000)
+      } else {
+        setFailedSaves(prev => new Set(prev).add(fixtureId))
+      }
       triggerCelebration(fixtureId)
       refreshPrediction(fixtureId)
     }
@@ -252,32 +267,58 @@ export default function PredictPage() {
     // For knockout draws: don't save yet — wait for pen winner selection
     if (needsPen) return
 
+    const outcomePayload = { fixture_id: fixtureId, outcome, pen_winner: null as null }
+    failedPayloads.current.set(fixtureId, outcomePayload)
     setSaving(prev => new Set(prev).add(fixtureId))
+    let outcomeOk = false
     try {
-      await fetch('/api/predictions', {
+      const res = await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, outcome, pen_winner: null }] }),
+        body: JSON.stringify({ predictions: [outcomePayload] }),
       })
-    } catch { toast.error('Network error — prediction not saved') }
+      outcomeOk = res.ok
+    } catch { outcomeOk = false }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      if (outcomeOk) {
+        setFailedSaves(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+        failedPayloads.current.delete(fixtureId)
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        setSaveVisible(true)
+        savedTimerRef.current = setTimeout(() => setSaveVisible(false), 3000)
+      } else {
+        setFailedSaves(prev => new Set(prev).add(fixtureId))
+      }
       triggerCelebration(fixtureId)
       refreshPrediction(fixtureId)
     }
   }, [fixtures, scoringConfig, triggerCelebration, refreshPrediction])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
+    const scorePayload = { fixture_id: fixtureId, home, away, outcome: null as null, pen_winner: null as null }
+    failedPayloads.current.set(fixtureId, scorePayload)
     setSaving(prev => new Set(prev).add(fixtureId))
+    let scoreOk = false
     try {
-      await fetch('/api/predictions', {
+      const res = await fetch('/api/predictions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ predictions: [{ fixture_id: fixtureId, home, away, outcome: null, pen_winner: null }] }),
+        body: JSON.stringify({ predictions: [scorePayload] }),
       })
-    } catch { /* silent — user sees saving indicator */ }
+      scoreOk = res.ok
+    } catch { scoreOk = false }
     finally {
       setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+      if (scoreOk) {
+        setFailedSaves(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+        failedPayloads.current.delete(fixtureId)
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+        setSaveVisible(true)
+        savedTimerRef.current = setTimeout(() => setSaveVisible(false), 3000)
+      } else {
+        setFailedSaves(prev => new Set(prev).add(fixtureId))
+      }
       triggerCelebration(fixtureId)
       refreshPrediction(fixtureId)
     }
@@ -298,6 +339,40 @@ export default function PredictPage() {
       return { ...prev, [fixtureId]: updated }
     })
   }, [persistPrediction])
+
+  const retryFailed = useCallback(async () => {
+    const ids = [...failedSaves]
+    if (!ids.length) return
+    for (const fixtureId of ids) {
+      const payload = failedPayloads.current.get(fixtureId)
+      if (!payload) continue
+      setSaving(prev => new Set(prev).add(fixtureId))
+      let ok = false
+      try {
+        const res = await fetch('/api/predictions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ predictions: [payload] }),
+        })
+        ok = res.ok
+      } catch { ok = false }
+      finally {
+        setSaving(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+        if (ok) {
+          setFailedSaves(prev => { const s = new Set(prev); s.delete(fixtureId); return s })
+          failedPayloads.current.delete(fixtureId)
+        }
+      }
+    }
+    if (failedPayloads.current.size === 0) {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      setSaveVisible(true)
+      savedTimerRef.current = setTimeout(() => setSaveVisible(false), 3000)
+    }
+  }, [failedSaves])
+
+  // Clean up the "✓ Saved" timer on unmount
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current) }, [])
 
   // ── Derived data ──────────────────────────────────────────
   const allFixtures = useMemo(() => Object.values(fixtures).flat() as Fixture[], [fixtures])
@@ -835,6 +910,48 @@ export default function PredictPage() {
         tip-comp-wc-2026.vercel.app
       </p>
     </div>
+
+    {/* ── Persistent save status bar ─────────────────────────────────────────
+        Only rendered when there is something to communicate: in-flight saves,
+        a failed save awaiting retry, or a 3-second "✓ Saved" confirmation.
+        Fixed to the bottom so it is always visible regardless of scroll. */}
+    {(saving.size > 0 || failedSaves.size > 0 || saveVisible) && (
+      <div
+        className="print:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-2 pointer-events-none"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
+      >
+        <div className={clsx(
+          'pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full shadow-lg text-xs font-medium transition-colors duration-200',
+          saving.size > 0
+            ? 'bg-gray-800 text-white'
+            : failedSaves.size > 0
+            ? 'bg-red-600 text-white'
+            : 'bg-green-600 text-white'
+        )}>
+          {saving.size > 0 ? (
+            <>
+              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              Saving…
+            </>
+          ) : failedSaves.size > 0 ? (
+            <>
+              <span>⚠ Not saved — check connection</span>
+              <button
+                onClick={retryFailed}
+                className="ml-1 font-semibold underline underline-offset-2 hover:opacity-80"
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <>
+              <span>✓</span>
+              <span>Saved</span>
+            </>
+          )}
+        </div>
+      </div>
+    )}
     </>
   )
 }

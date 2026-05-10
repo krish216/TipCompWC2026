@@ -57,9 +57,10 @@ function Toggle({ enabled, onChange, label, description }: {
 export default function SettingsPage() {
   const { session, supabase } = useSupabase()
 
-  const [displayName,   setDisplayName]   = useState('')
-  const [firstName,     setFirstName]     = useState('')
-  const [lastName,      setLastName]      = useState('')
+  const [displayName,    setDisplayName]    = useState('')
+  const [firstName,      setFirstName]      = useState('')
+  const [lastName,       setLastName]       = useState('')
+  const [showFirstName,  setShowFirstName]  = useState(true)
   const [country,       setCountry]       = useState('')
   const [timezone,      setTimezone]      = useState('UTC')
   const [savedCountry,  setSavedCountry]  = useState('')
@@ -80,13 +81,14 @@ export default function SettingsPage() {
     if (!session) return
     const load = async () => {
       const [userRes, prefRes] = await Promise.all([
-        (supabase.from('users') as any).select('display_name, first_name, last_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).maybeSingle(),
+        (supabase.from('users') as any).select('display_name, first_name, last_name, show_first_name, country, timezone, avatar_url, date_of_birth').eq('id', session.user.id).maybeSingle(),
         (supabase.from('notification_prefs') as any).select('*').eq('user_id', session.user.id).maybeSingle(),
       ])
       if (userRes.data) {
         setDisplayName((userRes.data as any).display_name ?? '')
         setFirstName((userRes.data as any).first_name ?? '')
         setLastName((userRes.data as any).last_name ?? '')
+        setShowFirstName((userRes.data as any).show_first_name ?? true)
         setAvatar((userRes.data as any).avatar_url ?? null)
         // Extract year from stored date_of_birth (stored as YYYY-01-01 from registration)
         const dob = (userRes.data as any).date_of_birth ?? ''
@@ -250,7 +252,20 @@ export default function SettingsPage() {
               Save
             </button>
           </form>
-          <p className="text-xs text-gray-400">
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <Toggle
+              label="Show first name on leaderboards"
+              description="Your first name appears beneath your display name on comp and tribe scoreboards. Only visible to members of your comps."
+              enabled={showFirstName}
+              onChange={async v => {
+                setShowFirstName(v)
+                await (supabase.from('users') as any)
+                  .update({ show_first_name: v })
+                  .eq('id', session!.user.id)
+              }}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
             Signed in as <span className="font-medium">{session?.user.email}</span>
           </p>
         </Card>

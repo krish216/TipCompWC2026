@@ -574,6 +574,9 @@ export default function LeaderboardPage() {
                                         }} />
                                       )}
                                     </div>
+                                    {entry.first_name && scope !== 'global' && (
+                                      <span className="text-[10px] text-gray-400 truncate block max-w-[100px]">{entry.first_name}</span>
+                                    )}
                                     {entry.tribe_name && scope !== 'tribe' && (
                                       <span className="text-[10px] text-gray-400 truncate block max-w-[100px]">🏆 {entry.tribe_name}</span>
                                     )}
@@ -669,6 +672,9 @@ export default function LeaderboardPage() {
                                     }} />
                                   )}
                                 </div>
+                                {entry.first_name && scope !== 'global' && (
+                                  <p className="text-[10px] text-gray-400 truncate">{entry.first_name}</p>
+                                )}
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {entry.tribe_name && (
                                     <span className="text-[10px] text-gray-400 truncate">🏆 {entry.tribe_name}</span>
