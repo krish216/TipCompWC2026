@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
     // Build round/tab breakdowns (skipped when no_breakdown=true for faster responses)
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
     const tabBreakdownMap: Record<string, Record<string, number>> = {}
+    const tabBonusMap:    Record<string, Record<string, number>> = {}
     const standardBreakdownMap: Record<string, Record<RoundId, number>> = {}
     const bonusBreakdownMap:    Record<string, Record<RoundId, number>> = {}
 
@@ -167,28 +168,35 @@ export async function GET(request: NextRequest) {
         bonusBreakdownMap[p.user_id][round]    = (bonusBreakdownMap[p.user_id][round]    ?? 0) + (Number(p.bonus_points)    || 0)
       })
 
-      // Single query on materialized view — replaces N per-user RPC calls to get_user_tab_breakdown
+      // Single query on materialized view — all three point components per tab_group
       if (!noTabBreakdown && tournamentId) {
         const { data: tabRows } = await (adminClient.from('leaderboard_round_breakdown') as any)
-          .select('user_id, tab_group, points')
+          .select('user_id, tab_group, points, bonus_points')
           .eq('tournament_id', tournamentId)
           .in('user_id', userIds)
         ;(tabRows ?? []).forEach((row: any) => {
           if (!tabBreakdownMap[row.user_id]) tabBreakdownMap[row.user_id] = {}
+          if (!tabBonusMap[row.user_id])     tabBonusMap[row.user_id]     = {}
           tabBreakdownMap[row.user_id][row.tab_group] = Number(row.points)
+          tabBonusMap[row.user_id][row.tab_group]     = Number(row.bonus_points)
         })
 
         // Fallback: if a user has round_breakdown data but nothing from the materialized view
-        // (view may be stale or not yet refreshed), derive tab_breakdown from round_breakdown.
+        // (view may be stale or not yet refreshed), derive all tab breakdowns from round data.
         // This ensures users outside the top-N always have tab_breakdown populated.
         for (const [uid, rbd] of Object.entries(breakdownMap)) {
           if (!tabBreakdownMap[uid] && Object.keys(rbd).length > 0) {
-            const derived: Record<string, number> = {}
+            const dPts: Record<string, number>   = {}
+            const dBonus: Record<string, number>  = {}
             for (const [roundCode, pts] of Object.entries(rbd)) {
-              const tab = roundTabMap[roundCode] ?? roundCode
-              derived[tab] = (derived[tab] ?? 0) + Number(pts)
+              const tab    = roundTabMap[roundCode] ?? roundCode
+              dPts[tab]    = (dPts[tab]   ?? 0) + Number(pts)
+              dBonus[tab]  = (dBonus[tab] ?? 0) + Number(bonusBreakdownMap[uid]?.[roundCode as RoundId] || 0)
             }
-            if (Object.keys(derived).length > 0) tabBreakdownMap[uid] = derived
+            if (Object.keys(dPts).length > 0) {
+              tabBreakdownMap[uid] = dPts
+              tabBonusMap[uid]     = dBonus
+            }
           }
         }
       }
@@ -242,14 +250,15 @@ export async function GET(request: NextRequest) {
 
     const ranked = rows.map((row: any, i: number) => ({
       ...row,
-      rank:               i + 1,
-      is_me:              row.user_id === user.id,
-      tribe_id:           tribeInfoMap[row.user_id]?.tribe_id   ?? null,
-      tribe_name:         tribeInfoMap[row.user_id]?.tribe_name ?? null,
-      round_breakdown:    breakdownMap[row.user_id]         ?? {},
-      standard_breakdown: standardBreakdownMap[row.user_id] ?? {},
-      bonus_breakdown:    bonusBreakdownMap[row.user_id]    ?? {},
-      tab_breakdown:      tabBreakdownMap[row.user_id]      ?? {},
+      rank:                i + 1,
+      is_me:               row.user_id === user.id,
+      tribe_id:            tribeInfoMap[row.user_id]?.tribe_id   ?? null,
+      tribe_name:          tribeInfoMap[row.user_id]?.tribe_name ?? null,
+      round_breakdown:     breakdownMap[row.user_id]         ?? {},
+      standard_breakdown:  standardBreakdownMap[row.user_id] ?? {},
+      bonus_breakdown:     bonusBreakdownMap[row.user_id]    ?? {},
+      tab_breakdown:       tabBreakdownMap[row.user_id]      ?? {},
+      tab_bonus_breakdown: tabBonusMap[row.user_id]          ?? {},
     }))
 
     // Always return current user's entry even if outside top N
@@ -270,13 +279,14 @@ export async function GET(request: NextRequest) {
         const { count: ahead } = await aheadQ
         myEntry = {
           ...m, is_me: true,
-          rank:               (ahead ?? 0) + 1,
-          tribe_id:           tribeInfoMap[user.id]?.tribe_id   ?? null,
-          tribe_name:         tribeInfoMap[user.id]?.tribe_name ?? null,
-          round_breakdown:    breakdownMap[user.id]         ?? {},
-          standard_breakdown: standardBreakdownMap[user.id] ?? {},
-          bonus_breakdown:    bonusBreakdownMap[user.id]    ?? {},
-          tab_breakdown:      tabBreakdownMap[user.id]      ?? {},
+          rank:                (ahead ?? 0) + 1,
+          tribe_id:            tribeInfoMap[user.id]?.tribe_id   ?? null,
+          tribe_name:          tribeInfoMap[user.id]?.tribe_name ?? null,
+          round_breakdown:     breakdownMap[user.id]         ?? {},
+          standard_breakdown:  standardBreakdownMap[user.id] ?? {},
+          bonus_breakdown:     bonusBreakdownMap[user.id]    ?? {},
+          tab_breakdown:       tabBreakdownMap[user.id]      ?? {},
+          tab_bonus_breakdown: tabBonusMap[user.id]          ?? {},
         }
       }
     }

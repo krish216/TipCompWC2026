@@ -33,7 +33,7 @@ export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
   const { scoringConfig } = useUserPrefs()
 
-  const { ROUND_SNAPSHOTS, SNAPSHOT_TO_ROUNDS, CUMULATIVE_TABS, ROUND_ORDER, TAB_ROUNDS } = useMemo(() => {
+  const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
     const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
@@ -196,21 +196,16 @@ export default function LeaderboardPage() {
     const sumTabs = (bd: Record<string, number>) =>
       tabsUpTo.reduce((s, t) => s + Number(bd[t] ?? 0), 0)
 
-    // bonus_breakdown is still keyed by round_code; validRounds used only for bonus/standard
-    const validRounds = new Set(SNAPSHOT_TO_ROUNDS[roundView as string] ?? [] as RoundId[])
-    const sumRounds = (map: Record<string, number>) =>
-      Object.entries(map).filter(([r]) => validRounds.has(r as RoundId)).reduce((s, [, v]) => s + Number(v), 0)
-
     const mapped = entries.map(e => {
-      const pts    = sumTabs(e.tab_breakdown    ?? {})
-      const bonPts = sumRounds(e.bonus_breakdown ?? {})
+      const pts    = sumTabs(e.tab_breakdown        ?? {})
+      const bonPts = sumTabs(e.tab_bonus_breakdown  ?? {})
       return { ...e, total_points: pts, round_standard_pts: pts - bonPts, round_bonus_pts: bonPts }
     }).filter(e => e.total_points > 0)
 
     // Insert current user if outside top-N but has points for this round view
     if (myEntry && !mapped.some(e => e.user_id === myEntry.user_id)) {
-      const myPts    = sumTabs(myEntry.tab_breakdown    ?? {})
-      const myBonPts = sumRounds(myEntry.bonus_breakdown ?? {})
+      const myPts    = sumTabs(myEntry.tab_breakdown       ?? {})
+      const myBonPts = sumTabs(myEntry.tab_bonus_breakdown ?? {})
       if (myPts > 0) {
         mapped.push({
           ...myEntry,
@@ -228,7 +223,7 @@ export default function LeaderboardPage() {
           : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
       )
       .map((e, i) => ({ ...e, rank: i + 1 }))
-  }, [entries, myEntry, roundView, sortRound, SNAPSHOT_TO_ROUNDS, ROUND_ORDER])
+  }, [entries, myEntry, roundView, sortRound, CUMULATIVE_TABS])
 
   // Previous snapshot rankings — for movement arrows (compare consecutive non-'all' snapshots)
   const prevFilteredEntries = useMemo(() => {
