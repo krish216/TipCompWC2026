@@ -574,14 +574,14 @@ export default function LeaderboardPage() {
                                         }} />
                                       )}
                                     </div>
-                                    {entry.first_name && scope !== 'global' && (
-                                      <span className="text-[10px] text-gray-400 truncate block max-w-[100px]">{entry.first_name}</span>
-                                    )}
-                                    {entry.tribe_name && scope !== 'tribe' && (
-                                      <span className="text-[10px] text-gray-400 truncate block max-w-[100px]">🏆 {entry.tribe_name}</span>
-                                    )}
-                                    {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
-                                      <span className="text-[10px] text-blue-400 truncate block max-w-[100px]">🏢 {entry.comp_name}</span>
+                                    {(entry.first_name || (entry.tribe_name && scope !== 'tribe') || (scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC')) && (
+                                      <span className="text-[10px] text-gray-400 truncate block max-w-[140px]">
+                                        {[
+                                          scope !== 'global' && entry.first_name,
+                                          scope !== 'tribe'  && entry.tribe_name && `🏆 ${entry.tribe_name}`,
+                                          scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && `🏢 ${entry.comp_name}`,
+                                        ].filter(Boolean).join(' · ')}
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -672,15 +672,15 @@ export default function LeaderboardPage() {
                                     }} />
                                   )}
                                 </div>
-                                {entry.first_name && scope !== 'global' && (
-                                  <p className="text-[10px] text-gray-400 truncate">{entry.first_name}</p>
-                                )}
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {entry.tribe_name && (
-                                    <span className="text-[10px] text-gray-400 truncate">🏆 {entry.tribe_name}</span>
-                                  )}
-                                  {scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && (
-                                    <span className="text-[10px] text-blue-400 truncate">· 🏢 {entry.comp_name}</span>
+                                  {(entry.first_name || entry.tribe_name || (scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC')) && (
+                                    <span className="text-[10px] text-gray-400 truncate">
+                                      {[
+                                        scope !== 'global' && entry.first_name,
+                                        scope !== 'tribe'  && entry.tribe_name && `🏆 ${entry.tribe_name}`,
+                                        scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && `🏢 ${entry.comp_name}`,
+                                      ].filter(Boolean).join(' · ')}
+                                    </span>
                                   )}
                                   {isMe && myRank === 1 && (
                                     <span className="text-[10px] text-green-600 font-semibold">Leading 🏆</span>
