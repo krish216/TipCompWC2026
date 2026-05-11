@@ -1876,19 +1876,26 @@ function ChallengesTab({ comp }: { comp: any }) {
 
 // ─── Tab: Insights ─────────────────────────────────────────────────────────────
 function InsightsTab({ comp }: { comp: any }) {
-  const [insightsData, setInsightsData] = useState<any>(null)
-  const [summaryData,  setSummaryData]  = useState<any>(null)
-  const [selectedRound, setSelectedRound] = useState<string>('')
-  const [loading,      setLoading]      = useState(true)
+  const [insightSection, setInsightSection] = useState<'health' | 'tension' | 'share'>('health')
+  const [insightsData,   setInsightsData]   = useState<any>(null)
+  const [summaryData,    setSummaryData]    = useState<any>(null)
+  const [profileStats,   setProfileStats]   = useState<any>(null)
+  const [selectedRound,  setSelectedRound]  = useState<string>('')
+  const [loading,        setLoading]        = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [copied,         setCopied]         = useState(false)
 
   useEffect(() => {
     if (!comp?.id) return
     setLoading(true)
-    fetch(`/api/comp-analytics/insights?comp_id=${comp.id}`)
-      .then(r => r.json())
-      .then(d => { setInsightsData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      fetch(`/api/comp-analytics/insights?comp_id=${comp.id}`).then(r => r.json()),
+      fetch(`/api/comp-analytics/profile-stats?comp_id=${comp.id}`).then(r => r.json()),
+    ]).then(([d, p]) => {
+      setInsightsData(d)
+      setProfileStats(p)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [comp?.id])
 
   useEffect(() => {
@@ -1905,145 +1912,282 @@ function InsightsTab({ comp }: { comp: any }) {
 
   if (loading) return <div className="flex justify-center py-12"><Spinner className="w-5 h-5" /></div>
 
-  const rounds: any[]    = insightsData?.rounds    ?? []
-  const dropOffs: any[]  = insightsData?.drop_offs ?? []
+  const rounds: any[]   = insightsData?.rounds    ?? []
+  const dropOffs: any[] = insightsData?.drop_offs ?? []
+  const closedRounds    = rounds.filter((r: any) => r.tipping_closed)
+  const hasData         = closedRounds.length > 0
 
-  const closedRounds  = rounds.filter((r: any) => r.tipping_closed)
-  const hasData       = closedRounds.length > 0
+  const ps = profileStats ?? {}
+  const profileScore = ps.total ? Math.round((ps.first_name_pct + ps.avatar_pct) / 2) : null
+  const profileColor = profileScore == null ? 'gray' : profileScore >= 75 ? 'green' : profileScore >= 40 ? 'amber' : 'red'
+
+  const reminderTemplate =
+`Hey tipsters! 👋
+
+A quick reminder to complete your TribePicks profile — it takes 30 seconds:
+
+1️⃣ Add your first name — so your comp-mates can see who you are
+2️⃣ Upload an avatar — make your leaderboard row stand out
+3️⃣ Pick your bonus team — get 2× points when they play in the group stage!
+
+Head to Settings → Profile to update yours now. 🏆`
+
+  const copyReminder = () => {
+    navigator.clipboard.writeText(reminderTemplate).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const NAV: { id: 'health' | 'tension' | 'share'; label: string }[] = [
+    { id: 'health',  label: 'Health'  },
+    { id: 'tension', label: 'Tension' },
+    { id: 'share',   label: 'Share'   },
+  ]
 
   return (
-    <div className="space-y-4">
-      {/* Per-round engagement */}
-      <Section title="Round Engagement" sub="% of tipsters who tipped in each round">
-        {!hasData ? (
-          <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet — data will appear once a round closes.</div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {rounds.filter((r: any) => r.tipping_closed || r.is_open).map((r: any) => (
-              <div key={r.round_code} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xs font-bold text-gray-800">{r.round_name}</p>
-                    {r.is_open && !r.tipping_closed && (
-                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full">Live</span>
-                    )}
-                    {r.tipping_closed && (
-                      <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">Closed</span>
-                    )}
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={clsx('h-full rounded-full transition-all', r.rate >= 80 ? 'bg-green-500' : r.rate >= 50 ? 'bg-amber-400' : 'bg-red-400')}
-                      style={{ width: `${r.rate}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={clsx('text-sm font-black', r.rate >= 80 ? 'text-green-700' : r.rate >= 50 ? 'text-amber-600' : 'text-red-600')}>{r.rate}%</p>
-                  <p className="text-[10px] text-gray-400">{r.tipped_count}/{r.total_members}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
+    <div>
+      {/* Category nav */}
+      <div className="sticky top-0 z-10 bg-gray-50 pt-1 pb-3 -mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {NAV.map(n => (
+            <button
+              key={n.id}
+              onClick={() => setInsightSection(n.id)}
+              className={clsx(
+                'flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all',
+                insightSection === n.id
+                  ? 'bg-gray-900 text-white shadow-sm'
+                  : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-100'
+              )}
+            >{n.label}</button>
+          ))}
+        </div>
+      </div>
 
-      {/* Drop-off alerts */}
-      {dropOffs.length > 0 && (
-        <PremiumSection title="Drop-off Analysis">
-          <Section title="Drop-off Alert" sub="Tipsters who tipped early but have gone quiet">
-            <div className="divide-y divide-gray-100">
-              {dropOffs.map((d: any) => (
-                <div key={d.user_id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
-                    {d.display_name?.[0]?.toUpperCase() ?? '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{d.display_name}</p>
-                    <p className="text-[11px] text-gray-400">Last tipped: <span className="font-semibold text-amber-600">{d.last_round.toUpperCase()}</span> · {d.tipped_rounds} round{d.tipped_rounds !== 1 ? 's' : ''} total</p>
-                  </div>
-                  <span className="text-amber-400 text-base flex-shrink-0">⚠️</span>
-                </div>
-              ))}
-            </div>
-            <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
-              <p className="text-[11px] text-amber-700">Send a reminder email from the <button className="font-semibold underline hover:text-amber-900" onClick={() => {}}>Email tab</button> to re-engage these tipsters.</p>
-            </div>
-          </Section>
-        </PremiumSection>
-      )}
+      <div className="space-y-4 mt-2">
 
-      {/* End-of-round summary */}
-      <PremiumSection title="Round Summary">
-      <Section
-        title="Round Summary"
-        sub="Top scorers and match accuracy for a completed round"
-        right={
-          (summaryData?.available_rounds ?? []).length > 1 ? (
-            <select
-              value={selectedRound || summaryData?.round_code || ''}
-              onChange={e => setSelectedRound(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
-            >
-              {(summaryData?.available_rounds ?? []).map((r: any) => (
-                <option key={r.round_code} value={r.round_code}>{r.round_name}</option>
-              ))}
-            </select>
-          ) : undefined
-        }
-      >
-        {summaryLoading ? (
-          <div className="flex justify-center py-8"><Spinner className="w-4 h-4" /></div>
-        ) : !summaryData?.round_code ? (
-          <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet.</div>
-        ) : (
-          <div>
-            {/* Top scorers */}
-            <div className="px-4 pt-3 pb-1">
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Top Scorers — {summaryData.round_name}</p>
-              <div className="space-y-1.5">
-                {(summaryData.top_scorers ?? []).slice(0, 5).map((s: any) => (
-                  <div key={s.user_id} className="flex items-center gap-2.5">
-                    <span className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0',
-                      s.rank === 1 ? 'bg-amber-100 text-amber-700' : s.rank === 2 ? 'bg-gray-100 text-gray-600' : s.rank === 3 ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400')}>
-                      {s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank}
-                    </span>
-                    <p className="flex-1 text-xs text-gray-700 truncate">{s.display_name}</p>
-                    <p className="text-xs font-black text-gray-800">{s.points} pts</p>
-                    <p className="text-[10px] text-gray-400 w-12 text-right">{s.correct_count} correct</p>
+        {/* ── HEALTH ── */}
+        {insightSection === 'health' && (
+          <>
+            <Section title="Profile & Game Setup" sub="How well tipsters have completed their setup">
+              {/* Profile Completeness */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs font-bold text-gray-800">Profile Completeness</p>
+                    <p className="text-[11px] text-gray-400">First name + Avatar</p>
                   </div>
-                ))}
-                {(summaryData.top_scorers ?? []).length === 0 && (
-                  <p className="text-xs text-gray-400 py-2">No scored predictions yet for this round.</p>
+                  {profileScore != null && (
+                    <span className={clsx(
+                      'text-lg font-black',
+                      profileColor === 'green' ? 'text-green-600' : profileColor === 'amber' ? 'text-amber-500' : 'text-red-500'
+                    )}>{profileScore}%</span>
+                  )}
+                </div>
+                {ps.total > 0 && (
+                  <div className="space-y-1.5">
+                    {([
+                      { label: 'First name', pct: ps.first_name_pct, count: ps.first_name_count },
+                      { label: 'Avatar',     pct: ps.avatar_pct,     count: ps.avatar_count     },
+                    ] as { label: string; pct: number; count: number }[]).map(item => (
+                      <div key={item.label} className="flex items-center gap-2.5">
+                        <p className="w-20 text-[11px] text-gray-500 flex-shrink-0">{item.label}</p>
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={clsx('h-full rounded-full transition-all',
+                              item.pct >= 75 ? 'bg-green-500' : item.pct >= 40 ? 'bg-amber-400' : 'bg-red-400')}
+                            style={{ width: `${item.pct}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-400 w-16 text-right flex-shrink-0">{item.count}/{ps.total} · {item.pct}%</p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Match accuracy */}
-            {(summaryData.match_stats ?? []).length > 0 && (
-              <div className="px-4 pt-3 pb-3 border-t border-gray-100 mt-2">
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Match Accuracy</p>
-                <div className="space-y-1.5">
-                  {(summaryData.match_stats ?? []).map((m: any) => (
-                    <div key={m.fixture_id} className="flex items-center gap-2">
-                      <p className="flex-1 text-[11px] text-gray-700 truncate min-w-0">{m.home} vs {m.away}</p>
-                      <p className="text-[10px] text-gray-400 whitespace-nowrap">{m.correct_count}/{m.total_tippers}</p>
-                      <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
-                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${m.accuracy_pct}%` }} />
+              {/* Bonus Team */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <p className="text-xs font-bold text-gray-800">Bonus Team Set</p>
+                    <p className="text-[11px] text-gray-400">Tipsters who picked their 2× multiplier team</p>
+                  </div>
+                  {ps.total > 0 && (
+                    <span className={clsx(
+                      'text-lg font-black',
+                      ps.bonus_team_pct >= 75 ? 'text-green-600' : ps.bonus_team_pct >= 40 ? 'text-amber-500' : 'text-red-500'
+                    )}>{ps.bonus_team_pct}%</span>
+                  )}
+                </div>
+                {ps.total > 0 && (
+                  <>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
+                      <div
+                        className={clsx('h-full rounded-full transition-all',
+                          ps.bonus_team_pct >= 75 ? 'bg-green-500' : ps.bonus_team_pct >= 40 ? 'bg-amber-400' : 'bg-red-400')}
+                        style={{ width: `${ps.bonus_team_pct}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">{ps.bonus_team_count} of {ps.total} tipsters</p>
+                  </>
+                )}
+              </div>
+
+              {/* Reminder announcement template */}
+              <div className="px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-600 mb-2">Reminder announcement</p>
+                <pre className="whitespace-pre-wrap text-[11px] text-gray-600 bg-gray-50 rounded-xl p-3 font-sans border border-gray-100 leading-relaxed">{reminderTemplate}</pre>
+                <button
+                  onClick={copyReminder}
+                  className={clsx(
+                    'mt-2 w-full py-2 rounded-xl text-xs font-bold transition-all',
+                    copied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'
+                  )}
+                >
+                  {copied ? '✓ Copied!' : 'Copy Announcement'}
+                </button>
+              </div>
+            </Section>
+
+            <Section title="Round Engagement" sub="% of tipsters who tipped in each round">
+              {!hasData ? (
+                <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet — data will appear once a round closes.</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {rounds.filter((r: any) => r.tipping_closed || r.is_open).map((r: any) => (
+                    <div key={r.round_code} className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-xs font-bold text-gray-800">{r.round_name}</p>
+                          {r.is_open && !r.tipping_closed && (
+                            <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full">Live</span>
+                          )}
+                          {r.tipping_closed && (
+                            <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">Closed</span>
+                          )}
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={clsx('h-full rounded-full transition-all', r.rate >= 80 ? 'bg-green-500' : r.rate >= 50 ? 'bg-amber-400' : 'bg-red-400')}
+                            style={{ width: `${r.rate}%` }}
+                          />
+                        </div>
                       </div>
-                      <p className={clsx('text-[10px] font-bold w-8 text-right flex-shrink-0',
-                        m.accuracy_pct >= 60 ? 'text-green-600' : m.accuracy_pct >= 30 ? 'text-amber-600' : 'text-red-500')}>
-                        {m.accuracy_pct}%
-                      </p>
+                      <div className="text-right flex-shrink-0">
+                        <p className={clsx('text-sm font-black', r.rate >= 80 ? 'text-green-700' : r.rate >= 50 ? 'text-amber-600' : 'text-red-600')}>{r.rate}%</p>
+                        <p className="text-[10px] text-gray-400">{r.tipped_count}/{r.total_members}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </Section>
+          </>
         )}
-      </Section>
-      </PremiumSection>
+
+        {/* ── TENSION ── */}
+        {insightSection === 'tension' && (
+          dropOffs.length > 0 ? (
+            <PremiumSection title="Drop-off Analysis">
+              <Section title="Drop-off Alert" sub="Tipsters who tipped early but have gone quiet">
+                <div className="divide-y divide-gray-100">
+                  {dropOffs.map((d: any) => (
+                    <div key={d.user_id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0">
+                        {d.display_name?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-800 truncate">{d.display_name}</p>
+                        <p className="text-[11px] text-gray-400">Last tipped: <span className="font-semibold text-amber-600">{d.last_round.toUpperCase()}</span> · {d.tipped_rounds} round{d.tipped_rounds !== 1 ? 's' : ''} total</p>
+                      </div>
+                      <span className="text-amber-400 text-base flex-shrink-0">⚠️</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
+                  <p className="text-[11px] text-amber-700">Send a reminder email from the <button className="font-semibold underline hover:text-amber-900" onClick={() => {}}>Email tab</button> to re-engage these tipsters.</p>
+                </div>
+              </Section>
+            </PremiumSection>
+          ) : (
+            <div className="px-4 py-12 text-center text-sm text-gray-400">No drop-off data yet — check back once multiple rounds have closed.</div>
+          )
+        )}
+
+        {/* ── SHARE ── */}
+        {insightSection === 'share' && (
+          <PremiumSection title="Round Summary">
+            <Section
+              title="Round Summary"
+              sub="Top scorers and match accuracy for a completed round"
+              right={
+                (summaryData?.available_rounds ?? []).length > 1 ? (
+                  <select
+                    value={selectedRound || summaryData?.round_code || ''}
+                    onChange={e => setSelectedRound(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 bg-white"
+                  >
+                    {(summaryData?.available_rounds ?? []).map((r: any) => (
+                      <option key={r.round_code} value={r.round_code}>{r.round_name}</option>
+                    ))}
+                  </select>
+                ) : undefined
+              }
+            >
+              {summaryLoading ? (
+                <div className="flex justify-center py-8"><Spinner className="w-4 h-4" /></div>
+              ) : !summaryData?.round_code ? (
+                <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet.</div>
+              ) : (
+                <div>
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Top Scorers — {summaryData.round_name}</p>
+                    <div className="space-y-1.5">
+                      {(summaryData.top_scorers ?? []).slice(0, 5).map((s: any) => (
+                        <div key={s.user_id} className="flex items-center gap-2.5">
+                          <span className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0',
+                            s.rank === 1 ? 'bg-amber-100 text-amber-700' : s.rank === 2 ? 'bg-gray-100 text-gray-600' : s.rank === 3 ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400')}>
+                            {s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank}
+                          </span>
+                          <p className="flex-1 text-xs text-gray-700 truncate">{s.display_name}</p>
+                          <p className="text-xs font-black text-gray-800">{s.points} pts</p>
+                          <p className="text-[10px] text-gray-400 w-12 text-right">{s.correct_count} correct</p>
+                        </div>
+                      ))}
+                      {(summaryData.top_scorers ?? []).length === 0 && (
+                        <p className="text-xs text-gray-400 py-2">No scored predictions yet for this round.</p>
+                      )}
+                    </div>
+                  </div>
+                  {(summaryData.match_stats ?? []).length > 0 && (
+                    <div className="px-4 pt-3 pb-3 border-t border-gray-100 mt-2">
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Match Accuracy</p>
+                      <div className="space-y-1.5">
+                        {(summaryData.match_stats ?? []).map((m: any) => (
+                          <div key={m.fixture_id} className="flex items-center gap-2">
+                            <p className="flex-1 text-[11px] text-gray-700 truncate min-w-0">{m.home} vs {m.away}</p>
+                            <p className="text-[10px] text-gray-400 whitespace-nowrap">{m.correct_count}/{m.total_tippers}</p>
+                            <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                              <div className="h-full bg-blue-400 rounded-full" style={{ width: `${m.accuracy_pct}%` }} />
+                            </div>
+                            <p className={clsx('text-[10px] font-bold w-8 text-right flex-shrink-0',
+                              m.accuracy_pct >= 60 ? 'text-green-600' : m.accuracy_pct >= 30 ? 'text-amber-600' : 'text-red-500')}>
+                              {m.accuracy_pct}%
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Section>
+          </PremiumSection>
+        )}
+
+      </div>
     </div>
   )
 }
