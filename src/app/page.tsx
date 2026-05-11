@@ -600,6 +600,7 @@ export default function HomePage() {
   const [nameError,        setNameError]        = useState<string | null>(null)
   const [nameSaving,       setNameSaving]       = useState(false)
   const [engagementAlert,  setEngagementAlert]  = useState<{ round_name: string; untipped_count: number; total_tipsters: number; deadline: string | null } | null>(null)
+  const [compAnnouncements, setCompAnnouncements] = useState<{ id: string; title: string; body: string; created_at: string }[]>([])
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [emailVerified,    setEmailVerified]    = useState<boolean | null>(null)
   const [resendLoading,    setResendLoading]    = useState(false)
@@ -790,6 +791,17 @@ export default function HomePage() {
       .catch(() => { if (!cancelled) setEngagementAlert(null) })
     return () => { cancelled = true }
   }, [session, selectedCompId, isCompAdmin])
+
+  // Fetch recent comp announcements when the selected comp changes
+  useEffect(() => {
+    if (!session || !selectedCompId) { setCompAnnouncements([]); return }
+    let cancelled = false
+    fetch(`/api/comp-announcements?comp_id=${selectedCompId}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setCompAnnouncements(d.data ?? []) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [session, selectedCompId])
 
   // Fire "You're all set" once when all three onboarding steps are complete.
   // Using localStorage to deduplicate means this fires correctly regardless of
@@ -2368,6 +2380,32 @@ export default function HomePage() {
                       A <strong className="text-gray-500">Comp</strong> is your private leaderboard — a group of friends, colleagues, or family all tipping on the same tournament and competing for the top spot.
                     </p>
                   </div>
+                </div>
+
+              )}
+
+              {/* Comp announcements feed */}
+              {compAnnouncements.length > 0 && (
+                <div className="mt-3 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">📢 From your comp</p>
+                  </div>
+                  {compAnnouncements.slice(0, 3).map(a => {
+                    const diff  = Date.now() - new Date(a.created_at).getTime()
+                    const mins  = Math.floor(diff / 60000)
+                    const hours = Math.floor(diff / 3600000)
+                    const days  = Math.floor(diff / 86400000)
+                    const age   = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`
+                    return (
+                      <div key={a.id} className="px-3 py-2.5 border-b border-gray-50 last:border-0">
+                        <div className="flex items-start justify-between gap-2 mb-0.5">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{a.title}</p>
+                          <p className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{age}</p>
+                        </div>
+                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{a.body}</p>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 

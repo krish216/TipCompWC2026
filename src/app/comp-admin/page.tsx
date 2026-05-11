@@ -33,11 +33,12 @@ interface Tribe     { id: string; name: string; description?: string | null; inv
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
-type Tab = 'tipsters' | 'payments' | 'email' | 'settings' | 'tribes' | 'challenges' | 'insights'
+type Tab = 'tipsters' | 'payments' | 'announce' | 'email' | 'settings' | 'tribes' | 'challenges' | 'insights'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'tipsters',   icon: '🙋', label: 'Tipsters'   },
   { id: 'payments',   icon: '💳', label: 'Payments'   },
+  { id: 'announce',   icon: '📢', label: 'Announce'   },
   { id: 'email',      icon: '✉️',  label: 'Email'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
   { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
@@ -816,6 +817,148 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
           ↓ Export payments CSV
         </button>
       )}
+    </div>
+  )
+}
+
+// ─── Tab: Announce ─────────────────────────────────────────────────────────────
+function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
+  const [title,          setTitle]          = useState('')
+  const [body,           setBody]           = useState('')
+  const [sendEmail,      setSendEmail]      = useState(false)
+  const [posting,        setPosting]        = useState(false)
+  const [announcements,  setAnnouncements]  = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+
+  useEffect(() => {
+    if (!comp?.id) return
+    fetch(`/api/comp-announcements?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => { setAnnouncements(d.data ?? []); setHistoryLoading(false) })
+      .catch(() => setHistoryLoading(false))
+  }, [comp?.id])
+
+  const post = async () => {
+    if (!body.trim()) { toast.error('Message is required'); return }
+    setPosting(true)
+    const recipients = sendEmail ? tipsters.map(t => t.email) : []
+    const res = await fetch('/api/comp-announcements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        comp_id:    comp.id,
+        title:      title.trim() || 'Announcement',
+        body:       body.trim(),
+        recipients,
+        send_email: sendEmail,
+        persist:    true,
+      }),
+    })
+    setPosting(false)
+    if (res.ok) {
+      const fresh = { id: Date.now(), title: title.trim() || 'Announcement', body: body.trim(), created_at: new Date().toISOString() }
+      setAnnouncements(prev => [fresh, ...prev])
+      setTitle('')
+      setBody('')
+      toast.success(sendEmail ? `Posted + emailed ${tipsters.length} tipster${tipsters.length !== 1 ? 's' : ''}` : 'Announcement posted')
+    } else {
+      const d = await res.json()
+      toast.error(d.error ?? 'Failed to post')
+    }
+  }
+
+  const formatAge = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins  = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days  = Math.floor(diff / 86400000)
+    if (mins < 1)   return 'just now'
+    if (mins < 60)  return `${mins}m ago`
+    if (hours < 24) return `${hours}h ago`
+    return `${days}d ago`
+  }
+
+  return (
+    <div>
+      <Section title="New announcement" sub="Posted to the in-app feed for all comp members">
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Title <span className="font-normal text-gray-400">(optional)</span></label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              maxLength={100}
+              placeholder="e.g. Group stage done! 🎉"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 placeholder:text-gray-300"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Message</label>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              rows={4}
+              maxLength={1000}
+              placeholder="What do you want to tell your comp?"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 placeholder:text-gray-300 resize-none"
+            />
+            <p className="text-right text-[10px] text-gray-300 -mt-1">{body.length}/1000</p>
+          </div>
+
+          {/* Email toggle */}
+          <button
+            onClick={() => setSendEmail(v => !v)}
+            className={clsx(
+              'w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-colors',
+              sendEmail ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+            )}
+          >
+            <div className="text-left">
+              <p className="text-xs font-bold text-gray-800">Also email all tipsters</p>
+              <p className="text-[11px] text-gray-400">{tipsters.length} tipster{tipsters.length !== 1 ? 's' : ''} will receive an email copy</p>
+            </div>
+            <div className={clsx(
+              'w-9 h-5 rounded-full transition-colors flex-shrink-0 relative',
+              sendEmail ? 'bg-gray-900' : 'bg-gray-200'
+            )}>
+              <span className={clsx(
+                'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                sendEmail ? 'translate-x-4' : 'translate-x-0.5'
+              )} />
+            </div>
+          </button>
+
+          <button
+            onClick={post}
+            disabled={!body.trim() || posting}
+            className="w-full py-2.5 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+          >
+            {posting ? <Spinner className="w-4 h-4 text-white" /> : null}
+            {posting ? 'Posting…' : sendEmail ? `Post + Email (${tipsters.length})` : 'Post Announcement'}
+          </button>
+        </div>
+      </Section>
+
+      <Section title="Recent announcements" sub="Last 20 posts">
+        {historyLoading ? (
+          <div className="flex justify-center py-8"><Spinner className="w-4 h-4" /></div>
+        ) : announcements.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-400">No announcements yet — post one above.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {announcements.map(a => (
+              <div key={a.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-xs font-bold text-gray-800">{a.title}</p>
+                  <p className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{formatAge(a.created_at)}</p>
+                </div>
+                <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{a.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
     </div>
   )
 }
@@ -2198,7 +2341,7 @@ export default function CompAdminPage() {
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
   const searchParams = useSearchParams()
 
-  const VALID_TABS: Tab[] = ['tipsters','payments','email','settings','tribes','challenges','insights']
+  const VALID_TABS: Tab[] = ['tipsters','payments','announce','email','settings','tribes','challenges','insights']
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const t = searchParams.get('tab') as Tab | null
     return (t && VALID_TABS.includes(t)) ? t : 'tipsters'
@@ -2539,6 +2682,7 @@ export default function CompAdminPage() {
               </button>
             </div>
       )}
+      {activeTab === 'announce'   && <AnnounceTab   comp={comp} tipsters={tipsters} />}
       {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} preset={searchParams.get('preset') ?? undefined} />}
       {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}

@@ -6,7 +6,43 @@ import { Resend } from 'resend'
 
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 
-// POST /api/comp-announcements — comp admin emails all (or selected) tipsters
+// GET /api/comp-announcements?comp_id={id}
+// Returns recent published announcements for a comp (members only).
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const compId = searchParams.get('comp_id')
+    if (!compId) return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
+
+    const admin = createAdminClient()
+
+    // Verify caller is a comp member or admin
+    const [{ data: memberRow }, { data: adminRow }] = await Promise.all([
+      (admin.from('user_comps') as any).select('user_id').eq('comp_id', compId).eq('user_id', user.id).single(),
+      (admin.from('comp_admins') as any).select('comp_id').eq('comp_id', compId).eq('user_id', user.id).single(),
+    ])
+    if (!memberRow && !adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const { data: rows } = await (admin.from('comp_announcements') as any)
+      .select('id, title, body, created_at')
+      .eq('comp_id', compId)
+      .eq('published', true)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    return NextResponse.json({ data: rows ?? [] })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? 'Internal server error' }, { status: 500 })
+  }
+}
+
+// POST /api/comp-announcements
+// persist: true  → saves to comp_announcements table (in-app feed)
+// send_email: true + recipients → emails via Resend (existing email tab behaviour)
+// Both can be combined. At least one must be active.
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()
   const adminClient = createAdminClient()
@@ -14,66 +50,100 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
-  const { comp_id, title, body: emailBody, recipients } = body ?? {}
+  const {
+    comp_id,
+    title,
+    body: msgBody,
+    recipients = [],
+    send_email  = recipients.length > 0,  // default: email if recipients provided
+    persist     = false,                   // default: don't persist (backward compat)
+  } = body ?? {}
 
-  if (!comp_id || !title?.trim() || !emailBody?.trim()) {
+  if (!comp_id || !title?.trim() || !msgBody?.trim()) {
     return NextResponse.json({ error: 'comp_id, title and body required' }, { status: 400 })
   }
-  if (!Array.isArray(recipients) || recipients.length === 0) {
-    return NextResponse.json({ error: 'recipients array required' }, { status: 400 })
+  if (!persist && (!send_email || !Array.isArray(recipients) || recipients.length === 0)) {
+    return NextResponse.json({ error: 'Provide recipients for email, or set persist:true for in-app post' }, { status: 400 })
   }
 
-  // Verify caller is an admin for this comp
+  // Verify caller is a comp admin
   const { data: adminRow } = await (adminClient.from('comp_admins') as any)
     .select('comp_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
   if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json({ error: 'Email service not configured — set RESEND_API_KEY' }, { status: 503 })
+  // ── 1. Persist to comp_announcements table ──────────────────────────────────
+  let persistedId: string | null = null
+  if (persist) {
+    const { data: inserted } = await (adminClient.from('comp_announcements') as any)
+      .insert({ comp_id, author_id: user.id, title: title.trim(), body: msgBody.trim(), published: true })
+      .select('id').single()
+    persistedId = (inserted as any)?.id ?? null
   }
 
-  // Fetch comp name for email footer branding
-  const { data: comp } = await (adminClient.from('comps') as any)
-    .select('name').eq('id', comp_id).single()
-  const compName = (comp as any)?.name ?? 'Your comp'
-
-  const resend  = new Resend(process.env.RESEND_API_KEY)
-  const html    = buildHtml(compName, emailBody.trim())
-  const subject = title.trim()
-
-  // Batch-send individually so each recipient only sees their own address.
-  // Resend batch endpoint accepts up to 100 messages per call.
-  const BATCH = 100
+  // ── 2. Send email if requested ──────────────────────────────────────────────
   let sent = 0
-  for (let i = 0; i < recipients.length; i += BATCH) {
-    const slice    = (recipients as string[]).slice(i, i + BATCH)
-    const messages = slice.map(to => ({ from: FROM, to, subject, html }))
-    const { error } = await resend.batch.send(messages)
-    if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
-    sent += slice.length
+  if (send_email && Array.isArray(recipients) && recipients.length > 0) {
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json({ error: 'Email service not configured — set RESEND_API_KEY' }, { status: 503 })
+    }
+
+    const { data: comp } = await (adminClient.from('comps') as any)
+      .select('name').eq('id', comp_id).single()
+    const compName = (comp as any)?.name ?? 'Your comp'
+
+    const resend  = new Resend(process.env.RESEND_API_KEY)
+    const html    = buildHtml(compName, msgBody.trim())
+    const subject = title.trim()
+
+    const BATCH = 100
+    for (let i = 0; i < recipients.length; i += BATCH) {
+      const slice    = (recipients as string[]).slice(i, i + BATCH)
+      const messages = slice.map((to: string) => ({ from: FROM, to, subject, html }))
+      const { error } = await resend.batch.send(messages)
+      if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
+      sent += slice.length
+    }
+
+    // Fire in-app notifications for emailed recipients
+    ;(async () => {
+      try {
+        const { data: userRows } = await (adminClient.from('users') as any)
+          .select('id').in('email', recipients as string[])
+        const userIds = ((userRows ?? []) as any[]).map((u: any) => u.id as string)
+        if (!userIds.length) return
+        const preview = msgBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
+        await createNotifications(userIds.map((uid: string) => ({
+          user_id: uid,
+          type:    'comp_announcement' as const,
+          title:   `📢 ${title.trim()}`,
+          body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
+          data:    { comp_id },
+        })))
+      } catch {}
+    })()
+  } else if (persist) {
+    // In-app only — notify all comp members via bell
+    ;(async () => {
+      try {
+        const { data: memberRows } = await (adminClient.from('user_comps') as any)
+          .select('user_id').eq('comp_id', comp_id)
+        const userIds = ((memberRows ?? []) as any[])
+          .map((m: any) => m.user_id as string)
+          .filter((uid: string) => uid !== user.id)
+        if (!userIds.length) return
+        const preview = msgBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
+        await createNotifications(userIds.map((uid: string) => ({
+          user_id: uid,
+          type:    'comp_announcement' as const,
+          title:   `📢 ${title.trim()}`,
+          body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
+          data:    { comp_id },
+        })))
+      } catch {}
+    })()
   }
 
-  // Also write in-app notifications — look up user_ids from recipient emails
-  ;(async () => {
-    try {
-      const { data: userRows } = await (adminClient.from('users') as any)
-        .select('id')
-        .in('email', recipients as string[])
-      const userIds = ((userRows ?? []) as any[]).map((u: any) => u.id as string)
-      if (!userIds.length) return
-
-      const preview = emailBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
-      await createNotifications(userIds.map(uid => ({
-        user_id: uid,
-        type:    'comp_announcement' as const,
-        title:   `📢 ${title.trim()}`,
-        body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
-        data:    { comp_id },
-      })))
-    } catch {}
-  })()
-
-  return NextResponse.json({ sent })
+  return NextResponse.json({ persisted: !!persistedId, id: persistedId, sent })
 }
 
 function buildHtml(compName: string, body: string): string {
