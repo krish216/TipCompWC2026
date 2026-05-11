@@ -33,13 +33,12 @@ interface Tribe     { id: string; name: string; description?: string | null; inv
 interface Challenge { id: string; fixture_id: number; prize: string; sponsor?: string | null; fixture_label?: string }
 interface Fixture   { id: number; home: string; away: string; date: string; round: string }
 
-type Tab = 'tipsters' | 'payments' | 'announce' | 'email' | 'settings' | 'tribes' | 'challenges' | 'insights'
+type Tab = 'tipsters' | 'payments' | 'comms' | 'settings' | 'tribes' | 'challenges' | 'insights'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'tipsters',   icon: '🙋', label: 'Tipsters'   },
   { id: 'payments',   icon: '💳', label: 'Payments'   },
-  { id: 'announce',   icon: '📢', label: 'Announce'   },
-  { id: 'email',      icon: '✉️',  label: 'Email'      },
+  { id: 'comms',      icon: '📢', label: 'Comms'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
   { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
   { id: 'challenges', icon: '⚡',  label: 'Challenges' },
@@ -821,11 +820,12 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
   )
 }
 
-// ─── Tab: Announce ─────────────────────────────────────────────────────────────
-function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
-  const [title,          setTitle]          = useState('')
-  const [body,           setBody]           = useState('')
-  const [sendEmail,      setSendEmail]      = useState(false)
+// ─── Tab: Comms (Announce + Targeted Email) ────────────────────────────────────
+function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; preset?: string }) {
+  // ── Announce state ───────────────────────────────────────────────────────────
+  const [annTitle,       setAnnTitle]       = useState('')
+  const [annBody,        setAnnBody]        = useState('')
+  const [annSendEmail,   setAnnSendEmail]   = useState(false)
   const [posting,        setPosting]        = useState(false)
   const [announcements,  setAnnouncements]  = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -839,28 +839,27 @@ function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
   }, [comp?.id])
 
   const post = async () => {
-    if (!body.trim()) { toast.error('Message is required'); return }
+    if (!annBody.trim()) { toast.error('Message is required'); return }
     setPosting(true)
-    const recipients = sendEmail ? tipsters.map(t => t.email) : []
+    const recipients = annSendEmail ? tipsters.map(t => t.email) : []
     const res = await fetch('/api/comp-announcements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         comp_id:    comp.id,
-        title:      title.trim() || 'Announcement',
-        body:       body.trim(),
+        title:      annTitle.trim() || 'Announcement',
+        body:       annBody.trim(),
         recipients,
-        send_email: sendEmail,
+        send_email: annSendEmail,
         persist:    true,
       }),
     })
     setPosting(false)
     if (res.ok) {
-      const fresh = { id: Date.now(), title: title.trim() || 'Announcement', body: body.trim(), created_at: new Date().toISOString() }
-      setAnnouncements(prev => [fresh, ...prev])
-      setTitle('')
-      setBody('')
-      toast.success(sendEmail ? `Posted + emailed ${tipsters.length} tipster${tipsters.length !== 1 ? 's' : ''}` : 'Announcement posted')
+      setAnnouncements(prev => [{ id: Date.now(), title: annTitle.trim() || 'Announcement', body: annBody.trim(), created_at: new Date().toISOString() }, ...prev])
+      setAnnTitle('')
+      setAnnBody('')
+      toast.success(annSendEmail ? `Posted + emailed ${tipsters.length} tipster${tipsters.length !== 1 ? 's' : ''}` : 'Announcement posted')
     } else {
       const d = await res.json()
       toast.error(d.error ?? 'Failed to post')
@@ -868,7 +867,7 @@ function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
   }
 
   const formatAge = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
+    const diff  = Date.now() - new Date(iso).getTime()
     const mins  = Math.floor(diff / 60000)
     const hours = Math.floor(diff / 3600000)
     const days  = Math.floor(diff / 86400000)
@@ -878,16 +877,81 @@ function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
     return `${days}d ago`
   }
 
+  // ── Targeted Email state ─────────────────────────────────────────────────────
+  const [emailOpen,       setEmailOpen]       = useState(!!preset)
+  const [roundInfo,       setRoundInfo]       = useState<{ round_name: string | null; deadline: string | null; untipped: { user_id: string; display_name: string; email: string }[] }>({ round_name: null, deadline: null, untipped: [] })
+  const [loadingRoundInfo, setLoadingRoundInfo] = useState(false)
+
+  useEffect(() => {
+    if (!emailOpen || !comp?.id) return
+    setLoadingRoundInfo(true)
+    fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => setRoundInfo({ round_name: d.round_name ?? null, deadline: d.deadline ?? null, untipped: d.untipped ?? [] }))
+      .catch(() => {})
+      .finally(() => setLoadingRoundInfo(false))
+  }, [emailOpen, comp?.id])
+
+  const reminderBody = useMemo(() => {
+    const roundName = roundInfo.round_name ?? '[round name]'
+    const deadline  = roundInfo.deadline
+      ? new Date(roundInfo.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '[deadline]'
+    return `Hi {name},\n\nJust a reminder — Tipping is open for round: ${roundName}. Please note that tipping for this round will close on ${deadline}.\n\nGood luck!\n\nThe ${comp?.name} team`
+  }, [roundInfo.round_name, roundInfo.deadline, comp?.name])
+
+  const TEMPLATES = useMemo(() => [
+    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
+    { label: '⏰ Reminder', subject: `Don't forget your tips!`,     body: reminderBody },
+    { label: '🏆 Results',  subject: `Round results are in!`,       body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
+  ], [comp?.name, comp?.invite_code, reminderBody])
+
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
+  const [emailSubject,   setEmailSubject]   = useState(preset === 'reminder' ? `Don't forget your tips!` : '')
+  const [emailBody,      setEmailBody]      = useState(preset === 'reminder' ? reminderBody : '')
+  const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
+  const [customSearch,   setCustomSearch]   = useState('')
+  const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
+  const [sending,        setSending]        = useState(false)
+  const [preview,        setPreview]        = useState(false)
+
+  const roundInfoLoaded = useRef(false)
+  useEffect(() => {
+    if (!roundInfo.round_name || roundInfoLoaded.current) return
+    roundInfoLoaded.current = true
+    if (activeTemplate === '⏰ Reminder') setEmailBody(reminderBody)
+  }, [roundInfo.round_name, reminderBody, activeTemplate])
+
+  const recipientList = useMemo(() => {
+    if (recipients === 'all')        return tipsters.map(t => t.email)
+    if (recipients === 'not_tipped') return roundInfo.untipped.map(t => t.email)
+    return tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
+  }, [recipients, tipsters, customSelected, roundInfo.untipped])
+
+  const send = async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) { toast.error('Subject and body required'); return }
+    if (!recipientList.length) { toast.error('No recipients'); return }
+    setSending(true)
+    const res = await fetch('/api/comp-announcements', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, title: emailSubject, body: emailBody, recipients: recipientList }),
+    })
+    setSending(false)
+    if (res.ok) { toast.success(`Email sent to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`); setEmailSubject(''); setEmailBody('') }
+    else { const d = await res.json(); toast.error(d.error ?? 'Failed to send') }
+  }
+
   return (
     <div>
+      {/* ── Announce (primary) ──────────────────────────────────────────────── */}
       <Section title="New announcement" sub="Posted to the in-app feed for all comp members">
         <div className="p-4 space-y-3">
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">Title <span className="font-normal text-gray-400">(optional)</span></label>
             <input
               type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
+              value={annTitle}
+              onChange={e => setAnnTitle(e.target.value)}
               maxLength={100}
               placeholder="e.g. Group stage done! 🎉"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 placeholder:text-gray-300"
@@ -896,46 +960,37 @@ function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">Message</label>
             <textarea
-              value={body}
-              onChange={e => setBody(e.target.value)}
+              value={annBody}
+              onChange={e => setAnnBody(e.target.value)}
               rows={4}
               maxLength={1000}
               placeholder="What do you want to tell your comp?"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 placeholder:text-gray-300 resize-none"
             />
-            <p className="text-right text-[10px] text-gray-300 -mt-1">{body.length}/1000</p>
+            <p className="text-right text-[10px] text-gray-300 -mt-1">{annBody.length}/1000</p>
           </div>
-
-          {/* Email toggle */}
           <button
-            onClick={() => setSendEmail(v => !v)}
+            onClick={() => setAnnSendEmail(v => !v)}
             className={clsx(
               'w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-colors',
-              sendEmail ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+              annSendEmail ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
             )}
           >
             <div className="text-left">
               <p className="text-xs font-bold text-gray-800">Also email all tipsters</p>
               <p className="text-[11px] text-gray-400">{tipsters.length} tipster{tipsters.length !== 1 ? 's' : ''} will receive an email copy</p>
             </div>
-            <div className={clsx(
-              'w-9 h-5 rounded-full transition-colors flex-shrink-0 relative',
-              sendEmail ? 'bg-gray-900' : 'bg-gray-200'
-            )}>
-              <span className={clsx(
-                'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
-                sendEmail ? 'translate-x-4' : 'translate-x-0.5'
-              )} />
+            <div className={clsx('w-9 h-5 rounded-full transition-colors flex-shrink-0 relative', annSendEmail ? 'bg-gray-900' : 'bg-gray-200')}>
+              <span className={clsx('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', annSendEmail ? 'translate-x-4' : 'translate-x-0.5')} />
             </div>
           </button>
-
           <button
             onClick={post}
-            disabled={!body.trim() || posting}
+            disabled={!annBody.trim() || posting}
             className="w-full py-2.5 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             {posting ? <Spinner className="w-4 h-4 text-white" /> : null}
-            {posting ? 'Posting…' : sendEmail ? `Post + Email (${tipsters.length})` : 'Post Announcement'}
+            {posting ? 'Posting…' : annSendEmail ? `Post + Email (${tipsters.length})` : 'Post Announcement'}
           </button>
         </div>
       </Section>
@@ -959,227 +1014,159 @@ function AnnounceTab({ comp, tipsters }: { comp: any; tipsters: Tipster[] }) {
           </div>
         )}
       </Section>
-    </div>
-  )
-}
 
-// ─── Tab: Email ────────────────────────────────────────────────────────────────
-function EmailTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; preset?: string }) {
-  const [roundInfo, setRoundInfo] = useState<{ round_name: string | null; deadline: string | null; untipped: { user_id: string; display_name: string; email: string }[] }>({ round_name: null, deadline: null, untipped: [] })
-  const [loadingRoundInfo, setLoadingRoundInfo] = useState(false)
-
-  // Fetch open-round info (name, deadline, untipped list) once on mount
-  useEffect(() => {
-    if (!comp?.id) return
-    setLoadingRoundInfo(true)
-    fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
-      .then(r => r.json())
-      .then(d => setRoundInfo({ round_name: d.round_name ?? null, deadline: d.deadline ?? null, untipped: d.untipped ?? [] }))
-      .catch(() => {})
-      .finally(() => setLoadingRoundInfo(false))
-  }, [comp?.id])
-
-  const reminderBody = useMemo(() => {
-    const roundName = roundInfo.round_name ?? '[round name]'
-    const deadline  = roundInfo.deadline
-      ? new Date(roundInfo.deadline).toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '[deadline]'
-    return `Hi {name},\n\nJust a reminder — Tipping is open for round: ${roundName}. Please note that tipping for this round will close on ${deadline}.\n\nGood luck!\n\nThe ${comp?.name} team`
-  }, [roundInfo.round_name, roundInfo.deadline, comp?.name])
-
-  const TEMPLATES = useMemo(() => [
-    { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,           body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
-    { label: '⏰ Reminder', subject: `Don't forget your tips!`,              body: reminderBody },
-    { label: '🏆 Results',  subject: `Round results are in!`,                body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
-  ], [comp?.name, comp?.invite_code, reminderBody])
-
-  const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
-  const [subject,        setSubject]        = useState(preset === 'reminder' ? `Don't forget your tips!` : '')
-  const [body,           setBody]           = useState(preset === 'reminder' ? reminderBody : '')
-  const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
-  const [customEmails,   setCustomEmails]   = useState('')
-  const [customSearch,   setCustomSearch]   = useState('')
-  const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
-  const [sending,        setSending]        = useState(false)
-  const [preview,        setPreview]        = useState(false)
-
-  // Once round info loads, update the Reminder body if it's the active template
-  // (useState initialiser ran before the fetch completed)
-  const roundInfoLoaded = useRef(false)
-  useEffect(() => {
-    if (!roundInfo.round_name || roundInfoLoaded.current) return
-    roundInfoLoaded.current = true
-    if (activeTemplate === '⏰ Reminder') setBody(reminderBody)
-  }, [roundInfo.round_name, reminderBody, activeTemplate])
-
-  const recipientList = useMemo(() => {
-    if (recipients === 'all')        return tipsters.map(t => t.email)
-    if (recipients === 'not_tipped') return roundInfo.untipped.map(t => t.email)
-    return tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
-  }, [recipients, tipsters, customSelected, roundInfo.untipped])
-
-  const send = async () => {
-    if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return }
-    if (!recipientList.length) { toast.error('No recipients'); return }
-    setSending(true)
-    const res = await fetch('/api/comp-announcements', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, title: subject, body, recipients: recipientList }),
-    })
-    setSending(false)
-    if (res.ok) { toast.success(`Email sent to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`); setSubject(''); setBody('') }
-    else { const d = await res.json(); toast.error(d.error ?? 'Failed to send') }
-  }
-
-  return (
-    <div>
-      <Section title="Quick templates" sub="Click to pre-fill">
-        <div className="grid grid-cols-2 gap-2 p-3">
-          {TEMPLATES.map(t => {
-            const active = activeTemplate === t.label
-            return (
-              <button key={t.label} onClick={() => {
-                setSubject(t.subject); setBody(t.body); setPreview(false)
-                setActiveTemplate(t.label)
-                if (t.label !== '⏰ Reminder' && recipients === 'not_tipped') setRecipients('all')
-              }}
-                className={clsx('text-left px-3 py-2.5 border-2 rounded-xl transition-all',
-                  active
-                    ? 'border-gray-900 bg-gray-900 shadow-sm'
-                    : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50')}>
-                <p className={clsx('text-xs font-bold', active ? 'text-white' : 'text-gray-700')}>{t.label}</p>
-                <p className={clsx('text-[10px] mt-0.5 truncate', active ? 'text-gray-300' : 'text-gray-400')}>{t.subject}</p>
-              </button>
-            )
-          })}
+      {/* ── Targeted Email (secondary, collapsible) ─────────────────────────── */}
+      <button
+        onClick={() => setEmailOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-2xl shadow-sm mb-4 hover:bg-gray-50 transition-colors"
+      >
+        <div className="text-left">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">✉️ Targeted Email</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Templates, recipient filters, custom lists</p>
         </div>
-      </Section>
+        <span className={clsx('text-gray-400 text-sm transition-transform', emailOpen ? 'rotate-180' : '')}>▼</span>
+      </button>
 
-      <Section title="Compose" sub={`Sending to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}>
-        <div className="p-4 space-y-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Recipients</label>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setRecipients('all')}
-                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                  recipients === 'all' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                All joined tipsters ({tipsters.length})
-              </button>
-              {activeTemplate === '⏰ Reminder' && (
-                <button onClick={() => setRecipients('not_tipped')}
-                  className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                    recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                  {loadingRoundInfo ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${roundInfo.untipped.length})` : ''}`}
-                </button>
-              )}
-              <button onClick={() => setRecipients('custom')}
-                className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
-                  recipients === 'custom' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
-                Custom list
-              </button>
+      {emailOpen && (
+        <>
+          <Section title="Quick templates" sub="Click to pre-fill">
+            <div className="grid grid-cols-2 gap-2 p-3">
+              {TEMPLATES.map(t => {
+                const active = activeTemplate === t.label
+                return (
+                  <button key={t.label} onClick={() => {
+                    setEmailSubject(t.subject); setEmailBody(t.body); setPreview(false)
+                    setActiveTemplate(t.label)
+                    if (t.label !== '⏰ Reminder' && recipients === 'not_tipped') setRecipients('all')
+                  }}
+                    className={clsx('text-left px-3 py-2.5 border-2 rounded-xl transition-all',
+                      active ? 'border-gray-900 bg-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50')}>
+                    <p className={clsx('text-xs font-bold', active ? 'text-white' : 'text-gray-700')}>{t.label}</p>
+                    <p className={clsx('text-[10px] mt-0.5 truncate', active ? 'text-gray-300' : 'text-gray-400')}>{t.subject}</p>
+                  </button>
+                )
+              })}
             </div>
-            {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length === 0 && (
-              <p className="mt-2 text-xs text-gray-400">All tipsters have tipped this round 🎉</p>
-            )}
-            {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length > 0 && (
-              <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
-                <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
-                  {roundInfo.untipped.map(t => (
-                    <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
-                      <Avi name={t.display_name} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+          </Section>
+
+          <Section title="Compose" sub={`Sending to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1.5">Recipients</label>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setRecipients('all')}
+                    className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                      recipients === 'all' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                    All joined tipsters ({tipsters.length})
+                  </button>
+                  {activeTemplate === '⏰ Reminder' && (
+                    <button onClick={() => setRecipients('not_tipped')}
+                      className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                        recipients === 'not_tipped' ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                      {loadingRoundInfo ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${roundInfo.untipped.length})` : ''}`}
+                    </button>
+                  )}
+                  <button onClick={() => setRecipients('custom')}
+                    className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                      recipients === 'custom' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                    Custom list
+                  </button>
+                </div>
+                {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length === 0 && (
+                  <p className="mt-2 text-xs text-gray-400">All tipsters have tipped this round 🎉</p>
+                )}
+                {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length > 0 && (
+                  <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
+                    <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
+                      {roundInfo.untipped.map(t => (
+                        <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
+                          <Avi name={t.display_name} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                            <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {recipients === 'custom' && (
+                  <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
+                      <input type="text" value={customSearch} onChange={e => setCustomSearch(e.target.value)}
+                        placeholder="Search by name or email…"
+                        className="w-full text-xs focus:outline-none bg-transparent"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {tipsters.filter(t => {
+                        const q = customSearch.toLowerCase()
+                        return !q || t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
+                      }).map(t => {
+                        const sel = customSelected.has(t.user_id)
+                        return (
+                          <button key={t.user_id} onClick={() => setCustomSelected(prev => {
+                            const n = new Set(prev); sel ? n.delete(t.user_id) : n.add(t.user_id); return n
+                          })}
+                            className={clsx('w-full flex items-center gap-2.5 px-3 py-2 border-b border-gray-50 last:border-0 text-left transition-colors',
+                              sel ? 'bg-blue-50' : 'hover:bg-gray-50')}>
+                            <div className={clsx('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors',
+                              sel ? 'bg-gray-900 border-gray-900' : 'border-gray-300')}>
+                              {sel && <span className="text-white text-[9px] font-black">✓</span>}
+                            </div>
+                            <Avi name={t.display_name} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                              <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                      {tipsters.length === 0 && <p className="px-3 py-4 text-xs text-gray-400 text-center">No joined tipsters yet</p>}
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
+                      <span className="text-[11px] text-gray-500">{customSelected.size} selected</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setCustomSelected(new Set(tipsters.map(t => t.user_id)))} className="text-[11px] text-blue-600 font-medium hover:underline">All</button>
+                        <button onClick={() => setCustomSelected(new Set())} className="text-[11px] text-gray-400 font-medium hover:underline">None</button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {recipients === 'custom' && (
-              <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
-                {/* Search */}
-                <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-                  <input type="text" value={customSearch} onChange={e => setCustomSearch(e.target.value)}
-                    placeholder="Search by name or email…"
-                    className="w-full text-xs focus:outline-none bg-transparent"
-                  />
-                </div>
-                {/* Tipster list */}
-                <div className="max-h-48 overflow-y-auto">
-                  {tipsters.filter(t => {
-                    const q = customSearch.toLowerCase()
-                    return !q || t.display_name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
-                  }).map(t => {
-                    const sel = customSelected.has(t.user_id)
-                    return (
-                      <button key={t.user_id} onClick={() => setCustomSelected(prev => {
-                        const n = new Set(prev)
-                        sel ? n.delete(t.user_id) : n.add(t.user_id)
-                        return n
-                      })}
-                        className={clsx('w-full flex items-center gap-2.5 px-3 py-2 border-b border-gray-50 last:border-0 text-left transition-colors',
-                          sel ? 'bg-blue-50' : 'hover:bg-gray-50')}>
-                        <div className={clsx('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors',
-                          sel ? 'bg-gray-900 border-gray-900' : 'border-gray-300')}>
-                          {sel && <span className="text-white text-[9px] font-black">✓</span>}
-                        </div>
-                        <Avi name={t.display_name} size="sm" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
-                          <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                  {tipsters.length === 0 && (
-                    <p className="px-3 py-4 text-xs text-gray-400 text-center">No joined tipsters yet</p>
-                  )}
-                </div>
-                {/* Select all / none */}
-                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
-                  <span className="text-[11px] text-gray-500">{customSelected.size} selected</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => setCustomSelected(new Set(tipsters.map(t => t.user_id)))}
-                      className="text-[11px] text-blue-600 font-medium hover:underline">All</button>
-                    <button onClick={() => setCustomSelected(new Set())}
-                      className="text-[11px] text-gray-400 font-medium hover:underline">None</button>
                   </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Subject</label>
-            <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Your email subject…"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-gray-600">Message</label>
-              <button onClick={() => setPreview(v => !v)} className="text-[11px] text-gray-400 hover:text-gray-700 font-medium">
-                {preview ? 'Edit' : 'Preview'}
-              </button>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1.5">Subject</label>
+                <input type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Your email subject…"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-gray-600">Message</label>
+                  <button onClick={() => setPreview(v => !v)} className="text-[11px] text-gray-400 hover:text-gray-700 font-medium">
+                    {preview ? 'Edit' : 'Preview'}
+                  </button>
+                </div>
+                {preview ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 whitespace-pre-wrap min-h-[100px] font-mono">{emailBody || <span className="text-gray-300 italic">Nothing to preview</span>}</div>
+                ) : (
+                  <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={6}
+                    placeholder={"Hi {name},\n\nWrite your message here…\n\nUse {name} to personalise with each tipster's name."}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none"
+                  />
+                )}
+                <p className="text-[10px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise with each tipster's display name</p>
+              </div>
+              <PremiumButton className="w-full">
+                <button onClick={send} disabled={sending || !emailSubject.trim() || !emailBody.trim() || !recipientList.length}
+                  className="w-full py-2.5 bg-gray-900 disabled:opacity-40 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+                  {sending ? <><Spinner className="w-4 h-4 text-white" />Sending…</> : `✉️ Send to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}
+                </button>
+              </PremiumButton>
             </div>
-            {preview ? (
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 whitespace-pre-wrap min-h-[100px] font-mono">{body || <span className="text-gray-300 italic">Nothing to preview</span>}</div>
-            ) : (
-              <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-                placeholder={"Hi {name},\n\nWrite your message here…\n\nUse {name} to personalise with each tipster's name."}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none"
-              />
-            )}
-            <p className="text-[10px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to personalise with each tipster's display name</p>
-          </div>
-          <PremiumButton className="w-full">
-            <button onClick={send} disabled={sending || !subject.trim() || !body.trim() || !recipientList.length}
-              className="w-full py-2.5 bg-gray-900 disabled:opacity-40 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
-              {sending ? <><Spinner className="w-4 h-4 text-white" />Sending…</> : `✉️ Send to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`}
-            </button>
-          </PremiumButton>
-        </div>
-      </Section>
+          </Section>
+        </>
+      )}
     </div>
   )
 }
@@ -2341,7 +2328,7 @@ export default function CompAdminPage() {
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
   const searchParams = useSearchParams()
 
-  const VALID_TABS: Tab[] = ['tipsters','payments','announce','email','settings','tribes','challenges','insights']
+  const VALID_TABS: Tab[] = ['tipsters','payments','comms','settings','tribes','challenges','insights']
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const t = searchParams.get('tab') as Tab | null
     return (t && VALID_TABS.includes(t)) ? t : 'tipsters'
@@ -2682,8 +2669,7 @@ export default function CompAdminPage() {
               </button>
             </div>
       )}
-      {activeTab === 'announce'   && <AnnounceTab   comp={comp} tipsters={tipsters} />}
-      {activeTab === 'email'      && <EmailTab      comp={comp} tipsters={tipsters} preset={searchParams.get('preset') ?? undefined} />}
+      {activeTab === 'comms'      && <CommsTab      comp={comp} tipsters={tipsters} preset={searchParams.get('preset') ?? undefined} />}
       {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
       {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}

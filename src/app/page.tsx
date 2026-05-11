@@ -2261,7 +2261,7 @@ export default function HomePage() {
                         </p>
                       </div>
                       {isPremium ? (
-                        <Link href="/comp-admin?tab=email&preset=reminder"
+                        <Link href="/comp-admin?tab=comms&preset=reminder"
                           className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                           Send reminder →
                         </Link>
