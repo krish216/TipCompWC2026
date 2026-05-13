@@ -409,6 +409,26 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
   )
 }
 
+// ── Bracket tree layout constants ────────────────────────────────────────────
+const SLOT_H  = 80    // height per R32 slot (px) — sets vertical scale of the whole tree
+const CARD_H  = 64    // match card height (px)
+const LABEL_H = 28    // round label row height above the tree
+const COL_W   = 148   // match card column width (px)
+const CONN_W  = 40    // connector area width between columns (px)
+const TREE_H  = R32_MATCHES.length * SLOT_H       // 1280px (matches only)
+const TOTAL_H = LABEL_H + TREE_H                   // 1308px
+const CHAMP_W = 72
+const TOTAL_W = 5 * COL_W + 4 * CONN_W + CHAMP_W  // full bracket width
+
+// Y-center of a match within the tree area (excludes LABEL_H)
+const treeCY = (r: number, i: number) => (i + 0.5) * Math.pow(2, r) * SLOT_H
+// Absolute top of a match card within the container (includes LABEL_H)
+const matchTY = (r: number, i: number) => LABEL_H + treeCY(r, i) - CARD_H / 2
+// Left edge of a round column
+const colX    = (r: number) => r * (COL_W + CONN_W)
+
+const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
+
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
 function BracketSection({ picks, savePick, resolveSlot }: {
@@ -417,132 +437,140 @@ function BracketSection({ picks, savePick, resolveSlot }: {
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: string[]
 }) {
+  const champion = picks['final'] ?? null
+
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
-      <div className="overflow-x-auto pb-4">
-        <div className="inline-flex gap-6 min-w-max">
-          <BracketColumn
-            title="Round of 32"
-            matches={R32_MATCHES.map(m => ({
-              key: m.key,
-              homeTeam: resolveSlot(m.home),
-              awayTeam: resolveSlot(m.away),
-              homeDesc: m.home,
-              awayDesc: m.away,
-              winner: picks[m.key] ?? null,
-            }))}
-            picks={picks}
-            savePick={savePick}
-          />
+      <div className="overflow-x-auto" style={{ overflowY: 'auto', maxHeight: '78vh' }}>
+        <div style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
 
-          <BracketColumn
-            title="Round of 16"
-            matches={BRACKET_TREE.r16.map(m => ({
-              key: m.key,
-              homeTeam: picks[m.from[0]] ?? null,
-              awayTeam: picks[m.from[1]] ?? null,
-              homeDesc: m.from[0],
-              awayDesc: m.from[1],
-              winner: picks[m.key] ?? null,
-            }))}
-            picks={picks}
-            savePick={savePick}
-          />
+          {/* Round labels */}
+          {ROUND_LABELS.map((lbl, ri) => (
+            <div key={ri}
+              style={{ position: 'absolute', top: 0, left: colX(ri), width: COL_W, height: LABEL_H }}
+              className="flex items-center justify-center">
+              <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">{lbl}</span>
+            </div>
+          ))}
+          <div style={{ position: 'absolute', top: 0, left: TOTAL_W - CHAMP_W, width: CHAMP_W, height: LABEL_H }}
+            className="flex items-center justify-center">
+            <span className="text-[10px] font-bold text-amber-500 tracking-wider uppercase">Winner</span>
+          </div>
 
-          <BracketColumn
-            title="Quarter-finals"
-            matches={BRACKET_TREE.qf.map(m => ({
-              key: m.key,
-              homeTeam: picks[m.from[0]] ?? null,
-              awayTeam: picks[m.from[1]] ?? null,
-              homeDesc: m.from[0],
-              awayDesc: m.from[1],
-              winner: picks[m.key] ?? null,
-            }))}
-            picks={picks}
-            savePick={savePick}
-          />
+          {/* ── Round of 32 ── */}
+          {R32_MATCHES.map((m, i) => (
+            <div key={m.key} style={{ position: 'absolute', top: matchTY(0, i), left: colX(0), width: COL_W }}>
+              <BracketMatchCard
+                matchKey={m.key}
+                homeTeam={resolveSlot(m.home)} awayTeam={resolveSlot(m.away)}
+                homeDesc={m.home}              awayDesc={m.away}
+                winner={picks[m.key] ?? null}  savePick={savePick}
+              />
+            </div>
+          ))}
+          <BracketConnectors fromRoundIdx={0} fromCount={16} />
 
-          <BracketColumn
-            title="Semi-finals"
-            matches={BRACKET_TREE.sf.map(m => ({
-              key: m.key,
-              homeTeam: picks[m.from[0]] ?? null,
-              awayTeam: picks[m.from[1]] ?? null,
-              homeDesc: m.from[0],
-              awayDesc: m.from[1],
-              winner: picks[m.key] ?? null,
-            }))}
-            picks={picks}
-            savePick={savePick}
-          />
+          {/* ── Round of 16 ── */}
+          {BRACKET_TREE.r16.map((m, i) => (
+            <div key={m.key} style={{ position: 'absolute', top: matchTY(1, i), left: colX(1), width: COL_W }}>
+              <BracketMatchCard
+                matchKey={m.key}
+                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
+                homeDesc={m.from[0]}                awayDesc={m.from[1]}
+                winner={picks[m.key] ?? null}        savePick={savePick}
+              />
+            </div>
+          ))}
+          <BracketConnectors fromRoundIdx={1} fromCount={8} />
 
-          {/* Final */}
-          <div className="flex flex-col justify-center">
-            <p className="text-[10px] font-bold text-gray-400 tracking-wider uppercase mb-3">Final</p>
-            <BracketMatch
+          {/* ── Quarter-finals ── */}
+          {BRACKET_TREE.qf.map((m, i) => (
+            <div key={m.key} style={{ position: 'absolute', top: matchTY(2, i), left: colX(2), width: COL_W }}>
+              <BracketMatchCard
+                matchKey={m.key}
+                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
+                homeDesc={m.from[0]}                awayDesc={m.from[1]}
+                winner={picks[m.key] ?? null}        savePick={savePick}
+              />
+            </div>
+          ))}
+          <BracketConnectors fromRoundIdx={2} fromCount={4} />
+
+          {/* ── Semi-finals ── */}
+          {BRACKET_TREE.sf.map((m, i) => (
+            <div key={m.key} style={{ position: 'absolute', top: matchTY(3, i), left: colX(3), width: COL_W }}>
+              <BracketMatchCard
+                matchKey={m.key}
+                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
+                homeDesc={m.from[0]}                awayDesc={m.from[1]}
+                winner={picks[m.key] ?? null}        savePick={savePick}
+              />
+            </div>
+          ))}
+          <BracketConnectors fromRoundIdx={3} fromCount={2} />
+
+          {/* ── Final ── */}
+          <div style={{ position: 'absolute', top: matchTY(4, 0), left: colX(4), width: COL_W }}>
+            <BracketMatchCard
               matchKey={BRACKET_TREE.final.key}
               homeTeam={picks[BRACKET_TREE.final.from[0]] ?? null}
               awayTeam={picks[BRACKET_TREE.final.from[1]] ?? null}
               homeDesc={BRACKET_TREE.final.from[0]}
               awayDesc={BRACKET_TREE.final.from[1]}
-              winner={picks[BRACKET_TREE.final.key] ?? null}
+              winner={champion}
               savePick={savePick}
             />
-            {picks['final'] && (
-              <div className="mt-3 flex flex-col items-center gap-1">
-                <span className="text-2xl">{flagFor(picks['final'])}</span>
-                <span className="text-[11px] font-bold text-emerald-700 text-center">{picks['final']}</span>
-                <span className="text-[10px] text-amber-500 font-bold">🏆 Champion</span>
-              </div>
-            )}
           </div>
+
+          {/* ── Champion ── */}
+          {champion && (
+            <div style={{
+              position: 'absolute',
+              top: LABEL_H + treeCY(4, 0) - 44,
+              left: colX(4) + COL_W + 10,
+              width: CHAMP_W - 10,
+            }} className="flex flex-col items-center gap-1 bg-amber-50 border border-amber-200 rounded-xl px-2 py-2.5">
+              <span className="text-2xl leading-none">{flagFor(champion)}</span>
+              <span className="text-[9px] font-bold text-amber-700 text-center leading-tight">{champion}</span>
+              <span className="text-base leading-none">🏆</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-interface MatchData {
-  key: string
-  homeTeam: string | null
-  awayTeam: string | null
-  homeDesc: string
-  awayDesc: string
-  winner: string | null
-}
+// SVG bracket connectors between two adjacent rounds
+function BracketConnectors({ fromRoundIdx, fromCount }: { fromRoundIdx: number; fromCount: number }) {
+  const xV      = CONN_W / 2
+  const toCount = fromCount / 2
 
-function BracketColumn({ title, matches, savePick }: {
-  title: string
-  matches: MatchData[]
-  picks: Picks
-  savePick: (k: string, v: string | null) => void
-}) {
   return (
-    <div className="flex flex-col">
-      <p className="text-[10px] font-bold text-gray-400 tracking-wider uppercase mb-3">{title}</p>
-      <div className="flex flex-col gap-3">
-        {matches.map(m => (
-          <BracketMatch
-            key={m.key}
-            matchKey={m.key}
-            homeTeam={m.homeTeam}
-            awayTeam={m.awayTeam}
-            homeDesc={m.homeDesc}
-            awayDesc={m.awayDesc}
-            winner={m.winner}
-            savePick={savePick}
-          />
-        ))}
-      </div>
-    </div>
+    <svg
+      style={{ position: 'absolute', top: LABEL_H, left: colX(fromRoundIdx) + COL_W }}
+      width={CONN_W} height={TREE_H}>
+      {Array.from({ length: toCount }, (_, i) => {
+        const y1   = treeCY(fromRoundIdx,     i * 2)
+        const y2   = treeCY(fromRoundIdx,     i * 2 + 1)
+        const yMid = treeCY(fromRoundIdx + 1, i)
+        return (
+          <g key={i} stroke="#d1d5db" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <line x1={0}     y1={y1}   x2={xV}     y2={y1}   />
+            <line x1={xV}    y1={y1}   x2={xV}     y2={y2}   />
+            <line x1={0}     y1={y2}   x2={xV}     y2={y2}   />
+            <line x1={xV}    y1={yMid} x2={CONN_W} y2={yMid} />
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
-function BracketMatch({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick }: {
+function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick }: {
   matchKey: string
   homeTeam: string | null
   awayTeam: string | null
@@ -557,7 +585,8 @@ function BracketMatch({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner
   }
 
   return (
-    <div className="w-40 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+      style={{ height: CARD_H }}>
       {[
         { team: homeTeam, desc: homeDesc },
         { team: awayTeam, desc: awayDesc },
@@ -569,19 +598,20 @@ function BracketMatch({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner
             key={i}
             onClick={() => pick(team)}
             disabled={!team}
+            style={{ height: CARD_H / 2 }}
             className={clsx(
-              'w-full flex items-center gap-2 px-2.5 py-2 text-left transition-all',
+              'w-full flex items-center gap-1.5 px-2.5 text-left transition-all',
               i === 0 ? '' : 'border-t border-gray-100',
               isWinner ? 'bg-emerald-50'
               : isLoser ? 'opacity-40'
               : team ? 'hover:bg-gray-50'
               : 'cursor-default'
             )}>
-            <span className="text-base leading-none flex-shrink-0">
-              {team ? flagFor(team) : '🏳️'}
+            <span className="text-sm leading-none flex-shrink-0">
+              {team ? flagFor(team) : '⬜'}
             </span>
             <span className={clsx(
-              'text-[11px] truncate flex-1',
+              'text-[11px] truncate flex-1 leading-none',
               isWinner ? 'font-bold text-emerald-700' : 'font-medium text-gray-700',
               !team && 'text-gray-300 italic'
             )}>
