@@ -349,6 +349,18 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
   savePick: (k: string, v: string | null) => void
   advancingThirds: string[]
 }) {
+  const [showToast, setShowToast] = useState(false)
+  const prevLen = useRef(advancingThirds.length)
+
+  useEffect(() => {
+    if (prevLen.current < 8 && advancingThirds.length === 8) {
+      setShowToast(true)
+      const t = setTimeout(() => setShowToast(false), 3500)
+      return () => clearTimeout(t)
+    }
+    prevLen.current = advancingThirds.length
+  }, [advancingThirds.length])
+
   const toggle = (groupId: string, teamName: string) => {
     const key = thirdSlot(groupId)
     if (picks[key] === teamName) {
@@ -358,54 +370,66 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
     }
   }
 
+  const count = advancingThirds.length
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to R32.</p>
-        <span className={clsx(
-          'text-xs font-bold px-2.5 py-1 rounded-full',
-          advancingThirds.length === 8 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
-        )}>
-          {advancingThirds.length}/8
-        </span>
-      </div>
+    <>
+      {/* Success toast */}
+      {showToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg pointer-events-none">
+          <span>✓</span>
+          <span>All 8 third-place qualifiers selected</span>
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-3">
-        {GROUPS.map(g => {
-          const thirdTeam = picks[grpSlot(g.id, 3)]
-          const advancing = picks[thirdSlot(g.id)]
-          const locked    = !thirdTeam
-          const full      = advancingThirds.length >= 8 && !advancing
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to R32.</p>
+          <span className={clsx(
+            'text-xs font-bold px-2.5 py-1 rounded-full',
+            count === 8 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+          )}>
+            {count}/8
+          </span>
+        </div>
 
-          return (
-            <div key={g.id}
-              className={clsx(
-                'rounded-xl border p-3 transition-all',
-                advancing ? 'bg-emerald-50 border-emerald-300' :
-                locked    ? 'bg-gray-50 border-gray-100 opacity-60' :
-                full      ? 'bg-gray-50 border-gray-100 opacity-50' :
-                            'bg-white border-gray-200'
-              )}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-gray-500 tracking-wider">GROUP {g.id}</span>
-                {advancing && <span className="text-[10px] text-emerald-600 font-semibold">Advancing ✓</span>}
+        <div className="flex flex-col gap-3">
+          {GROUPS.map(g => {
+            const thirdTeam = picks[grpSlot(g.id, 3)]
+            const advancing = picks[thirdSlot(g.id)]
+            const locked    = !thirdTeam
+            const full      = count >= 8 && !advancing
+
+            return (
+              <div key={g.id}
+                className={clsx(
+                  'rounded-xl border p-3 transition-all',
+                  advancing ? 'bg-emerald-50 border-emerald-300' :
+                  locked    ? 'bg-gray-50 border-gray-100 opacity-60' :
+                  full      ? 'bg-gray-50 border-gray-100 opacity-50' :
+                              'bg-white border-gray-200'
+                )}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-gray-500 tracking-wider">GROUP {g.id}</span>
+                  {advancing && <span className="text-[10px] text-emerald-600 font-semibold">Advancing ✓</span>}
+                </div>
+                {thirdTeam ? (
+                  <button
+                    disabled={full && !advancing}
+                    onClick={() => toggle(g.id, thirdTeam)}
+                    className="w-full flex items-center gap-2 text-left">
+                    <span className="text-base">{flagFor(thirdTeam)}</span>
+                    <span className="text-sm font-medium text-gray-800">{thirdTeam}</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-gray-400 italic">Pick 3rd place in Groups first</p>
+                )}
               </div>
-              {thirdTeam ? (
-                <button
-                  disabled={full && !advancing}
-                  onClick={() => toggle(g.id, thirdTeam)}
-                  className="w-full flex items-center gap-2 text-left">
-                  <span className="text-base">{flagFor(thirdTeam)}</span>
-                  <span className="text-sm font-medium text-gray-800 truncate">{thirdTeam}</span>
-                </button>
-              ) : (
-                <p className="text-[11px] text-gray-400 italic">Pick 3rd place in Groups first</p>
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -437,14 +461,29 @@ function BracketSection({ picks, savePick, resolveSlot }: {
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: string[]
 }) {
-  const champion = picks['final'] ?? null
+  const champion  = picks['final'] ?? null
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Intercept picks: auto-scroll to the next round when QF or SF winner is chosen
+  const bracketPick = useCallback((key: string, team: string | null) => {
+    savePick(key, team)
+    if (!team) return
+    let targetLeft: number | null = null
+    if (key.startsWith('qf:')) targetLeft = colX(3) - 16  // reveal SF column
+    if (key.startsWith('sf:')) targetLeft = colX(4) - 16  // reveal Final column
+    if (targetLeft !== null) {
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollTo({ left: targetLeft!, behavior: 'smooth' })
+      )
+    }
+  }, [savePick])
 
   return (
     <div>
       <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
-      <div className="overflow-x-auto" style={{ overflowY: 'auto', maxHeight: '78vh' }}>
+      <div ref={scrollRef} className="overflow-x-auto" style={{ overflowY: 'auto', maxHeight: '78vh' }}>
         <div style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
 
           {/* Round labels */}
@@ -493,7 +532,7 @@ function BracketSection({ picks, savePick, resolveSlot }: {
                 matchKey={m.key}
                 homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
                 homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={savePick}
+                winner={picks[m.key] ?? null}        savePick={bracketPick}
               />
             </div>
           ))}
@@ -506,7 +545,7 @@ function BracketSection({ picks, savePick, resolveSlot }: {
                 matchKey={m.key}
                 homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
                 homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={savePick}
+                winner={picks[m.key] ?? null}        savePick={bracketPick}
               />
             </div>
           ))}
