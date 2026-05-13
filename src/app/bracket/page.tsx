@@ -142,6 +142,8 @@ function flagFor(name: string | null | undefined): string {
 type Picks = Record<string, string | null>
 type Section = 'groups' | 'thirds' | 'bracket'
 
+const localKey = (tournId: string) => `tribepicks_bracket_${tournId}`
+
 export default function BracketPage() {
   const { session } = useSupabase()
   const { selectedTournId } = useUserPrefs()
@@ -155,13 +157,51 @@ export default function BracketPage() {
   const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
   const picksRef    = useRef<Picks>({})
   const clearingRef = useRef(false)
+  // Tracks whether the initial load has settled; prevents scroll-to-top on load
+  const prevGroupsDone  = useRef(false)
+  const prevThirdsCount = useRef(0)
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
 
-  // Load picks
+  // Load picks — localStorage for guests, DB for signed-in users (with migration)
   useEffect(() => {
-    if (!session || !selectedTournId) { setLoading(false); return }
+    if (!selectedTournId) { setLoading(false); return }
+
+    if (!session) {
+      // Guest: read from localStorage
+      try {
+        const stored = localStorage.getItem(localKey(selectedTournId))
+        if (stored) setPicks(JSON.parse(stored))
+      } catch {}
+      setLoading(false)
+      return
+    }
+
+    // Signed-in: check for localStorage picks to migrate first
+    let localPicks: Picks = {}
+    try {
+      const stored = localStorage.getItem(localKey(selectedTournId))
+      if (stored) localPicks = JSON.parse(stored)
+    } catch {}
+
+    const localEntries = Object.entries(localPicks).filter(([, v]) => !!v)
+
+    if (localEntries.length > 0) {
+      // Use local picks immediately and migrate to DB in background
+      setPicks(localPicks)
+      setLoading(false)
+      Promise.all(localEntries.map(([slot_key, team_name]) =>
+        fetch('/api/bracket', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
+        })
+      )).then(() => localStorage.removeItem(localKey(selectedTournId))).catch(() => {})
+      return
+    }
+
+    // Normal DB load
     fetch(`/api/bracket?tournament_id=${selectedTournId}`)
       .then(r => r.json())
       .then(({ picks: p }) => { if (p) setPicks(p) })
@@ -169,8 +209,21 @@ export default function BracketPage() {
       .finally(() => setLoading(false))
   }, [session, selectedTournId])
 
-  // Debounced save — batches rapid taps into one flush
+  // Debounced save — localStorage for guests, DB for signed-in users
   const savePick = useCallback((slotKey: string, teamName: string | null) => {
+    if (!session) {
+      // Guest: write full picks snapshot to localStorage
+      setPicks(prev => {
+        const next = { ...prev, [slotKey]: teamName }
+        if (selectedTournId) {
+          try { localStorage.setItem(localKey(selectedTournId), JSON.stringify(next)) } catch {}
+        }
+        return next
+      })
+      return
+    }
+
+    // Signed-in: debounced DB write
     setPicks(prev => ({ ...prev, [slotKey]: teamName }))
     pendingRef.current.set(slotKey, teamName)
 
@@ -186,9 +239,9 @@ export default function BracketPage() {
         })
       ))
     }, 600)
-  }, [selectedTournId])
+  }, [session, selectedTournId])
 
-  // Clear all knockout picks from state + pending queue + DB
+  // Clear all knockout picks from state + pending queue + DB/localStorage
   const clearBracketPicks = useCallback(() => {
     if (clearingRef.current) return
     if (!BRACKET_KEYS.some(k => picksRef.current[k])) return
@@ -206,15 +259,22 @@ export default function BracketPage() {
     }
     if (timerRef.current) clearTimeout(timerRef.current)
 
-    fetch(`/api/bracket?tournament_id=${selectedTournId}`, { method: 'DELETE' }).catch(() => {})
+    if (session) {
+      fetch(`/api/bracket?tournament_id=${selectedTournId}`, { method: 'DELETE' }).catch(() => {})
+    } else if (selectedTournId) {
+      try {
+        const updated = { ...picksRef.current }
+        BRACKET_KEYS.forEach(k => { updated[k] = null })
+        localStorage.setItem(localKey(selectedTournId), JSON.stringify(updated))
+      } catch {}
+    }
 
     setBracketClearedToast(true)
     setTimeout(() => setBracketClearedToast(false), 3000)
-  }, [selectedTournId])
+  }, [session, selectedTournId])
 
   // Wrapper passed to Groups + Thirds: cascades bracket clear on any change
   const savePickWithCascade = useCallback((slotKey: string, teamName: string | null) => {
-    // If the 3rd-place team in a group changes, clear that group's stale advancing pick
     const m = slotKey.match(/^grp:([A-L]):3$/)
     if (m) {
       const currentAdvancing = picksRef.current[thirdSlot(m[1])]
@@ -242,12 +302,34 @@ export default function BracketPage() {
     return picks[grpSlot(grp, parseInt(rank) as 1 | 2)] ?? null
   }
 
-  if (!session) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 px-6">
-      <span className="text-4xl">🔐</span>
-      <p className="text-sm text-gray-500 text-center">Sign in to build your bracket</p>
-    </div>
-  )
+  const thirdsCount = advancingThirds.length
+  const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)])
+
+  // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
+  useEffect(() => {
+    if (!loading) {
+      prevGroupsDone.current  = groupsDone
+      prevThirdsCount.current = thirdsCount
+    }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to top when Groups stage is fully completed
+  useEffect(() => {
+    if (loading) return
+    if (!prevGroupsDone.current && groupsDone) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    prevGroupsDone.current = groupsDone
+  }, [groupsDone, loading])
+
+  // Scroll to top when all 8 third-place teams are selected
+  useEffect(() => {
+    if (loading) return
+    if (prevThirdsCount.current < 8 && thirdsCount === 8) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    prevThirdsCount.current = thirdsCount
+  }, [thirdsCount, loading])
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -258,9 +340,6 @@ export default function BracketPage() {
     </div>
   )
 
-  const thirdsCount = advancingThirds.length
-  const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)])
-
   return (
     <div className="max-w-2xl mx-auto px-4 pb-28 pt-4">
       {/* Bracket-cleared toast */}
@@ -268,6 +347,24 @@ export default function BracketPage() {
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-gray-800 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg pointer-events-none">
           <span>🗑️</span>
           <span>Bracket picks cleared</span>
+        </div>
+      )}
+
+      {/* Registration prompt — shown to guests once champion is picked */}
+      {!session && picks['final'] && (
+        <div className="fixed bottom-20 left-0 right-0 px-4 z-40 pointer-events-none">
+          <div className="max-w-2xl mx-auto pointer-events-auto">
+            <div className="flex items-center gap-3 bg-emerald-700 text-white rounded-2xl px-4 py-3 shadow-xl">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold">Save your bracket!</p>
+                <p className="text-xs opacity-80 mt-0.5 truncate">Create a free TribePicks account to keep your picks</p>
+              </div>
+              <a href="/login"
+                className="flex-shrink-0 bg-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-50 transition-colors">
+                Sign up free →
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
