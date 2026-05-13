@@ -117,6 +117,15 @@ const BRACKET_TREE = {
   final: { key: 'final', from: ['sf:1', 'sf:2'] },
 }
 
+// All knockout-round slot keys (used to cascade-clear when group/thirds change)
+const BRACKET_KEYS: string[] = [
+  ...R32_MATCHES.map(m => m.key),
+  ...BRACKET_TREE.r16.map(m => m.key),
+  ...BRACKET_TREE.qf.map(m => m.key),
+  ...BRACKET_TREE.sf.map(m => m.key),
+  BRACKET_TREE.final.key,
+]
+
 // ── Utility ──────────────────────────────────────────────────────────────────
 
 function flagFor(name: string | null | undefined): string {
@@ -140,9 +149,15 @@ export default function BracketPage() {
   const [picks,   setPicks]   = useState<Picks>({})
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
+  const [bracketClearedToast, setBracketClearedToast] = useState(false)
 
-  const pendingRef = useRef<Map<string, string | null>>(new Map())
-  const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRef  = useRef<Map<string, string | null>>(new Map())
+  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const picksRef    = useRef<Picks>({})
+  const clearingRef = useRef(false)
+
+  // Keep picksRef in sync so callbacks can read latest picks without stale closure
+  useEffect(() => { picksRef.current = picks }, [picks])
 
   // Load picks
   useEffect(() => {
@@ -172,6 +187,44 @@ export default function BracketPage() {
       ))
     }, 600)
   }, [selectedTournId])
+
+  // Clear all knockout picks from state + pending queue + DB
+  const clearBracketPicks = useCallback(() => {
+    if (clearingRef.current) return
+    if (!BRACKET_KEYS.some(k => picksRef.current[k])) return
+
+    clearingRef.current = true
+    setTimeout(() => { clearingRef.current = false }, 1000)
+
+    setPicks(prev => {
+      const next = { ...prev }
+      BRACKET_KEYS.forEach(k => { next[k] = null })
+      return next
+    })
+    for (const k of Array.from(pendingRef.current.keys())) {
+      if (BRACKET_KEYS.includes(k)) pendingRef.current.delete(k)
+    }
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    fetch(`/api/bracket?tournament_id=${selectedTournId}`, { method: 'DELETE' }).catch(() => {})
+
+    setBracketClearedToast(true)
+    setTimeout(() => setBracketClearedToast(false), 3000)
+  }, [selectedTournId])
+
+  // Wrapper passed to Groups + Thirds: cascades bracket clear on any change
+  const savePickWithCascade = useCallback((slotKey: string, teamName: string | null) => {
+    // If the 3rd-place team in a group changes, clear that group's stale advancing pick
+    const m = slotKey.match(/^grp:([A-L]):3$/)
+    if (m) {
+      const currentAdvancing = picksRef.current[thirdSlot(m[1])]
+      if (currentAdvancing && currentAdvancing !== teamName) {
+        savePick(thirdSlot(m[1]), null)
+      }
+    }
+    savePick(slotKey, teamName)
+    clearBracketPicks()
+  }, [savePick, clearBracketPicks])
 
   // Derived: advancing thirds (in selection order)
   const advancingThirds: string[] = GROUPS
@@ -210,6 +263,14 @@ export default function BracketPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-28 pt-4">
+      {/* Bracket-cleared toast */}
+      {bracketClearedToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-gray-800 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg pointer-events-none">
+          <span>🗑️</span>
+          <span>Bracket picks cleared</span>
+        </div>
+      )}
+
       <div className="mb-5">
         <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
         <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
@@ -238,8 +299,8 @@ export default function BracketPage() {
         ))}
       </div>
 
-      {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePick} />}
-      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePick} advancingThirds={advancingThirds} />}
+      {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} />}
+      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} />}
       {section === 'bracket' && <BracketSection picks={picks} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} />}
     </div>
   )
