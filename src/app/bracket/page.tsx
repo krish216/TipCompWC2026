@@ -371,6 +371,7 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
   }
 
   const count = advancingThirds.length
+  const remaining = 8 - count
 
   return (
     <>
@@ -383,14 +384,34 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
       )}
 
       <div className="space-y-4">
+        {/* Prominent incomplete-selection banner */}
+        {count < 8 && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
+            <span className="text-lg leading-none mt-0.5">⚠️</span>
+            <div>
+              <p className="text-sm font-bold text-amber-900">
+                {remaining} more team{remaining !== 1 ? 's' : ''} needed
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Select {remaining} of the remaining third-placed teams to complete your R32 bracket.
+              </p>
+            </div>
+            <span className={clsx(
+              'ml-auto text-sm font-bold px-2.5 py-1 rounded-full flex-shrink-0',
+              'bg-amber-200 text-amber-800'
+            )}>
+              {count}/8
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to R32.</p>
-          <span className={clsx(
-            'text-xs font-bold px-2.5 py-1 rounded-full',
-            count === 8 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
-          )}>
-            {count}/8
-          </span>
+          {count === 8 && (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+              8/8 ✓
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -434,14 +455,14 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
 }
 
 // ── Bracket tree layout constants ────────────────────────────────────────────
-const SLOT_H  = 80    // height per R32 slot (px) — sets vertical scale of the whole tree
-const CARD_H  = 64    // match card height (px)
-const LABEL_H = 28    // round label row height above the tree
-const COL_W   = 148   // match card column width (px)
-const CONN_W  = 40    // connector area width between columns (px)
-const TREE_H  = R32_MATCHES.length * SLOT_H       // 1280px (matches only)
-const TOTAL_H = LABEL_H + TREE_H                   // 1308px
-const CHAMP_W = 72
+const SLOT_H  = 60    // height per R32 slot (px) — sets vertical scale of the whole tree
+const CARD_H  = 48    // match card height (px)
+const LABEL_H = 22    // round label row height above the tree
+const COL_W   = 124   // match card column width (px)
+const CONN_W  = 28    // connector area width between columns (px)
+const TREE_H  = R32_MATCHES.length * SLOT_H       // 960px (matches only)
+const TOTAL_H = LABEL_H + TREE_H                   // 982px
+const CHAMP_W = 68
 const TOTAL_W = 5 * COL_W + 4 * CONN_W + CHAMP_W  // full bracket width
 
 // Y-center of a match within the tree area (excludes LABEL_H)
@@ -463,28 +484,68 @@ function BracketSection({ picks, savePick, resolveSlot }: {
 }) {
   const champion  = picks['final'] ?? null
   const scrollRef = useRef<HTMLDivElement>(null)
+  const treeRef   = useRef<HTMLDivElement>(null)
 
-  // Intercept picks: auto-scroll to the next round when QF or SF winner is chosen
+  // Center the given round column in the scroll container
+  const centerColumn = useCallback((roundIdx: number) => {
+    const container = scrollRef.current
+    if (!container) return
+    const targetLeft = Math.max(0, colX(roundIdx) + COL_W / 2 - container.clientWidth / 2)
+    requestAnimationFrame(() =>
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' })
+    )
+  }, [])
+
+  // Intercept picks: auto-scroll to center next round when QF or SF winner is chosen
   const bracketPick = useCallback((key: string, team: string | null) => {
     savePick(key, team)
     if (!team) return
-    let targetLeft: number | null = null
-    if (key.startsWith('qf:')) targetLeft = colX(3) - 16  // reveal SF column
-    if (key.startsWith('sf:')) targetLeft = colX(4) - 16  // reveal Final column
-    if (targetLeft !== null) {
-      requestAnimationFrame(() =>
-        scrollRef.current?.scrollTo({ left: targetLeft!, behavior: 'smooth' })
-      )
-    }
-  }, [savePick])
+    if (key.startsWith('qf:')) centerColumn(3)
+    if (key.startsWith('sf:')) centerColumn(4)
+  }, [savePick, centerColumn])
+
+  const shareAsPng = useCallback(async () => {
+    if (!treeRef.current) return
+    try {
+      const { toPng } = await import('html-to-image')
+      const dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
+      const blob    = await fetch(dataUrl).then(r => r.blob())
+      const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
+      if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'My WC 2026 Bracket' })
+      } else {
+        const a    = document.createElement('a')
+        a.href     = dataUrl
+        a.download = 'wc2026-bracket.png'
+        a.click()
+      }
+    } catch {}
+  }, [])
 
   return (
     <div>
+      {/* Champion share banner */}
+      {champion && (
+        <div className="flex items-center justify-between mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl leading-none">🏆</span>
+            <div>
+              <p className="text-xs font-bold text-amber-800">Bracket complete!</p>
+              <p className="text-xs text-amber-600 mt-0.5">{champion} wins the World Cup</p>
+            </div>
+          </div>
+          <button onClick={shareAsPng}
+            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
+            <span className="text-sm leading-none">↑</span>
+            <span>Share</span>
+          </button>
+        </div>
+      )}
       <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
       <div ref={scrollRef} className="overflow-x-auto" style={{ overflowY: 'auto', maxHeight: '78vh' }}>
-        <div style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
+        <div ref={treeRef} style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
 
           {/* Round labels */}
           {ROUND_LABELS.map((lbl, ri) => (
