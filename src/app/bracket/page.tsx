@@ -361,13 +361,18 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
     prevLen.current = advancingThirds.length
   }, [advancingThirds.length])
 
-  const toggle = (groupId: string, teamName: string) => {
+  const groupRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  const toggle = (groupId: string, teamName: string, groupIdx: number) => {
     const key = thirdSlot(groupId)
     if (picks[key] === teamName) {
       savePick(key, null)
     } else if (advancingThirds.length < 8) {
       savePick(key, teamName)
     }
+    requestAnimationFrame(() =>
+      groupRefs.current[groupIdx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    )
   }
 
   const count = advancingThirds.length
@@ -415,7 +420,7 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
         </div>
 
         <div className="flex flex-col gap-3">
-          {GROUPS.map(g => {
+          {GROUPS.map((g, gi) => {
             const thirdTeam = picks[grpSlot(g.id, 3)]
             const advancing = picks[thirdSlot(g.id)]
             const locked    = !thirdTeam
@@ -423,6 +428,7 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
 
             return (
               <div key={g.id}
+                ref={el => { groupRefs.current[gi] = el }}
                 className={clsx(
                   'rounded-xl border p-3 transition-all',
                   advancing ? 'bg-emerald-50 border-emerald-300' :
@@ -437,7 +443,7 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
                 {thirdTeam ? (
                   <button
                     disabled={full && !advancing}
-                    onClick={() => toggle(g.id, thirdTeam)}
+                    onClick={() => toggle(g.id, thirdTeam, gi)}
                     className="w-full flex items-center gap-2 text-left">
                     <span className="text-base">{flagFor(thirdTeam)}</span>
                     <span className="text-sm font-medium text-gray-800">{thirdTeam}</span>
@@ -496,12 +502,13 @@ function BracketSection({ picks, savePick, resolveSlot }: {
     )
   }, [])
 
-  // Intercept picks: auto-scroll to center next round when QF or SF winner is chosen
+  // Intercept picks: auto-scroll to center the relevant column after a pick
   const bracketPick = useCallback((key: string, team: string | null) => {
     savePick(key, team)
     if (!team) return
-    if (key.startsWith('qf:')) centerColumn(3)
-    if (key.startsWith('sf:')) centerColumn(4)
+    if (key.startsWith('r16:')) centerColumn(1)  // center R16, R32 visible on left
+    if (key.startsWith('qf:'))  centerColumn(3)
+    if (key.startsWith('sf:'))  centerColumn(4)
   }, [savePick, centerColumn])
 
   const shareAsPng = useCallback(async () => {
@@ -580,7 +587,7 @@ function BracketSection({ picks, savePick, resolveSlot }: {
                 matchKey={m.key}
                 homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
                 homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={savePick}
+                winner={picks[m.key] ?? null}        savePick={bracketPick}
               />
             </div>
           ))}
