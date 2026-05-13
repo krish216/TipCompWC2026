@@ -126,6 +126,24 @@ const BRACKET_KEYS: string[] = [
   BRACKET_TREE.final.key,
 ]
 
+// Returns all slot keys downstream of `key` in the bracket tree
+function getDownstream(key: string): string[] {
+  const result: string[] = []
+  if (key.startsWith('r32:')) {
+    const next = BRACKET_TREE.r16.find(m => m.from.includes(key))
+    if (next) { result.push(next.key); result.push(...getDownstream(next.key)) }
+  } else if (key.startsWith('r16:')) {
+    const next = BRACKET_TREE.qf.find(m => m.from.includes(key))
+    if (next) { result.push(next.key); result.push(...getDownstream(next.key)) }
+  } else if (key.startsWith('qf:')) {
+    const next = BRACKET_TREE.sf.find(m => m.from.includes(key))
+    if (next) { result.push(next.key); result.push(...getDownstream(next.key)) }
+  } else if (key.startsWith('sf:')) {
+    result.push(BRACKET_TREE.final.key)
+  }
+  return result
+}
+
 // ── Utility ──────────────────────────────────────────────────────────────────
 
 function flagFor(name: string | null | undefined): string {
@@ -303,7 +321,7 @@ export default function BracketPage() {
   }
 
   const thirdsCount = advancingThirds.length
-  const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)])
+  const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
 
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
@@ -313,22 +331,26 @@ export default function BracketPage() {
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to top when Groups stage is fully completed
+  // Scroll to top (after 7s) when Groups stage is fully completed
   useEffect(() => {
     if (loading) return
-    if (!prevGroupsDone.current && groupsDone) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    const wasComplete = prevGroupsDone.current
     prevGroupsDone.current = groupsDone
+    if (!wasComplete && groupsDone) {
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 7000)
+      return () => clearTimeout(t)
+    }
   }, [groupsDone, loading])
 
-  // Scroll to top when all 8 third-place teams are selected
+  // Scroll to top (after 7s) when all 8 third-place teams are selected
   useEffect(() => {
     if (loading) return
-    if (prevThirdsCount.current < 8 && thirdsCount === 8) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    const prevCount = prevThirdsCount.current
     prevThirdsCount.current = thirdsCount
+    if (prevCount < 8 && thirdsCount === 8) {
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 7000)
+      return () => clearTimeout(t)
+    }
   }, [thirdsCount, loading])
 
   if (loading) return (
@@ -432,6 +454,10 @@ function GroupCard({ group, picks, savePick }: {
     // Deselect if already selected at this rank
     if (picks[key] === teamName) {
       savePick(key, null)
+      return
+    }
+    // Prevent picking 3rd place for a team already occupying 1st or 2nd
+    if (rank === 3 && (picks[grpSlot(id, 1)] === teamName || picks[grpSlot(id, 2)] === teamName)) {
       return
     }
     // Remove this team from any other rank slot in this group
@@ -660,11 +686,13 @@ function BracketSection({ picks, savePick, resolveSlot }: {
     )
   }, [])
 
-  // Intercept picks: auto-scroll to center the relevant column after a pick
+  // Intercept picks: cascade-clear downstream winners, then auto-scroll
   const bracketPick = useCallback((key: string, team: string | null) => {
+    // Clear all picks that derived from this match's winner
+    getDownstream(key).forEach(k => savePick(k, null))
     savePick(key, team)
     if (!team) return
-    if (key.startsWith('r16:')) centerColumn(1)  // center R16, R32 visible on left
+    if (key.startsWith('r16:')) centerColumn(1)
     if (key.startsWith('qf:'))  centerColumn(3)
     if (key.startsWith('sf:'))  centerColumn(4)
   }, [savePick, centerColumn])
@@ -732,7 +760,7 @@ function BracketSection({ picks, savePick, resolveSlot }: {
                 matchKey={m.key}
                 homeTeam={resolveSlot(m.home)} awayTeam={resolveSlot(m.away)}
                 homeDesc={m.home}              awayDesc={m.away}
-                winner={picks[m.key] ?? null}  savePick={savePick}
+                winner={picks[m.key] ?? null}  savePick={bracketPick}
               />
             </div>
           ))}
