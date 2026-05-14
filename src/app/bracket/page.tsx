@@ -925,6 +925,28 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     }
   }, [picksRef])
 
+  // Scroll the page to the next unpicked match in any knockout round
+  const scrollToNextInRound = useCallback((
+    roundMatches: { key: string }[],
+    roundIdx: number,
+    currentKey: string,
+  ) => {
+    const currentIdx = roundMatches.findIndex(m => m.key === currentKey)
+    const latest     = picksRef.current ?? {}
+    for (let offset = 1; offset < roundMatches.length; offset++) {
+      const idx     = (currentIdx + offset) % roundMatches.length
+      const nextKey = roundMatches[idx].key
+      if (!latest[nextKey]) {
+        const tree = treeRef.current
+        if (!tree) return
+        const treePageTop = tree.getBoundingClientRect().top + window.scrollY
+        const matchTop    = treePageTop + matchTY(roundIdx, idx)
+        window.scrollTo({ top: Math.max(0, matchTop - window.innerHeight / 2 + CARD_H / 2), behavior: 'smooth' })
+        return
+      }
+    }
+  }, [picksRef])
+
   // Intercept picks: cascade-clear downstream winners, then auto-scroll
   const bracketPick = useCallback((key: string, team: string | null) => {
     // Clear all picks that derived from this match's winner
@@ -932,10 +954,10 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     savePick(key, team)
     if (!team) return
     if (key.startsWith('r32:')) scrollToNextR32(key)
-    if (key.startsWith('r16:')) centerColumn(1)
-    if (key.startsWith('qf:'))  centerColumn(3)
-    if (key.startsWith('sf:'))  centerColumn(4)
-  }, [savePick, centerColumn, scrollToNextR32])
+    if (key.startsWith('r16:')) { centerColumn(1); scrollToNextInRound(BRACKET_TREE.r16, 1, key) }
+    if (key.startsWith('qf:'))  { centerColumn(3); scrollToNextInRound(BRACKET_TREE.qf,  2, key) }
+    if (key.startsWith('sf:'))  { centerColumn(4); scrollToNextInRound(BRACKET_TREE.sf,  3, key) }
+  }, [savePick, centerColumn, scrollToNextR32, scrollToNextInRound])
 
   const shareAsPng = useCallback(async () => {
     if (!treeRef.current) return
