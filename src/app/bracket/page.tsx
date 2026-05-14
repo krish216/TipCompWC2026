@@ -81,17 +81,20 @@ const R32_MATCHES: R32Match[] = [
   { key: 'r32:4',  home: '1F', away: '2C' },
   { key: 'r32:5',  home: '2K', away: '2L' },
   { key: 'r32:6',  home: '1H', away: '2J' },
-  { key: 'r32:7',  home: '1D', away: 'T3' },
-  { key: 'r32:8',  home: '1G', away: 'T4' },
+  { key: 'r32:7',  home: '1D', away: 'T3' }, // T3 : Groups B,E,F,I, and J 
+  { key: 'r32:8',  home: '1G', away: 'T4' }, // T4 : Groups A,E,H,I and J.
   { key: 'r32:9',  home: '1C', away: '2F' },
   { key: 'r32:10', home: '2E', away: '2I' },
-  { key: 'r32:11', home: '1A', away: 'T5' },
-  { key: 'r32:12', home: '1L', away: 'T6' },
+  { key: 'r32:11', home: '1A', away: 'T5' }, // T5 : Groups C,E,F,H and I
+  { key: 'r32:12', home: '1L', away: 'T6' }, // T6 : Groups E,H,I,J and K.
   { key: 'r32:13', home: '1J', away: '2H' },
   { key: 'r32:14', home: '2D', away: '2G' },
-  { key: 'r32:15', home: '1B', away: 'T7' },
-  { key: 'r32:16', home: '1K', away: 'T8' },
+  { key: 'r32:15', home: '1B', away: 'T7' }, // T7 : Groups E,F,G,I and J 
+  { key: 'r32:16', home: '1K', away: 'T8' }, // T8 : Groups D,E,I,J and L.
 ]
+
+
+
 
 // ── Third-place slot rules ────────────────────────────────────────────────────
 // Each T slot feeds a specific R32 fixture; eligible groups are per FIFA WC 2026 rules.
@@ -660,7 +663,7 @@ export default function BracketPage() {
       </div>
 
       {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
-      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} />}
+      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} groupsDone={groupsDone} />}
       {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} onNavigate={navigateTo} />}
     </div>
   )
@@ -675,7 +678,11 @@ function GroupsSection({ picks, savePick, onNavigate }: {
 }) {
   const groupCardRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollToGroup = useCallback((idx: number) => {
-    groupCardRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const el = groupCardRefs.current[idx]
+    if (!el) return
+    // Offset by fixed top navbar (~56px) + 8px breathing room
+    const top = el.getBoundingClientRect().top + window.scrollY - 64
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }, [])
 
   // Track per-group completion to detect transitions
@@ -821,11 +828,12 @@ function GroupCard({ group, picks, savePick }: {
 // Shows 8 T-slot cards. Each slot has a fixed set of eligible groups (FIFA rules).
 // Tapping a group's third-place team assigns it to that slot; a group can only fill one slot.
 
-function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
+function ThirdsSection({ picks, savePick, advancingThirds, onNavigate, groupsDone }: {
   picks: Picks
   savePick: (k: string, v: string | null) => void
   advancingThirds: (string | null)[]
   onNavigate: (s: Section) => void
+  groupsDone: boolean
 }) {
   const count     = advancingThirds.filter(Boolean).length
   const remaining = 8 - count
@@ -841,6 +849,36 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
 
   const fmtOpponent = (desc: string) =>
     `${desc[0] === '1' ? '1st' : '2nd'} Grp ${desc[1]}`
+
+  // Gate: all 12 groups must be fully picked before thirds can be assigned
+  if (!groupsDone) {
+    const completedGroups = GROUPS.filter(g =>
+      picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)]
+    ).length
+    return (
+      <>
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <span className="text-4xl">🔒</span>
+          <h2 className="text-base font-bold text-gray-700">Complete all groups first</h2>
+          <p className="text-sm text-gray-500 max-w-xs">
+            Pick 1st, 2nd and 3rd place in all 12 groups before assigning 3rd-place qualifiers.
+          </p>
+          <span className="text-sm font-semibold text-emerald-700">{completedGroups}/12 groups done</span>
+          <button
+            onClick={() => onNavigate('groups')}
+            className="text-sm font-semibold text-emerald-700 border border-emerald-300 px-5 py-2.5 rounded-xl hover:bg-emerald-50 transition-colors">
+            Go to Groups →
+          </button>
+        </div>
+        <ThirdsProgressBar advancingThirds={advancingThirds} onNavigate={onNavigate} />
+      </>
+    )
+  }
+
+  // Non-qualifying groups: had a 3rd picked but not assigned to any T slot
+  const nonQualifying = count === 8
+    ? GROUPS.filter(g => picks[grpSlot(g.id, 3)] && !groupToSlot[g.id])
+    : []
 
   return (
     <>
@@ -949,6 +987,29 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
             )
           })}
         </div>
+
+        {/* Non-qualifying third-place teams — greyed out after all 8 slots filled */}
+        {nonQualifying.length > 0 && (
+          <div className="mt-1">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">
+              Did not qualify
+            </p>
+            <div className="flex flex-col gap-2">
+              {nonQualifying.map(g => {
+                const team = picks[grpSlot(g.id, 3)]!
+                return (
+                  <div key={g.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 opacity-50">
+                    <span className="text-[10px] font-bold text-gray-400 w-8 flex-shrink-0">Grp {g.id}</span>
+                    <span>{flagFor(team)}</span>
+                    <span className="text-xs text-gray-500 flex-1">{team}</span>
+                    <span className="text-[9px] text-gray-400">Eliminated</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
       <ThirdsProgressBar advancingThirds={advancingThirds} onNavigate={onNavigate} />
     </>
@@ -993,7 +1054,7 @@ function GroupsProgressBar({ picks, onGroupClick, onNavigate }: {
                       'text-[11px] font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
                       done ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                     )}>
-                    {done ? '✓' : g.id}
+                    {g.id}
                   </button>
                 )
               })}
