@@ -75,23 +75,49 @@ type SlotDesc = string  // e.g. '1A', '2B', 'T1'
 interface R32Match { key: string; home: SlotDesc; away: SlotDesc }
 
 const R32_MATCHES: R32Match[] = [
-  { key: 'r32:1',  home: '1A', away: '2B' },
-  { key: 'r32:2',  home: '1C', away: '2D' },
-  { key: 'r32:3',  home: '1B', away: '2A' },
-  { key: 'r32:4',  home: '1D', away: '2C' },
-  { key: 'r32:5',  home: '1E', away: '2F' },
-  { key: 'r32:6',  home: '1G', away: '2H' },
-  { key: 'r32:7',  home: '1F', away: '2E' },
-  { key: 'r32:8',  home: '1H', away: '2G' },
-  { key: 'r32:9',  home: '1I', away: '2J' },
-  { key: 'r32:10', home: '1K', away: '2L' },
-  { key: 'r32:11', home: '1J', away: '2I' },
-  { key: 'r32:12', home: '1L', away: '2K' },
-  { key: 'r32:13', home: 'T1', away: 'T2' },
-  { key: 'r32:14', home: 'T3', away: 'T4' },
-  { key: 'r32:15', home: 'T5', away: 'T6' },
-  { key: 'r32:16', home: 'T7', away: 'T8' },
+  { key: 'r32:1',  home: '1E', away: 'T1' }, // T1 : Groups A, B, C, D or F 
+  { key: 'r32:2',  home: '1I', away: 'T2' }, // T2 : Groups C,D,F,G, or H
+  { key: 'r32:3',  home: '2A', away: '2B' },
+  { key: 'r32:4',  home: '1F', away: '2C' },
+  { key: 'r32:5',  home: '2K', away: '2L' },
+  { key: 'r32:6',  home: '1H', away: '2J' },
+  { key: 'r32:7',  home: '1D', away: 'T3' },
+  { key: 'r32:8',  home: '1G', away: 'T4' },
+  { key: 'r32:9',  home: '1C', away: '2F' },
+  { key: 'r32:10', home: '2E', away: '2I' },
+  { key: 'r32:11', home: '1A', away: 'T5' },
+  { key: 'r32:12', home: '1L', away: 'T6' },
+  { key: 'r32:13', home: '1J', away: '2H' },
+  { key: 'r32:14', home: '2D', away: '2G' },
+  { key: 'r32:15', home: '1B', away: 'T7' },
+  { key: 'r32:16', home: '1K', away: 'T8' },
 ]
+
+// ── Third-place slot rules ────────────────────────────────────────────────────
+// Each T slot feeds a specific R32 fixture; eligible groups are per FIFA WC 2026 rules.
+const T_SLOTS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'] as const
+type TSlot = (typeof T_SLOTS)[number]
+
+const THIRD_SLOT_GROUPS: Record<TSlot, string[]> = {
+  T1: ['A', 'B', 'C', 'D', 'F'],
+  T2: ['C', 'D', 'F', 'G', 'H'],
+  T3: ['B', 'E', 'F', 'I', 'J'],
+  T4: ['A', 'E', 'H', 'I', 'J'],
+  T5: ['C', 'E', 'F', 'H', 'I'],
+  T6: ['E', 'H', 'I', 'J', 'K'],
+  T7: ['E', 'F', 'G', 'I', 'J'],
+  T8: ['D', 'E', 'I', 'J', 'L'],
+}
+
+// Which opponent each T slot faces in R32 (derived from R32_MATCHES so it stays in sync)
+const T_SLOT_OPPONENT: Record<string, string> = (() => {
+  const map: Record<string, string> = {}
+  for (const m of R32_MATCHES) {
+    if (m.away.startsWith('T')) map[m.away] = m.home
+    if (m.home.startsWith('T')) map[m.home] = m.away
+  }
+  return map
+})()
 
 // Bracket tree: pairs of R32 keys → R16 key, pairs of R16 keys → QF, etc.
 const BRACKET_TREE = {
@@ -442,19 +468,23 @@ export default function BracketPage() {
   const savePickWithCascade = useCallback((slotKey: string, teamName: string | null) => {
     const m = slotKey.match(/^grp:([A-L]):3$/)
     if (m) {
-      const currentAdvancing = picksRef.current[thirdSlot(m[1])]
-      if (currentAdvancing && currentAdvancing !== teamName) {
-        savePick(thirdSlot(m[1]), null)
+      // When a group 3rd changes, clear any T slot that had the old team assigned
+      const oldTeam = picksRef.current[slotKey]
+      if (oldTeam && oldTeam !== teamName) {
+        for (const t of T_SLOTS) {
+          if (picksRef.current[thirdSlot(t)] === oldTeam) {
+            savePick(thirdSlot(t), null)
+          }
+        }
       }
     }
     savePick(slotKey, teamName)
     clearBracketPicks()
   }, [savePick, clearBracketPicks])
 
-  // Derived: advancing thirds (in selection order)
-  const advancingThirds: string[] = GROUPS
-    .map(g => picks[thirdSlot(g.id)])
-    .filter((t): t is string => !!t)
+  // Derived: advancing thirds indexed by T slot position (T1=idx 0 … T8=idx 7)
+  // Nulls preserved so resolveSlot always maps T1→idx 0 regardless of which slots are filled
+  const advancingThirds = T_SLOTS.map(t => picks[thirdSlot(t)] ?? null)
 
   // Resolve a slot descriptor to a team name from picks
   const resolveSlot = (desc: SlotDesc): string | null => {
@@ -467,7 +497,7 @@ export default function BracketPage() {
     return picks[grpSlot(grp, parseInt(rank) as 1 | 2)] ?? null
   }
 
-  const thirdsCount = advancingThirds.length
+  const thirdsCount = advancingThirds.filter(Boolean).length
   const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
 
   const champion = picks['final'] ?? null
@@ -788,94 +818,132 @@ function GroupCard({ group, picks, savePick }: {
 }
 
 // ── Thirds Section ───────────────────────────────────────────────────────────
+// Shows 8 T-slot cards. Each slot has a fixed set of eligible groups (FIFA rules).
+// Tapping a group's third-place team assigns it to that slot; a group can only fill one slot.
 
 function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
   picks: Picks
   savePick: (k: string, v: string | null) => void
-  advancingThirds: string[]
+  advancingThirds: (string | null)[]
   onNavigate: (s: Section) => void
 }) {
-  const groupRefs = useRef<(HTMLDivElement | null)[]>([])
+  const count     = advancingThirds.filter(Boolean).length
+  const remaining = 8 - count
 
-  const toggle = (groupId: string, teamName: string, groupIdx: number) => {
-    const key = thirdSlot(groupId)
-    if (picks[key] === teamName) {
-      savePick(key, null)
-    } else if (advancingThirds.length < 8) {
-      savePick(key, teamName)
-    }
-    requestAnimationFrame(() =>
-      groupRefs.current[groupIdx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    )
+  // Map group ID → T slot it is currently assigned to (across all slots)
+  const groupToSlot: Record<string, string> = {}
+  for (const t of T_SLOTS) {
+    const team = picks[thirdSlot(t)]
+    if (!team) continue
+    const grp = GROUPS.find(g => picks[grpSlot(g.id, 3)] === team)
+    if (grp) groupToSlot[grp.id] = t
   }
 
-  const count = advancingThirds.length
-  const remaining = 8 - count
+  const fmtOpponent = (desc: string) =>
+    `${desc[0] === '1' ? '1st' : '2nd'} Grp ${desc[1]}`
 
   return (
     <>
-      <div className="space-y-4">
-        {/* Prominent incomplete-selection banner */}
+      <div className="space-y-3">
         {count < 8 && (
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
             <span className="text-lg leading-none mt-0.5">⚠️</span>
             <div>
               <p className="text-sm font-bold text-amber-900">
-                {remaining} more team{remaining !== 1 ? 's' : ''} needed
+                {remaining} slot{remaining !== 1 ? 's' : ''} remaining
               </p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Select {remaining} of the remaining third-placed teams to complete your R32 bracket.
+                Assign a third-placed team to each slot to complete your R32.
               </p>
             </div>
-            <span className={clsx(
-              'ml-auto text-sm font-bold px-2.5 py-1 rounded-full flex-shrink-0',
-              'bg-amber-200 text-amber-800'
-            )}>
+            <span className="ml-auto text-sm font-bold px-2.5 py-1 rounded-full bg-amber-200 text-amber-800 flex-shrink-0">
               {count}/8
             </span>
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to round R32 knock-outs.</p>
-          {count === 8 && (
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-              8/8 ✓
-            </span>
-          )}
-        </div>
+        <p className="text-xs text-gray-500">
+          Each slot has eligible groups set by FIFA's bracket rules. Tap a team to assign them.
+        </p>
 
         <div className="flex flex-col gap-3">
-          {GROUPS.map((g, gi) => {
-            const thirdTeam = picks[grpSlot(g.id, 3)]
-            const advancing = picks[thirdSlot(g.id)]
-            const locked    = !thirdTeam
-            const full      = count >= 8 && !advancing
+          {T_SLOTS.map(tSlot => {
+            const assigned = picks[thirdSlot(tSlot)] ?? null
+            const eligible = THIRD_SLOT_GROUPS[tSlot]
+            const opponent = T_SLOT_OPPONENT[tSlot]
 
             return (
-              <div key={g.id}
-                ref={el => { groupRefs.current[gi] = el }}
-                className={clsx(
-                  'rounded-xl border p-3 transition-all',
-                  advancing ? 'bg-emerald-50 border-emerald-300' :
-                  locked    ? 'bg-gray-50 border-gray-100 opacity-60' :
-                  full      ? 'bg-gray-50 border-gray-100 opacity-50' :
-                              'bg-white border-gray-200'
-                )}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-gray-500 tracking-wider">GROUP {g.id}</span>
-                  {advancing && <span className="text-[10px] text-emerald-600 font-semibold">Advancing ✓</span>}
+              <div key={tSlot} className={clsx(
+                'rounded-xl border p-3 transition-all',
+                assigned ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-200'
+              )}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-gray-700">{tSlot}</span>
+                    {opponent && (
+                      <span className="text-[10px] text-gray-400">vs {fmtOpponent(opponent)}</span>
+                    )}
+                  </div>
+                  {assigned && (
+                    <button
+                      onClick={() => savePick(thirdSlot(tSlot), null)}
+                      className="text-[10px] text-gray-400 hover:text-red-500 transition-colors px-1.5 py-0.5 rounded">
+                      Clear
+                    </button>
+                  )}
                 </div>
-                {thirdTeam ? (
-                  <button
-                    disabled={full && !advancing}
-                    onClick={() => toggle(g.id, thirdTeam, gi)}
-                    className="w-full flex items-center gap-2 text-left">
-                    <span className="text-base">{flagFor(thirdTeam)}</span>
-                    <span className="text-sm font-medium text-gray-800">{thirdTeam}</span>
-                  </button>
+
+                {assigned ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{flagFor(assigned)}</span>
+                    <span className="text-sm font-semibold text-gray-800">{assigned}</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold ml-auto">Advancing ✓</span>
+                  </div>
                 ) : (
-                  <p className="text-[11px] text-gray-400 italic">Pick 3rd place in Groups first</p>
+                  <div className="flex flex-col gap-1.5">
+                    {eligible.map(groupId => {
+                      const thirdTeam  = picks[grpSlot(groupId, 3)] ?? null
+                      const usedInSlot = groupToSlot[groupId]
+                      const isUsed     = !!usedInSlot
+                      const disabled   = !thirdTeam || isUsed
+
+                      return (
+                        <button
+                          key={groupId}
+                          disabled={disabled}
+                          onClick={() => !disabled && savePick(thirdSlot(tSlot), thirdTeam!)}
+                          className={clsx(
+                            'flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all',
+                            disabled
+                              ? 'border-gray-100 bg-gray-50 cursor-not-allowed'
+                              : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]'
+                          )}>
+                          <span className={clsx(
+                            'text-[10px] font-bold w-8 flex-shrink-0',
+                            disabled ? 'text-gray-300' : 'text-gray-500'
+                          )}>
+                            Grp {groupId}
+                          </span>
+                          {thirdTeam ? (
+                            <>
+                              <span className={disabled ? 'opacity-40' : ''}>{flagFor(thirdTeam)}</span>
+                              <span className={clsx(
+                                'text-xs font-medium flex-1 truncate',
+                                disabled ? 'text-gray-300' : 'text-gray-700'
+                              )}>
+                                {thirdTeam}
+                              </span>
+                              {isUsed && (
+                                <span className="text-[9px] text-gray-300 flex-shrink-0">in {usedInSlot}</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-300 italic flex-1">3rd place TBD</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             )
@@ -940,10 +1008,10 @@ function GroupsProgressBar({ picks, onGroupClick, onNavigate }: {
 // ── Thirds Progress Bar ──────────────────────────────────────────────────────
 
 function ThirdsProgressBar({ advancingThirds, onNavigate }: {
-  advancingThirds: string[]
+  advancingThirds: (string | null)[]
   onNavigate: (s: Section) => void
 }) {
-  const allDone = advancingThirds.length === 8
+  const allDone = advancingThirds.filter(Boolean).length === 8
 
   return (
     <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
@@ -1011,7 +1079,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
-  advancingThirds: string[]
+  advancingThirds: (string | null)[]
   championBannerRef?: React.RefObject<HTMLDivElement>
   onNavigate: (s: Section) => void
 }) {
