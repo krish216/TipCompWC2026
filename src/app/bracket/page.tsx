@@ -494,12 +494,15 @@ export default function BracketPage() {
 
 function GroupsSection({ picks, savePick }: { picks: Picks; savePick: (k: string, v: string | null) => void }) {
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-gray-500">Pick the top 2 teams to qualify from each group. The 3rd-place team is used in the next step.</p>
-      {GROUPS.map(g => (
-        <GroupCard key={g.id} group={g} picks={picks} savePick={savePick} />
-      ))}
-    </div>
+    <>
+      <div className="space-y-4">
+        <p className="text-xs text-gray-500">Pick the top 2 teams to qualify from each group. The 3rd-place team is used in the next step.</p>
+        {GROUPS.map(g => (
+          <GroupCard key={g.id} group={g} picks={picks} savePick={savePick} />
+        ))}
+      </div>
+      <GroupsProgressBar picks={picks} />
+    </>
   )
 }
 
@@ -712,7 +715,78 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
           })}
         </div>
       </div>
+      <ThirdsProgressBar advancingThirds={advancingThirds} />
     </>
+  )
+}
+
+// ── Groups Progress Bar ──────────────────────────────────────────────────────
+
+function GroupsProgressBar({ picks }: { picks: Picks }) {
+  const completed = GROUPS.filter(g =>
+    picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)]
+  ).length
+
+  return (
+    <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+      <div className="max-w-2xl mx-auto px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className={clsx(
+            'text-[11px] font-bold flex-shrink-0 tabular-nums w-8',
+            completed === 12 ? 'text-emerald-600' : 'text-gray-400'
+          )}>
+            {completed}/12
+          </span>
+          <div className="flex items-center gap-1 flex-1 justify-between">
+            {GROUPS.map(g => {
+              const done = !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
+              return (
+                <span key={g.id} className={clsx(
+                  'text-[11px] font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
+                  done ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'
+                )}>
+                  {done ? '✓' : g.id}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Thirds Progress Bar ──────────────────────────────────────────────────────
+
+function ThirdsProgressBar({ advancingThirds }: { advancingThirds: string[] }) {
+  return (
+    <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+      <div className="max-w-2xl mx-auto px-3 py-2">
+        <div className="flex items-center gap-1">
+          {Array.from({ length: 8 }, (_, i) => {
+            const team = advancingThirds[i] ?? null
+            return (
+              <div key={i} className={clsx(
+                'flex-1 flex flex-col items-center gap-0.5 rounded-lg py-1.5 min-w-0 transition-all',
+                team ? 'bg-emerald-50' : 'bg-gray-50'
+              )}>
+                <span className="text-sm leading-none">
+                  {team ? flagFor(team) : (
+                    <span className="text-[10px] font-bold text-gray-300">{i + 1}</span>
+                  )}
+                </span>
+                <span className={clsx(
+                  'text-[9px] font-semibold leading-none w-full text-center truncate px-0.5',
+                  team ? 'text-emerald-700' : 'text-gray-200'
+                )}>
+                  {team ? team : '—'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }
 
