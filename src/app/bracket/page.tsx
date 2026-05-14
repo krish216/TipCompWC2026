@@ -565,7 +565,7 @@ export default function BracketPage() {
                 <p className="text-sm font-bold">Save your bracket!</p>
                 <p className="text-xs opacity-80 mt-0.5 truncate">Create a free TribePicks account to keep your picks</p>
               </div>
-              <a href="/login?bracket=1"
+              <a href="/login?tab=registerbracket=1"
                 className="flex-shrink-0 bg-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-50 transition-colors">
                 Sign up free →
               </a>
