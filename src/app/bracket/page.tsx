@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -177,7 +178,30 @@ function getOrCreateSessionId(): string {
 
 export default function BracketPage() {
   const { session } = useSupabase()
-  const { selectedTournId } = useUserPrefs()
+  const { selectedTournId: ctxTournId } = useUserPrefs()
+  const searchParams = useSearchParams()
+
+  // Guests: resolve tournament ID from ?slug= URL param (context is always null for non-signed-in users)
+  const [resolvedTournId, setResolvedTournId] = useState<string | null>(null)
+  const [tournResolving,  setTournResolving]  = useState<boolean>(!session)
+
+  useEffect(() => {
+    if (session) { setTournResolving(false); return }
+    const slug = searchParams.get('slug')
+    const url  = slug ? `/api/tournaments?slug=${encodeURIComponent(slug)}` : '/api/tournaments'
+    fetch(url)
+      .then(r => r.json())
+      .then(({ data }) => {
+        const list  = Array.isArray(data) ? data : []
+        const tourn = list.find((t: any) => t.is_active) ?? list[0] ?? null
+        if (tourn?.id) setResolvedTournId(tourn.id)
+      })
+      .catch(() => {})
+      .finally(() => setTournResolving(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const selectedTournId = ctxTournId ?? resolvedTournId
 
   const [picks,   setPicks]   = useState<Picks>({})
   const [loading, setLoading] = useState(true)
@@ -204,6 +228,7 @@ export default function BracketPage() {
 
   // Load picks — localStorage for guests, DB for signed-in users (with migration)
   useEffect(() => {
+    if (tournResolving) return                          // wait until slug→id resolution finishes
     if (!selectedTournId) { setLoading(false); return }
 
     if (!session) {
@@ -452,7 +477,7 @@ export default function BracketPage() {
     }
   }, [thirdsCount, loading])
 
-  if (loading) return (
+  if (loading || tournResolving) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <svg className="w-6 h-6 animate-spin text-emerald-500" viewBox="0 0 24 24" fill="none">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>

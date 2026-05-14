@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
-// GET /api/tournaments — list all tournaments
-export async function GET() {
+// GET /api/tournaments?slug= — list all tournaments, or filter to one by slug
+export async function GET(request: NextRequest) {
+  const slug     = new URL(request.url).searchParams.get('slug')
   const supabase = createServerSupabaseClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('tournaments')
     .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, created_at, allow_retroactive_predictions')
     .order('start_date', { ascending: false })
+  if (slug) query = (query as any).eq('slug', slug)
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })
 }
