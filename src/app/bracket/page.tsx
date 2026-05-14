@@ -383,16 +383,20 @@ export default function BracketPage() {
 
     // Record prediction in DB (use picksRef for fresh values — picks closure may be stale)
     if (selectedTournId) {
-      const sessionId  = getOrCreateSessionId()
+      const sessionId   = getOrCreateSessionId()
       const latestPicks = picksRef.current
-      const sf1        = latestPicks[BRACKET_TREE.sf[0].key] ?? null
-      const sf2        = latestPicks[BRACKET_TREE.sf[1].key] ?? null
-      const runnerUp   = sf1 === champion ? sf2 : sf1
+      const sf1         = latestPicks[BRACKET_TREE.sf[0].key] ?? null
+      const sf2         = latestPicks[BRACKET_TREE.sf[1].key] ?? null
+      const runnerUp    = sf1 === champion ? sf2 : sf1
+      console.log('[bracket-prediction] saving', { champion, runner_up: runnerUp, session_id: sessionId, user: session?.user?.id ?? 'guest' })
       fetch('/api/bracket-prediction', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ tournament_id: selectedTournId, champion, runner_up: runnerUp, session_id: sessionId }),
-      }).catch(() => {})
+      })
+        .then(r => r.json())
+        .then(d => console.log('[bracket-prediction] result', d))
+        .catch(e => console.error('[bracket-prediction] error', e))
     }
   }, [champion]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -464,7 +468,7 @@ export default function BracketPage() {
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1">
         {([
           { id: 'groups',  label: 'Groups',  badge: groupsDone ? '✓' : null },
-          { id: 'thirds',  label: '3rd Place', badge: thirdsCount > 0 ? `${thirdsCount}/8` : null },
+          { id: 'thirds',  label: '3rd Place', badge: thirdsCount === 8 ? '✓' : thirdsCount > 0 ? `${thirdsCount}/8` : null },
           { id: 'bracket', label: 'Bracket',  badge: null },
         ] as { id: Section; label: string; badge: string | null }[]).map(s => (
           <button key={s.id} onClick={() => setSection(s.id)}
@@ -485,7 +489,7 @@ export default function BracketPage() {
 
       {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} />}
       {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} />}
-      {section === 'bracket' && <BracketSection picks={picks} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} />}
+      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} />}
     </div>
   )
 }
@@ -608,18 +612,6 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
   savePick: (k: string, v: string | null) => void
   advancingThirds: string[]
 }) {
-  const [showToast, setShowToast] = useState(false)
-  const prevLen = useRef(advancingThirds.length)
-
-  useEffect(() => {
-    if (prevLen.current < 8 && advancingThirds.length === 8) {
-      setShowToast(true)
-      const t = setTimeout(() => setShowToast(false), 3500)
-      return () => clearTimeout(t)
-    }
-    prevLen.current = advancingThirds.length
-  }, [advancingThirds.length])
-
   const groupRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const toggle = (groupId: string, teamName: string, groupIdx: number) => {
@@ -639,14 +631,6 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
 
   return (
     <>
-      {/* Success toast */}
-      {showToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-emerald-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg pointer-events-none">
-          <span>✓</span>
-          <span>All 8 third-place qualifiers selected</span>
-        </div>
-      )}
-
       <div className="space-y-4">
         {/* Prominent incomplete-selection banner */}
         {count < 8 && (
@@ -812,8 +796,9 @@ const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-fina
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, savePick, resolveSlot, championBannerRef }: {
+function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef }: {
   picks: Picks
+  picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: string[]
@@ -833,16 +818,35 @@ function BracketSection({ picks, savePick, resolveSlot, championBannerRef }: {
     )
   }, [])
 
+  // Scroll the page to the next unpicked R32 match after `currentKey`
+  const scrollToNextR32 = useCallback((currentKey: string) => {
+    const currentIdx = R32_MATCHES.findIndex(m => m.key === currentKey)
+    const latest     = picksRef.current ?? {}
+    for (let offset = 1; offset < R32_MATCHES.length; offset++) {
+      const idx     = (currentIdx + offset) % R32_MATCHES.length
+      const nextKey = R32_MATCHES[idx].key
+      if (!latest[nextKey]) {
+        const tree = treeRef.current
+        if (!tree) return
+        const treePageTop = tree.getBoundingClientRect().top + window.scrollY
+        const matchTop    = treePageTop + matchTY(0, idx)
+        window.scrollTo({ top: Math.max(0, matchTop - window.innerHeight / 2 + CARD_H / 2), behavior: 'smooth' })
+        return
+      }
+    }
+  }, [picksRef])
+
   // Intercept picks: cascade-clear downstream winners, then auto-scroll
   const bracketPick = useCallback((key: string, team: string | null) => {
     // Clear all picks that derived from this match's winner
     getDownstream(key).forEach(k => savePick(k, null))
     savePick(key, team)
     if (!team) return
+    if (key.startsWith('r32:')) scrollToNextR32(key)
     if (key.startsWith('r16:')) centerColumn(1)
     if (key.startsWith('qf:'))  centerColumn(3)
     if (key.startsWith('sf:'))  centerColumn(4)
-  }, [savePick, centerColumn])
+  }, [savePick, centerColumn, scrollToNextR32])
 
   const shareAsPng = useCallback(async () => {
     if (!treeRef.current) return
@@ -884,7 +888,7 @@ function BracketSection({ picks, savePick, resolveSlot, championBannerRef }: {
       <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
-      <div ref={scrollRef} className="overflow-x-auto" style={{ overflowY: 'auto', maxHeight: '78vh' }}>
+      <div ref={scrollRef} className="overflow-x-auto">
         <div ref={treeRef} style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
 
           {/* Round labels */}
