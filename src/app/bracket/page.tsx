@@ -1238,46 +1238,39 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
       await QRC.toCanvas(qrCanvas, QR_URL, { width: 72, margin: 1, color: { dark: '#111827', light: '#ffffff' } })
 
       if (shareFormat === 'portrait') {
-        // Capture the bracket tree, then add a branded footer with logo + QR code
+        // Capture bracket tree; overlay logo top-right and QR bottom-right
         const { toCanvas: toCanvasP } = await import('html-to-image')
         const treeCanvas = await toCanvasP(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
-        const PR = 2                           // pixel ratio used above
-        const FOOTER_H = 72 * PR              // footer height in device pixels
-        const PAD      = 16 * PR
+        const PR  = 2
+        const PAD = 20 * PR  // 40 device px
 
         const composite = document.createElement('canvas')
         composite.width  = treeCanvas.width
-        composite.height = treeCanvas.height + FOOTER_H
+        composite.height = treeCanvas.height
         const ctxP = composite.getContext('2d')!
         ctxP.fillStyle = '#ffffff'
         ctxP.fillRect(0, 0, composite.width, composite.height)
         ctxP.drawImage(treeCanvas, 0, 0)
 
-        // Footer background + separator
-        const FY = treeCanvas.height
-        ctxP.fillStyle = '#f9fafb'
-        ctxP.fillRect(0, FY, composite.width, FOOTER_H)
-        ctxP.strokeStyle = '#e5e7eb'; ctxP.lineWidth = PR
-        ctxP.beginPath(); ctxP.moveTo(0, FY); ctxP.lineTo(composite.width, FY); ctxP.stroke()
-
-        // Logo image (left side)
+        // Logo — top-right (2× previous size)
         const logoImg = new Image(); logoImg.src = '/logo.png'
         await new Promise<void>(res => { logoImg.onload = () => res(); logoImg.onerror = () => res() })
         if (logoImg.naturalWidth > 0) {
-          const logoH = 40 * PR
+          const logoH = 80 * PR  // 160 device px
           const logoW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
-          ctxP.drawImage(logoImg, PAD, FY + (FOOTER_H - logoH) / 2, logoW, logoH)
+          const lx    = composite.width - logoW - PAD
+          const ly    = PAD
+          ctxP.drawImage(logoImg, lx, ly, logoW, logoH)
+          ctxP.textAlign    = 'center'
+          ctxP.textBaseline = 'top'
+          ctxP.font         = `bold ${11 * PR}px -apple-system, BlinkMacSystemFont, sans-serif`
+          ctxP.fillStyle    = '#6b7280'
+          ctxP.fillText('By TribePicks', lx + logoW / 2, ly + logoH + 6)
         }
 
-        // QR code (right side, scaled 2×)
-        const QR_DRAW = qrCanvas.width * PR
-        ctxP.drawImage(qrCanvas, composite.width - QR_DRAW - PAD, FY + (FOOTER_H - QR_DRAW) / 2, QR_DRAW, QR_DRAW)
-
-        // "Scan to pick" label
-        ctxP.textAlign = 'right'; ctxP.textBaseline = 'middle'
-        ctxP.font = `${10 * PR}px -apple-system, BlinkMacSystemFont, sans-serif`
-        ctxP.fillStyle = '#9ca3af'
-        ctxP.fillText('Scan to pick', composite.width - QR_DRAW - PAD * 1.5, FY + FOOTER_H / 2)
+        // QR code — bottom-right (2× previous size: 72 * 2 * 2 = 288 device px)
+        const QR_P = qrCanvas.width * PR * 2
+        ctxP.drawImage(qrCanvas, composite.width - QR_P - PAD, composite.height - QR_P - PAD, QR_P, QR_P)
 
         dataUrl = composite.toDataURL('image/png')
       } else {
@@ -1482,21 +1475,25 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         ctx.fillStyle = '#b45309'
         ctx.fillText(winner, CW / 2, badgeY + 28)
 
-        // Logo image (bottom-left)
+        // Logo — top-center (2× previous 28px = 56px)
         const logoL = new Image(); logoL.src = '/logo.png'
         await new Promise<void>(res => { logoL.onload = () => res(); logoL.onerror = () => res() })
         if (logoL.naturalWidth > 0) {
-          const lH = 28, lW = (logoL.naturalWidth / logoL.naturalHeight) * lH
-          ctx.drawImage(logoL, 16, CH - lH - 10, lW, lH)
+          const lH = 56
+          const lW = (logoL.naturalWidth / logoL.naturalHeight) * lH
+          const lx = CW / 2 - lW / 2
+          const ly = LH + 14
+          ctx.drawImage(logoL, lx, ly, lW, lH)
+          ctx.textAlign    = 'center'
+          ctx.textBaseline = 'top'
+          ctx.font         = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillStyle    = '#6b7280'
+          ctx.fillText('By TribePicks', CW / 2, ly + lH + 4)
         }
 
-        // QR code (bottom-right)
-        const QR_SZ = 56
-        ctx.drawImage(qrCanvas, CW - QR_SZ - 16, CH - QR_SZ - 10, QR_SZ, QR_SZ)
-        ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'
-        ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif'
-        ctx.fillStyle = '#9ca3af'
-        ctx.fillText('Scan to pick', CW - QR_SZ - 22, CH - 8)
+        // QR code — bottom-center (2× previous 56px = 112px)
+        const QR_L = 112
+        ctx.drawImage(qrCanvas, CW / 2 - QR_L / 2, CH - QR_L - 14, QR_L, QR_L)
 
         dataUrl = canvas.toDataURL('image/png')
       }
