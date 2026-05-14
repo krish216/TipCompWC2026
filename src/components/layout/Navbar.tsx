@@ -176,7 +176,6 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
         ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
         { href: '/leaderboard', label: 'ScoreBoard' },
         { href: '/tribe',       label: 'My Tribe'   },
-        ...(isAdmin ? [{ href: '/bracket', label: 'Bracket' }] : []),
       ]
 
   // Mobile bottom tab items
@@ -194,9 +193,6 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
         { href: '/tribe',       icon: '👥', label: 'Tribe',   disabled: false           },
         ...(isCompAdmin && selectedCompId
           ? [{ href: '/comp-admin', icon: '⚙️', label: 'Manage', disabled: false }]
-          : []),
-        ...(isAdmin
-          ? [{ href: '/bracket', icon: '🗓️', label: 'Bracket', disabled: false }]
           : []),
       ]
 

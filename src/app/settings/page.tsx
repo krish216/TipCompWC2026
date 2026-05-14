@@ -425,6 +425,23 @@ export default function SettingsPage() {
         <TournamentEnrollments />
       </section>
 
+      {/* My Bracket */}
+      <section className="mb-6">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">My Bracket</h2>
+        <Card>
+          <a href="/bracket" className="flex items-center justify-between group">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl leading-none">🏆</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">2026 World Cup Bracket</p>
+                <p className="text-xs text-gray-500 mt-0.5">Pick your champion and full path to the final</p>
+              </div>
+            </div>
+            <span className="text-gray-400 text-lg group-hover:text-gray-600 transition-colors">→</span>
+          </a>
+        </Card>
+      </section>
+
       {/* Account */}
       <section>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Account</h2>
