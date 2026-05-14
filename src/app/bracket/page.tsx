@@ -162,6 +162,19 @@ type Section = 'groups' | 'thirds' | 'bracket'
 
 const localKey = (tournId: string) => `tribepicks_bracket_${tournId}`
 
+function getOrCreateSessionId(): string {
+  try {
+    let sid = localStorage.getItem('tribepicks_session_id')
+    if (!sid) {
+      sid = crypto.randomUUID()
+      localStorage.setItem('tribepicks_session_id', sid)
+    }
+    return sid
+  } catch {
+    return 'unknown'
+  }
+}
+
 export default function BracketPage() {
   const { session } = useSupabase()
   const { selectedTournId } = useUserPrefs()
@@ -170,14 +183,19 @@ export default function BracketPage() {
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
+  const [showRegPrompt, setShowRegPrompt] = useState(false)
 
-  const pendingRef  = useRef<Map<string, string | null>>(new Map())
-  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const picksRef    = useRef<Picks>({})
-  const clearingRef = useRef(false)
+  const pendingRef       = useRef<Map<string, string | null>>(new Map())
+  const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const picksRef         = useRef<Picks>({})
+  const clearingRef      = useRef(false)
+  const championBannerRef = useRef<HTMLDivElement>(null)
   // Tracks whether the initial load has settled; prevents scroll-to-top on load
   const prevGroupsDone  = useRef(false)
   const prevThirdsCount = useRef(0)
+  const prevFinalRef    = useRef<string | null>(null)
+  const initializedRef  = useRef(false)
+  const regPromptTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
@@ -323,32 +341,78 @@ export default function BracketPage() {
   const thirdsCount = advancingThirds.length
   const groupsDone  = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
 
+  const champion = picks['final'] ?? null
+
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
     if (!loading) {
       prevGroupsDone.current  = groupsDone
       prevThirdsCount.current = thirdsCount
+      prevFinalRef.current    = champion
+      initializedRef.current  = true
+      // If champion already picked (loaded from storage), show reg prompt immediately for guests
+      if (!session && champion) setShowRegPrompt(true)
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to top (after 7s) when Groups stage is fully completed
+  // React to champion being picked / changed / cleared
+  useEffect(() => {
+    if (!initializedRef.current) return
+    const prev    = prevFinalRef.current
+    prevFinalRef.current = champion
+
+    if (!champion) {
+      // Champion cleared — hide prompt and cancel any pending timer
+      setShowRegPrompt(false)
+      if (regPromptTimer.current) { clearTimeout(regPromptTimer.current); regPromptTimer.current = null }
+      return
+    }
+
+    if (champion === prev) return  // same pick reloaded, no action
+
+    // New champion: scroll page to the champion banner
+    setTimeout(() => {
+      championBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+
+    // Show reg prompt after 3s (guests only)
+    if (!session) {
+      if (regPromptTimer.current) clearTimeout(regPromptTimer.current)
+      regPromptTimer.current = setTimeout(() => setShowRegPrompt(true), 3000)
+    }
+
+    // Record prediction in DB
+    if (selectedTournId) {
+      const sessionId = getOrCreateSessionId()
+      const sf1       = picks[BRACKET_TREE.sf[0].key] ?? null
+      const sf2       = picks[BRACKET_TREE.sf[1].key] ?? null
+      const runnerUp  = sf1 === champion ? sf2 : sf1
+      fetch('/api/bracket-prediction', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tournament_id: selectedTournId, champion, runner_up: runnerUp, session_id: sessionId }),
+      }).catch(() => {})
+    }
+  }, [champion]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to top (after 3s) when Groups stage is fully completed
   useEffect(() => {
     if (loading) return
     const wasComplete = prevGroupsDone.current
     prevGroupsDone.current = groupsDone
     if (!wasComplete && groupsDone) {
-      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 7000)
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 3000)
       return () => clearTimeout(t)
     }
   }, [groupsDone, loading])
 
-  // Scroll to top (after 7s) when all 8 third-place teams are selected
+  // Scroll to top (after 3s) when all 8 third-place teams are selected
   useEffect(() => {
     if (loading) return
     const prevCount = prevThirdsCount.current
     prevThirdsCount.current = thirdsCount
     if (prevCount < 8 && thirdsCount === 8) {
-      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 7000)
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 3000)
       return () => clearTimeout(t)
     }
   }, [thirdsCount, loading])
@@ -372,8 +436,8 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Registration prompt — shown to guests once champion is picked */}
-      {!session && picks['final'] && (
+      {/* Registration prompt — shown to guests 3s after champion is picked */}
+      {!session && showRegPrompt && (
         <div className="fixed bottom-20 left-0 right-0 px-4 z-40 pointer-events-none">
           <div className="max-w-2xl mx-auto pointer-events-auto">
             <div className="flex items-center gap-3 bg-emerald-700 text-white rounded-2xl px-4 py-3 shadow-xl">
@@ -420,7 +484,7 @@ export default function BracketPage() {
 
       {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} />}
       {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} />}
-      {section === 'bracket' && <BracketSection picks={picks} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} />}
+      {section === 'bracket' && <BracketSection picks={picks} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} />}
     </div>
   )
 }
@@ -666,11 +730,12 @@ const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-fina
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, savePick, resolveSlot }: {
+function BracketSection({ picks, savePick, resolveSlot, championBannerRef }: {
   picks: Picks
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: string[]
+  championBannerRef?: React.RefObject<HTMLDivElement>
 }) {
   const champion  = picks['final'] ?? null
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -719,7 +784,7 @@ function BracketSection({ picks, savePick, resolveSlot }: {
     <div>
       {/* Champion share banner */}
       {champion && (
-        <div className="flex items-center justify-between mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+        <div ref={championBannerRef} className="flex items-center justify-between mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <div className="flex items-center gap-2.5">
             <span className="text-xl leading-none">🏆</span>
             <div>
