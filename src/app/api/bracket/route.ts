@@ -68,7 +68,8 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE /api/bracket?tournament_id={id}
-// Wipes all knockout picks (r32/r16/qf/sf/final) for the user; called when group/thirds change.
+// With ?all=true: wipes every pick for this user+tournament (groups, thirds, knockout).
+// Default: wipes only knockout picks (r32/r16/qf/sf/final).
 export async function DELETE(request: NextRequest) {
   try {
     const user = await getSessionUser()
@@ -78,21 +79,29 @@ export async function DELETE(request: NextRequest) {
     const tournamentId = searchParams.get('tournament_id')
     if (!tournamentId) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
 
-    const bracketSlots = [
-      ...Array.from({ length: 16 }, (_, i) => `r32:${i + 1}`),
-      ...Array.from({ length: 8 },  (_, i) => `r16:${i + 1}`),
-      ...Array.from({ length: 4 },  (_, i) => `qf:${i + 1}`),
-      'sf:1', 'sf:2', 'final',
-    ]
-
     const admin = createAdminClient()
-    const { error } = await (admin.from('bracket_picks') as any)
-      .delete()
-      .eq('user_id', user.id)
-      .eq('tournament_id', tournamentId)
-      .in('slot_key', bracketSlots)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (searchParams.get('all') === 'true') {
+      const { error } = await (admin.from('bracket_picks') as any)
+        .delete()
+        .eq('user_id', user.id)
+        .eq('tournament_id', tournamentId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    } else {
+      const bracketSlots = [
+        ...Array.from({ length: 16 }, (_, i) => `r32:${i + 1}`),
+        ...Array.from({ length: 8 },  (_, i) => `r16:${i + 1}`),
+        ...Array.from({ length: 4 },  (_, i) => `qf:${i + 1}`),
+        'sf:1', 'sf:2', 'final',
+      ]
+      const { error } = await (admin.from('bracket_picks') as any)
+        .delete()
+        .eq('user_id', user.id)
+        .eq('tournament_id', tournamentId)
+        .in('slot_key', bracketSlots)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? 'Internal server error' }, { status: 500 })

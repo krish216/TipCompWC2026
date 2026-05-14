@@ -184,6 +184,7 @@ export default function BracketPage() {
   const [section, setSection] = useState<Section>('groups')
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [showRegPrompt, setShowRegPrompt] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -196,6 +197,7 @@ export default function BracketPage() {
   const prevFinalRef    = useRef<string | null>(null)
   const initializedRef  = useRef(false)
   const regPromptTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
@@ -309,6 +311,34 @@ export default function BracketPage() {
     setTimeout(() => setBracketClearedToast(false), 3000)
   }, [session, selectedTournId])
 
+  // Reset every pick (groups + thirds + bracket) — called by "Reset all" button
+  const resetAllPicks = useCallback(() => {
+    if (!confirmReset) {
+      setConfirmReset(true)
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = setTimeout(() => setConfirmReset(false), 3000)
+      return
+    }
+    setConfirmReset(false)
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+
+    setPicks({})
+    pendingRef.current.clear()
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setShowRegPrompt(false)
+
+    if (session && selectedTournId) {
+      fetch(`/api/bracket?tournament_id=${selectedTournId}&all=true`, { method: 'DELETE' }).catch(() => {})
+    } else if (selectedTournId) {
+      try { localStorage.removeItem(localKey(selectedTournId)) } catch {}
+    }
+
+    setBracketClearedToast(true)
+    setTimeout(() => setBracketClearedToast(false), 3000)
+  }, [confirmReset, session, selectedTournId])
+
+  const navigateTo = useCallback((s: Section) => setSection(s), [])
+
   // Wrapper passed to Groups + Thirds: cascades bracket clear on any change
   const savePickWithCascade = useCallback((slotKey: string, teamName: string | null) => {
     const m = slotKey.match(/^grp:([A-L]):3$/)
@@ -400,24 +430,24 @@ export default function BracketPage() {
     }
   }, [champion]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to top (after 3s) when Groups stage is fully completed
+  // Scroll to top (after 1s) when Groups stage is fully completed
   useEffect(() => {
     if (loading) return
     const wasComplete = prevGroupsDone.current
     prevGroupsDone.current = groupsDone
     if (!wasComplete && groupsDone) {
-      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 3000)
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 1000)
       return () => clearTimeout(t)
     }
   }, [groupsDone, loading])
 
-  // Scroll to top (after 3s) when all 8 third-place teams are selected
+  // Scroll to top (after 1s) when all 8 third-place teams are selected
   useEffect(() => {
     if (loading) return
     const prevCount = prevThirdsCount.current
     prevThirdsCount.current = thirdsCount
     if (prevCount < 8 && thirdsCount === 8) {
-      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 3000)
+      const t = setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 1000)
       return () => clearTimeout(t)
     }
   }, [thirdsCount, loading])
@@ -441,8 +471,8 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Registration prompt — shown to guests 3s after champion is picked */}
-      {!session && showRegPrompt && (
+      {/* Registration prompt — shown to guests 3s after champion is picked (bracket tab only) */}
+      {!session && showRegPrompt && section === 'bracket' && (
         <div className="fixed bottom-20 left-0 right-0 px-4 z-40 pointer-events-none">
           <div className="max-w-2xl mx-auto pointer-events-auto">
             <div className="flex items-center gap-3 bg-emerald-700 text-white rounded-2xl px-4 py-3 shadow-xl">
@@ -459,9 +489,22 @@ export default function BracketPage() {
         </div>
       )}
 
-      <div className="mb-5">
-        <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
-        <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
+          <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
+        </div>
+        {/* Two-tap reset: first tap arms confirmation, second tap executes */}
+        <button
+          onClick={resetAllPicks}
+          className={clsx(
+            'flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all mt-0.5',
+            confirmReset
+              ? 'bg-red-50 border-red-300 text-red-600'
+              : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600'
+          )}>
+          {confirmReset ? 'Confirm reset?' : 'Reset all'}
+        </button>
       </div>
 
       {/* Section nav */}
@@ -487,25 +530,36 @@ export default function BracketPage() {
         ))}
       </div>
 
-      {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} />}
-      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} />}
-      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} />}
+      {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
+      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} />}
+      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} onNavigate={navigateTo} />}
     </div>
   )
 }
 
 // ── Groups Section ───────────────────────────────────────────────────────────
 
-function GroupsSection({ picks, savePick }: { picks: Picks; savePick: (k: string, v: string | null) => void }) {
+function GroupsSection({ picks, savePick, onNavigate }: {
+  picks: Picks
+  savePick: (k: string, v: string | null) => void
+  onNavigate: (s: Section) => void
+}) {
+  const groupCardRefs = useRef<(HTMLDivElement | null)[]>([])
+  const scrollToGroup = useCallback((idx: number) => {
+    groupCardRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
     <>
       <div className="space-y-4">
         <p className="text-xs text-gray-500">Pick the top 2 teams to qualify from each group. The 3rd-place team is used in the next step.</p>
-        {GROUPS.map(g => (
-          <GroupCard key={g.id} group={g} picks={picks} savePick={savePick} />
+        {GROUPS.map((g, gi) => (
+          <div key={g.id} ref={el => { groupCardRefs.current[gi] = el }}>
+            <GroupCard group={g} picks={picks} savePick={savePick} />
+          </div>
         ))}
       </div>
-      <GroupsProgressBar picks={picks} />
+      <GroupsProgressBar picks={picks} onGroupClick={scrollToGroup} onNavigate={onNavigate} />
     </>
   )
 }
@@ -580,13 +634,15 @@ function GroupCard({ group, picks, savePick }: {
                 <span className="text-base">{team.flag}</span>
                 {team.name}
               </span>
-              <div className="flex gap-1">
+              <div className="flex gap-1.5">
                 {([1, 2, 3] as const).map(r => (
                   <button
                     key={r}
                     onClick={() => assign(team.name, r)}
+                    aria-label={`${team.name} — ${r === 1 ? '1st' : r === 2 ? '2nd' : '3rd'} place`}
+                    aria-pressed={rank === r}
                     className={clsx(
-                      'w-7 h-7 rounded-full text-[11px] font-bold transition-all border',
+                      'w-10 h-10 rounded-full text-xs font-bold transition-all border',
                       rank === r
                         ? r === 1 ? 'bg-emerald-600 text-white border-emerald-600'
                           : r === 2 ? 'bg-blue-500 text-white border-blue-500'
@@ -607,10 +663,11 @@ function GroupCard({ group, picks, savePick }: {
 
 // ── Thirds Section ───────────────────────────────────────────────────────────
 
-function ThirdsSection({ picks, savePick, advancingThirds }: {
+function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
   picks: Picks
   savePick: (k: string, v: string | null) => void
   advancingThirds: string[]
+  onNavigate: (s: Section) => void
 }) {
   const groupRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -699,42 +756,56 @@ function ThirdsSection({ picks, savePick, advancingThirds }: {
           })}
         </div>
       </div>
-      <ThirdsProgressBar advancingThirds={advancingThirds} />
+      <ThirdsProgressBar advancingThirds={advancingThirds} onNavigate={onNavigate} />
     </>
   )
 }
 
 // ── Groups Progress Bar ──────────────────────────────────────────────────────
 
-function GroupsProgressBar({ picks }: { picks: Picks }) {
+function GroupsProgressBar({ picks, onGroupClick, onNavigate }: {
+  picks: Picks
+  onGroupClick: (idx: number) => void
+  onNavigate: (s: Section) => void
+}) {
   const completed = GROUPS.filter(g =>
     picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)]
   ).length
+  const allDone = completed === 12
 
   return (
     <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="max-w-2xl mx-auto px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className={clsx(
-            'text-[11px] font-bold flex-shrink-0 tabular-nums w-8',
-            completed === 12 ? 'text-emerald-600' : 'text-gray-400'
-          )}>
-            {completed}/12
-          </span>
-          <div className="flex items-center gap-1 flex-1 justify-between">
-            {GROUPS.map(g => {
-              const done = !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
-              return (
-                <span key={g.id} className={clsx(
-                  'text-[11px] font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
-                  done ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'
-                )}>
-                  {done ? '✓' : g.id}
-                </span>
-              )
-            })}
+        {allDone ? (
+          <button
+            onClick={() => onNavigate('thirds')}
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white text-sm font-bold py-2 rounded-xl active:scale-[0.98] transition-all">
+            All groups done! Pick 3rd place qualifiers →
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold flex-shrink-0 tabular-nums w-8 text-gray-400">
+              {completed}/12
+            </span>
+            <div className="flex items-center gap-1 flex-1 justify-between">
+              {GROUPS.map((g, gi) => {
+                const done = !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => onGroupClick(gi)}
+                    aria-label={`Jump to Group ${g.id}`}
+                    className={clsx(
+                      'text-[11px] font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
+                      done ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                    )}>
+                    {done ? '✓' : g.id}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
@@ -742,41 +813,54 @@ function GroupsProgressBar({ picks }: { picks: Picks }) {
 
 // ── Thirds Progress Bar ──────────────────────────────────────────────────────
 
-function ThirdsProgressBar({ advancingThirds }: { advancingThirds: string[] }) {
+function ThirdsProgressBar({ advancingThirds, onNavigate }: {
+  advancingThirds: string[]
+  onNavigate: (s: Section) => void
+}) {
+  const allDone = advancingThirds.length === 8
+
   return (
     <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="max-w-2xl mx-auto px-3 py-2">
-        <div className="flex items-center gap-1">
-          {Array.from({ length: 8 }, (_, i) => {
-            const team = advancingThirds[i] ?? null
-            return (
-              <div key={i} className={clsx(
-                'flex-1 flex flex-col items-center gap-0.5 rounded-lg py-1.5 min-w-0 transition-all',
-                team ? 'bg-emerald-50' : 'bg-gray-50'
-              )}>
-                <span className="text-sm leading-none">
-                  {team ? flagFor(team) : (
-                    <span className="text-[10px] font-bold text-gray-300">{i + 1}</span>
-                  )}
-                </span>
-                <span className={clsx(
-                  'text-[9px] font-semibold leading-none w-full text-center truncate px-0.5',
-                  team ? 'text-emerald-700' : 'text-gray-200'
+        {allDone ? (
+          <button
+            onClick={() => onNavigate('bracket')}
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white text-sm font-bold py-2 rounded-xl active:scale-[0.98] transition-all">
+            All qualifiers picked! Fill your bracket →
+          </button>
+        ) : (
+          <div className="flex items-center gap-1">
+            {Array.from({ length: 8 }, (_, i) => {
+              const team = advancingThirds[i] ?? null
+              return (
+                <div key={i} className={clsx(
+                  'flex-1 flex flex-col items-center gap-0.5 rounded-lg py-1.5 min-w-0 transition-all',
+                  team ? 'bg-emerald-50' : 'bg-gray-50'
                 )}>
-                  {team ? team : '—'}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+                  <span className="text-sm leading-none">
+                    {team ? flagFor(team) : (
+                      <span className="text-[10px] font-bold text-gray-300">{i + 1}</span>
+                    )}
+                  </span>
+                  <span className={clsx(
+                    'text-[9px] font-semibold leading-none w-full text-center truncate px-0.5',
+                    team ? 'text-emerald-700' : 'text-gray-200'
+                  )}>
+                    {team ? team : '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 // ── Bracket tree layout constants ────────────────────────────────────────────
-const SLOT_H  = 60    // height per R32 slot (px) — sets vertical scale of the whole tree
-const CARD_H  = 48    // match card height (px)
+const SLOT_H  = 68    // height per R32 slot (px) — sets vertical scale of the whole tree
+const CARD_H  = 56    // match card height (px) — 28px per team row (better touch target)
 const LABEL_H = 22    // round label row height above the tree
 const COL_W   = 124   // match card column width (px)
 const CONN_W  = 28    // connector area width between columns (px)
@@ -796,17 +880,22 @@ const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-fina
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef }: {
+function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef, onNavigate }: {
   picks: Picks
   picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: string[]
   championBannerRef?: React.RefObject<HTMLDivElement>
+  onNavigate: (s: Section) => void
 }) {
-  const champion  = picks['final'] ?? null
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const treeRef   = useRef<HTMLDivElement>(null)
+  const champion     = picks['final'] ?? null
+  const scrollRef    = useRef<HTMLDivElement>(null)
+  const treeRef      = useRef<HTMLDivElement>(null)
+  const [showRightFade, setShowRightFade] = useState(true)
+
+  const groupsDone   = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
+  const thirdsCount  = GROUPS.filter(g => picks[thirdSlot(g.id)]).length
 
   // Center the given round column in the scroll container
   const centerColumn = useCallback((roundIdx: number) => {
@@ -866,6 +955,31 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     } catch {}
   }, [])
 
+  // Show prerequisite gate before the bracket tree
+  if (!groupsDone || thirdsCount < 8) {
+    const needGroups = !groupsDone
+    return (
+      <div className="flex flex-col items-center justify-center gap-5 py-16 text-center px-4">
+        <span className="text-5xl">{needGroups ? '🗓️' : '🎯'}</span>
+        <div>
+          <p className="text-base font-bold text-gray-800">
+            {needGroups ? 'Complete your groups first' : 'Pick your 8 third-place qualifiers'}
+          </p>
+          <p className="text-sm text-gray-500 mt-1.5 max-w-xs mx-auto">
+            {needGroups
+              ? 'Pick 1st, 2nd, and 3rd for all 12 groups before filling your bracket.'
+              : `${8 - thirdsCount} more third-place team${8 - thirdsCount !== 1 ? 's' : ''} to go before your bracket unlocks.`}
+          </p>
+        </div>
+        <button
+          onClick={() => onNavigate(needGroups ? 'groups' : 'thirds')}
+          className="bg-emerald-600 text-white text-sm font-bold px-6 py-3 rounded-xl active:scale-95 transition-all">
+          {needGroups ? 'Go to Groups →' : 'Go to 3rd Place →'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Champion share banner */}
@@ -888,7 +1002,16 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
       <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
-      <div ref={scrollRef} className="overflow-x-auto">
+      <div className="relative">
+        {/* Right-edge fade — indicates horizontal scrollability; hidden once scrolled to the end */}
+        {showRightFade && (
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-50 to-transparent z-10" aria-hidden="true" />
+        )}
+        <div ref={scrollRef} className="overflow-x-auto"
+          onScroll={e => {
+            const el = e.currentTarget
+            setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 8)
+          }}>
         <div ref={treeRef} style={{ position: 'relative', width: TOTAL_W, height: TOTAL_H }}>
 
           {/* Round labels */}
@@ -983,7 +1106,8 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
             </div>
           )}
         </div>
-      </div>
+        </div>{/* end scrollRef */}
+      </div>{/* end relative wrapper */}
     </div>
   )
 }
@@ -1042,6 +1166,8 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
             key={i}
             onClick={() => pick(team)}
             disabled={!team}
+            aria-label={team ? `Pick ${team}${isWinner ? ' (selected)' : ''}` : 'TBD'}
+            aria-pressed={isWinner}
             style={{ height: CARD_H / 2 }}
             className={clsx(
               'w-full flex items-center gap-1.5 px-2.5 text-left transition-all',
@@ -1051,8 +1177,8 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
               : team ? 'hover:bg-gray-50'
               : 'cursor-default'
             )}>
-            <span className="text-sm leading-none flex-shrink-0">
-              {team ? flagFor(team) : '⬜'}
+            <span className="text-sm leading-none flex-shrink-0" aria-hidden="true">
+              {team ? flagFor(team) : '·'}
             </span>
             <span className={clsx(
               'text-[11px] truncate flex-1 leading-none',
