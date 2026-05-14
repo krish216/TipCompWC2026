@@ -381,12 +381,13 @@ export default function BracketPage() {
       regPromptTimer.current = setTimeout(() => setShowRegPrompt(true), 3000)
     }
 
-    // Record prediction in DB
+    // Record prediction in DB (use picksRef for fresh values — picks closure may be stale)
     if (selectedTournId) {
-      const sessionId = getOrCreateSessionId()
-      const sf1       = picks[BRACKET_TREE.sf[0].key] ?? null
-      const sf2       = picks[BRACKET_TREE.sf[1].key] ?? null
-      const runnerUp  = sf1 === champion ? sf2 : sf1
+      const sessionId  = getOrCreateSessionId()
+      const latestPicks = picksRef.current
+      const sf1        = latestPicks[BRACKET_TREE.sf[0].key] ?? null
+      const sf2        = latestPicks[BRACKET_TREE.sf[1].key] ?? null
+      const runnerUp   = sf1 === champion ? sf2 : sf1
       fetch('/api/bracket-prediction', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -511,6 +512,7 @@ function GroupCard({ group, picks, savePick }: {
   const first  = picks[grpSlot(id, 1)] ?? null
   const second = picks[grpSlot(id, 2)] ?? null
   const third  = picks[grpSlot(id, 3)] ?? null
+  const groupComplete = !!(first && second && third)
 
   const assign = (teamName: string, rank: 1 | 2 | 3) => {
     const key = grpSlot(id, rank)
@@ -540,9 +542,15 @@ function GroupCard({ group, picks, savePick }: {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
-        <span className="text-xs font-bold text-emerald-800 tracking-wider">GROUP {id}</span>
+      {/* Header — amber while incomplete, emerald once all 3 ranks filled */}
+      <div className={clsx(
+        'flex items-center justify-between px-4 py-2.5 border-b transition-colors',
+        groupComplete ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'
+      )}>
+        <span className={clsx(
+          'text-xs font-bold tracking-wider',
+          groupComplete ? 'text-emerald-800' : 'text-amber-800'
+        )}>GROUP {id}</span>
         <div className="flex items-center gap-1.5">
           {[first, second].map((t, i) => (
             <span key={i} className={clsx(
