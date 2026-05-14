@@ -26,6 +26,7 @@ export default function LoginPage() {
   const tabParam    = params.get('tab') as Mode | null
   const roleParam   = params.get('role')
   const isChallenge = params.get('challenge') === '1'
+  const isBracket   = params.get('bracket')   === '1'
   const isOrganiser = roleParam === 'organiser'
 
   const [mode, setMode] = useState<Mode>('login')
@@ -117,10 +118,10 @@ export default function LoginPage() {
     }
   }, [emailParam, codeParam])
 
-  // When session is established, redirect to home (comp setup is handled there)
+  // When session is established, redirect to destination
   useEffect(() => {
     if (!session) return
-    router.push(redirect)
+    router.push(isBracket ? '/bracket' : redirect)
     router.refresh()
   }, [session])
 
@@ -230,6 +231,8 @@ export default function LoginPage() {
         ? `/join?code=${codeParam}`
         : role === 'organiser'
         ? `/?flow=create`
+        : isBracket
+        ? `/bracket`
         : `/`
       // Route through the email-confirmed celebration page so new users get a clear signal
       const confirmedUrl = `/auth/confirmed?next=${encodeURIComponent(destinationUrl)}`
@@ -330,7 +333,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError(null); setLoading(true)
-    const nextUrl = codeParam ? `/join?code=${codeParam}` : role === 'organiser' ? `/?flow=create` : `/`
+    const nextUrl = codeParam ? `/join?code=${codeParam}` : role === 'organiser' ? `/?flow=create` : isBracket ? `/bracket` : `/`
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -505,6 +508,14 @@ export default function LoginPage() {
           <div className="mb-4 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-center">
             <p className="text-green-800 text-sm font-semibold">⚽ Your 4 warm-up picks are saved!</p>
             <p className="text-green-600 text-xs mt-0.5">Create an account to save your picks — warm-up points reset when the tournament begins</p>
+          </div>
+        )}
+
+        {/* Bracket banner — shown when arriving from /bracket */}
+        {isBracket && mode === 'register' && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+            <p className="text-emerald-800 text-sm font-semibold">🏆 Your bracket picks are saved!</p>
+            <p className="text-emerald-600 text-xs mt-0.5">Create a free account to keep them — you'll be taken straight back to your bracket.</p>
           </div>
         )}
 

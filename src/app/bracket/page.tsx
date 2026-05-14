@@ -330,6 +330,20 @@ export default function BracketPage() {
         })
       )
     ).catch(() => {})
+
+    // Also claim any bracket_predictions guest row saved under the session_id
+    const champion = picksRef.current['final'] ?? null
+    if (champion) {
+      const sessionId = getOrCreateSessionId()
+      const sf1       = picksRef.current[BRACKET_TREE.sf[0].key] ?? null
+      const sf2       = picksRef.current[BRACKET_TREE.sf[1].key] ?? null
+      const runnerUp  = sf1 === champion ? sf2 : sf1
+      fetch('/api/bracket-prediction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: selectedTournId, champion, runner_up: runnerUp, session_id: sessionId }),
+      }).catch(() => {})
+    }
   }, [session, selectedTournId])
 
   // Debounced save — localStorage for guests, DB for signed-in users
@@ -597,7 +611,7 @@ export default function BracketPage() {
         {([
           { id: 'groups',  label: 'Groups',  badge: groupsDone ? '✓' : null },
           { id: 'thirds',  label: '3rd Place', badge: thirdsCount === 8 ? '✓' : thirdsCount > 0 ? `${thirdsCount}/8` : null },
-          { id: 'bracket', label: 'Bracket',  badge: null },
+          { id: 'bracket', label: 'Bracket',  badge: picks['final'] ? '✓' : null },
         ] as { id: Section; label: string; badge: string | null }[]).map(s => (
           <button key={s.id} onClick={() => setSection(s.id)}
             className={clsx(
