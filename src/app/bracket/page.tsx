@@ -944,8 +944,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
       const dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
       const blob    = await fetch(dataUrl).then(r => r.blob())
       const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
+      const shareText = `My 2026 World Cup Call\nChampion: ${champion} 🏆\nBuild yours: https://TribePicks.com/Bracket`
       if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'My WC 2026 Bracket' })
+        await navigator.share({ files: [file], title: 'My 2026 World Cup Call', text: shareText })
       } else {
         const a    = document.createElement('a')
         a.href     = dataUrl
