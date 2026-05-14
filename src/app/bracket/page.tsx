@@ -1012,13 +1012,14 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   }, [savePick, centerColumn, scrollToNextR32, scrollToNextInRound])
 
   const shareAsPng = useCallback(async () => {
-    if (!treeRef.current) return
+    const winner = picksRef.current?.['final'] ?? null
+    if (!treeRef.current || !winner) return
     try {
       const { toPng } = await import('html-to-image')
       const dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
       const blob    = await fetch(dataUrl).then(r => r.blob())
       const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
-      const shareText = `My 2026 World Cup Call\nChampion: ${champion} 🏆\nBuild yours: https://TribePicks.com/Bracket`
+      const shareText = `My 2026 World Cup Call\nChampion: ${winner} 🏆\nBuild yours: https://TribePicks.com/bracket?slug=wc2026`
       if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: 'My 2026 World Cup Call', text: shareText })
       } else {
@@ -1028,7 +1029,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         a.click()
       }
     } catch {}
-  }, [])
+  }, [picksRef])
 
   // Show prerequisite gate before the bracket tree
   if (!groupsDone || thirdsCount < 8) {
