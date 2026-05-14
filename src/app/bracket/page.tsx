@@ -156,6 +156,44 @@ function flagFor(name: string | null | undefined): string {
   return '🏳️'
 }
 
+// ── Upset scoring ────────────────────────────────────────────────────────────
+// Higher score = bigger underdog. Used to surface the spiciest bracket call.
+const TEAM_UPSET_SCORE: Record<string, number> = {
+  'Brazil': 5,  'France': 5,   'Argentina': 5,
+  'Germany': 8, 'Spain': 8,    'England': 10,  'Portugal': 10, 'Netherlands': 12,
+  'Belgium': 20, 'Uruguay': 22, 'Colombia': 25, 'Mexico': 25,   'USA': 28,
+  'Croatia': 28, 'Morocco': 30, 'Switzerland': 30, 'Senegal': 32, 'Japan': 32,
+  'South Korea': 35, 'Turkey': 35, 'Ecuador': 38,
+  'Austria': 40, 'Norway': 42, 'Ivory Coast': 42,
+  'Australia': 45, 'Canada': 45, 'Sweden': 45,
+  'Ghana': 48, 'Tunisia': 48, 'Iran': 50, 'Algeria': 50, 'Scotland': 52,
+  'Czechia': 55, 'Paraguay': 55, 'Bosnia and Herzegovina': 58,
+  'Egypt': 60, 'New Zealand': 60,
+  'South Africa': 65, 'Saudi Arabia': 65, 'Panama': 65, 'DR Congo': 68,
+  'Iraq': 70, 'Qatar': 70, 'Cabo Verde': 70, 'Uzbekistan': 72, 'Jordan': 72,
+  'Haiti': 75, 'Curacao': 80,
+}
+
+function findBiggestUpset(picks: Picks): { team: string; label: string } | null {
+  const champion = picks['final'] ?? null
+  const rounds: { keys: string[]; label: string; weight: number }[] = [
+    { keys: BRACKET_TREE.r16.map(m => m.key), label: 'in the quarters', weight: 2 },
+    { keys: BRACKET_TREE.qf.map(m => m.key),  label: 'in the semis',    weight: 3 },
+    { keys: BRACKET_TREE.sf.map(m => m.key),  label: 'in the final',    weight: 4 },
+  ]
+  let bestScore = 0
+  let best: { team: string; label: string } | null = null
+  for (const { keys, label, weight } of rounds) {
+    for (const key of keys) {
+      const team = picks[key]
+      if (!team || team === champion) continue
+      const score = (TEAM_UPSET_SCORE[team] ?? 50) * weight
+      if (score > bestScore) { bestScore = score; best = { team, label } }
+    }
+  }
+  return best
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 type Picks = Record<string, string | null>
@@ -763,7 +801,7 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate }: {
         )}
 
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to R32.</p>
+          <p className="text-xs text-gray-500">Pick 8 of the 12 third-placed teams to advance to round R32 knock-outs.</p>
           {count === 8 && (
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
               8/8 ✓
@@ -1019,9 +1057,11 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
       const dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
       const blob    = await fetch(dataUrl).then(r => r.blob())
       const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
-      const shareText = `My 2026 World Cup Call\nChampion: ${winner} 🏆\nBuild yours: https://TribePicks.com/bracket?slug=wc2026`
+      const upset   = findBiggestUpset(picksRef.current ?? {})
+      const upsetLine = upset ? `\nBold call: ${upset.team} ${upset.label}` : ''
+      const shareText = `My 2026 World Cup pick. 🏆\nChampion: ${winner}${upsetLine}\nBeat it → tribepicks.com/bracket`
       if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'My 2026 World Cup Call', text: shareText })
+        await navigator.share({ files: [file], title: 'My 2026 World Cup pick', text: shareText })
       } else {
         const a    = document.createElement('a')
         a.href     = dataUrl
