@@ -912,76 +912,81 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate, groupsDon
 
             return (
               <div key={tSlot} className={clsx(
-                'rounded-xl border p-3 transition-all',
-                assigned ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-200'
+                'rounded-xl border transition-all',
+                assigned ? 'bg-emerald-50 border-emerald-300 px-3 py-2.5' : 'bg-white border-gray-200 p-3'
               )}>
-                <div className="flex items-center justify-between mb-2">
+                {assigned ? (
+                  /* Single-row when assigned: label · opponent | flag name | ✓ | Clear */
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-gray-700">{tSlot}</span>
-                    {opponent && (
-                      <span className="text-[10px] text-gray-400">vs {fmtOpponent(opponent)}</span>
-                    )}
-                  </div>
-                  {assigned && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className="text-xs font-black text-emerald-700">{tSlot}</span>
+                      {opponent && (
+                        <span className="text-[9px] text-gray-400">· vs {fmtOpponent(opponent)}</span>
+                      )}
+                    </div>
+                    <span className="text-base leading-none">{flagFor(assigned)}</span>
+                    <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{assigned}</span>
+                    <span className="text-[9px] font-bold text-emerald-600 flex-shrink-0">✓ Advancing</span>
                     <button
                       onClick={() => savePick(thirdSlot(tSlot), null)}
-                      className="text-[10px] text-gray-400 hover:text-red-500 transition-colors px-1.5 py-0.5 rounded">
+                      className="flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 active:scale-95 transition-all">
                       Clear
                     </button>
-                  )}
-                </div>
-
-                {assigned ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{flagFor(assigned)}</span>
-                    <span className="text-sm font-semibold text-gray-800">{assigned}</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold ml-auto">Advancing ✓</span>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {eligible.map(groupId => {
-                      const thirdTeam  = picks[grpSlot(groupId, 3)] ?? null
-                      const usedInSlot = groupToSlot[groupId]
-                      const isUsed     = !!usedInSlot
-                      const disabled   = !thirdTeam || isUsed
+                  /* Expanded when unassigned: header + eligible group buttons */
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-black text-gray-700">{tSlot}</span>
+                      {opponent && (
+                        <span className="text-[10px] text-gray-400">vs {fmtOpponent(opponent)}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {eligible.map(groupId => {
+                        const thirdTeam  = picks[grpSlot(groupId, 3)] ?? null
+                        const usedInSlot = groupToSlot[groupId]
+                        const isUsed     = !!usedInSlot
+                        const disabled   = !thirdTeam || isUsed
 
-                      return (
-                        <button
-                          key={groupId}
-                          disabled={disabled}
-                          onClick={() => !disabled && savePick(thirdSlot(tSlot), thirdTeam!)}
-                          className={clsx(
-                            'flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all',
-                            disabled
-                              ? 'border-gray-100 bg-gray-50 cursor-not-allowed'
-                              : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]'
-                          )}>
-                          <span className={clsx(
-                            'text-[10px] font-bold w-8 flex-shrink-0',
-                            disabled ? 'text-gray-300' : 'text-gray-500'
-                          )}>
-                            Grp {groupId}
-                          </span>
-                          {thirdTeam ? (
-                            <>
-                              <span className={disabled ? 'opacity-40' : ''}>{flagFor(thirdTeam)}</span>
-                              <span className={clsx(
-                                'text-xs font-medium flex-1 truncate',
-                                disabled ? 'text-gray-300' : 'text-gray-700'
-                              )}>
-                                {thirdTeam}
-                              </span>
-                              {isUsed && (
-                                <span className="text-[9px] text-gray-300 flex-shrink-0">in {usedInSlot}</span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-gray-300 italic flex-1">3rd place TBD</span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={groupId}
+                            disabled={disabled}
+                            onClick={() => !disabled && savePick(thirdSlot(tSlot), thirdTeam!)}
+                            className={clsx(
+                              'flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-all',
+                              disabled
+                                ? 'border-gray-100 bg-gray-50 cursor-not-allowed'
+                                : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]'
+                            )}>
+                            <span className={clsx(
+                              'text-[10px] font-bold w-8 flex-shrink-0',
+                              disabled ? 'text-gray-300' : 'text-gray-500'
+                            )}>
+                              Grp {groupId}
+                            </span>
+                            {thirdTeam ? (
+                              <>
+                                <span className={disabled ? 'opacity-40' : ''}>{flagFor(thirdTeam)}</span>
+                                <span className={clsx(
+                                  'text-xs font-medium flex-1 truncate',
+                                  disabled ? 'text-gray-300' : 'text-gray-700'
+                                )}>
+                                  {thirdTeam}
+                                </span>
+                                {isUsed && (
+                                  <span className="text-[9px] text-gray-300 flex-shrink-0">in {usedInSlot}</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-300 italic flex-1">3rd place TBD</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             )
@@ -1145,6 +1150,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   onNavigate: (s: Section) => void
 }) {
   const champion     = picks['final'] ?? null
+  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape'>('portrait')
   const scrollRef    = useRef<HTMLDivElement>(null)
   const treeRef      = useRef<HTMLDivElement>(null)
   const [showRightFade, setShowRightFade] = useState(true)
@@ -1218,13 +1224,76 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     const winner = picksRef.current?.['final'] ?? null
     if (!treeRef.current || !winner) return
     try {
-      const { toPng } = await import('html-to-image')
-      const dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
-      const blob    = await fetch(dataUrl).then(r => r.blob())
-      const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
-      const upset   = findBiggestUpset(picksRef.current ?? {})
+      const { toPng, toCanvas } = await import('html-to-image')
+      const upset     = findBiggestUpset(picksRef.current ?? {})
       const upsetLine = upset ? `\nBold call: ${upset.team} ${upset.label}` : ''
       const shareText = `My 2026 World Cup pick. 🏆\nChampion: ${winner}${upsetLine}\nBeat it → tribepicks.com/bracket?slug=wc2026`
+
+      let dataUrl: string
+
+      if (shareFormat === 'portrait') {
+        dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
+      } else {
+        // Landscape: bracket scaled on the right, champion panel on the left
+        const bracketCanvas = await toCanvas(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 1.5 })
+        const LAND_H   = 900
+        const scale    = LAND_H / bracketCanvas.height
+        const brkW     = Math.round(bracketCanvas.width  * scale)
+        const brkH     = Math.round(bracketCanvas.height * scale)
+        const PANEL_W  = 340
+        const GAP      = 20
+        const LAND_W   = PANEL_W + GAP + brkW
+
+        const canvas   = document.createElement('canvas')
+        canvas.width   = LAND_W
+        canvas.height  = LAND_H
+        const ctx      = canvas.getContext('2d')!
+
+        // White background
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, LAND_W, LAND_H)
+
+        // Left panel — emerald tint
+        ctx.fillStyle = '#f0fdf4'
+        ctx.fillRect(0, 0, PANEL_W, LAND_H)
+
+        // Bracket on the right
+        ctx.drawImage(bracketCanvas, PANEL_W + GAP, 0, brkW, brkH)
+
+        // Panel text
+        const px = 32
+        ctx.textBaseline = 'top'
+
+        ctx.font = '56px serif'
+        ctx.fillText('🏆', px, 56)
+
+        ctx.fillStyle = '#065f46'
+        ctx.font = `bold ${winner.length > 12 ? 26 : 32}px -apple-system, BlinkMacSystemFont, sans-serif`
+        ctx.fillText(winner, px, 136)
+
+        ctx.fillStyle = '#6b7280'
+        ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif'
+        ctx.fillText('2026 World Cup Champion', px, 188)
+
+        if (upset) {
+          ctx.fillStyle = '#b45309'
+          ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillText(`Bold call: ${upset.team}`, px, 256)
+          ctx.fillStyle = '#9ca3af'
+          ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillText(upset.label, px, 278)
+        }
+
+        // Branding
+        ctx.fillStyle = '#9ca3af'
+        ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif'
+        ctx.fillText('tribepicks.com/bracket', px, LAND_H - 40)
+
+        dataUrl = canvas.toDataURL('image/png')
+      }
+
+      const blob = await fetch(dataUrl).then(r => r.blob())
+      const file = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
       if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: '2026 World Cup!', text: shareText })
       } else {
@@ -1234,7 +1303,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         a.click()
       }
     } catch {}
-  }, [picksRef])
+  }, [picksRef, shareFormat])
 
   // Show prerequisite gate before the bracket tree
   if (!groupsDone || thirdsCount < 8) {
@@ -1265,19 +1334,44 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     <div>
       {/* Champion share banner */}
       {champion && (
-        <div ref={championBannerRef} className="flex items-center justify-between mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xl leading-none">🏆</span>
-            <div>
-              <p className="text-xs font-bold text-amber-800">Bracket complete!</p>
-              <p className="text-xs text-amber-600 mt-0.5">{champion} wins the World Cup</p>
+        <div ref={championBannerRef} className="mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-xl leading-none flex-shrink-0">🏆</span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-amber-800">Bracket complete!</p>
+                <p className="text-xs text-amber-600 mt-0.5 truncate">{champion} wins the World Cup</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Portrait / Landscape toggle */}
+              <div className="flex rounded-lg border border-amber-300 overflow-hidden text-[10px] font-bold">
+                <button
+                  onClick={() => setShareFormat('portrait')}
+                  title="Portrait"
+                  className={clsx(
+                    'px-2 py-1.5 transition-colors',
+                    shareFormat === 'portrait' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
+                  )}>
+                  ↕
+                </button>
+                <button
+                  onClick={() => setShareFormat('landscape')}
+                  title="Landscape"
+                  className={clsx(
+                    'px-2 py-1.5 transition-colors border-l border-amber-300',
+                    shareFormat === 'landscape' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
+                  )}>
+                  ↔
+                </button>
+              </div>
+              <button onClick={shareAsPng}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
+                <span className="text-sm leading-none">↑</span>
+                <span>Share</span>
+              </button>
             </div>
           </div>
-          <button onClick={shareAsPng}
-            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
-            <span className="text-sm leading-none">↑</span>
-            <span>Share</span>
-          </button>
         </div>
       )}
       <p className="text-xs text-gray-500 mb-3">
