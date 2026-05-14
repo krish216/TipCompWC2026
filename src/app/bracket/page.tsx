@@ -574,6 +574,33 @@ function GroupsSection({ picks, savePick, onNavigate }: {
     groupCardRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  // Track per-group completion to detect transitions
+  const prevCompletion = useRef<boolean[]>(
+    GROUPS.map(g => !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)]))
+  )
+
+  useEffect(() => {
+    const prev = prevCompletion.current
+    let didScroll = false
+    GROUPS.forEach((g, gi) => {
+      const isComplete = !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
+      if (!prev[gi] && isComplete && !didScroll) {
+        for (let offset = 1; offset < GROUPS.length; offset++) {
+          const nextIdx = (gi + offset) % GROUPS.length
+          const ng = GROUPS[nextIdx]
+          if (!(picks[grpSlot(ng.id, 1)] && picks[grpSlot(ng.id, 2)] && picks[grpSlot(ng.id, 3)])) {
+            setTimeout(() => scrollToGroup(nextIdx), 400)
+            didScroll = true
+            break
+          }
+        }
+      }
+    })
+    prevCompletion.current = GROUPS.map(g =>
+      !!(picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
+    )
+  }, [picks, scrollToGroup])
+
   return (
     <>
       <div className="space-y-4">
