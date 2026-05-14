@@ -310,6 +310,28 @@ export default function BracketPage() {
       .finally(() => setLoading(false))
   }, [session, selectedTournId])
 
+  // In-place sign-in migration: when a guest signs in while on this page, flush
+  // in-memory picks directly to bracket_picks (safety net for the localStorage path).
+  // wasGuestRef tracks whether the page loaded as a guest — only runs once per mount.
+  const wasGuestRef = useRef(!session)
+  useEffect(() => {
+    if (!wasGuestRef.current || !session || !selectedTournId) return
+    wasGuestRef.current = false  // run once — this effect isn't idempotent
+
+    const entries = Object.entries(picksRef.current).filter(([, v]) => !!v)
+    if (entries.length === 0) return
+
+    Promise.all(
+      entries.map(([slot_key, team_name]) =>
+        fetch('/api/bracket', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
+        })
+      )
+    ).catch(() => {})
+  }, [session, selectedTournId])
+
   // Debounced save — localStorage for guests, DB for signed-in users
   const savePick = useCallback((slotKey: string, teamName: string | null) => {
     if (!session) {
@@ -543,7 +565,7 @@ export default function BracketPage() {
                 <p className="text-sm font-bold">Save your bracket!</p>
                 <p className="text-xs opacity-80 mt-0.5 truncate">Create a free TribePicks account to keep your picks</p>
               </div>
-              <a href="/login"
+              <a href="/login?bracket=1"
                 className="flex-shrink-0 bg-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-50 transition-colors">
                 Sign up free →
               </a>
@@ -1059,9 +1081,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
       const file    = new File([blob], 'wc2026-bracket.png', { type: 'image/png' })
       const upset   = findBiggestUpset(picksRef.current ?? {})
       const upsetLine = upset ? `\nBold call: ${upset.team} ${upset.label}` : ''
-      const shareText = `My 2026 World Cup pick. 🏆\nChampion: ${winner}${upsetLine}\nBeat it → tribepicks.com/bracket`
+      const shareText = `My 2026 World Cup pick. 🏆\nChampion: ${winner}${upsetLine}\nBeat it → tribepicks.com/bracket?slug=wc2026`
       if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'My 2026 World Cup pick', text: shareText })
+        await navigator.share({ files: [file], title: '2026 World Cup!', text: shareText })
       } else {
         const a    = document.createElement('a')
         a.href     = dataUrl
