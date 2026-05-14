@@ -1089,7 +1089,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   const [showRightFade, setShowRightFade] = useState(true)
 
   const groupsDone   = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
-  const thirdsCount  = GROUPS.filter(g => picks[thirdSlot(g.id)]).length
+  const thirdsCount  = T_SLOTS.filter(t => picks[thirdSlot(t)]).length
 
   // Center the given round column in the scroll container
   const centerColumn = useCallback((roundIdx: number) => {
