@@ -1252,20 +1252,25 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         ctxP.fillRect(0, 0, composite.width, composite.height)
         ctxP.drawImage(treeCanvas, 0, 0)
 
-        // Logo — top-right (2× previous size)
+        // Logo — centred between Final and Winner column labels, at r16:1 match-card centre
+        // Centre X: midpoint of (Final label centre = colX(4)+COL_W/2 = 670 CSS) and
+        //           (Winner label centre = TOTAL_W−CHAMP_W/2 = 766 CSS) → 718 CSS → 1436 device px
+        // Centre Y: LABEL_H + treeCY(1,0) = 22 + 1×SLOT_H = 90 CSS → 180 device px
         const logoImg = new Image(); logoImg.src = '/logo.png'
         await new Promise<void>(res => { logoImg.onload = () => res(); logoImg.onerror = () => res() })
         if (logoImg.naturalWidth > 0) {
-          const logoH = 80 * PR  // 160 device px
-          const logoW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
-          const lx    = composite.width - logoW - PAD
-          const ly    = PAD
+          const logoH  = 80 * PR   // 160 device px (unchanged from previous step)
+          const logoW  = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
+          const logoCX = 1436      // device px
+          const logoCY = 180       // device px
+          const lx     = logoCX - logoW / 2
+          const ly     = logoCY - logoH / 2
           ctxP.drawImage(logoImg, lx, ly, logoW, logoH)
           ctxP.textAlign    = 'center'
           ctxP.textBaseline = 'top'
           ctxP.font         = `bold ${11 * PR}px -apple-system, BlinkMacSystemFont, sans-serif`
           ctxP.fillStyle    = '#6b7280'
-          ctxP.fillText('By TribePicks', lx + logoW / 2, ly + logoH + 6)
+          ctxP.fillText('By TribePicks', logoCX, ly + logoH + 6)
         }
 
         // QR code — bottom-right (2× previous size: 72 * 2 * 2 = 288 device px)
