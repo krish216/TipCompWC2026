@@ -1224,70 +1224,279 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     const winner = picksRef.current?.['final'] ?? null
     if (!treeRef.current || !winner) return
     try {
-      const { toPng, toCanvas } = await import('html-to-image')
+      const { toPng } = await import('html-to-image')
       const upset     = findBiggestUpset(picksRef.current ?? {})
       const upsetLine = upset ? `\nBold call: ${upset.team} ${upset.label}` : ''
       const shareText = `My 2026 World Cup pick. 🏆\nChampion: ${winner}${upsetLine}\nBeat it → tribepicks.com/bracket?slug=wc2026`
 
       let dataUrl: string
 
+      // Shared: build QR-code canvas for both formats
+      const QRC = (await import('qrcode')).default
+      const QR_URL   = 'https://tribepicks.com/bracket?slug=wc2026'
+      const qrCanvas = document.createElement('canvas')
+      await QRC.toCanvas(qrCanvas, QR_URL, { width: 72, margin: 1, color: { dark: '#111827', light: '#ffffff' } })
+
       if (shareFormat === 'portrait') {
-        dataUrl = await toPng(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
-      } else {
-        // Landscape: bracket scaled on the right, champion panel on the left
-        const bracketCanvas = await toCanvas(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 1.5 })
-        const LAND_H   = 900
-        const scale    = LAND_H / bracketCanvas.height
-        const brkW     = Math.round(bracketCanvas.width  * scale)
-        const brkH     = Math.round(bracketCanvas.height * scale)
-        const PANEL_W  = 340
-        const GAP      = 20
-        const LAND_W   = PANEL_W + GAP + brkW
+        // Capture the bracket tree, then add a branded footer with logo + QR code
+        const { toCanvas: toCanvasP } = await import('html-to-image')
+        const treeCanvas = await toCanvasP(treeRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 })
+        const PR = 2                           // pixel ratio used above
+        const FOOTER_H = 72 * PR              // footer height in device pixels
+        const PAD      = 16 * PR
 
-        const canvas   = document.createElement('canvas')
-        canvas.width   = LAND_W
-        canvas.height  = LAND_H
-        const ctx      = canvas.getContext('2d')!
+        const composite = document.createElement('canvas')
+        composite.width  = treeCanvas.width
+        composite.height = treeCanvas.height + FOOTER_H
+        const ctxP = composite.getContext('2d')!
+        ctxP.fillStyle = '#ffffff'
+        ctxP.fillRect(0, 0, composite.width, composite.height)
+        ctxP.drawImage(treeCanvas, 0, 0)
 
-        // White background
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, LAND_W, LAND_H)
+        // Footer background + separator
+        const FY = treeCanvas.height
+        ctxP.fillStyle = '#f9fafb'
+        ctxP.fillRect(0, FY, composite.width, FOOTER_H)
+        ctxP.strokeStyle = '#e5e7eb'; ctxP.lineWidth = PR
+        ctxP.beginPath(); ctxP.moveTo(0, FY); ctxP.lineTo(composite.width, FY); ctxP.stroke()
 
-        // Left panel — emerald tint
-        ctx.fillStyle = '#f0fdf4'
-        ctx.fillRect(0, 0, PANEL_W, LAND_H)
-
-        // Bracket on the right
-        ctx.drawImage(bracketCanvas, PANEL_W + GAP, 0, brkW, brkH)
-
-        // Panel text
-        const px = 32
-        ctx.textBaseline = 'top'
-
-        ctx.font = '56px serif'
-        ctx.fillText('🏆', px, 56)
-
-        ctx.fillStyle = '#065f46'
-        ctx.font = `bold ${winner.length > 12 ? 26 : 32}px -apple-system, BlinkMacSystemFont, sans-serif`
-        ctx.fillText(winner, px, 136)
-
-        ctx.fillStyle = '#6b7280'
-        ctx.font = '16px -apple-system, BlinkMacSystemFont, sans-serif'
-        ctx.fillText('2026 World Cup Champion', px, 188)
-
-        if (upset) {
-          ctx.fillStyle = '#b45309'
-          ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif'
-          ctx.fillText(`Bold call: ${upset.team}`, px, 256)
-          ctx.fillStyle = '#9ca3af'
-          ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif'
-          ctx.fillText(upset.label, px, 278)
+        // Logo image (left side)
+        const logoImg = new Image(); logoImg.src = '/logo.png'
+        await new Promise<void>(res => { logoImg.onload = () => res(); logoImg.onerror = () => res() })
+        if (logoImg.naturalWidth > 0) {
+          const logoH = 40 * PR
+          const logoW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
+          ctxP.drawImage(logoImg, PAD, FY + (FOOTER_H - logoH) / 2, logoW, logoH)
         }
 
-        // Branding
+        // QR code (right side, scaled 2×)
+        const QR_DRAW = qrCanvas.width * PR
+        ctxP.drawImage(qrCanvas, composite.width - QR_DRAW - PAD, FY + (FOOTER_H - QR_DRAW) / 2, QR_DRAW, QR_DRAW)
+
+        // "Scan to pick" label
+        ctxP.textAlign = 'right'; ctxP.textBaseline = 'middle'
+        ctxP.font = `${10 * PR}px -apple-system, BlinkMacSystemFont, sans-serif`
+        ctxP.fillStyle = '#9ca3af'
+        ctxP.fillText('Scan to pick', composite.width - QR_DRAW - PAD * 1.5, FY + FOOTER_H / 2)
+
+        dataUrl = composite.toDataURL('image/png')
+      } else {
+        // Landscape: double-bracket canvas — R32:1-8 left ← Final centre → R32:9-16 right
+        const latest    = picksRef.current ?? {}
+        const advThirds = T_SLOTS.map(t => latest[thirdSlot(t)] ?? null)
+        const resolveD  = (desc: string): string | null => {
+          if (desc.startsWith('T')) return advThirds[parseInt(desc.slice(1)) - 1] ?? null
+          return latest[grpSlot(desc[1], parseInt(desc[0]) as 1 | 2)] ?? null
+        }
+
+        const CW = 1600, CH = 900
+        const LH = 30                     // label strip height
+        const BH = CH - LH              // bracket area height
+        const SH = BH / 8              // per-R32-slot height (~108.75)
+        const MW = 140, MH = 44        // match card dimensions
+        const CG = 24                  // column gap
+
+        // Column left-x positions (derived from center outward)
+        const finalX = CW / 2 - MW / 2  // 730
+        const sfLX   = finalX - CG - MW  // 566
+        const qfLX   = sfLX   - CG - MW  // 402
+        const r16LX  = qfLX   - CG - MW  // 238
+        const r32LX  = r16LX  - CG - MW  // 74
+        const sfRX   = finalX + MW + CG  // 894
+        const qfRX   = sfRX   + MW + CG  // 1058
+        const r16RX  = qfRX   + MW + CG  // 1222
+        const r32RX  = r16RX  + MW + CG  // 1386
+
+        // Y-center of match [roundIdx, matchIdx] — same formula for both halves
+        const mCY = (r: number, i: number) => LH + (i + 0.5) * Math.pow(2, r) * SH
+
+        const canvas = document.createElement('canvas')
+        canvas.width  = CW
+        canvas.height = CH
+        const ctx = canvas.getContext('2d')!
+
+        // Background
+        ctx.fillStyle = '#f3f4f6'
+        ctx.fillRect(0, 0, CW, CH)
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(8, 8, CW - 16, CH - 16)
+
+        // Round labels
+        const rlbls: Array<{ label: string; x: number }> = [
+          { label: 'R32',   x: r32LX + MW / 2 },
+          { label: 'R16',   x: r16LX + MW / 2 },
+          { label: 'QF',    x: qfLX  + MW / 2 },
+          { label: 'SF',    x: sfLX  + MW / 2 },
+          { label: 'FINAL', x: CW / 2 },
+          { label: 'SF',    x: sfRX  + MW / 2 },
+          { label: 'QF',    x: qfRX  + MW / 2 },
+          { label: 'R16',   x: r16RX + MW / 2 },
+          { label: 'R32',   x: r32RX + MW / 2 },
+        ]
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif'
+        rlbls.forEach(({ label, x }) => {
+          ctx.fillStyle = label === 'FINAL' ? '#b45309' : '#9ca3af'
+          ctx.fillText(label, x, LH / 2)
+        })
+
+        // drawCard: renders one match card at (x, y)
+        const drawCard = (x: number, y: number, tA: string | null, tB: string | null, win: string | null) => {
+          ctx.fillStyle = '#ffffff'
+          ctx.strokeStyle = '#e5e7eb'
+          ctx.lineWidth = 1
+          ctx.beginPath(); ctx.roundRect(x, y, MW, MH, 5); ctx.fill(); ctx.stroke()
+
+          ctx.strokeStyle = '#f3f4f6'
+          ctx.beginPath(); ctx.moveTo(x + 4, y + MH / 2); ctx.lineTo(x + MW - 4, y + MH / 2); ctx.stroke()
+
+          const rowH = MH / 2
+          ;([tA, tB] as const).forEach((team, ri) => {
+            const ty  = y + ri * rowH
+            const isW = !!team && team === win
+            const isL = !!win && !!team && team !== win
+            if (isW) {
+              ctx.fillStyle = '#f0fdf4'
+              ctx.fillRect(x + 1, ty + (ri === 0 ? 1 : 0), MW - 2, rowH - (ri === 0 ? 1 : 0))
+            }
+            const flag   = team ? flagFor(team) : ''
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+            const midY  = ty + rowH / 2
+            ctx.globalAlpha = isL ? 0.35 : 1
+            if (flag) {
+              ctx.font = '11px serif'; ctx.fillStyle = '#000'
+              ctx.fillText(flag, x + 5, midY)
+            }
+            ctx.font = isW
+              ? 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif'
+              : '10px -apple-system, BlinkMacSystemFont, sans-serif'
+            ctx.fillStyle = isW ? '#059669' : team ? '#374151' : '#d1d5db'
+            const nameX = flag ? x + 21 : x + 7
+            const maxW  = MW - (flag ? 26 : 12) - (isW ? 14 : 0)
+            ctx.save(); ctx.beginPath(); ctx.rect(nameX, ty, maxW, rowH); ctx.clip()
+            ctx.fillText(team ?? '—', nameX, midY)
+            ctx.restore()
+            ctx.globalAlpha = 1
+            if (isW) {
+              ctx.fillStyle = '#10b981'
+              ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif'
+              ctx.textAlign = 'right'
+              ctx.fillText('✓', x + MW - 4, midY)
+            }
+          })
+        }
+
+        // Connectors for left half (flow rightward; pairs of fromRound merge into toRound)
+        const drawConnsL = (fromX: number, toX: number, pairs: number, r: number) => {
+          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
+          const xMid = fromX + CG / 2
+          for (let i = 0; i < pairs; i++) {
+            const y1   = mCY(r,     i * 2)
+            const y2   = mCY(r,     i * 2 + 1)
+            const yMid = mCY(r + 1, i)
+            ctx.beginPath()
+            ctx.moveTo(fromX, y1); ctx.lineTo(xMid, y1)
+            ctx.moveTo(xMid,  y1); ctx.lineTo(xMid, y2)
+            ctx.moveTo(fromX, y2); ctx.lineTo(xMid, y2)
+            ctx.moveTo(xMid, yMid); ctx.lineTo(toX, yMid)
+            ctx.stroke()
+          }
+        }
+
+        // Connectors for right half (flow leftward; pairs of fromRound merge into toRound)
+        const drawConnsR = (fromX: number, toX: number, pairs: number, r: number) => {
+          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
+          const xMid = fromX - CG / 2
+          for (let i = 0; i < pairs; i++) {
+            const y1   = mCY(r,     i * 2)
+            const y2   = mCY(r,     i * 2 + 1)
+            const yMid = mCY(r + 1, i)
+            ctx.beginPath()
+            ctx.moveTo(fromX, y1); ctx.lineTo(xMid, y1)
+            ctx.moveTo(xMid,  y1); ctx.lineTo(xMid, y2)
+            ctx.moveTo(fromX, y2); ctx.lineTo(xMid, y2)
+            ctx.moveTo(xMid, yMid); ctx.lineTo(toX, yMid)
+            ctx.stroke()
+          }
+        }
+
+        // ── Left half: R32:1-8 → R16:1-4 → QF:1-2 → SF:1 → Final ──
+        R32_MATCHES.slice(0, 8).forEach((m, i) =>
+          drawCard(r32LX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
+        )
+        drawConnsL(r32LX + MW, r16LX, 4, 0)
+
+        BRACKET_TREE.r16.slice(0, 4).forEach((m, i) =>
+          drawCard(r16LX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+        )
+        drawConnsL(r16LX + MW, qfLX, 2, 1)
+
+        BRACKET_TREE.qf.slice(0, 2).forEach((m, i) =>
+          drawCard(qfLX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+        )
+        drawConnsL(qfLX + MW, sfLX, 1, 2)
+
+        {
+          const m = BRACKET_TREE.sf[0]
+          drawCard(sfLX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
+          ctx.beginPath(); ctx.moveTo(sfLX + MW, mCY(3, 0)); ctx.lineTo(finalX, mCY(3, 0)); ctx.stroke()
+        }
+
+        // ── Right half: R32:9-16 → R16:5-8 → QF:3-4 → SF:2 → Final ──
+        R32_MATCHES.slice(8).forEach((m, i) =>
+          drawCard(r32RX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
+        )
+        drawConnsR(r32RX, r16RX + MW, 4, 0)
+
+        BRACKET_TREE.r16.slice(4).forEach((m, i) =>
+          drawCard(r16RX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+        )
+        drawConnsR(r16RX, qfRX + MW, 2, 1)
+
+        BRACKET_TREE.qf.slice(2).forEach((m, i) =>
+          drawCard(qfRX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+        )
+        drawConnsR(qfRX, sfRX + MW, 1, 2)
+
+        {
+          const m = BRACKET_TREE.sf[1]
+          drawCard(sfRX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
+          ctx.beginPath(); ctx.moveTo(finalX + MW, mCY(3, 0)); ctx.lineTo(sfRX, mCY(3, 0)); ctx.stroke()
+        }
+
+        // ── Final (centre) ──
+        {
+          const m = BRACKET_TREE.final
+          drawCard(finalX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner)
+        }
+
+        // Champion badge below the Final card
+        const badgeY = mCY(3, 0) + MH / 2 + 10
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+        ctx.font = '22px serif'; ctx.fillStyle = '#000'
+        ctx.fillText('🏆', CW / 2, badgeY)
+        ctx.font = `bold ${winner.length > 12 ? 11 : 13}px -apple-system, BlinkMacSystemFont, sans-serif`
+        ctx.fillStyle = '#b45309'
+        ctx.fillText(winner, CW / 2, badgeY + 28)
+
+        // Logo image (bottom-left)
+        const logoL = new Image(); logoL.src = '/logo.png'
+        await new Promise<void>(res => { logoL.onload = () => res(); logoL.onerror = () => res() })
+        if (logoL.naturalWidth > 0) {
+          const lH = 28, lW = (logoL.naturalWidth / logoL.naturalHeight) * lH
+          ctx.drawImage(logoL, 16, CH - lH - 10, lW, lH)
+        }
+
+        // QR code (bottom-right)
+        const QR_SZ = 56
+        ctx.drawImage(qrCanvas, CW - QR_SZ - 16, CH - QR_SZ - 10, QR_SZ, QR_SZ)
+        ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'
+        ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif'
         ctx.fillStyle = '#9ca3af'
-        ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif'
-        ctx.fillText('tribepicks.com/bracket', px, LAND_H - 40)
+        ctx.fillText('Scan to pick', CW - QR_SZ - 22, CH - 8)
 
         dataUrl = canvas.toDataURL('image/png')
       }
