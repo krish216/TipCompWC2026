@@ -1428,60 +1428,82 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
           }
         }
 
-        // ── Left half: R32:1-8 → R16:1-4 → QF:1-2 → SF:1 → Final ──
+        // ── Phase 1: All grey connectors ──
+        ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.lineCap = 'butt'
+        drawConnsL(r32LX + MW, r16LX, 4, 0)
+        drawConnsL(r16LX + MW, qfLX, 2, 1)
+        drawConnsL(qfLX + MW, sfLX, 1, 2)
+        ctx.beginPath(); ctx.moveTo(sfLX + MW, mCY(3, 0)); ctx.lineTo(finalX,      mCY(3, 0)); ctx.stroke()
+        drawConnsR(r32RX, r16RX + MW, 4, 0)
+        drawConnsR(r16RX, qfRX + MW,  2, 1)
+        drawConnsR(qfRX,  sfRX + MW,  1, 2)
+        ctx.beginPath(); ctx.moveTo(finalX + MW, mCY(3, 0)); ctx.lineTo(sfRX,      mCY(3, 0)); ctx.stroke()
+
+        // ── Phase 2: Champion path highlight (amber spine) ──
+        {
+          const r32i = R32_MATCHES.findIndex(m => (latest[m.key] ?? null) === winner)
+          const r16i = BRACKET_TREE.r16.findIndex(m => (latest[m.key] ?? null) === winner)
+          const qfi  = BRACKET_TREE.qf.findIndex(m => (latest[m.key] ?? null) === winner)
+          const sfi  = BRACKET_TREE.sf.findIndex(m => (latest[m.key] ?? null) === winner)
+          if (winner && r32i >= 0 && r16i >= 0 && qfi >= 0 && sfi >= 0) {
+            ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+            if (sfi === 0) {
+              const xA = r32LX + MW + CG / 2
+              ctx.beginPath(); ctx.moveTo(r32LX + MW, mCY(0, r32i)); ctx.lineTo(xA, mCY(0, r32i)); ctx.lineTo(xA, mCY(1, r16i)); ctx.lineTo(r16LX, mCY(1, r16i)); ctx.stroke()
+              const xB = r16LX + MW + CG / 2
+              ctx.beginPath(); ctx.moveTo(r16LX + MW, mCY(1, r16i)); ctx.lineTo(xB, mCY(1, r16i)); ctx.lineTo(xB, mCY(2, qfi)); ctx.lineTo(qfLX, mCY(2, qfi)); ctx.stroke()
+              const xC = qfLX + MW + CG / 2
+              ctx.beginPath(); ctx.moveTo(qfLX + MW, mCY(2, qfi)); ctx.lineTo(xC, mCY(2, qfi)); ctx.lineTo(xC, mCY(3, 0)); ctx.lineTo(sfLX, mCY(3, 0)); ctx.stroke()
+              ctx.beginPath(); ctx.moveTo(sfLX + MW, mCY(3, 0)); ctx.lineTo(finalX, mCY(3, 0)); ctx.stroke()
+            } else {
+              const r32j = r32i - 8; const r16j = r16i - 4; const qfj = qfi - 2
+              const xA = r32RX - CG / 2
+              ctx.beginPath(); ctx.moveTo(r32RX, mCY(0, r32j)); ctx.lineTo(xA, mCY(0, r32j)); ctx.lineTo(xA, mCY(1, r16j)); ctx.lineTo(r16RX + MW, mCY(1, r16j)); ctx.stroke()
+              const xB = r16RX - CG / 2
+              ctx.beginPath(); ctx.moveTo(r16RX, mCY(1, r16j)); ctx.lineTo(xB, mCY(1, r16j)); ctx.lineTo(xB, mCY(2, qfj)); ctx.lineTo(qfRX + MW, mCY(2, qfj)); ctx.stroke()
+              const xC = qfRX - CG / 2
+              ctx.beginPath(); ctx.moveTo(qfRX, mCY(2, qfj)); ctx.lineTo(xC, mCY(2, qfj)); ctx.lineTo(xC, mCY(3, 0)); ctx.lineTo(sfRX + MW, mCY(3, 0)); ctx.stroke()
+              ctx.beginPath(); ctx.moveTo(sfRX, mCY(3, 0)); ctx.lineTo(finalX + MW, mCY(3, 0)); ctx.stroke()
+            }
+            ctx.lineWidth = 1; ctx.lineCap = 'butt'
+          }
+        }
+
+        // ── Phase 3: All match cards + SF/Final venue & local kickoff time ──
+        const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) } catch { return '' } }
+        const drawVT = (cardX: number, cardTopY: number, venue: string, iso: string) => {
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+          ctx.font = '8px -apple-system, BlinkMacSystemFont, sans-serif'; ctx.fillStyle = '#9ca3af'
+          ctx.fillText(`${venue}  ·  ${fmtTime(iso)}`, cardX + MW / 2, cardTopY + MH + 4)
+        }
+
         R32_MATCHES.slice(0, 8).forEach((m, i) =>
           drawCard(r32LX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
         )
-        drawConnsL(r32LX + MW, r16LX, 4, 0)
-
         BRACKET_TREE.r16.slice(0, 4).forEach((m, i) =>
           drawCard(r16LX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
         )
-        drawConnsL(r16LX + MW, qfLX, 2, 1)
-
         BRACKET_TREE.qf.slice(0, 2).forEach((m, i) =>
           drawCard(qfLX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
         )
-        drawConnsL(qfLX + MW, sfLX, 1, 2)
+        { const m = BRACKET_TREE.sf[0]; const ty = mCY(3, 0) - MH / 2; drawCard(sfLX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null); drawVT(sfLX, ty, 'MetLife, NY', '2026-07-16T23:00:00Z') }
 
-        {
-          const m = BRACKET_TREE.sf[0]
-          drawCard(sfLX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
-          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
-          ctx.beginPath(); ctx.moveTo(sfLX + MW, mCY(3, 0)); ctx.lineTo(finalX, mCY(3, 0)); ctx.stroke()
-        }
-
-        // ── Right half: R32:9-16 → R16:5-8 → QF:3-4 → SF:2 → Final ──
         R32_MATCHES.slice(8).forEach((m, i) =>
           drawCard(r32RX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
         )
-        drawConnsR(r32RX, r16RX + MW, 4, 0)
-
         BRACKET_TREE.r16.slice(4).forEach((m, i) =>
           drawCard(r16RX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
         )
-        drawConnsR(r16RX, qfRX + MW, 2, 1)
-
         BRACKET_TREE.qf.slice(2).forEach((m, i) =>
           drawCard(qfRX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
         )
-        drawConnsR(qfRX, sfRX + MW, 1, 2)
-
-        {
-          const m = BRACKET_TREE.sf[1]
-          drawCard(sfRX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
-          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1
-          ctx.beginPath(); ctx.moveTo(finalX + MW, mCY(3, 0)); ctx.lineTo(sfRX, mCY(3, 0)); ctx.stroke()
-        }
+        { const m = BRACKET_TREE.sf[1]; const ty = mCY(3, 0) - MH / 2; drawCard(sfRX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null); drawVT(sfRX, ty, 'AT&T, Dallas', '2026-07-17T23:00:00Z') }
 
         // ── Final (centre) ──
-        {
-          const m = BRACKET_TREE.final
-          drawCard(finalX, mCY(3, 0) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner)
-        }
+        { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
 
-        // Champion badge below the Final card
-        const badgeY = mCY(3, 0) + MH / 2 + 10
+        // Champion badge — pushed down to clear venue/time text below Final card
+        const badgeY = mCY(3, 0) + MH / 2 + 30
         ctx.textAlign = 'center'; ctx.textBaseline = 'top'
         ctx.font = '22px serif'; ctx.fillStyle = '#000'
         ctx.fillText('🏆', CW / 2, badgeY)
