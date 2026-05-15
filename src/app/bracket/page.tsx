@@ -289,6 +289,8 @@ export default function BracketPage() {
   const initializedRef  = useRef(false)
   const regPromptTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sourceRef       = useRef<string | null>(searchParams.get('ref'))
+  const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
@@ -363,14 +365,26 @@ export default function BracketPage() {
     // Also claim any bracket_predictions guest row saved under the session_id
     const champion = picksRef.current['final'] ?? null
     if (champion) {
-      const sessionId = getOrCreateSessionId()
-      const sf1       = picksRef.current[BRACKET_TREE.sf[0].key] ?? null
-      const sf2       = picksRef.current[BRACKET_TREE.sf[1].key] ?? null
-      const runnerUp  = sf1 === champion ? sf2 : sf1
+      const sessionId  = getOrCreateSessionId()
+      const lp         = picksRef.current
+      const sf1        = lp[BRACKET_TREE.sf[0].key] ?? null
+      const sf2        = lp[BRACKET_TREE.sf[1].key] ?? null
+      const runnerUp   = sf1 === champion ? sf2 : sf1
+      const sfLoser1   = sf1 ? BRACKET_TREE.sf[0].from.map((k: string) => lp[k] ?? null).find(t => t !== sf1) ?? null : null
+      const sfLoser2   = sf2 ? BRACKET_TREE.sf[1].from.map((k: string) => lp[k] ?? null).find(t => t !== sf2) ?? null : null
       fetch('/api/bracket-prediction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament_id: selectedTournId, champion, runner_up: runnerUp, session_id: sessionId }),
+        body: JSON.stringify({
+          tournament_id: selectedTournId,
+          champion,
+          runner_up:  runnerUp,
+          session_id: sessionId,
+          sf_loser_1: sfLoser1,
+          sf_loser_2: sfLoser2,
+          source:     sourceRef.current ?? undefined,
+          device:     deviceRef.current,
+        }),
       }).catch(() => {})
     }
   }, [session, selectedTournId])
@@ -550,15 +564,23 @@ export default function BracketPage() {
       const sf1         = latestPicks[BRACKET_TREE.sf[0].key] ?? null
       const sf2         = latestPicks[BRACKET_TREE.sf[1].key] ?? null
       const runnerUp    = sf1 === champion ? sf2 : sf1
-      console.log('[bracket-prediction] saving', { champion, runner_up: runnerUp, session_id: sessionId, user: session?.user?.id ?? 'guest' })
+      const sfLoser1    = sf1 ? BRACKET_TREE.sf[0].from.map((k: string) => latestPicks[k] ?? null).find(t => t !== sf1) ?? null : null
+      const sfLoser2    = sf2 ? BRACKET_TREE.sf[1].from.map((k: string) => latestPicks[k] ?? null).find(t => t !== sf2) ?? null : null
       fetch('/api/bracket-prediction', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ tournament_id: selectedTournId, champion, runner_up: runnerUp, session_id: sessionId }),
-      })
-        .then(r => r.json())
-        .then(d => console.log('[bracket-prediction] result', d))
-        .catch(e => console.error('[bracket-prediction] error', e))
+        body:    JSON.stringify({
+          tournament_id: selectedTournId,
+          champion,
+          runner_up:    runnerUp,
+          session_id:   sessionId,
+          sf_loser_1:   sfLoser1,
+          sf_loser_2:   sfLoser2,
+          source:       sourceRef.current ?? undefined,
+          device:       deviceRef.current,
+          completed_at: prev === null ? new Date().toISOString() : undefined,
+        }),
+      }).catch(() => {})
     }
   }, [champion]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -664,7 +686,14 @@ export default function BracketPage() {
 
       {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
       {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} groupsDone={groupsDone} />}
-      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} onNavigate={navigateTo} />}
+      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} onNavigate={navigateTo} onShare={(fmt: string) => {
+        if (!selectedTournId) return
+        fetch('/api/bracket-prediction', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: selectedTournId, session_id: getOrCreateSessionId(), share_format: fmt }),
+        }).catch(() => {})
+      }} />}
     </div>
   )
 }
@@ -1149,6 +1178,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   advancingThirds: (string | null)[]
   championBannerRef?: React.RefObject<HTMLDivElement>
   onNavigate: (s: Section) => void
+  onShare: (format: string) => void
 }) {
   const champion     = picks['final'] ?? null
   const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('portrait')
@@ -1570,8 +1600,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         a.download = 'wc2026-bracket.png'
         a.click()
       }
+      onShare(shareFormat)
     } catch {}
-  }, [picksRef, shareFormat])
+  }, [picksRef, shareFormat, onShare])
 
   // Show prerequisite gate before the bracket tree
   if (!groupsDone || thirdsCount < 8) {
