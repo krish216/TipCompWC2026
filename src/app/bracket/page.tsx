@@ -1150,7 +1150,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
   onNavigate: (s: Section) => void
 }) {
   const champion     = picks['final'] ?? null
-  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape'>('portrait')
+  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('portrait')
   const scrollRef    = useRef<HTMLDivElement>(null)
   const treeRef      = useRef<HTMLDivElement>(null)
   const [showRightFade, setShowRightFade] = useState(true)
@@ -1273,13 +1273,13 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
           ctxP.fillText('By TribePicks', logoCX, ly + logoH + 6)
         }
 
-        // QR code — bottom-right (2× previous size: 72 * 2 * 2 = 288 device px)
-        const QR_P = qrCanvas.width * PR * 2
+        // QR code — bottom-right (72 * 2 = 144 device px)
+        const QR_P = qrCanvas.width * PR
         ctxP.drawImage(qrCanvas, composite.width - QR_P - PAD, composite.height - QR_P - PAD, QR_P, QR_P)
 
         dataUrl = composite.toDataURL('image/png')
-      } else {
-        // Landscape: double-bracket canvas — R32:1-8 left ← Final centre → R32:9-16 right
+      } else if (shareFormat === 'landscape' || shareFormat === 'square') {
+        // Landscape / Square bracket canvas — R32:1-8 left ← Final centre → R32:9-16 right
         const latest    = picksRef.current ?? {}
         const advThirds = T_SLOTS.map(t => latest[thirdSlot(t)] ?? null)
         const resolveD  = (desc: string): string | null => {
@@ -1288,10 +1288,13 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         }
 
         const CW = 1600, CH = 900
-        const LH = 30                     // label strip height
-        const BH = CH - LH              // bracket area height
-        const SH = BH / 8              // per-R32-slot height (~108.75)
-        const MW = 140, MH = 44        // match card dimensions
+        const isSquare = shareFormat === 'square'
+        const TOP_PAD  = isSquare ? 350 : 0
+        const CANVAS_H = isSquare ? CW : CH
+        const LH = 48                     // label strip height (round name + date)
+        const BH = CH - LH
+        const SH = BH / 8
+        const MW = 140, MH = 54        // match card dimensions
         const CG = 24                  // column gap
 
         // Column left-x positions (derived from center outward)
@@ -1310,33 +1313,38 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
 
         const canvas = document.createElement('canvas')
         canvas.width  = CW
-        canvas.height = CH
+        canvas.height = CANVAS_H
         const ctx = canvas.getContext('2d')!
 
         // Background
         ctx.fillStyle = '#f3f4f6'
-        ctx.fillRect(0, 0, CW, CH)
+        ctx.fillRect(0, 0, CW, CANVAS_H)
         ctx.fillStyle = '#ffffff'
-        ctx.fillRect(8, 8, CW - 16, CH - 16)
+        ctx.fillRect(8, 8, CW - 16, CANVAS_H - 16)
 
-        // Round labels
-        const rlbls: Array<{ label: string; x: number }> = [
-          { label: 'R32',   x: r32LX + MW / 2 },
-          { label: 'R16',   x: r16LX + MW / 2 },
-          { label: 'QF',    x: qfLX  + MW / 2 },
-          { label: 'SF',    x: sfLX  + MW / 2 },
-          { label: 'FINAL', x: CW / 2 },
-          { label: 'SF',    x: sfRX  + MW / 2 },
-          { label: 'QF',    x: qfRX  + MW / 2 },
-          { label: 'R16',   x: r16RX + MW / 2 },
-          { label: 'R32',   x: r32RX + MW / 2 },
+        if (isSquare) { ctx.save(); ctx.translate(0, TOP_PAD) }
+
+        // Round labels with date subtitles
+        const rlbls: Array<{ label: string; sub: string; x: number }> = [
+          { label: 'R32',   sub: 'Jul 1–6',     x: r32LX + MW / 2 },
+          { label: 'R16',   sub: 'Jul 8–11',    x: r16LX + MW / 2 },
+          { label: 'QF',    sub: 'Jul 13–14',   x: qfLX  + MW / 2 },
+          { label: 'SF',    sub: 'Jul 16–17',   x: sfLX  + MW / 2 },
+          { label: 'FINAL', sub: 'Jul 20 · NY', x: CW / 2 },
+          { label: 'SF',    sub: 'Jul 16–17',   x: sfRX  + MW / 2 },
+          { label: 'QF',    sub: 'Jul 13–14',   x: qfRX  + MW / 2 },
+          { label: 'R16',   sub: 'Jul 8–11',    x: r16RX + MW / 2 },
+          { label: 'R32',   sub: 'Jul 1–6',     x: r32RX + MW / 2 },
         ]
         ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif'
-        rlbls.forEach(({ label, x }) => {
+        rlbls.forEach(({ label, sub, x }) => {
+          ctx.textBaseline = 'middle'
+          ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif'
           ctx.fillStyle = label === 'FINAL' ? '#b45309' : '#9ca3af'
-          ctx.fillText(label, x, LH / 2)
+          ctx.fillText(label, x, LH * 0.33)
+          ctx.font = '8px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillStyle = label === 'FINAL' ? '#d97706' : '#c4c9d4'
+          ctx.fillText(sub, x, LH * 0.72)
         })
 
         // drawCard: renders one match card at (x, y)
@@ -1480,25 +1488,51 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         ctx.fillStyle = '#b45309'
         ctx.fillText(winner, CW / 2, badgeY + 28)
 
-        // Logo — top-center (2× previous 28px = 56px)
-        const logoL = new Image(); logoL.src = '/logo.png'
-        await new Promise<void>(res => { logoL.onload = () => res(); logoL.onerror = () => res() })
-        if (logoL.naturalWidth > 0) {
-          const lH = 56
-          const lW = (logoL.naturalWidth / logoL.naturalHeight) * lH
-          const lx = CW / 2 - lW / 2
-          const ly = LH + 14
-          ctx.drawImage(logoL, lx, ly, lW, lH)
+        if (isSquare) ctx.restore()
+
+        // Branding
+        const logoB = new Image(); logoB.src = '/logo.png'
+        await new Promise<void>(res => { logoB.onload = () => res(); logoB.onerror = () => res() })
+
+        if (!isSquare) {
+          // Landscape: logo top-center, QR bottom-center
+          if (logoB.naturalWidth > 0) {
+            const lH = 56
+            const lW = (logoB.naturalWidth / logoB.naturalHeight) * lH
+            const lx = CW / 2 - lW / 2
+            const ly = LH + 14
+            ctx.drawImage(logoB, lx, ly, lW, lH)
+            ctx.textAlign    = 'center'
+            ctx.textBaseline = 'top'
+            ctx.font         = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif'
+            ctx.fillStyle    = '#6b7280'
+            ctx.fillText('By TribePicks', CW / 2, ly + lH + 4)
+          }
+          const QR_L = 112
+          ctx.drawImage(qrCanvas, CW / 2 - QR_L / 2, CH - QR_L - 14, QR_L, QR_L)
+        } else {
+          // Square: logo in top strip, QR in bottom strip
+          if (logoB.naturalWidth > 0) {
+            const lH = 80
+            const lW = (logoB.naturalWidth / logoB.naturalHeight) * lH
+            const ly = TOP_PAD / 2 - lH / 2 - 14
+            const lx = CW / 2 - lW / 2
+            ctx.drawImage(logoB, lx, ly, lW, lH)
+            ctx.textAlign    = 'center'
+            ctx.textBaseline = 'top'
+            ctx.font         = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif'
+            ctx.fillStyle    = '#6b7280'
+            ctx.fillText('By TribePicks', CW / 2, ly + lH + 6)
+          }
+          const QR_S = 120
+          const qrY  = CANVAS_H - TOP_PAD / 2 - QR_S / 2
+          ctx.drawImage(qrCanvas, CW / 2 - QR_S / 2, qrY, QR_S, QR_S)
           ctx.textAlign    = 'center'
           ctx.textBaseline = 'top'
-          ctx.font         = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif'
-          ctx.fillStyle    = '#6b7280'
-          ctx.fillText('By TribePicks', CW / 2, ly + lH + 4)
+          ctx.font         = '10px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillStyle    = '#9ca3af'
+          ctx.fillText('tribepicks.com', CW / 2, qrY + QR_S + 6)
         }
-
-        // QR code — bottom-center (2× previous 56px = 112px)
-        const QR_L = 112
-        ctx.drawImage(qrCanvas, CW / 2 - QR_L / 2, CH - QR_L - 14, QR_L, QR_L)
 
         dataUrl = canvas.toDataURL('image/png')
       }
@@ -1555,7 +1589,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              {/* Portrait / Landscape toggle */}
+              {/* Portrait / Landscape / Square toggle */}
               <div className="flex rounded-lg border border-amber-300 overflow-hidden text-[10px] font-bold">
                 <button
                   onClick={() => setShareFormat('portrait')}
@@ -1574,6 +1608,15 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
                     shareFormat === 'landscape' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
                   )}>
                   ↔
+                </button>
+                <button
+                  onClick={() => setShareFormat('square')}
+                  title="Square (1:1)"
+                  className={clsx(
+                    'px-2 py-1.5 transition-colors border-l border-amber-300',
+                    shareFormat === 'square' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
+                  )}>
+                  □
                 </button>
               </div>
               <button onClick={shareAsPng}
