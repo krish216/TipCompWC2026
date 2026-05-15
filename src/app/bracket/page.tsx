@@ -1278,7 +1278,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
         ctxP.drawImage(qrCanvas, composite.width - QR_P - PAD, composite.height - QR_P - PAD, QR_P, QR_P)
 
         dataUrl = composite.toDataURL('image/png')
-      } else if (shareFormat === 'landscape' || shareFormat === 'square') {
+      } else {
         // Landscape / Square bracket canvas — R32:1-8 left ← Final centre → R32:9-16 right
         const latest    = picksRef.current ?? {}
         const advThirds = T_SLOTS.map(t => latest[thirdSlot(t)] ?? null)
