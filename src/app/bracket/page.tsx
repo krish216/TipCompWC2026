@@ -1121,7 +1121,7 @@ function ThirdsProgressBar({ advancingThirds, onNavigate }: {
 // ── Bracket tree layout constants ────────────────────────────────────────────
 const SLOT_H  = 68    // height per R32 slot (px) — sets vertical scale of the whole tree
 const CARD_H  = 56    // match card height (px) — 28px per team row (better touch target)
-const LABEL_H = 22    // round label row height above the tree
+const LABEL_H = 34    // round label row height above the tree (round name + date)
 const COL_W   = 124   // match card column width (px)
 const CONN_W  = 28    // connector area width between columns (px)
 const TREE_H  = R32_MATCHES.length * SLOT_H       // 960px (matches only)
@@ -1137,6 +1137,7 @@ const matchTY = (r: number, i: number) => LABEL_H + treeCY(r, i) - CARD_H / 2
 const colX    = (r: number) => r * (COL_W + CONN_W)
 
 const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
+const ROUND_DATES  = ['Jul 1–6', 'Jul 8–11', 'Jul 13–14', 'Jul 16–17', 'Jul 20 · NY']
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
@@ -1262,7 +1263,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
           const logoH  = 80 * PR   // 160 device px (unchanged from previous step)
           const logoW  = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
           const logoCX = 1436      // device px
-          const logoCY = 180       // device px
+          const logoCY = 204       // device px
           const lx     = logoCX - logoW / 2
           const ly     = logoCY - logoH / 2
           ctxP.drawImage(logoImg, lx, ly, logoW, logoH)
@@ -1342,8 +1343,8 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
           ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif'
           ctx.fillStyle = label === 'FINAL' ? '#b45309' : '#9ca3af'
           ctx.fillText(label, x, LH * 0.33)
-          ctx.font = '8px -apple-system, BlinkMacSystemFont, sans-serif'
-          ctx.fillStyle = label === 'FINAL' ? '#d97706' : '#c4c9d4'
+          ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillStyle = label === 'FINAL' ? '#d97706' : '#9ca3af'
           ctx.fillText(sub, x, LH * 0.72)
         })
 
@@ -1647,8 +1648,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
           {ROUND_LABELS.map((lbl, ri) => (
             <div key={ri}
               style={{ position: 'absolute', top: 0, left: colX(ri), width: COL_W, height: LABEL_H }}
-              className="flex items-center justify-center">
-              <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">{lbl}</span>
+              className="flex flex-col items-center justify-center gap-px">
+              <span className="text-[9px] font-bold text-gray-400 tracking-wider uppercase leading-none">{lbl}</span>
+              <span className="text-[8px] text-gray-300 leading-none">{ROUND_DATES[ri]}</span>
             </div>
           ))}
           <div style={{ position: 'absolute', top: 0, left: TOTAL_W - CHAMP_W, width: CHAMP_W, height: LABEL_H }}
