@@ -1170,7 +1170,7 @@ const ROUND_DATES  = ['Jul 1–6', 'Jul 8–11', 'Jul 13–14', 'Jul 16–17', '
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef, onNavigate }: {
+function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef, onNavigate, onShare }: {
   picks: Picks
   picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
