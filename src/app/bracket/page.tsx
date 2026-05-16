@@ -546,9 +546,13 @@ export default function BracketPage() {
 
     if (champion === prev) return  // same pick reloaded, no action
 
-    // New champion: scroll page to the champion banner
+    // New champion: scroll page to the champion banner (offset by sticky top navbar)
     setTimeout(() => {
-      championBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const el = championBannerRef.current
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - 64
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+      }
     }, 50)
 
     // Show reg prompt after 3s (guests only)
@@ -1063,7 +1067,7 @@ function GroupsProgressBar({ picks, onGroupClick, onNavigate }: {
   const allDone = completed === 12
 
   return (
-    <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+    <div className="fixed bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="max-w-2xl mx-auto px-3 py-2">
         {allDone ? (
           <button
@@ -1109,7 +1113,7 @@ function ThirdsProgressBar({ advancingThirds, onNavigate }: {
   const allDone = advancingThirds.filter(Boolean).length === 8
 
   return (
-    <div className="fixed bottom-14 sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+    <div className="fixed bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="max-w-2xl mx-auto px-3 py-2">
         {allDone ? (
           <button
@@ -1638,7 +1642,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="text-xl leading-none flex-shrink-0">🏆</span>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-amber-800">Bracket complete!</p>
+                <p className="text-xs font-bold text-amber-800">Save your bracket</p>
                 <p className="text-xs text-amber-600 mt-0.5 truncate">{champion} wins the World Cup</p>
               </div>
             </div>
