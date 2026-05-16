@@ -291,6 +291,8 @@ export default function BracketPage() {
   const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sourceRef       = useRef<string | null>(searchParams.get('ref'))
   const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
+  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('portrait')
+  const shareFnRef      = useRef<() => void>(() => {})
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
@@ -665,6 +667,36 @@ export default function BracketPage() {
         </button>
       </div>
 
+      {/* Champion share banner — shown above section tabs when bracket is complete */}
+      {picks['final'] && (
+        <div ref={championBannerRef} className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-xl leading-none flex-shrink-0">🏆</span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-amber-800">Share your bracket picks</p>
+                <p className="text-xs text-amber-600 mt-0.5 truncate">{picks['final']} wins the World Cup</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex rounded-lg border border-amber-300 overflow-hidden text-[10px] font-bold">
+                <button onClick={() => setShareFormat('portrait')} title="Portrait"
+                  className={clsx('px-2 py-1.5 transition-colors', shareFormat === 'portrait' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100')}>↕</button>
+                <button onClick={() => setShareFormat('landscape')} title="Landscape"
+                  className={clsx('px-2 py-1.5 transition-colors border-l border-amber-300', shareFormat === 'landscape' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100')}>↔</button>
+                <button onClick={() => setShareFormat('square')} title="Square (1:1)"
+                  className={clsx('px-2 py-1.5 transition-colors border-l border-amber-300', shareFormat === 'square' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100')}>□</button>
+              </div>
+              <button onClick={() => shareFnRef.current()}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
+                <span className="text-sm leading-none">↑</span>
+                <span>Share</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Section nav */}
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1">
         {([
@@ -690,7 +722,7 @@ export default function BracketPage() {
 
       {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
       {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} groupsDone={groupsDone} />}
-      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} championBannerRef={championBannerRef} onNavigate={navigateTo} onShare={(fmt: string) => {
+      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} shareFormat={shareFormat} shareFnRef={shareFnRef} onNavigate={navigateTo} onShare={(fmt: string) => {
         if (!selectedTournId) return
         fetch('/api/bracket-prediction', {
           method: 'PATCH',
@@ -1174,18 +1206,18 @@ const ROUND_DATES  = ['Jul 1–6', 'Jul 8–11', 'Jul 13–14', 'Jul 16–17', '
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, picksRef, savePick, resolveSlot, championBannerRef, onNavigate, onShare }: {
+function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, shareFnRef, onNavigate, onShare }: {
   picks: Picks
   picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: (string | null)[]
-  championBannerRef?: React.RefObject<HTMLDivElement>
+  shareFormat: 'portrait' | 'landscape' | 'square'
+  shareFnRef: React.MutableRefObject<() => void>
   onNavigate: (s: Section) => void
   onShare: (format: string) => void
 }) {
   const champion     = picks['final'] ?? null
-  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('portrait')
   const scrollRef    = useRef<HTMLDivElement>(null)
   const treeRef      = useRef<HTMLDivElement>(null)
   const [showRightFade, setShowRightFade] = useState(true)
@@ -1608,6 +1640,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
     } catch {}
   }, [picksRef, shareFormat, onShare])
 
+  // Expose shareAsPng to parent via ref so the banner rendered above the tabs can trigger it
+  shareFnRef.current = shareAsPng
+
   // Show prerequisite gate before the bracket tree
   if (!groupsDone || thirdsCount < 8) {
     const needGroups = !groupsDone
@@ -1635,57 +1670,6 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, championBanner
 
   return (
     <div>
-      {/* Champion share banner */}
-      {champion && (
-        <div ref={championBannerRef} className="mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-xl leading-none flex-shrink-0">🏆</span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-amber-800">Save your bracket</p>
-                <p className="text-xs text-amber-600 mt-0.5 truncate">{champion} wins the World Cup</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {/* Portrait / Landscape / Square toggle */}
-              <div className="flex rounded-lg border border-amber-300 overflow-hidden text-[10px] font-bold">
-                <button
-                  onClick={() => setShareFormat('portrait')}
-                  title="Portrait"
-                  className={clsx(
-                    'px-2 py-1.5 transition-colors',
-                    shareFormat === 'portrait' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
-                  )}>
-                  ↕
-                </button>
-                <button
-                  onClick={() => setShareFormat('landscape')}
-                  title="Landscape"
-                  className={clsx(
-                    'px-2 py-1.5 transition-colors border-l border-amber-300',
-                    shareFormat === 'landscape' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
-                  )}>
-                  ↔
-                </button>
-                <button
-                  onClick={() => setShareFormat('square')}
-                  title="Square (1:1)"
-                  className={clsx(
-                    'px-2 py-1.5 transition-colors border-l border-amber-300',
-                    shareFormat === 'square' ? 'bg-amber-500 text-white' : 'text-amber-600 hover:bg-amber-100'
-                  )}>
-                  □
-                </button>
-              </div>
-              <button onClick={shareAsPng}
-                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
-                <span className="text-sm leading-none">↑</span>
-                <span>Share</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <p className="text-xs text-gray-500 mb-3">
         Pick winners for each match. Teams shown are from your group stage picks.
       </p>
