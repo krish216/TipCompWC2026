@@ -276,6 +276,7 @@ export default function BracketPage() {
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [showRegPrompt, setShowRegPrompt] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -548,6 +549,9 @@ export default function BracketPage() {
 
     if (champion === prev) return  // same pick reloaded, no action
 
+    // New champion: re-show banner in case user had dismissed a previous pick
+    setBannerDismissed(false)
+
     // New champion: scroll page to the champion banner (offset by sticky top navbar)
     setTimeout(() => {
       const el = championBannerRef.current
@@ -668,7 +672,7 @@ export default function BracketPage() {
       </div>
 
       {/* Champion share banner — shown above section tabs when bracket is complete */}
-      {picks['final'] && (
+      {picks['final'] && !bannerDismissed && (
         <div ref={championBannerRef} className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -691,6 +695,25 @@ export default function BracketPage() {
                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all">
                 <span className="text-sm leading-none">↑</span>
                 <span>Share</span>
+              </button>
+              <button
+                onClick={() => {
+                  setBannerDismissed(true)
+                  if (selectedTournId) {
+                    fetch('/api/bracket-prediction', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        tournament_id: selectedTournId,
+                        session_id: getOrCreateSessionId(),
+                        dismissed_at: new Date().toISOString(),
+                      }),
+                    }).catch(() => {})
+                  }
+                }}
+                aria-label="Dismiss"
+                className="text-amber-400 hover:text-amber-600 text-base leading-none px-1 transition-colors">
+                ×
               </button>
             </div>
           </div>

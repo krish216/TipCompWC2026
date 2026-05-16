@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       tournament_id, session_id,
       champion, runner_up,
       sf_loser_1, sf_loser_2,
-      source, device, completed_at,
+      source, device, completed_at, dismissed_at,
     } = body ?? {}
 
     if (!tournament_id || !session_id) {
@@ -56,8 +56,9 @@ export async function POST(request: NextRequest) {
     if (runner_up    !== undefined) patch.runner_up  = runner_up
     if (sf_loser_1   !== undefined) patch.sf_loser_1 = sf_loser_1
     if (sf_loser_2   !== undefined) patch.sf_loser_2 = sf_loser_2
-    if (device       !== undefined) patch.device     = device
-    if (completed_at !== undefined) patch.completed_at = completed_at
+    if (device        !== undefined) patch.device       = device
+    if (completed_at  !== undefined) patch.completed_at = completed_at
+    if (dismissed_at  !== undefined) patch.dismissed_at = dismissed_at
 
     if (user) {
       const existing = await findRow(admin, user.id, session_id, tournament_id)
