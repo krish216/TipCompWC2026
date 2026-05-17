@@ -396,8 +396,8 @@ export default function PredictPage() {
   }, [roundLocks, scoringConfig, ROUND_TABS])
 
   const isLocked = useCallback((f: Fixture) => {
-    if (allowRetroactivePredictions) return false   // retroactive: nothing is locked
-    if (!isRoundOpen(f.round)) return true
+    if (!isRoundOpen(f.round)) return true  // round lock always enforced
+    if (allowRetroactivePredictions) return false  // bypass kickoff/result locks only
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
   }, [isRoundOpen, allowRetroactivePredictions])
