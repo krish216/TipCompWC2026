@@ -687,7 +687,7 @@ export default function BracketPage() {
       </div>
 
       {/* Champion share banner — shown above section tabs when bracket is complete */}
-      {picks['final'] && (
+      {picks['final'] && section === 'bracket' && (
         <div ref={championBannerRef} className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
