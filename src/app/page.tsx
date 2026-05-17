@@ -952,6 +952,17 @@ export default function HomePage() {
   }
 
 
+  if (session && (loading || contextLoading)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <CountdownBanner />
+        <div className="flex justify-center py-24">
+          <Spinner className="w-8 h-8" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
