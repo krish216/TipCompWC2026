@@ -21,9 +21,10 @@ export interface Tournament {
   final_date?:    string | null
   first_match?:   string | null
   teams?:         string[] | null
-  max_base_pts?:    number | null
-  max_bonus_pts?:   number | null
-  enforce_premium?: boolean
+  max_base_pts?:                  number | null
+  max_bonus_pts?:                 number | null
+  enforce_premium?:               boolean
+  allow_retroactive_predictions?: boolean
 }
 
 export interface Comp {

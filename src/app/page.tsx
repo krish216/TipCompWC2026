@@ -362,6 +362,9 @@ export default function HomePage() {
   // Auto-open the Create Comp modal when the user arrives after organiser registration
   // Also show the comp welcome banner when arriving from /join
   useEffect(() => {
+    const role = searchParams.get('role')
+    if (role === 'organiser' || role === 'tipster') setPersona(role)
+
     if (searchParams.get('flow') === 'create' && session) {
       setModal('create')
       router.replace('/')
@@ -593,7 +596,9 @@ export default function HomePage() {
   const [teamsList,        setTeamsList]        = useState<{ name: string; flag_emoji?: string }[]>([])
   const [favouriteTeam,    setFavouriteTeam]    = useState<string | null>(null)
   const [savingFav,        setSavingFav]        = useState(false)
-  const [persona,          setPersona]          = useState<'tipster' | 'organiser'>('tipster')
+  const [persona,          setPersona]          = useState<'tipster' | 'organiser'>(
+    searchParams.get('role') === 'organiser' ? 'organiser' : 'tipster'
+  )
   const [compWelcome,      setCompWelcome]      = useState<string | null>(null)
   const [editingName,      setEditingName]      = useState(false)
   const [nameInput,        setNameInput]        = useState('')
@@ -2082,7 +2087,7 @@ export default function HomePage() {
               )}
 
               {/* Tipsheet nudge — fires as soon as tipping closes for a round */}
-              {hasTribe && closedForTippingRound && closedForTippingRound !== dismissedTipsheetRound && (
+              {!selectedTourn?.allow_retroactive_predictions && hasTribe && closedForTippingRound && closedForTippingRound !== dismissedTipsheetRound && (
                 <div className="mb-3 flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
                   <span className="text-base flex-shrink-0">⚽</span>
                   <div className="flex-1 min-w-0 text-xs text-blue-800">
@@ -2124,7 +2129,7 @@ export default function HomePage() {
               )}
 
               {/* Round wrap-up — shown after a round fully scores, dismissed per round */}
-              {lastCompletedRound && lastCompletedRound !== dismissedWrapUpRound && roundWrapUpData && (
+              {!selectedTourn?.allow_retroactive_predictions && lastCompletedRound && lastCompletedRound !== dismissedWrapUpRound && roundWrapUpData && (
                 <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                   <span className="text-base flex-shrink-0">🏁</span>
                   <div className="flex-1 min-w-0 text-xs text-amber-800">
@@ -2163,7 +2168,7 @@ export default function HomePage() {
               )}
 
               {/* Results nudge — shown when new results have landed since the user last visited /predict */}
-              {!nudgeDismissed && newResultsCount > 0 && (
+              {!selectedTourn?.allow_retroactive_predictions && !nudgeDismissed && newResultsCount > 0 && (
                 <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                   <span className="text-base flex-shrink-0">🏁</span>
                   <Link href="/predict" className="flex-1 text-xs text-amber-800">
