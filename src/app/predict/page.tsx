@@ -645,6 +645,8 @@ export default function PredictPage() {
         visibleFixtures.forEach(f => { delete next[f.id] })
         return next
       })
+      // Allow re-celebration after a new round of practice
+      tabCompletionFired.current.delete(activeRound)
       setConfirmClear(false)
     } finally {
       setClearingPractice(false)
