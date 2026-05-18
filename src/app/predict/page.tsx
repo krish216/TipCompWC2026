@@ -565,7 +565,10 @@ export default function PredictPage() {
 
   const nextUnpredictedId = useMemo(() => {
     return visibleFixtures.find(f => {
-      if (results[f.id] || isLocked(f)) return false
+      if (isLocked(f)) return false
+      // In demo mode the result is hidden until the user tips, so don't treat a
+      // pre-existing result as "already resolved" for scroll/indicator purposes.
+      if (!allowRetroactivePredictions && results[f.id]) return false
       const p = predictions[f.id]
       if (!p) return true
       const isKnockout = scoringConfig.knockout_rounds.includes(f.round)
@@ -573,7 +576,7 @@ export default function PredictPage() {
       if (isKnockout && isOutcome && (p as any).outcome === 'D' && !(p as any).pen_winner) return true
       return false
     })?.id ?? null
-  }, [visibleFixtures, results, predictions, roundLocks])
+  }, [visibleFixtures, results, predictions, roundLocks, allowRetroactivePredictions])
 
   // Keep ref current so triggerCelebration's setTimeout closure always reads the latest value
   useEffect(() => { nextUnpredictedIdRef.current = nextUnpredictedId }, [nextUnpredictedId])
