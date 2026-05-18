@@ -295,7 +295,7 @@ export default function BracketPage() {
   const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sourceRef       = useRef<string | null>(searchParams.get('ref'))
   const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
-  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('portrait')
+  const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('landscape')
   const shareFnRef      = useRef<() => void>(() => {})
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
@@ -1623,6 +1623,12 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
         // ── Final (centre) ──
         { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
 
+        // Final label above card
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+        ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, sans-serif'
+        ctx.fillStyle = '#d97706'
+        ctx.fillText('FINAL · Jul 20 · MetLife, NY', CW / 2, mCY(3, 0) - MH / 2 - 3)
+
         // Champion badge — pushed down to clear venue/time text below Final card
         const badgeY = mCY(3, 0) + MH / 2 + 30
         ctx.textAlign = 'center'; ctx.textBaseline = 'top'
@@ -1631,6 +1637,21 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
         ctx.font = `bold ${winner.length > 12 ? 11 : 13}px -apple-system, BlinkMacSystemFont, sans-serif`
         ctx.fillStyle = '#b45309'
         ctx.fillText(winner, CW / 2, badgeY + 28)
+
+        // ── 3rd Place Play-off (below champion badge) ──
+        {
+          const sf1 = latest[BRACKET_TREE.sf[0].key] ?? null
+          const sf2 = latest[BRACKET_TREE.sf[1].key] ?? null
+          const sfL1 = sf1 ? (BRACKET_TREE.sf[0].from.map((k: string) => latest[k] ?? null).find(t => t !== sf1) ?? null) : null
+          const sfL2 = sf2 ? (BRACKET_TREE.sf[1].from.map((k: string) => latest[k] ?? null).find(t => t !== sf2) ?? null) : null
+          const tpWinner = latest[BRACKET_TREE.thirdPlace.key] ?? null
+          const tpY = badgeY + 52
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+          ctx.font = 'bold 8px -apple-system, BlinkMacSystemFont, sans-serif'
+          ctx.fillStyle = '#9ca3af'
+          ctx.fillText('3RD PLACE · Jul 19 · Miami', CW / 2, tpY)
+          drawCard(finalX, tpY + 13, sfL1, sfL2, tpWinner)
+        }
 
         if (isSquare) ctx.restore()
 
@@ -1823,7 +1844,10 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
           </div>
 
           {/* ── Final ── */}
-          <div style={{ position: 'absolute', top: matchTY(4, 0), left: colX(4), width: COL_W }}>
+          <div style={{ position: 'absolute', top: matchTY(4, 0) - 14, left: colX(4), width: COL_W }}>
+            <div className="text-[8px] font-bold text-amber-500 tracking-wider uppercase text-center mb-1.5">
+              Final · Jul 20 · MetLife, NY
+            </div>
             <BracketMatchCard
               matchKey={BRACKET_TREE.final.key}
               homeTeam={picks[BRACKET_TREE.final.from[0]] ?? null}
@@ -1832,6 +1856,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
               awayDesc={BRACKET_TREE.final.from[1]}
               winner={champion}
               savePick={savePick}
+              isFinal
             />
           </div>
 
@@ -1881,7 +1906,7 @@ function BracketConnectors({ fromRoundIdx, fromCount }: { fromRoundIdx: number; 
   )
 }
 
-function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick }: {
+function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick, isFinal }: {
   matchKey: string
   homeTeam: string | null
   awayTeam: string | null
@@ -1889,6 +1914,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
   awayDesc: string
   winner: string | null
   savePick: (k: string, v: string | null) => void
+  isFinal?: boolean
 }) {
   const pick = (team: string | null) => {
     if (!team) return
@@ -1896,8 +1922,10 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
-      style={{ height: CARD_H }}>
+    <div className={clsx(
+      'rounded-xl border bg-white shadow-sm overflow-hidden',
+      isFinal ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'
+    )} style={{ height: CARD_H }}>
       {[
         { team: homeTeam, desc: homeDesc },
         { team: awayTeam, desc: awayDesc },
