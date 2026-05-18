@@ -58,6 +58,8 @@ export default function PredictPage() {
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
   const [allDoneBanner,      setAllDoneBanner]      = useState<string | null>(null)
   const [firstWinCelebrated, setFirstWinCelebrated] = useState<boolean | null>(null)
+  const [confirmClear,   setConfirmClear]   = useState(false)
+  const [clearingPractice, setClearingPractice] = useState(false)
   const [failedSaves,        setFailedSaves]        = useState<Set<number>>(new Set())
   const [saveVisible,        setSaveVisible]        = useState(false)
 
@@ -620,6 +622,32 @@ export default function PredictPage() {
   )
   }
 
+  // Show "Practice again" when: demo mode, active tab's rounds are all open, all fixtures predicted
+  const showPracticeAgain = allowRetroactivePredictions
+    && (TAB_TO_ROUNDS[activeRound] ?? []).every(r => isRoundOpen(r))
+    && (roundPredCounts[activeRound]?.total ?? 0) > 0
+    && roundPredCounts[activeRound]?.entered === roundPredCounts[activeRound]?.total
+
+  const clearPracticeRound = async () => {
+    if (!selectedTournId) return
+    setClearingPractice(true)
+    try {
+      const rounds = TAB_TO_ROUNDS[activeRound] ?? []
+      await Promise.all(rounds.map(r =>
+        fetch(`/api/predictions?round=${r}&tournament_id=${selectedTournId}`, { method: 'DELETE' })
+      ))
+      // Clear local prediction state for all visible fixtures
+      setPredictions(prev => {
+        const next = { ...prev }
+        visibleFixtures.forEach(f => { delete next[f.id] })
+        return next
+      })
+      setConfirmClear(false)
+    } finally {
+      setClearingPractice(false)
+    }
+  }
+
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 
   const saveFavTeam = async (team: string) => {
@@ -798,22 +826,48 @@ export default function PredictPage() {
         </div>
       )}
 
-      {/* Tipsheet actions — only shown once tipping is closed for the active round */}
-      {visibleFixtures.length > 0 && (TAB_TO_ROUNDS[activeRound] ?? []).some(r => tippingClosed[r]) && (
-        <div className="flex items-center gap-2 mb-3">
-          <TipsheetShareButton
-            roundLabel={ROUND_TAB_LABEL[activeRound] ?? activeRound}
-            fixtures={tipsheetFixtures}
-          />
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1a1 1 0 01-1 1H7a1 1 0 01-1-1zm9-5a1 1 0 110 2 1 1 0 010-2z" clipRule="evenodd" />
-            </svg>
-            <span>Print / PDF</span>
-          </button>
+      {/* Tipsheet actions + Practice again */}
+      {visibleFixtures.length > 0 && (
+        (TAB_TO_ROUNDS[activeRound] ?? []).some(r => tippingClosed[r]) || showPracticeAgain
+      ) && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {(TAB_TO_ROUNDS[activeRound] ?? []).some(r => tippingClosed[r]) && (<>
+            <TipsheetShareButton
+              roundLabel={ROUND_TAB_LABEL[activeRound] ?? activeRound}
+              fixtures={tipsheetFixtures}
+            />
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1a1 1 0 01-1 1H7a1 1 0 01-1-1zm9-5a1 1 0 110 2 1 1 0 010-2z" clipRule="evenodd" />
+              </svg>
+              <span>Print / PDF</span>
+            </button>
+          </>)}
+
+          {showPracticeAgain && (
+            confirmClear ? (
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-xs text-amber-700 font-medium">Clear all picks for this round?</span>
+                <button onClick={clearPracticeRound} disabled={clearingPractice}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
+                  {clearingPractice ? 'Clearing…' : 'Confirm'}
+                </button>
+                <button onClick={() => setConfirmClear(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmClear(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-amber-600 border border-amber-200 transition-colors ml-auto">
+                <span>🔄</span>
+                <span>Practice again</span>
+              </button>
+            )
+          )}
         </div>
       )}
 

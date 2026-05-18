@@ -141,8 +141,37 @@ export async function DELETE(request: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const fixture_id = parseInt(new URL(request.url).searchParams.get('fixture_id') ?? '')
-  if (isNaN(fixture_id)) return NextResponse.json({ error: 'fixture_id required' }, { status: 400 })
+  const { searchParams } = new URL(request.url)
+  const round       = searchParams.get('round')
+  const fixture_id  = parseInt(searchParams.get('fixture_id') ?? '')
+
+  // ── Bulk clear for practice mode ──────────────────────────────────────────
+  // Accepts ?round=gs&tournament_id=... and clears all predictions for that
+  // round. Only permitted when allow_retroactive_predictions = true.
+  if (round) {
+    const admin = createAdminClient()
+    const tournament_id = searchParams.get('tournament_id') ?? await getActiveTournamentId(user.id)
+    if (!tournament_id) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
+
+    const { data: tournRow } = await (admin.from('tournaments') as any)
+      .select('allow_retroactive_predictions').eq('id', tournament_id).maybeSingle()
+    if (!(tournRow as any)?.allow_retroactive_predictions)
+      return NextResponse.json({ error: 'Practice clear only available in demo mode' }, { status: 403 })
+
+    // Collect fixture IDs for this round
+    const { data: fxRows } = await (admin.from('fixtures') as any)
+      .select('id').eq('tournament_id', tournament_id).eq('round', round)
+    const fixtureIds = (fxRows ?? []).map((f: any) => f.id)
+    if (!fixtureIds.length) return NextResponse.json({ ok: true, deleted: 0 })
+
+    const { error } = await (admin.from('predictions') as any)
+      .delete().eq('user_id', user.id).in('fixture_id', fixtureIds)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, deleted: fixtureIds.length })
+  }
+
+  // ── Single-fixture delete (existing behaviour) ────────────────────────────
+  if (isNaN(fixture_id)) return NextResponse.json({ error: 'fixture_id or round required' }, { status: 400 })
 
   const { data: fxRaw } = await supabase.from('fixtures').select('kickoff_utc, home_score').eq('id', fixture_id).single()
   const fx = fxRaw as any
