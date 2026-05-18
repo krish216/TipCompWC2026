@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Spinner } from '@/components/ui'
 import { CHALLENGE_PICKS_KEY, CHALLENGE_SOURCE_KEY, CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -218,7 +219,7 @@ function IntroScreen({ onStart, loading }: { onStart: () => void; loading: boole
                    rounded-2xl py-4 px-8 shadow-lg active:scale-95 transition-transform
                    disabled:opacity-60 flex items-center justify-center gap-2">
         {loading ? (
-          <><span className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />Loading…</>
+          <><Spinner className="w-4 h-4" />Loading…</>
         ) : 'Start Challenge →'}
       </button>
 

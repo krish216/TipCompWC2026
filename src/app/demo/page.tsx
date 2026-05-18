@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { Spinner } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import Link from 'next/link'
@@ -322,7 +323,7 @@ export default function DemoPage() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
+          <Spinner className="w-8 h-8" />
         </div>
       ) : fixtures.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
