@@ -7,6 +7,7 @@ import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
 import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
+import { FeedbackButton } from '@/components/layout/FeedbackButton'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
@@ -59,6 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}
             </main>
+            <FeedbackButton />
             <Toaster
               position="top-right"
               toastOptions={{ duration: 3000, style: { fontSize: '13px' } }}
