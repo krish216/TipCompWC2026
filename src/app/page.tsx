@@ -9,6 +9,8 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { Spinner, UpgradeModal, CrownBadge } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
+import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
+import { getOrCreateSessionId } from '@/lib/session'
 
 const SAMPLE_TIP_SHEET = {
   matches: [
@@ -745,6 +747,19 @@ export default function HomePage() {
         .then(d => {
           if (!d.error) {
             setChallengeToast(`⚽ ${real.length} warm-up pick${real.length > 1 ? 's' : ''} saved to the competition!`)
+            const storedTournId = localStorage.getItem(CHALLENGE_TOURNAMENT_KEY)
+            if (storedTournId) {
+              fetch('/api/challenge-completion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  tournament_id: storedTournId,
+                  session_id:    getOrCreateSessionId(),
+                  signed_up_at:  new Date().toISOString(),
+                }),
+              }).catch(() => {})
+              localStorage.removeItem(CHALLENGE_TOURNAMENT_KEY)
+            }
           }
         })
         .catch(() => {})

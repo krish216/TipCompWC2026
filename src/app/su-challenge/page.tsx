@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CHALLENGE_PICKS_KEY, CHALLENGE_SOURCE_KEY } from '@/lib/challenge'
+import { CHALLENGE_PICKS_KEY, CHALLENGE_SOURCE_KEY, CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
+import { getOrCreateSessionId } from '@/lib/session'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -496,19 +497,24 @@ function SignupScreen({ picks }: { picks: Pick[] }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SuChallengePage() {
-  const [step,       setStep]       = useState<Step>('intro')
-  const [matchIndex, setMatchIndex] = useState(0)
-  const [picks,      setPicks]      = useState<Pick[]>([])
-  const [matches,    setMatches]    = useState<Match[]>(FALLBACK_MATCHES)
-  const [loading,    setLoading]    = useState(true)
+  const [step,         setStep]         = useState<Step>('intro')
+  const [matchIndex,   setMatchIndex]   = useState(0)
+  const [picks,        setPicks]        = useState<Pick[]>([])
+  const [matches,      setMatches]      = useState<Match[]>(FALLBACK_MATCHES)
+  const [loading,      setLoading]      = useState(true)
+  const [tournamentId, setTournamentId] = useState<string | null>(null)
 
   // Fetch live wup fixtures on mount
   useEffect(() => {
     fetch('/api/challenge-fixtures')
       .then(r => r.json())
-      .then(({ data }: { data: LiveFixture[] }) => {
+      .then(({ data, tournament_id }: { data: LiveFixture[]; tournament_id: string | null }) => {
         if (data?.length === 4) {
           setMatches(data.map((f, i) => liveToMatch(f, FALLBACK_MATCHES[i])))
+        }
+        if (tournament_id) {
+          setTournamentId(tournament_id)
+          try { localStorage.setItem(CHALLENGE_TOURNAMENT_KEY, tournament_id) } catch {}
         }
       })
       .catch(() => {})
@@ -542,6 +548,24 @@ export default function SuChallengePage() {
           localStorage.setItem(CHALLENGE_SOURCE_KEY, 'wup')
         } catch { /* storage may be blocked in private browsing */ }
       }
+
+      // Record completion metadata
+      if (tournamentId) {
+        const source = new URLSearchParams(window.location.search).get('ref')
+        const device = /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
+        fetch('/api/challenge-completion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tournament_id: tournamentId,
+            session_id:    getOrCreateSessionId(),
+            source,
+            device,
+            completed_at:  new Date().toISOString(),
+          }),
+        }).catch(() => {})
+      }
+
       setStep('result')
     } else {
       setMatchIndex(matchIndex + 1)
