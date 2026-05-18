@@ -592,13 +592,19 @@ export default function PredictPage() {
     }
   }, [roundPredCounts, activeRound, loading])
 
-  const renderMatchRow = (f: Fixture) => (
+  const renderMatchRow = (f: Fixture) => {
+    // In demo mode, hide the result until the user has tipped this fixture.
+    // Locked fixtures show the result regardless (user can't tip them anyway).
+    const effectiveResult = allowRetroactivePredictions && !predictions[f.id] && !isLocked(f)
+      ? null
+      : (results[f.id] ?? null)
+    return (
     <MatchRow
       key={f.id}
       fixture={f}
       round={f.round}
       prediction={predictions[f.id] ?? null}
-      result={results[f.id] ?? null}
+      result={effectiveResult}
       locked={isLocked(f)}
       saving={saving.has(f.id)}
       celebrating={celebrating.has(f.id)}
@@ -612,6 +618,7 @@ export default function PredictPage() {
       onPenWinner={onPenWinner}
     />
   )
+  }
 
   const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
 

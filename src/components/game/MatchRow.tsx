@@ -287,8 +287,9 @@ export function MatchRow({
 
               {/* Result score */}
               {result && (
-                <div className="text-xs font-bold text-gray-600 mt-0.5">
+                <div className={clsx('text-xs font-bold text-gray-600 mt-0.5', retroactive && 'animate-fade-in')}>
                   {result.home} – {result.away}
+                  {retroactive && <span className="text-gray-400 font-normal ml-1">(Practice)</span>}
                 </div>
               )}
             </>
@@ -321,8 +322,9 @@ export function MatchRow({
                 />
               </div>
               {result && (
-                <div className="text-xs font-bold text-gray-500 mt-1">
+                <div className={clsx('text-xs font-bold text-gray-500 mt-1', retroactive && 'animate-fade-in')}>
                   Result: {result.home}–{result.away}
+                  {retroactive && <span className="text-gray-400 font-normal ml-1">(Practice)</span>}
                 </div>
               )}
             </>
