@@ -1469,14 +1469,15 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
           ctx.fillText(sub, x, LH * 0.72)
         })
 
-        // drawCard: renders one match card at (x, y)
-        const drawCard = (x: number, y: number, tA: string | null, tB: string | null, win: string | null) => {
-          ctx.fillStyle = '#ffffff'
-          ctx.strokeStyle = '#e5e7eb'
-          ctx.lineWidth = 1
+        // drawCard: renders one match card at (x, y); highlight=true gives amber border (Final)
+        const drawCard = (x: number, y: number, tA: string | null, tB: string | null, win: string | null, highlight = false) => {
+          ctx.fillStyle = highlight ? '#fffbeb' : '#ffffff'
+          ctx.strokeStyle = highlight ? '#f59e0b' : '#e5e7eb'
+          ctx.lineWidth = highlight ? 2 : 1
           ctx.beginPath(); ctx.roundRect(x, y, MW, MH, 5); ctx.fill(); ctx.stroke()
 
-          ctx.strokeStyle = '#f3f4f6'
+          ctx.strokeStyle = highlight ? '#fde68a' : '#f3f4f6'
+          ctx.lineWidth = 1
           ctx.beginPath(); ctx.moveTo(x + 4, y + MH / 2); ctx.lineTo(x + MW - 4, y + MH / 2); ctx.stroke()
 
           const rowH = MH / 2
@@ -1621,7 +1622,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
         { const m = BRACKET_TREE.sf[1]; const ty = mCY(3, 0) - MH / 2; drawCard(sfRX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null); drawVT(sfRX, ty, 'AT&T, Dallas', '2026-07-17T23:00:00Z') }
 
         // ── Final (centre) ──
-        { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
+        { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner, true); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
 
         // Final label above card
         ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
