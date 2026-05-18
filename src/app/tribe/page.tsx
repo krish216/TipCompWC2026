@@ -1664,12 +1664,21 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
   tribeId: string; compId: string | null; activeTournamentId: string | null
 }) {
   const { scoringConfig, flag, code } = useUserPrefs()
-  const [activePickRound, setActivePickRound] = useState<string>('gs')
-  const [scope,           setScope]           = useState<'tribe' | 'comp'>('tribe')
-  const [compPicksData,   setCompPicksData]   = useState<any>(null)
+  const [activePickRound,  setActivePickRound]  = useState<string>('gs')
+  const [scope,            setScope]            = useState<'tribe' | 'comp'>('tribe')
+  const [compPicksData,    setCompPicksData]    = useState<any>(null)
   const [compPicksLoading, setCompPicksLoading] = useState(false)
   const [downloadingGrid,    setDownloadingGrid]    = useState(false)
   const [downloadingSummary, setDownloadingSummary] = useState(false)
+  const [compTribeCount,   setCompTribeCount]   = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!compId) return
+    fetch(`/api/tribes/list?comp_id=${compId}`)
+      .then(r => r.json())
+      .then(d => setCompTribeCount((d.data ?? []).length))
+      .catch(() => {})
+  }, [compId])
 
   // Active data depends on scope
   const activeData = scope === 'comp' ? compPicksData : tribePicksData
@@ -1790,8 +1799,8 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
 
   return (<>
     <div className="print:hidden">
-      {/* ── Scope toggle: My Tribe / Whole Comp ── */}
-      {compId && (
+      {/* ── Scope toggle: My Tribe / Whole Comp — hidden when comp has ≤1 tribe ── */}
+      {compId && (compTribeCount === null || compTribeCount > 1) && (
         <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl border border-gray-200 w-fit">
           {(['tribe', 'comp'] as const).map(s => (
             <button key={s} onClick={() => setScope(s)}

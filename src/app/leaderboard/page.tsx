@@ -75,9 +75,10 @@ export default function LeaderboardPage() {
     }
   }, [scoringConfig])
 
-  const [userComps,  setUserComps]  = useState<{id:string;name:string}[]>([])
-  const [selectedComp, setSelectedComp] = useState<string | null>(null)
-  const [scope,     setScope]     = useState<Scope>('comp')
+  const [userComps,       setUserComps]       = useState<{id:string;name:string}[]>([])
+  const [selectedComp,    setSelectedComp]    = useState<string | null>(null)
+  const [scope,           setScope]           = useState<Scope>('comp')
+  const [compTribeCount,  setCompTribeCount]  = useState<number | null>(null)
   const [roundView, setRoundView] = useState<RoundView>('all')
   const [entries,   setEntries]   = useState<any[]>([])
   const [myEntry,   setMyEntry]   = useState<any | null>(null)
@@ -110,6 +111,10 @@ export default function LeaderboardPage() {
       setEntries(data ?? [])
       setMyEntry(my_entry ?? null)
       setMessage(msg ?? null)
+      if (sc === 'comp') {
+        const distinctTribes = new Set((data ?? []).filter((e: any) => e.tribe_name).map((e: any) => e.tribe_name))
+        setCompTribeCount(distinctTribes.size)
+      }
     } catch (e: any) { setError('Network error — please check your connection and try again') }
     finally { setLoading(false) }
   }
@@ -167,6 +172,11 @@ export default function LeaderboardPage() {
       supabase.removeChannel(channel)
     }
   }, [supabase, session, scope])
+
+  // If the tribe tab is hidden (≤1 tribe) and scope was somehow set to 'tribe', reset it
+  useEffect(() => {
+    if (compTribeCount !== null && compTribeCount <= 1 && scope === 'tribe') setScope('comp')
+  }, [compTribeCount, scope])
 
   const filteredEntries = useMemo(() => {
     if (roundView === 'all') {
@@ -427,15 +437,17 @@ export default function LeaderboardPage() {
         <>
           {/* Scope sub-tabs */}
           <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-lg">
-            {(['tribe','comp','global'] as Scope[]).map(s => (
-              <button key={s} onClick={() => { setScope(s); setExpanded(null); if (s === 'global') setRoundView('all') }}
-                className={clsx(
-                  'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
-                  scope === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}>
-                {SCOPE_LABELS[s]}
-              </button>
-            ))}
+            {(['tribe','comp','global'] as Scope[])
+              .filter(s => !(s === 'tribe' && compTribeCount !== null && compTribeCount <= 1))
+              .map(s => (
+                <button key={s} onClick={() => { setScope(s); setExpanded(null); if (s === 'global') setRoundView('all') }}
+                  className={clsx(
+                    'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
+                    scope === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  )}>
+                  {SCOPE_LABELS[s]}
+                </button>
+              ))}
           </div>
 
           {/* Round snapshot pills — hidden on global scope (no round breakdown returned) */}
