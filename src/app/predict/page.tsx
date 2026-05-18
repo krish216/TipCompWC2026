@@ -850,20 +850,20 @@ export default function PredictPage() {
           {showPracticeAgain && (
             confirmClear ? (
               <div className="flex items-center gap-2 ml-auto">
-                <span className="text-xs text-amber-700 font-medium">Clear all picks for this round?</span>
+                <span className="text-xs text-blue-700 font-medium">Clear all picks for this round?</span>
                 <button onClick={clearPracticeRound} disabled={clearingPractice}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50">
                   {clearingPractice ? 'Clearing…' : 'Confirm'}
                 </button>
                 <button onClick={() => setConfirmClear(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors">
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 transition-colors">
                   Cancel
                 </button>
               </div>
             ) : (
               <button onClick={() => setConfirmClear(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-amber-600 border border-amber-200 transition-colors ml-auto">
-                <span>🔄</span>
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors ml-auto">
+                <span>✏️</span>
                 <span>Practice again</span>
               </button>
             )
