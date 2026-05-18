@@ -92,7 +92,7 @@ export async function DELETE(request: NextRequest) {
         ...Array.from({ length: 16 }, (_, i) => `r32:${i + 1}`),
         ...Array.from({ length: 8 },  (_, i) => `r16:${i + 1}`),
         ...Array.from({ length: 4 },  (_, i) => `qf:${i + 1}`),
-        'sf:1', 'sf:2', 'final',
+        'sf:1', 'sf:2', 'final', 'tp',
       ]
       const { error } = await (admin.from('bracket_picks') as any)
         .delete()

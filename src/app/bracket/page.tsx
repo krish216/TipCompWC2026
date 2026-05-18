@@ -145,7 +145,8 @@ const BRACKET_TREE = {
     { key: 'sf:1', from: ['qf:1', 'qf:2'] },
     { key: 'sf:2', from: ['qf:3', 'qf:4'] },
   ],
-  final: { key: 'final', from: ['sf:1', 'sf:2'] },
+  final:      { key: 'final', from: ['sf:1', 'sf:2'] },
+  thirdPlace: { key: 'tp',    from: ['sf:1', 'sf:2'] },
 }
 
 // All knockout-round slot keys (used to cascade-clear when group/thirds change)
@@ -155,6 +156,7 @@ const BRACKET_KEYS: string[] = [
   ...BRACKET_TREE.qf.map(m => m.key),
   ...BRACKET_TREE.sf.map(m => m.key),
   BRACKET_TREE.final.key,
+  BRACKET_TREE.thirdPlace.key,
 ]
 
 // Returns all slot keys downstream of `key` in the bracket tree
@@ -171,6 +173,7 @@ function getDownstream(key: string): string[] {
     if (next) { result.push(next.key); result.push(...getDownstream(next.key)) }
   } else if (key.startsWith('sf:')) {
     result.push(BRACKET_TREE.final.key)
+    result.push(BRACKET_TREE.thirdPlace.key)
   }
   return result
 }
@@ -1242,6 +1245,15 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
   const groupsDone   = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
   const thirdsCount  = T_SLOTS.filter(t => picks[thirdSlot(t)]).length
 
+  // Derive SF losers for the 3rd place play-off card
+  const sf1Pick = picks[BRACKET_TREE.sf[0].key] ?? null
+  const sf2Pick = picks[BRACKET_TREE.sf[1].key] ?? null
+  const tpHome  = sf1Pick ? (BRACKET_TREE.sf[0].from.map((k: string) => picks[k] ?? null).find(t => t !== sf1Pick) ?? null) : null
+  const tpAway  = sf2Pick ? (BRACKET_TREE.sf[1].from.map((k: string) => picks[k] ?? null).find(t => t !== sf2Pick) ?? null) : null
+
+  // Y position of the 3rd place card within the tree (below the Final card)
+  const TP_CARD_TOP = matchTY(4, 0) + CARD_H + 28
+
   // Center the given round column in the scroll container
   const centerColumn = useCallback((roundIdx: number) => {
     const container = scrollRef.current
@@ -1292,6 +1304,15 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
     }
   }, [picksRef])
 
+  // Scroll the page to the 3rd place card
+  const scrollToThirdPlace = useCallback(() => {
+    const tree = treeRef.current
+    if (!tree) return
+    centerColumn(4)
+    const treePageTop = tree.getBoundingClientRect().top + window.scrollY
+    window.scrollTo({ top: treePageTop + TP_CARD_TOP - window.innerHeight / 2 + CARD_H / 2, behavior: 'smooth' })
+  }, [centerColumn, TP_CARD_TOP])
+
   // Intercept picks: cascade-clear downstream winners, then auto-scroll
   const bracketPick = useCallback((key: string, team: string | null) => {
     // Clear all picks that derived from this match's winner
@@ -1301,8 +1322,25 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
     if (key.startsWith('r32:')) scrollToNextR32(key)
     if (key.startsWith('r16:')) { centerColumn(1); scrollToNextInRound(BRACKET_TREE.r16, 1, key) }
     if (key.startsWith('qf:'))  { centerColumn(3); scrollToNextInRound(BRACKET_TREE.qf,  2, key) }
-    if (key.startsWith('sf:'))  { centerColumn(4); scrollToNextInRound(BRACKET_TREE.sf,  3, key) }
-  }, [savePick, centerColumn, scrollToNextR32, scrollToNextInRound])
+    if (key.startsWith('sf:')) {
+      // Both SFs done → go to 3rd place; otherwise go to the remaining SF
+      const otherSF = BRACKET_TREE.sf.find(m => m.key !== key)
+      if (otherSF && picksRef.current?.[otherSF.key]) {
+        scrollToThirdPlace()
+      } else {
+        centerColumn(3); scrollToNextInRound(BRACKET_TREE.sf, 3, key)
+      }
+    }
+    if (key === BRACKET_TREE.thirdPlace.key) {
+      // After 3rd place is picked, move focus to the Final
+      centerColumn(4)
+      const tree = treeRef.current
+      if (tree) {
+        const treePageTop = tree.getBoundingClientRect().top + window.scrollY
+        window.scrollTo({ top: treePageTop + matchTY(4, 0) - window.innerHeight / 2 + CARD_H / 2, behavior: 'smooth' })
+      }
+    }
+  }, [savePick, centerColumn, scrollToNextR32, scrollToNextInRound, scrollToThirdPlace, picksRef])
 
   const shareAsPng = useCallback(async () => {
     const winner = picksRef.current?.['final'] ?? null
@@ -1767,6 +1805,22 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             </div>
           ))}
           <BracketConnectors fromRoundIdx={3} fromCount={2} />
+
+          {/* ── 3rd Place Play-off ── */}
+          <div style={{ position: 'absolute', top: TP_CARD_TOP, left: colX(4), width: COL_W }}>
+            <div className="text-[8px] font-bold text-gray-400 tracking-wider uppercase text-center mb-1.5">
+              3rd Place · Jul 19 · Miami
+            </div>
+            <BracketMatchCard
+              matchKey={BRACKET_TREE.thirdPlace.key}
+              homeTeam={tpHome}
+              awayTeam={tpAway}
+              homeDesc="SF1 loser"
+              awayDesc="SF2 loser"
+              winner={picks[BRACKET_TREE.thirdPlace.key] ?? null}
+              savePick={bracketPick}
+            />
+          </div>
 
           {/* ── Final ── */}
           <div style={{ position: 'absolute', top: matchTY(4, 0), left: colX(4), width: COL_W }}>
