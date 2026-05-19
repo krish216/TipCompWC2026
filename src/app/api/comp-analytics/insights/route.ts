@@ -71,22 +71,30 @@ export async function GET(request: NextRequest) {
     })
 
     // 5. Get predictions by comp members for this tournament's fixtures.
-    // Use fixture_id (integers, tiny URL) + chunked user_id (UUIDs, large URL).
-    // Avoids relying on predictions.tournament_id which may not always match.
+    // Chunk user_id (UUIDs, large URL) and paginate results to bypass
+    // PostgREST's default max_rows=1000 cap (same pattern as tribes/picks).
     const allFixtureIds = Object.values(fixturesByRound).flat()
-    let predByFixture: Record<number, Set<string>> = {}
+    const predByFixture: Record<number, Set<string>> = {}
     if (memberIds.length && allFixtureIds.length) {
       const CHUNK = 100
+      const PAGE  = 1000
       for (let i = 0; i < memberIds.length; i += CHUNK) {
         const chunk = memberIds.slice(i, i + CHUNK)
-        const { data: predRows } = await (admin.from('predictions') as any)
-          .select('user_id, fixture_id')
-          .in('fixture_id', allFixtureIds)
-          .in('user_id', chunk)
-        ;((predRows ?? []) as any[]).forEach((p: any) => {
-          if (!predByFixture[p.fixture_id]) predByFixture[p.fixture_id] = new Set()
-          predByFixture[p.fixture_id].add(p.user_id)
-        })
+        let page = 0
+        while (true) {
+          const { data: predRows } = await (admin.from('predictions') as any)
+            .select('user_id, fixture_id')
+            .in('fixture_id', allFixtureIds)
+            .in('user_id', chunk)
+            .range(page * PAGE, (page + 1) * PAGE - 1)
+          if (!predRows?.length) break
+          ;(predRows as any[]).forEach((p: any) => {
+            if (!predByFixture[p.fixture_id]) predByFixture[p.fixture_id] = new Set()
+            predByFixture[p.fixture_id].add(p.user_id)
+          })
+          if (predRows.length < PAGE) break
+          page++
+        }
       }
     }
 
