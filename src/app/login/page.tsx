@@ -292,8 +292,10 @@ export default function LoginPage() {
           onboarding_complete: false,
           // Registering via an email invite link proves ownership of the address
           email_verified:      emailVerifiedByInvite,
-          // Acquisition source from ?ref= URL param — only set on first signup
+          // Signup attribution — only written once at registration
           ...(refParam ? { ref_source: refParam } : {}),
+          role:        role ?? 'tipster',
+          signup_flow: codeParam ? 'invite' : isChallenge ? 'challenge' : isBracket ? 'bracket' : 'organic',
         }, { onConflict: 'id', ignoreDuplicates: false })
 
         // Enrol in selected tournament immediately — write directly to user_tournaments
