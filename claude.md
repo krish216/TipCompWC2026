@@ -67,6 +67,7 @@ Main API endpoints located in `src/app/api/`:
 - Tailwind CSS for styling
 - Test files co-located with implementation files (*.test.ts, *.spec.ts)
 - Database types auto-generated from Supabase schema (in `src/types/database.ts`)
+- **Spinner**: always use `<Spinner>` from `@/components/ui` — never inline CSS border spinners or custom SVG spinners. The component uses `text-emerald-500` with the standard arc path and accepts a `className` prop for sizing (e.g. `<Spinner className="w-6 h-6" />`).
 
 ## Important Notes
 - Deployment via Vercel (see `vercel.json`)
