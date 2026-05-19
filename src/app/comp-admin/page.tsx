@@ -2181,15 +2181,23 @@ Head to Settings → Profile to update yours now. 🏆`
               </div>
             </Section>
 
-            <Section title="Round Engagement" sub="% of tipsters who tipped in each round">
+            <Section title="Round Engagement" sub="Partial = ≥1 tip but not all · 100% = all fixtures tipped">
               {!hasData ? (
                 <div className="px-4 py-8 text-center text-sm text-gray-400">No completed rounds yet — data will appear once a round closes.</div>
               ) : (
                 <div className="divide-y divide-gray-100">
+                  {/* Column headers */}
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    <div className="flex-1 min-w-0" />
+                    <div className="flex gap-4 flex-shrink-0">
+                      <p className="w-20 text-right text-[10px] font-bold uppercase tracking-wide text-amber-600">Partial</p>
+                      <p className="w-20 text-right text-[10px] font-bold uppercase tracking-wide text-green-600">100%</p>
+                    </div>
+                  </div>
                   {rounds.filter((r: any) => r.tipping_closed || r.is_open).map((r: any) => (
                     <div key={r.round_code} className="flex items-center gap-3 px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2">
                           <p className="text-xs font-bold text-gray-800">{r.round_name}</p>
                           {r.is_open && !r.tipping_closed && (
                             <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full">Live</span>
@@ -2198,16 +2206,18 @@ Head to Settings → Profile to update yours now. 🏆`
                             <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">Closed</span>
                           )}
                         </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={clsx('h-full rounded-full transition-all', r.rate >= 80 ? 'bg-green-500' : r.rate >= 50 ? 'bg-amber-400' : 'bg-red-400')}
-                            style={{ width: `${r.rate}%` }}
-                          />
-                        </div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className={clsx('text-sm font-black', r.rate >= 80 ? 'text-green-700' : r.rate >= 50 ? 'text-amber-600' : 'text-red-600')}>{r.rate}%</p>
-                        <p className="text-[10px] text-gray-400">{r.tipped_count}/{r.total_members}</p>
+                      <div className="flex gap-4 flex-shrink-0">
+                        {/* Partial column */}
+                        <div className="w-20 text-right">
+                          <p className={clsx('text-sm font-black', r.partial_rate >= 50 ? 'text-amber-500' : r.partial_rate > 0 ? 'text-amber-400' : 'text-gray-300')}>{r.partial_rate ?? 0}%</p>
+                          <p className="text-[10px] text-gray-400">{r.partial_count ?? 0}/{r.total_members}</p>
+                        </div>
+                        {/* 100% column */}
+                        <div className="w-20 text-right">
+                          <p className={clsx('text-sm font-black', r.full_rate >= 80 ? 'text-green-600' : r.full_rate >= 50 ? 'text-green-500' : r.full_rate > 0 ? 'text-green-400' : 'text-gray-300')}>{r.full_rate ?? 0}%</p>
+                          <p className="text-[10px] text-gray-400">{r.full_count ?? 0}/{r.total_members}</p>
+                        </div>
                       </div>
                     </div>
                   ))}

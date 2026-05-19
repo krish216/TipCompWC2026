@@ -91,18 +91,37 @@ export async function GET(request: NextRequest) {
       .filter((r: any) => fixturesByRound[r.round_code]?.length)
       .map((r: any) => {
         const fixIds = fixturesByRound[r.round_code] ?? []
-        const tippedSet = new Set<string>()
-        fixIds.forEach(fid => { predByFixture[fid]?.forEach(uid => tippedSet.add(uid)) })
+        const fixCount = fixIds.length
+
+        // Count predictions per user for this round
+        const userFixCount: Record<string, number> = {}
+        fixIds.forEach(fid => {
+          predByFixture[fid]?.forEach(uid => { userFixCount[uid] = (userFixCount[uid] ?? 0) + 1 })
+        })
+
+        const fullSet    = new Set<string>()  // tipped all fixtures
+        const partialSet = new Set<string>()  // tipped ≥1 but <all
+        Object.entries(userFixCount).forEach(([uid, cnt]) => {
+          if (cnt >= fixCount) fullSet.add(uid)
+          else partialSet.add(uid)
+        })
+
         const lock = lockMap[r.round_code] ?? { is_open: false, tipping_closed: false }
         return {
           round_code:     r.round_code,
           round_name:     r.round_name,
           total_members:  totalMembers,
-          tipped_count:   tippedSet.size,
-          rate:           totalMembers > 0 ? Math.round((tippedSet.size / totalMembers) * 100) : 0,
+          // legacy — kept for drop-off detection below
+          tipped_count:   fullSet.size + partialSet.size,
+          rate:           totalMembers > 0 ? Math.round(((fullSet.size + partialSet.size) / totalMembers) * 100) : 0,
+          // split metrics
+          full_count:     fullSet.size,
+          full_rate:      totalMembers > 0 ? Math.round((fullSet.size    / totalMembers) * 100) : 0,
+          partial_count:  partialSet.size,
+          partial_rate:   totalMembers > 0 ? Math.round((partialSet.size / totalMembers) * 100) : 0,
           is_open:        lock.is_open,
           tipping_closed: lock.tipping_closed,
-          tipped_user_ids: [...tippedSet],
+          tipped_user_ids: [...fullSet, ...partialSet],
         }
       })
 
