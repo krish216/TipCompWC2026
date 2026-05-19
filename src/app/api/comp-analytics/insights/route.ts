@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
           round_code:     r.round_code,
           round_name:     r.round_name,
           total_members:  totalMembers,
+          fixture_count:  fixCount,
           // legacy — kept for drop-off detection below
           tipped_count:   fullSet.size + partialSet.size,
           rate:           totalMembers > 0 ? Math.round(((fullSet.size + partialSet.size) / totalMembers) * 100) : 0,

@@ -2205,6 +2205,9 @@ Head to Settings → Profile to update yours now. 🏆`
                           {r.tipping_closed && (
                             <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">Closed</span>
                           )}
+                          {r.fixture_count != null && (
+                            <span className="text-[9px] text-gray-400">{r.fixture_count} fixtures</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-4 flex-shrink-0">
