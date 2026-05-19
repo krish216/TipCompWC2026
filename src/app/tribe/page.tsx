@@ -1659,7 +1659,7 @@ function drawTribeGridCanvas(
 }
 
 // ── Tribe Picks View ──────────────────────────────────────────────────────────
-function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tribeId, compId, activeTournamentId }: {
+function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId, compId, activeTournamentId }: {
   tribePicksData: any; loading: boolean; myId: string; onRefresh: () => void
   tribeId: string; compId: string | null; activeTournamentId: string | null
 }) {
@@ -1779,22 +1779,64 @@ function TribePicksView({ tribePicksData, loading, myId, onRefresh, tribeId: _tr
     })
   }
 
-  const handleDownloadSummary = () => {
-    if (downloadingSummary) return
-    setDownloadingSummary(true)
-    const canvas = document.createElement('canvas')
-    drawTribeSummaryCanvas(canvas, sortedMembers, memberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope)
-    shareOrDownload(canvas, `tribe-summary-${effectiveRound}.png`)
-    setDownloadingSummary(false)
+  // Fetch fresh picks data and derive export variables from it
+  const fetchFreshExportData = async () => {
+    const tidParam = activeTournamentId ? `&tournament_id=${activeTournamentId}` : ''
+    const url = scope === 'tribe'
+      ? `/api/tribes/picks?tribe_id=${tribeId}${tidParam}`
+      : `/api/tribes/picks?comp_id=${compId}${tidParam}`
+    const resp = await fetch(url)
+    const fresh = await resp.json()
+
+    // Update displayed state so the grid also reflects fresh data
+    if (scope === 'tribe') onRefresh()
+    else setCompPicksData(fresh)
+
+    const freshFixtures: any[] = fresh.fixtures ?? []
+    const freshMembers:  any[] = fresh.members  ?? []
+    const freshPicks = fresh.picks ?? {}
+    const freshByRound: Record<string, any[]> = {}
+    for (const f of freshFixtures) {
+      if (!freshByRound[f.round]) freshByRound[f.round] = []
+      freshByRound[f.round].push(f)
+    }
+    const freshRoundFixtures = freshByRound[effectiveRound] ?? []
+    const freshMemberPts: Record<string, number> = {}
+    for (const m of freshMembers) {
+      freshMemberPts[m.user_id] = freshRoundFixtures.reduce(
+        (sum: number, fx: any) => sum + (freshPicks[fx.id]?.[m.user_id]?.points_earned ?? 0), 0
+      )
+    }
+    const freshSorted = [...freshMembers].sort(
+      (a: any, b: any) => (freshMemberPts[b.user_id] ?? 0) - (freshMemberPts[a.user_id] ?? 0)
+    )
+    return { freshRoundFixtures, freshSorted, freshPicks, freshMemberPts }
   }
 
-  const handleDownloadGrid = () => {
+  const handleDownloadSummary = async () => {
+    if (downloadingSummary) return
+    setDownloadingSummary(true)
+    try {
+      const { freshSorted, freshMemberPts } = await fetchFreshExportData()
+      const canvas = document.createElement('canvas')
+      drawTribeSummaryCanvas(canvas, freshSorted, freshMemberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope)
+      shareOrDownload(canvas, `tribe-summary-${effectiveRound}.png`)
+    } finally {
+      setDownloadingSummary(false)
+    }
+  }
+
+  const handleDownloadGrid = async () => {
     if (downloadingGrid) return
     setDownloadingGrid(true)
-    const canvas = document.createElement('canvas')
-    drawTribeGridCanvas(canvas, roundFixtures, sortedMembers, picksMap, memberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope, code, OUTCOME_ROUNDS_SET)
-    shareOrDownload(canvas, `tribe-picks-${effectiveRound}.png`)
-    setDownloadingGrid(false)
+    try {
+      const { freshRoundFixtures, freshSorted, freshPicks, freshMemberPts } = await fetchFreshExportData()
+      const canvas = document.createElement('canvas')
+      drawTribeGridCanvas(canvas, freshRoundFixtures, freshSorted, freshPicks, freshMemberPts, myId, roundLabels[effectiveRound] ?? effectiveRound, scope, code, OUTCOME_ROUNDS_SET)
+      shareOrDownload(canvas, `tribe-picks-${effectiveRound}.png`)
+    } finally {
+      setDownloadingGrid(false)
+    }
   }
 
   return (<>
