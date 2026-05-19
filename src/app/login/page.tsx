@@ -295,7 +295,7 @@ export default function LoginPage() {
           // Signup attribution — only written once at registration
           ...(refParam ? { ref_source: refParam } : {}),
           role:        role ?? 'tipster',
-          signup_flow: codeParam ? 'invite' : isChallenge ? 'challenge' : isBracket ? 'bracket' : 'organic',
+          signup_flow: codeParam && emailParam ? 'invite_email' : codeParam ? 'invite_link' : isChallenge ? 'challenge' : isBracket ? 'bracket' : 'organic',
         }, { onConflict: 'id', ignoreDuplicates: false })
 
         // Enrol in selected tournament immediately — write directly to user_tournaments
