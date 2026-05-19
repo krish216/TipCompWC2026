@@ -1199,19 +1199,9 @@ export default function HomePage() {
                       <span style={{ color:'#fbbf24' }}>World Cup </span>
                       <span>4-Pick<br/>Challenge?</span>
                     </p>
-                    <div style={{
-                      background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
-                      borderRadius:12, padding:'11px 0',
-                      alignSelf:'center',
-                      color:'#3d3636', fontWeight:800, fontSize:14,
-                      textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'1px solid #d5c920',
-                    }}>
-                      Take the Challenge! ⚽
-                    </div>
-                    <p style={{ margin:0, fontSize:10, color:'rgba(255,255,255,0.42)', textAlign:'center', fontWeight:500 }}>
-                      No sign-in required!
+                    <p style={{ margin:0, fontSize:13, color:'rgba(255,255,255,0.70)', fontWeight:600 }}>
+                      Try the challenge →
+                      <span style={{ display:'block', fontSize:10, fontWeight:400, color:'rgba(255,255,255,0.40)', marginTop:3 }}>no sign-in needed</span>
                     </p>
                   </div>
                 </div>
