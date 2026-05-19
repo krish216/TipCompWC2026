@@ -59,9 +59,10 @@ export async function GET(request: NextRequest) {
 
     if (!totalMembers) return NextResponse.json({ rounds: [], drop_offs: [] })
 
-    // 4. Get all fixtures grouped by round (only rounds that have fixtures)
+    // 4. Get fixtures for this tournament only, grouped by round
     const { data: fixRows } = await admin
       .from('fixtures').select('id, round')
+      .eq('tournament_id', tournId)
 
     const fixturesByRound: Record<string, number[]> = {}
     ;((fixRows ?? []) as any[]).forEach((f: any) => {
@@ -69,18 +70,23 @@ export async function GET(request: NextRequest) {
       fixturesByRound[f.round].push(f.id)
     })
 
-    // 5. Get all predictions by comp members (just user_id + fixture_id)
-    const allFixtureIds = Object.values(fixturesByRound).flat()
+    // 5. Get predictions by comp members for this tournament's fixtures
+    // Filter by tournament_id directly to avoid cross-tournament contamination
+    // and large fixture-id URL params.
     let predByFixture: Record<number, Set<string>> = {}
-    if (allFixtureIds.length && memberIds.length) {
-      const { data: predRows } = await (admin.from('predictions') as any)
-        .select('user_id, fixture_id')
-        .in('user_id', memberIds)
-        .in('fixture_id', allFixtureIds)
-      ;((predRows ?? []) as any[]).forEach((p: any) => {
-        if (!predByFixture[p.fixture_id]) predByFixture[p.fixture_id] = new Set()
-        predByFixture[p.fixture_id].add(p.user_id)
-      })
+    if (memberIds.length) {
+      const CHUNK = 100
+      for (let i = 0; i < memberIds.length; i += CHUNK) {
+        const chunk = memberIds.slice(i, i + CHUNK)
+        const { data: predRows } = await (admin.from('predictions') as any)
+          .select('user_id, fixture_id')
+          .eq('tournament_id', tournId)
+          .in('user_id', chunk)
+        ;((predRows ?? []) as any[]).forEach((p: any) => {
+          if (!predByFixture[p.fixture_id]) predByFixture[p.fixture_id] = new Set()
+          predByFixture[p.fixture_id].add(p.user_id)
+        })
+      }
     }
 
     const lockMap: Record<string, { is_open: boolean; tipping_closed: boolean }> = {}
