@@ -1069,82 +1069,12 @@ export default function HomePage() {
               </>)}
             </div>
 
-            {/* Challenge CTA — full-bleed avatar banner — tipsters only */}
-            {persona === 'tipster' && (
-              <Link href="/su-challenge" style={{
-                display:'block', position:'relative',
-                marginBottom:16, borderRadius:18, overflow:'hidden',
-                minHeight:156, textDecoration:'none', cursor:'pointer',
-                boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
-              }}>
-                {/* Avatar as full-bleed background — character visible on left */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/TipsterAvatar.png" alt="" aria-hidden="true" style={{
-                  position:'absolute', inset:0,
-                  width:'100%', height:'100%',
-                  objectFit:'cover', objectPosition:'30% center',
-                  display:'block',
-                }}/>
-                {/* Gradient: transparent left → opaque dark right, so character shows through */}
-                <div style={{
-                  position:'absolute', inset:0,
-                  background:'linear-gradient(90deg, rgba(0,0,0,0.02) 0%, rgba(5,18,10,0.55) 42%, rgba(5,18,10,0.95) 68%, rgba(5,18,10,1) 100%)',
-                  pointerEvents:'none',
-                }}/>
-                {/* Confetti on top */}
-                {[
-                  { l:'50%', t:'8%',  c:'#fbbf24', w:7,  h:3,  r:'18deg'  },
-                  { l:'62%', t:'5%',  c:'#4ade80', w:5,  h:2.5,r:'-12deg' },
-                  { l:'74%', t:'10%', c:'#ef4444', w:6,  h:2.5,r:'30deg'  },
-                  { l:'84%', t:'6%',  c:'#60a5fa', w:7,  h:2.5,r:'-25deg' },
-                  { l:'90%', t:'15%', c:'#f472b6', w:5,  h:2,  r:'20deg'  },
-                ].map((d, i) => (
-                  <div key={i} style={{
-                    position:'absolute', left:d.l, top:d.t,
-                    width:d.w, height:d.h, borderRadius:2,
-                    background:d.c, opacity:0.80, pointerEvents:'none',
-                    transform:`rotate(${d.r})`,
-                  }}/>
-                ))}
-
-                {/* Content — pushed to the right side */}
-                <div style={{
-                  position:'relative',
-                  padding:'16px 16px 16px 57%',
-                  minHeight:156,
-                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
-                }}>
-                  <div>
-                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
-                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
-                      <span style={{ color:'#fbbf24' }}>World Cup </span>
-                      <span>4-Pick<br/>Challenge?</span>
-                    </p>
-                    <div style={{
-                      background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
-                      borderRadius:12, padding:'11px 0',
-                      alignSelf:'center',
-                      color:'#3d3636', fontWeight:800, fontSize:14,
-                      textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'1px solid #d5c920',
-                    }}>
-                      Take the Challenge! ⚽
-                    </div>
-                    <p style={{ margin:0, fontSize:10, color:'rgba(255,255,255,0.42)', textAlign:'center', fontWeight:500 }}>
-                      No sign-in required!
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            )}
-
-            {/* Organiser CTA — full-bleed avatar banner — organisers only */}
+            {/* Organiser teaser banner — decorative only, CTA is in the button row below */}
             {persona === 'organiser' && (
-              <Link href="/login?tab=register&role=organiser" style={{
+              <div style={{
                 display:'block', position:'relative',
                 marginBottom:16, borderRadius:18, overflow:'hidden',
-                minHeight:156, textDecoration:'none', cursor:'pointer',
+                minHeight:156,
                 boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1177,27 +1107,17 @@ export default function HomePage() {
                   position:'relative',
                   padding:'16px 16px 16px 57%',
                   minHeight:156,
-                  display:'flex', flexDirection:'column',  justifyContent:'center', gap:11,
+                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
                     <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
-                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                    <p style={{ margin:0, fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
                       <span style={{ color:'#60a5fa' }}>World Cup </span>
                       <span>Tipping<br/>Comp?</span>
                     </p>
-                    <div style={{
-                      background:'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                      borderRadius:12, padding:'11px 0',
-                      color:'#fff', fontWeight:800, fontSize:14,
-                      textAlign:'center', letterSpacing:'0.1px',
-                      boxShadow:'0 4px 16px rgba(37,99,235,0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
-                      border:'1px solid #1e40af',
-                    }}>
-                      Create a Comp Free →
-                    </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             )}
 
             {/* Primary CTAs */}
@@ -1217,15 +1137,85 @@ export default function HomePage() {
                 }}>Sign in</Link>
               </div>
             ) : (
-              <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginBottom:18 }}>
-                <span style={{ fontSize:13, color:'rgba(255,255,255,0.50)', fontWeight:500 }}>Already have an account?</span>
+              <div style={{ display:'flex', gap:10, justifyContent:'center', marginBottom:18 }}>
+                <Link href="/login?tab=register&role=organiser" style={{
+                  display:'inline-flex', alignItems:'center', gap:6,
+                  padding:'11px 22px', borderRadius:12, fontSize:14, fontWeight:700,
+                  background:'#16a34a', color:'#fff', textDecoration:'none',
+                  boxShadow:'0 4px 14px rgba(22,163,74,0.45)',
+                }}>Create a Comp Free →</Link>
                 <Link href="/login" style={{
                   display:'inline-flex', alignItems:'center',
-                  padding:'9px 18px', borderRadius:12, fontSize:13, fontWeight:700,
-                  background:'rgba(255,255,255,0.10)', color:'rgba(255,255,255,0.88)',
-                  border:'1px solid rgba(255,255,255,0.22)', textDecoration:'none',
-                }}>Sign in →</Link>
+                  padding:'11px 20px', borderRadius:12, fontSize:14, fontWeight:600,
+                  background:'rgba(255,255,255,0.09)', color:'rgba(255,255,255,0.82)',
+                  border:'1px solid rgba(255,255,255,0.18)', textDecoration:'none',
+                }}>Sign in</Link>
               </div>
+            )}
+
+            {/* Challenge CTA — below primary CTAs so registration is the first action */}
+            {persona === 'tipster' && (
+              <Link href="/su-challenge" style={{
+                display:'block', position:'relative',
+                marginBottom:16, borderRadius:18, overflow:'hidden',
+                minHeight:156, textDecoration:'none', cursor:'pointer',
+                boxShadow:'0 10px 40px rgba(0,0,0,0.55)',
+              }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/TipsterAvatar.png" alt="" aria-hidden="true" style={{
+                  position:'absolute', inset:0,
+                  width:'100%', height:'100%',
+                  objectFit:'cover', objectPosition:'30% center',
+                  display:'block',
+                }}/>
+                <div style={{
+                  position:'absolute', inset:0,
+                  background:'linear-gradient(90deg, rgba(0,0,0,0.02) 0%, rgba(5,18,10,0.55) 42%, rgba(5,18,10,0.95) 68%, rgba(5,18,10,1) 100%)',
+                  pointerEvents:'none',
+                }}/>
+                {[
+                  { l:'50%', t:'8%',  c:'#fbbf24', w:7,  h:3,  r:'18deg'  },
+                  { l:'62%', t:'5%',  c:'#4ade80', w:5,  h:2.5,r:'-12deg' },
+                  { l:'74%', t:'10%', c:'#ef4444', w:6,  h:2.5,r:'30deg'  },
+                  { l:'84%', t:'6%',  c:'#60a5fa', w:7,  h:2.5,r:'-25deg' },
+                  { l:'90%', t:'15%', c:'#f472b6', w:5,  h:2,  r:'20deg'  },
+                ].map((d, i) => (
+                  <div key={i} style={{
+                    position:'absolute', left:d.l, top:d.t,
+                    width:d.w, height:d.h, borderRadius:2,
+                    background:d.c, opacity:0.80, pointerEvents:'none',
+                    transform:`rotate(${d.r})`,
+                  }}/>
+                ))}
+                <div style={{
+                  position:'relative',
+                  padding:'16px 16px 16px 57%',
+                  minHeight:156,
+                  display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
+                }}>
+                  <div>
+                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
+                    <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
+                      <span style={{ color:'#fbbf24' }}>World Cup </span>
+                      <span>4-Pick<br/>Challenge?</span>
+                    </p>
+                    <div style={{
+                      background:'linear-gradient(180deg, #dba620 0%, #bb8e1d 100%)',
+                      borderRadius:12, padding:'11px 0',
+                      alignSelf:'center',
+                      color:'#3d3636', fontWeight:800, fontSize:14,
+                      textAlign:'center', letterSpacing:'0.1px',
+                      boxShadow:'0 4px 16px rgba(223, 203, 51, 0.55), inset 0 1px 0 rgba(255,255,255,0.22)',
+                      border:'1px solid #d5c920',
+                    }}>
+                      Take the Challenge! ⚽
+                    </div>
+                    <p style={{ margin:0, fontSize:10, color:'rgba(255,255,255,0.42)', textAlign:'center', fontWeight:500 }}>
+                      No sign-in required!
+                    </p>
+                  </div>
+                </div>
+              </Link>
             )}
 
 
