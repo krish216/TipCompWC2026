@@ -70,17 +70,18 @@ export async function GET(request: NextRequest) {
       fixturesByRound[f.round].push(f.id)
     })
 
-    // 5. Get predictions by comp members for this tournament's fixtures
-    // Filter by tournament_id directly to avoid cross-tournament contamination
-    // and large fixture-id URL params.
+    // 5. Get predictions by comp members for this tournament's fixtures.
+    // Use fixture_id (integers, tiny URL) + chunked user_id (UUIDs, large URL).
+    // Avoids relying on predictions.tournament_id which may not always match.
+    const allFixtureIds = Object.values(fixturesByRound).flat()
     let predByFixture: Record<number, Set<string>> = {}
-    if (memberIds.length) {
+    if (memberIds.length && allFixtureIds.length) {
       const CHUNK = 100
       for (let i = 0; i < memberIds.length; i += CHUNK) {
         const chunk = memberIds.slice(i, i + CHUNK)
         const { data: predRows } = await (admin.from('predictions') as any)
           .select('user_id, fixture_id')
-          .eq('tournament_id', tournId)
+          .in('fixture_id', allFixtureIds)
           .in('user_id', chunk)
         ;((predRows ?? []) as any[]).forEach((p: any) => {
           if (!predByFixture[p.fixture_id]) predByFixture[p.fixture_id] = new Set()
