@@ -25,6 +25,7 @@ export default function LoginPage() {
   const redirect = params.get('redirect') ?? '/'
   const tabParam    = params.get('tab') as Mode | null
   const roleParam   = params.get('role')
+  const refParam    = params.get('ref') ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tp_ref') : null) ?? null
   const isChallenge = params.get('challenge') === '1'
   const isBracket   = params.get('bracket')   === '1'
   const isOrganiser = roleParam === 'organiser'
@@ -291,6 +292,8 @@ export default function LoginPage() {
           onboarding_complete: false,
           // Registering via an email invite link proves ownership of the address
           email_verified:      emailVerifiedByInvite,
+          // Acquisition source from ?ref= URL param — only set on first signup
+          ...(refParam ? { ref_source: refParam } : {}),
         }, { onConflict: 'id', ignoreDuplicates: false })
 
         // Enrol in selected tournament immediately — write directly to user_tournaments
