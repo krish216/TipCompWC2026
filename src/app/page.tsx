@@ -269,13 +269,15 @@ function CompModal({
                     { val: 'open',    icon: '🌐', label: 'Open',    sub: 'Anyone can join' },
                   ] as const).map(opt => (
                     <button key={opt.val} type="button" onClick={() => setVisibility(opt.val)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-center transition-colors
+                      className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
                         ${visibility === opt.val
                           ? 'border-green-500 bg-green-50'
                           : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                      <span className="text-xl">{opt.icon}</span>
-                      <span className="text-xs font-bold text-gray-800">{opt.label}</span>
-                      <span className="text-[10px] text-gray-500">{opt.sub}</span>
+                      <span className="text-base leading-none">{opt.icon}</span>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-gray-800 leading-tight">{opt.label}</p>
+                        <p className="text-[10px] text-gray-500 leading-tight">{opt.sub}</p>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -307,11 +309,11 @@ function CompModal({
                     { val: 'team_fans',   icon: '⚽', label: 'Team Fans'  },
                   ] as const).map(opt => (
                     <button key={opt.val} type="button" onClick={() => setCategory(opt.val)}
-                      className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-colors
+                      className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
                         ${category === opt.val
                           ? 'border-green-500 bg-green-50'
                           : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                      <span className="text-lg">{opt.icon}</span>
+                      <span className="text-base leading-none">{opt.icon}</span>
                       <span className="text-xs font-bold text-gray-800">{opt.label}</span>
                     </button>
                   ))}
