@@ -15,6 +15,15 @@ const CreateSchema = z.object({
   email:          z.string().email().optional(),
   country:        z.string().optional(),
   timezone:       z.string().optional(),
+  // Open comp fields
+  visibility:        z.enum(['private', 'open']).optional(),
+  is_discoverable:   z.boolean().optional(),
+  comp_category:     z.string().optional(),
+  team_affiliation:  z.string().optional(),
+  description:       z.string().max(300).optional(),
+  prize_type:        z.enum(['none', 'chief_offers', 'pool']).optional(),
+  prize_description: z.string().max(120).optional(),
+  member_cap:        z.number().int().min(2).max(500).optional(),
 })
 
 // POST /api/comps/create — self-service org creation
@@ -31,6 +40,8 @@ export async function POST(request: NextRequest) {
   const {
     name, owner_name, owner_phone, owner_email, user_id,
     display_name, email, country, timezone,
+    visibility, is_discoverable, comp_category, team_affiliation,
+    description, prize_type, prize_description, member_cap,
   } = parsed.data
 
   const adminClient = createAdminClient()
@@ -71,14 +82,22 @@ export async function POST(request: NextRequest) {
   const { data: org, error } = await (adminClient.from('comps') as any)
     .insert({
       name, slug,
-      invite_code:     code,
-      created_by:      user_id,
-      owner_name:      owner_name  || null,
-      owner_phone:     owner_phone || null,
-      owner_email:     owner_email || null,
-      is_self_created: true,
-      approved:        true,
-      tournament_id:   parsed.data.tournament_id ?? null,
+      invite_code:       code,
+      created_by:        user_id,
+      owner_name:        owner_name  || null,
+      owner_phone:       owner_phone || null,
+      owner_email:       owner_email || null,
+      is_self_created:   true,
+      approved:          true,
+      tournament_id:     parsed.data.tournament_id ?? null,
+      visibility:        visibility        ?? 'private',
+      is_discoverable:   is_discoverable   ?? false,
+      comp_category:     comp_category     ?? null,
+      team_affiliation:  team_affiliation  ?? null,
+      description:       description       ?? null,
+      prize_type:        prize_type        ?? 'none',
+      prize_description: prize_description ?? null,
+      member_cap:        member_cap        ?? null,
     })
     .select().single()
 
@@ -125,7 +144,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/comps/create — update comp settings
 export async function PATCH(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
+  createServerSupabaseClient()
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -162,7 +181,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/comps/create — comp admin permanently deletes their comp
 export async function DELETE(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
+  createServerSupabaseClient()
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

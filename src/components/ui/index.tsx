@@ -2,6 +2,8 @@ import { type ReactNode } from 'react'
 import { clsx } from 'clsx'
 
 export { CrownBadge, PremiumSection, PremiumButton, UpgradeModal } from './PremiumGate'
+export { TeamPickerSheet } from './TeamPickerSheet'
+export { FavTeamPicker } from './FavTeamPicker'
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 export function Avatar({
