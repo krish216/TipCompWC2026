@@ -36,9 +36,9 @@ interface Fixture   { id: number; home: string; away: string; date: string; roun
 type Tab = 'tipsters' | 'payments' | 'comms' | 'settings' | 'tribes' | 'challenges' | 'insights'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'tipsters',   icon: '🙋', label: 'Tipsters'   },
-  { id: 'payments',   icon: '💳', label: 'Payments'   },
-  { id: 'comms',      icon: '📢', label: 'Comms'      },
+  { id: 'tipsters',   icon: '🧑‍🤝‍🧑', label: 'Tipsters'   },
+  { id: 'payments',   icon: '💰', label: 'Payments'   },
+  { id: 'comms',      icon: '📣', label: 'Comms'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
   { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
   { id: 'challenges', icon: '⚡',  label: 'Challenges' },
@@ -2559,7 +2559,7 @@ export default function CompAdminPage() {
               </svg>
               WhatsApp
             </a>
-            <span className="text-[11px] text-sky-400 w-full">Fastest way to get tipsters to join</span>
+            <span className="text-[11px] text-sky-600 w-full">Fastest way to get tipsters to join</span>
           </div>
         )}
 
@@ -2580,7 +2580,7 @@ export default function CompAdminPage() {
                 <div key={s.label} className="flex flex-col items-center justify-center py-3 px-1 text-center">
                   <span className={`text-2xl font-black leading-none ${s.color}`}>{s.value}</span>
                   <span className="text-[10px] font-bold text-sky-700 uppercase tracking-wide mt-1 leading-tight">{s.label}</span>
-                  <span className="text-[9px] text-sky-400 mt-0.5 leading-tight">{s.sub}</span>
+                  <span className="text-[9px] text-sky-600 mt-0.5 leading-tight">{s.sub}</span>
                 </div>
               ))}
             </div>
