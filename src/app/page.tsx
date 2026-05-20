@@ -2438,7 +2438,7 @@ export default function HomePage() {
           {
             n:1, color:'#15803d',
             title: 'Accept Your Invite',
-            desc:  'Tap the invite link your organiser shared — no code typing needed.',
+            desc:  'Tap the invite link your Comp Chief shared — no code typing needed.',
             phone: (
               <div style={ph}>
                 <p style={{ margin:'0 0 5px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>You&apos;ve been invited 🎉</p>
@@ -2610,7 +2610,7 @@ export default function HomePage() {
           : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →' }
         const testimonial = isTipster
           ? { quote: 'I love seeing how my tribe\'s picks stack up each round!', author: 'Alex, TribePicks tipster' }
-          : { quote: 'Set it up in an evening — the app does the rest. Our group has never been more engaged.', author: 'Jordan, comp organiser' }
+          : { quote: 'Set it up in an evening — the app does the rest. Our group has never been more engaged.', author: 'Jordan, Comp Chief' }
 
         return (
           <div className="mb-10">
