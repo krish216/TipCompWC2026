@@ -380,7 +380,7 @@ function CompModal({
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></label>
                   <input type="text" value={prizeDesc} onChange={e => setPrizeDesc(e.target.value)}
-                    placeholder="e.g. $50 voucher for the winner" maxLength={120}
+                    placeholder={prizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
                 </div>
               )}
