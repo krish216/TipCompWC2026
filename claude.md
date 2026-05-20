@@ -68,6 +68,7 @@ Main API endpoints located in `src/app/api/`:
 - Test files co-located with implementation files (*.test.ts, *.spec.ts)
 - Database types auto-generated from Supabase schema (in `src/types/database.ts`)
 - **Spinner**: always use `<Spinner>` from `@/components/ui` — never inline CSS border spinners or custom SVG spinners. The component uses `text-emerald-500` with the standard arc path and accepts a `className` prop for sizing (e.g. `<Spinner className="w-6 h-6" />`).
+- **Team selector**: whenever a team needs to be selected anywhere in the app, use the team picker bottom-sheet pattern from `src/components/ui/FavTeamPicker.tsx`. The existing component is coupled to the Bonus Team feature (purple theme, bonus-points copy) — for other contexts (e.g. comp creation, filters), extract the generic sheet/search/flag-grid into a shared `TeamPickerSheet` component and compose from it, rather than duplicating the pattern or building a plain `<input>` or `<select>`.
 
 ## Important Notes
 - Deployment via Vercel (see `vercel.json`)
