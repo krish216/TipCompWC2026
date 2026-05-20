@@ -2494,7 +2494,7 @@ export default function CompAdminPage() {
     <div className="max-w-2xl mx-auto px-4 py-4">
 
       {/* ── Admin command centre header ── */}
-      <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 pt-4 pb-3 mb-5">
+      <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 pt-4 pb-0 mb-5 overflow-hidden">
 
         {/* Comp identity row */}
         <div className="flex items-center gap-3 mb-3">
@@ -2563,26 +2563,24 @@ export default function CompAdminPage() {
           </div>
         )}
 
-        {/* Comp health stats strip */}
+        {/* Comp health stats grid */}
         {(() => {
-          const inTribe = tribes.reduce((sum, t) => sum + ((t.member_ids ?? []).length), 0)
+          const inTribe    = tribes.reduce((sum, t) => sum + ((t.member_ids ?? []).length), 0)
           const pendingJoin = invitations.filter(i => !i.joined).length
-          const roundName = adminRoundCode ? (scoringConfig.rounds as any)[adminRoundCode]?.round_name ?? adminRoundCode : null
+          const roundName  = adminRoundCode ? (scoringConfig.rounds as any)[adminRoundCode]?.round_name ?? adminRoundCode : null
           const stats = [
-            { label: 'Joined',      value: tipsters.length,          icon: '👥', sub: 'tipsters',          color: 'text-sky-900'    },
-            { label: 'In a tribe',  value: inTribe,                   icon: '⚔️', sub: `of ${tipsters.length}`,  color: 'text-blue-600'   },
-            { label: 'Have tipped', value: lbHealth?.active ?? '…',   icon: '🎯', sub: roundName ?? 'total', color: 'text-green-700'  },
-            { label: 'Awaiting',    value: pendingJoin,               icon: '📩', sub: 'invited not joined', color: 'text-amber-600'  },
+            { label: 'Joined',      value: tipsters.length,        sub: 'tipsters',          color: 'text-sky-800'   },
+            { label: 'In a tribe',  value: inTribe,                 sub: `of ${tipsters.length}`, color: 'text-blue-600'  },
+            { label: 'Have tipped', value: lbHealth?.active ?? '…', sub: roundName ?? 'total', color: 'text-green-700' },
+            { label: 'Awaiting',    value: pendingJoin,             sub: 'not yet joined',    color: 'text-amber-600' },
           ]
           return (
-            <div className="flex items-center flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-sky-100">
-              {stats.map((s, i) => (
-                <div key={s.label} className="flex items-center gap-1.5">
-                  {i > 0 && <span className="text-sky-200 text-xs select-none mr-0.5">·</span>}
-                  <span className="text-sm">{s.icon}</span>
-                  <span className={`text-sm font-black ${s.color}`}>{s.value}</span>
-                  <span className="text-xs text-sky-500 font-medium">{s.label}</span>
-                  {s.sub && <span className="text-[10px] text-sky-400">({s.sub})</span>}
+            <div className="grid grid-cols-4 divide-x divide-sky-100 border-t border-sky-100 -mx-4 px-0">
+              {stats.map(s => (
+                <div key={s.label} className="flex flex-col items-center justify-center py-3 px-1 text-center">
+                  <span className={`text-2xl font-black leading-none ${s.color}`}>{s.value}</span>
+                  <span className="text-[10px] font-bold text-sky-700 uppercase tracking-wide mt-1 leading-tight">{s.label}</span>
+                  <span className="text-[9px] text-sky-400 mt-0.5 leading-tight">{s.sub}</span>
                 </div>
               ))}
             </div>
@@ -2655,16 +2653,16 @@ export default function CompAdminPage() {
       })()}
 
       {/* Tab nav — scrollable on mobile */}
-      <div className="flex overflow-x-auto gap-1 bg-gray-100 p-1 rounded-2xl mb-5 scrollbar-none">
+      <div className="flex overflow-x-auto gap-1 bg-sky-50 border border-sky-100 p-1 rounded-2xl mb-5 scrollbar-none">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={clsx('relative flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all flex-shrink-0',
-              activeTab === t.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600')}>
-            <span className="text-base leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
-            <span className={clsx('text-[10px] font-bold leading-none', tabLocked[t.id] && 'text-gray-300')}>{t.label}</span>
+            className={clsx('relative flex flex-col items-center gap-1 py-2.5 px-3 rounded-xl transition-all flex-shrink-0',
+              activeTab === t.id ? 'bg-white shadow-sm text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-white/50')}>
+            <span className="text-lg leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
+            <span className={clsx('text-[11px] font-bold leading-none', activeTab === t.id ? 'text-sky-700' : tabLocked[t.id] ? 'text-gray-300' : 'text-gray-500')}>{t.label}</span>
             {(badgeCounts[t.id] ?? 0) > 0 && (
               <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center',
-                activeTab === t.id ? 'bg-gray-900 text-white' : 'bg-gray-400 text-white')}>
+                activeTab === t.id ? 'bg-sky-600 text-white' : 'bg-gray-400 text-white')}>
                 {badgeCounts[t.id]}
               </span>
             )}
