@@ -240,20 +240,20 @@ function CompModal({
 
           {/* ── CREATE — name + visibility, open fields revealed inline ── */}
           {step === 'create' && (
-            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+            <div className="bg-sky-50 rounded-xl border border-sky-200 p-4 space-y-3">
               {tournament && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-2 bg-sky-100 border border-sky-200 rounded-lg">
                   {tournament.logo_url
                     ? <img src={tournament.logo_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
                     : <span className="text-sm flex-shrink-0">⚽</span>}
-                  <span className="text-xs font-semibold text-green-800">{tournament.name}</span>
+                  <span className="text-xs font-semibold text-sky-800">{tournament.name}</span>
                 </div>
               )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Comp name <span className="text-red-500">*</span></label>
                 <input type="text" value={compName} onChange={e => setCompName(e.target.value)}
                   placeholder="e.g. The Friday Five" autoFocus maxLength={60}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                  className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Who can join?</label>
@@ -265,8 +265,8 @@ function CompModal({
                     <button key={opt.val} type="button" onClick={() => setVisibility(opt.val)}
                       className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
                         ${visibility === opt.val
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                          ? 'border-sky-500 bg-sky-100'
+                          : 'border-sky-200 bg-white hover:border-sky-300'}`}>
                       <span className="text-base leading-none">{opt.icon}</span>
                       <div className="text-left">
                         <p className="text-xs font-bold text-gray-800 leading-tight">{opt.label}</p>
@@ -279,90 +279,88 @@ function CompModal({
 
               {/* ── Progressive disclosure: open comp fields ── */}
               {visibility === 'open' && (
-                <>
-                  <div className="border-t border-gray-200 pt-3 space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Who&apos;s this comp for?</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {([
-                          { val: 'all_welcome', icon: '🌍', label: 'All Welcome' },
-                          { val: 'team_fans',   icon: '⚽', label: 'Team Fans'  },
-                        ] as const).map(opt => (
-                          <button key={opt.val} type="button" onClick={() => setCategory(opt.val)}
-                            className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
-                              ${category === opt.val
-                                ? 'border-green-500 bg-green-50'
-                                : 'border-gray-200 bg-white hover:border-gray-300'}`}>
-                            <span className="text-base leading-none">{opt.icon}</span>
-                            <span className="text-xs font-bold text-gray-800">{opt.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {category === 'team_fans' && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1.5">Which team?</label>
-                        <button type="button" onClick={() => setTeamPickerOpen(true)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors">
-                          {teamAffil
-                            ? (() => { const t = teams.find(t => t.name === teamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{teamAffil}</span></> })()
-                            : <span className="text-gray-400">Select a team…</span>}
-                          <span className="ml-auto text-gray-400 text-xs">▼</span>
+                <div className="border-t border-sky-200 pt-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Who&apos;s this comp for?</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { val: 'all_welcome', icon: '🌍', label: 'All Welcome' },
+                        { val: 'team_fans',   icon: '⚽', label: 'Team Fans'  },
+                      ] as const).map(opt => (
+                        <button key={opt.val} type="button" onClick={() => setCategory(opt.val)}
+                          className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
+                            ${category === opt.val
+                              ? 'border-sky-500 bg-sky-100'
+                              : 'border-sky-200 bg-white hover:border-sky-300'}`}>
+                          <span className="text-base leading-none">{opt.icon}</span>
+                          <span className="text-xs font-bold text-gray-800">{opt.label}</span>
                         </button>
-                        <TeamPickerSheet open={teamPickerOpen} onClose={() => setTeamPickerOpen(false)}
-                          teams={teams} value={teamAffil} onSelect={setTeamAffil}
-                          title="Which team are the fans supporting?" />
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Member cap</label>
-                      <div className="flex items-center gap-3">
-                        <input type="number" min={2} max={500} value={memberCap}
-                          onChange={e => setMemberCap(Math.max(2, Math.min(500, Number(e.target.value))))}
-                          className="w-24 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white text-center font-mono" />
-                        <span className="text-xs text-gray-500">max tipsters (2–500)</span>
-                      </div>
+                      ))}
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></label>
-                      <textarea value={description} onChange={e => setDescription(e.target.value)}
-                        placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white resize-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize?</label>
-                      <div className="flex gap-2">
-                        {([
-                          { val: 'none',         label: '🚫 None'         },
-                          { val: 'chief_offers', label: '🎁 Chief offers' },
-                          { val: 'pool',         label: '💰 Pool'         },
-                        ] as const).map(opt => (
-                          <button key={opt.val} type="button" onClick={() => setPrizeType(opt.val)}
-                            className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
-                              ${prizeType === opt.val
-                                ? 'border-green-500 bg-green-50 text-green-800'
-                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {prizeType !== 'none' && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></label>
-                        <input type="text" value={prizeDesc} onChange={e => setPrizeDesc(e.target.value)}
-                          placeholder={prizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white" />
-                      </div>
-                    )}
                   </div>
-                </>
+                  {category === 'team_fans' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Which team?</label>
+                      <button type="button" onClick={() => setTeamPickerOpen(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-sky-200 rounded-lg bg-white hover:bg-sky-50 transition-colors">
+                        {teamAffil
+                          ? (() => { const t = teams.find(t => t.name === teamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{teamAffil}</span></> })()
+                          : <span className="text-gray-400">Select a team…</span>}
+                        <span className="ml-auto text-sky-400 text-xs">▼</span>
+                      </button>
+                      <TeamPickerSheet open={teamPickerOpen} onClose={() => setTeamPickerOpen(false)}
+                        teams={teams} value={teamAffil} onSelect={setTeamAffil}
+                        title="Which team are the fans supporting?" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Member cap</label>
+                    <div className="flex items-center gap-3">
+                      <input type="number" min={2} max={500} value={memberCap}
+                        onChange={e => setMemberCap(Math.max(2, Math.min(500, Number(e.target.value))))}
+                        className="w-24 px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-center font-mono" />
+                      <span className="text-xs text-gray-500">max tipsters (2–500)</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></label>
+                    <textarea value={description} onChange={e => setDescription(e.target.value)}
+                      placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
+                      className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize?</label>
+                    <div className="flex gap-2">
+                      {([
+                        { val: 'none',         label: '🚫 None'         },
+                        { val: 'chief_offers', label: '🎁 Chief offers' },
+                        { val: 'pool',         label: '💰 Pool'         },
+                      ] as const).map(opt => (
+                        <button key={opt.val} type="button" onClick={() => setPrizeType(opt.val)}
+                          className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
+                            ${prizeType === opt.val
+                              ? 'border-sky-500 bg-sky-100 text-sky-800'
+                              : 'border-sky-200 bg-white text-gray-600 hover:border-sky-300'}`}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {prizeType !== 'none' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></label>
+                      <input type="text" value={prizeDesc} onChange={e => setPrizeDesc(e.target.value)}
+                        placeholder={prizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
+                        className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white" />
+                    </div>
+                  )}
+                </div>
               )}
 
               {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
               <button onClick={handleCreate}
                 disabled={loading || !compName.trim() || (visibility === 'open' && category === 'team_fans' && !teamAffil)}
-                className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
+                className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2">
                 {loading && <Spinner className="w-4 h-4 text-white" />}
                 {!compName.trim() ? 'Enter a comp name to continue' : 'Create comp →'}
               </button>
