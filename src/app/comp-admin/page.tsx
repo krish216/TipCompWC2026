@@ -2504,7 +2504,7 @@ export default function CompAdminPage() {
           }
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-black text-sky-900 truncate">{comp.name}</h1>
-            <p className="text-[11px] text-sky-500 mt-0.5 font-medium">Comp admin</p>
+            <p className="text-[11px] text-sky-800 mt-0.5 font-semibold tracking-wide">Comp Chief</p>
           </div>
           <span className={clsx('text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full flex-shrink-0',
             tier === 'enterprise' ? 'bg-violet-100 text-violet-700' : tier === 'business' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>
