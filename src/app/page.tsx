@@ -155,11 +155,11 @@ function CompModal({
               </button>
             )}
             <div className="text-2xl">
-              {step === 'choose' ? '🏆' : step === 'join' ? '🔑' : step === 'created' ? '✅' : '✨'}
+              {step === 'choose' ? (initialMode === 'join' ? '🔑' : '🏆') : step === 'join' ? '🔑' : step === 'created' ? '✅' : '✨'}
             </div>
             <div>
               <h2 className="text-base font-semibold text-gray-900">
-                {step === 'choose' ? 'Join or create a comp'
+                {step === 'choose' ? (initialMode === 'join' ? 'Join a comp' : 'Join or create a comp')
                   : step === 'join'    ? 'Join a comp'
                   : step === 'created' ? 'Comp created!'
                   : 'Create a comp'}
@@ -212,14 +212,16 @@ function CompModal({
                   </div>
                 </button>
               )}
-              <button onClick={() => setStep('create')}
-                className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
-                <span className="text-2xl flex-shrink-0">✨</span>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Create a comp</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Set up a new comp for my group</p>
-                </div>
-              </button>
+              {initialMode !== 'join' && (
+                <button onClick={() => setStep('create')}
+                  className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
+                  <span className="text-2xl flex-shrink-0">✨</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Create a comp</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Set up a new comp for my group</p>
+                  </div>
+                </button>
+              )}
             </>
           )}
 
@@ -1616,7 +1618,7 @@ export default function HomePage() {
       {session && (
         <div style={{ marginBottom: 20 }}>
 
-          {(loading || contextLoading) ? (
+          {(loading || contextLoading || (!!searchParams.get('joined') && !step2Done)) ? (
             <div className="space-y-3 animate-pulse">
               {/* Stat bar skeleton */}
               <div className="rounded-2xl bg-gray-100 h-24 w-full" />

@@ -530,6 +530,8 @@ export default function BracketPage() {
       prevThirdsCount.current = thirdsCount
       prevFinalRef.current    = champion
       initializedRef.current  = true
+      // Bracket was already complete on load — suppress confetti so refresh doesn't re-celebrate
+      if (champion) confettiFiredRef.current = true
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 

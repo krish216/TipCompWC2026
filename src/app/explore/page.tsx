@@ -72,7 +72,7 @@ export default function ExplorePage() {
     : comps
 
   const handleJoin = async (comp: OpenComp) => {
-    if (!session) { router.push('/login'); return }
+    if (!session) { router.push('/login?redirect=/explore'); return }
     setJoining(comp.id); setJoinErr(null)
     const res = await fetch('/api/comps/join', {
       method: 'POST',
