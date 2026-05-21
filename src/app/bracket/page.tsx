@@ -278,7 +278,6 @@ export default function BracketPage() {
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
-  const [showRegPrompt, setShowRegPrompt] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
@@ -291,7 +290,6 @@ export default function BracketPage() {
   const prevThirdsCount = useRef(0)
   const prevFinalRef    = useRef<string | null>(null)
   const initializedRef  = useRef(false)
-  const regPromptTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sourceRef       = useRef<string | null>(searchParams.get('ref'))
   const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
@@ -473,7 +471,6 @@ export default function BracketPage() {
     setPicks({})
     pendingRef.current.clear()
     if (timerRef.current) clearTimeout(timerRef.current)
-    setShowRegPrompt(false)
 
     if (session && selectedTournId) {
       fetch(`/api/bracket?tournament_id=${selectedTournId}&all=true`, { method: 'DELETE' }).catch(() => {})
@@ -532,8 +529,6 @@ export default function BracketPage() {
       prevThirdsCount.current = thirdsCount
       prevFinalRef.current    = champion
       initializedRef.current  = true
-      // If champion already picked (loaded from storage), show reg prompt immediately for guests
-      if (!session && champion) setShowRegPrompt(true)
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -543,12 +538,7 @@ export default function BracketPage() {
     const prev    = prevFinalRef.current
     prevFinalRef.current = champion
 
-    if (!champion) {
-      // Champion cleared — hide prompt and cancel any pending timer
-      setShowRegPrompt(false)
-      if (regPromptTimer.current) { clearTimeout(regPromptTimer.current); regPromptTimer.current = null }
-      return
-    }
+    if (!champion) return
 
     if (champion === prev) return  // same pick reloaded, no action
 
@@ -560,12 +550,6 @@ export default function BracketPage() {
         window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
       }
     }, 50)
-
-    // Show reg prompt after 3s (guests only)
-    if (!session) {
-      if (regPromptTimer.current) clearTimeout(regPromptTimer.current)
-      regPromptTimer.current = setTimeout(() => setShowRegPrompt(true), 3000)
-    }
 
     // Record prediction in DB (use picksRef for fresh values — picks closure may be stale)
     if (selectedTournId) {
@@ -632,42 +616,6 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Registration prompt — shown to guests 3s after champion is picked (bracket tab only) */}
-      {!session && showRegPrompt && section === 'bracket' && (
-        <div className="fixed bottom-20 left-0 right-0 px-4 z-40 pointer-events-none">
-          <div className="max-w-2xl mx-auto pointer-events-auto">
-            <div className="flex items-center gap-3 bg-emerald-700 text-white rounded-2xl px-4 py-3 shadow-xl">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold">Save your bracket!</p>
-                <p className="text-xs opacity-80 mt-0.5 truncate">Create a free TribePicks account to keep your picks</p>
-              </div>
-              <a href="/login?tab=register&bracket=1"
-                className="flex-shrink-0 bg-white text-emerald-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-50 transition-colors">
-                Sign up free →
-              </a>
-              <button
-                onClick={() => {
-                  setShowRegPrompt(false)
-                  if (selectedTournId) {
-                    fetch('/api/bracket-prediction', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        tournament_id: selectedTournId,
-                        session_id: getOrCreateSessionId(),
-                        dismissed_at: new Date().toISOString(),
-                      }),
-                    }).catch(() => {})
-                  }
-                }}
-                aria-label="Dismiss"
-                className="flex-shrink-0 text-white/60 hover:text-white text-lg leading-none px-1 transition-colors">
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
@@ -686,6 +634,24 @@ export default function BracketPage() {
           {confirmReset ? 'Confirm reset?' : 'Reset all'}
         </button>
       </div>
+
+      {/* Completion CTA — persistent card for guests once champion is picked */}
+      {!session && champion && section === 'bracket' && (
+        <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <p className="text-sm font-bold text-emerald-900 mb-0.5">Your picks are in — now make them count</p>
+          <p className="text-xs text-emerald-700 mb-3">Create a free account to start a comp with your crew or join one and see how you stack up.</p>
+          <div className="flex gap-2">
+            <a href="/login?tab=register&bracket=1"
+              className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition-all">
+              Start a comp →
+            </a>
+            <a href="/login?tab=register&bracket=1"
+              className="flex-1 text-center bg-white border border-emerald-300 hover:bg-emerald-50 active:scale-95 text-emerald-700 text-xs font-semibold py-2.5 rounded-xl transition-all">
+              Join a comp
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Champion share banner — shown above section tabs when bracket is complete */}
       {picks['final'] && section === 'bracket' && (
@@ -1396,8 +1362,17 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
         }
 
         // QR code — bottom-right (72 * 2 = 144 device px)
-        const QR_P = qrCanvas.width * PR
-        ctxP.drawImage(qrCanvas, composite.width - QR_P - PAD, composite.height - QR_P - PAD, QR_P, QR_P)
+        const QR_P  = qrCanvas.width * PR
+        const qrPX  = composite.width - QR_P - PAD
+        const qrPY  = composite.height - QR_P - PAD
+        ctxP.drawImage(qrCanvas, qrPX, qrPY, QR_P, QR_P)
+
+        // URL text below QR
+        ctxP.textAlign    = 'center'
+        ctxP.textBaseline = 'top'
+        ctxP.font         = `${10 * PR}px -apple-system, BlinkMacSystemFont, sans-serif`
+        ctxP.fillStyle    = '#9ca3af'
+        ctxP.fillText('tribepicks.com', qrPX + QR_P / 2, qrPY + QR_P + 6)
 
         dataUrl = composite.toDataURL('image/png')
       } else {
