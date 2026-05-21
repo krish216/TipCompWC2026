@@ -655,7 +655,7 @@ export default function BracketPage() {
             <span className="text-2xl leading-none">🏆</span>
           </div>
           <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — keep going</p>
-          <p className="text-xs text-emerald-700 mb-3">Create a free account to tip every match of WC 2026 and compete with your crew all tournament long.</p>
+          <p className="text-xs text-emerald-700 mb-3">Your bracket is saved when you sign up — then tip every match of WC 2026 and compete with your crew all tournament long.</p>
           <div className="flex gap-2">
             <a href="/login?tab=register&bracket=1"
               className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition-all">
