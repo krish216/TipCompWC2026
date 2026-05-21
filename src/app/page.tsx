@@ -1658,28 +1658,40 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {/* Warm-Up Comp — hidden when user already has invites to real comps */}
+                  {/* Warm-Up Comp + Browse open comps — hidden when user already has invites */}
                   {pendingInvites.length === 0 && (
-                    <div className="mb-3 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
-                      <div className="flex items-center gap-3 p-3">
-                        <span className="text-2xl flex-shrink-0">⚽</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
-                          <p className="text-[11px] text-green-700">Practice before the real thing</p>
-                          <p className="text-[10px] text-green-600 opacity-75 mt-0.5">Warm-up points reset when the tournament begins</p>
+                    <>
+                      <div className="mb-2 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
+                        <div className="flex items-center gap-3 p-3">
+                          <span className="text-2xl flex-shrink-0">⚽</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-green-900">Tournament Warm-Up Comp</p>
+                            <p className="text-[11px] text-green-700">Practice before the real thing</p>
+                            <p className="text-[10px] text-green-600 opacity-75 mt-0.5">Warm-up points reset when the tournament begins</p>
+                          </div>
+                          <button
+                            onClick={joinWarmUpComp}
+                            disabled={joiningWarmUp}
+                            className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
+                          >
+                            {joiningWarmUp ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
+                          </button>
                         </div>
-                        <button
-                          onClick={joinWarmUpComp}
-                          disabled={joiningWarmUp}
-                          className="px-2.5 py-1 text-xs font-bold text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
-                        >
-                          {joiningWarmUp ? <Spinner className="w-3 h-3 text-green-600" /> : 'Join →'}
-                        </button>
+                        {warmUpError && (
+                          <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
+                        )}
                       </div>
-                      {warmUpError && (
-                        <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
-                      )}
-                    </div>
+
+                      <Link href="/explore"
+                        className="mb-3 flex items-center gap-3 p-3 rounded-xl border-2 border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100 transition-colors">
+                        <span className="text-2xl flex-shrink-0">🔍</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-sky-900">Browse open comps</p>
+                          <p className="text-[11px] text-sky-700">Find a comp open to everyone — no invite needed</p>
+                        </div>
+                        <span className="text-xs font-bold text-sky-600 flex-shrink-0">Browse →</span>
+                      </Link>
+                    </>
                   )}
 
                   <div className="flex items-center gap-2 mb-3">
@@ -1722,11 +1734,6 @@ export default function HomePage() {
                     </p>
                   )}
 
-                  {/* No invite fallback */}
-                  <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-center">
-                    <p className="text-xs font-bold text-amber-800 mb-0.5">No code? No invite? No problem.</p>
-                    <p className="text-[11px] text-amber-600 mb-2.5">Jump straight in with our open Tournament Warm-Up Comp above — Just click join, no invite needed! </p>
-                  </div>
                 </div>
 
                 {/* Step 3 — locked */}
