@@ -723,6 +723,8 @@ export default function HomePage() {
   const [joiningWarmUp,    setJoiningWarmUp]    = useState(false)
   const [warmUpError,      setWarmUpError]      = useState<string | null>(null)
   const [openCompCount,    setOpenCompCount]    = useState<number | null>(null)
+  const [tournAnnouncement, setTournAnnouncement] = useState<{ id: string; title: string; body: string | null } | null>(null)
+  const [annDismissed,      setAnnDismissed]      = useState(false)
   const [confirmAction,    setConfirmAction]    = useState<{ compId: string; action: 'leave' | 'delete'; name: string } | null>(null)
   const [compActionBusy,   setCompActionBusy]   = useState(false)
   const [teamsList,        setTeamsList]        = useState<{ name: string; fifa_code: string; flag_emoji: string }[]>([])
@@ -1081,6 +1083,20 @@ export default function HomePage() {
       .catch(() => setOpenCompCount(0))
   }, [selectedCompId, contextLoading])
 
+  // Fetch latest tournament announcement — shown as a dismissable banner
+  useEffect(() => {
+    if (!selectedTournId || !session) return
+    fetch(`/api/tournament-announcements?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(d => {
+        const latest = (d.data ?? [])[0] ?? null
+        if (!latest) return
+        const dismissed = localStorage.getItem(`dismissed_announcement_${latest.id}`)
+        if (!dismissed) setTournAnnouncement(latest)
+      })
+      .catch(() => {})
+  }, [selectedTournId, session])
+
   const handleCompAction = async () => {
     if (!confirmAction) return
     setCompActionBusy(true)
@@ -1120,6 +1136,28 @@ export default function HomePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
+
+      {/* Tournament announcement banner — dismissable per announcement via localStorage */}
+      {tournAnnouncement && !annDismissed && (
+        <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+          <span className="text-base flex-shrink-0 mt-0.5">📣</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900">{tournAnnouncement.title}</p>
+            {tournAnnouncement.body && (
+              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{tournAnnouncement.body}</p>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem(`dismissed_announcement_${tournAnnouncement.id}`, '1')
+              setAnnDismissed(true)
+            }}
+            className="text-amber-400 hover:text-amber-600 transition-colors text-xl leading-none flex-shrink-0 mt-0.5"
+            aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Challenge picks hydration toast — persistent until dismissed */}
       {challengeToast && (

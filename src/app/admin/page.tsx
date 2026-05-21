@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
 type LockMap    = Record<string, boolean>
-type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo'
+type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo' | 'announcements'
 
 // ALL_ROUNDS and ROUND_LABELS are now derived from tournament_rounds API
 // via scoringConfig loaded in UserPrefsContext — no hardcoding
@@ -162,6 +162,14 @@ export default function AdminPage() {
   // Access tab state
   const [adminEmail,  setAdminEmail]  = useState('')
   const [grantingAccess, setGrantingAccess] = useState(false)
+
+  // Announcements tab state
+  const [announcements,     setAnnouncements]     = useState<{ id: string; title: string; body: string | null; created_at: string }[]>([])
+  const [annLoading,        setAnnLoading]        = useState(false)
+  const [annTitle,          setAnnTitle]          = useState('')
+  const [annBody,           setAnnBody]           = useState('')
+  const [annPosting,        setAnnPosting]        = useState(false)
+  const [annError,          setAnnError]          = useState<string | null>(null)
 
   // Tournament tab state
   const [tournLoading,    setTournLoading]    = useState(false)
@@ -447,13 +455,45 @@ export default function AdminPage() {
 
   // ── Tab nav ────────────────────────────────────────────────
   const TABS: { id: AdminTab; label: string; icon: string }[] = [
-    { id: 'results',    label: 'Results',    icon: '⚽' },
-    { id: 'locks',      label: 'Round Locks', icon: '🔒' },
-    { id: 'scoring',    label: 'Scoring',    icon: '📊' },
-    { id: 'tournament', label: 'Tournament', icon: '🏆' },
-    { id: 'access',     label: 'Access',     icon: '👤' },
-    { id: 'demo',       label: 'Demo',       icon: '🤖' },
+    { id: 'results',       label: 'Results',       icon: '⚽' },
+    { id: 'locks',         label: 'Round Locks',   icon: '🔒' },
+    { id: 'scoring',       label: 'Scoring',       icon: '📊' },
+    { id: 'tournament',    label: 'Tournament',    icon: '🏆' },
+    { id: 'announcements', label: 'Announcements', icon: '📣' },
+    { id: 'access',        label: 'Access',        icon: '👤' },
+    { id: 'demo',          label: 'Demo',          icon: '🤖' },
   ]
+
+  // Load announcements when tab is opened
+  useEffect(() => {
+    if (activeTab !== 'announcements' || !selectedTournId) return
+    setAnnLoading(true)
+    fetch(`/api/tournament-announcements?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(d => setAnnouncements(d.data ?? []))
+      .catch(() => {})
+      .finally(() => setAnnLoading(false))
+  }, [activeTab, selectedTournId])
+
+  const postAnnouncement = async () => {
+    if (!annTitle.trim() || !selectedTournId) return
+    setAnnPosting(true); setAnnError(null)
+    const res = await fetch('/api/tournament-announcements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: selectedTournId, title: annTitle.trim(), body: annBody.trim() || null }),
+    })
+    const data = await res.json()
+    setAnnPosting(false)
+    if (!res.ok) { setAnnError(data.error ?? 'Failed to post'); return }
+    setAnnouncements(prev => [data.data, ...prev])
+    setAnnTitle(''); setAnnBody('')
+  }
+
+  const deleteAnnouncement = async (id: string) => {
+    await fetch(`/api/tournament-announcements?id=${id}`, { method: 'DELETE' })
+    setAnnouncements(prev => prev.filter(a => a.id !== id))
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-4">
@@ -994,6 +1034,80 @@ export default function AdminPage() {
                 <li>When the real tournament starts, /demo stays up as a separate record</li>
               </ol>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'announcements' && (
+        <div className="space-y-4">
+          {/* Compose */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">New announcement</h3>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+              <input
+                type="text" value={annTitle} onChange={e => setAnnTitle(e.target.value)}
+                placeholder="e.g. Open Comps are now live!"
+                maxLength={120}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Body <span className="text-gray-400">(optional)</span></label>
+              <textarea
+                value={annBody} onChange={e => setAnnBody(e.target.value)}
+                placeholder="Add more detail for users…"
+                maxLength={400} rows={3}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
+              />
+            </div>
+            {annError && <p className="text-xs text-red-600">{annError}</p>}
+            <button
+              onClick={postAnnouncement}
+              disabled={annPosting || !annTitle.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors">
+              {annPosting && <Spinner className="w-3 h-3 text-white" />}
+              📣 Broadcast
+            </button>
+          </div>
+
+          {/* Existing announcements */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active announcements</p>
+            </div>
+            {annLoading ? (
+              <div className="flex justify-center py-8"><Spinner className="w-5 h-5" /></div>
+            ) : announcements.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-8">No active announcements</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {announcements.map(a => {
+                  const age = (() => {
+                    const diff  = Date.now() - new Date(a.created_at).getTime()
+                    const mins  = Math.floor(diff / 60000)
+                    const hours = Math.floor(diff / 3600000)
+                    const days  = Math.floor(diff / 86400000)
+                    return mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`
+                  })()
+                  return (
+                    <div key={a.id} className="flex items-start gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{a.title}</p>
+                        {a.body && <p className="text-xs text-gray-500 mt-0.5">{a.body}</p>}
+                        <p className="text-[10px] text-gray-400 mt-1">{age}</p>
+                      </div>
+                      <button
+                        onClick={() => deleteAnnouncement(a.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors text-lg leading-none flex-shrink-0 mt-0.5"
+                        title="Delete announcement">
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
