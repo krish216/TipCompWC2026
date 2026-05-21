@@ -649,6 +649,11 @@ export default function BracketPage() {
       {/* Completion CTA — persistent card for guests once champion is picked */}
       {!session && champion && section === 'bracket' && (
         <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-3xl leading-none">{flagFor(champion)}</span>
+            <span className="text-2xl leading-none">🏆</span>
+            <span className="text-sm font-bold text-emerald-900">{champion}</span>
+          </div>
           <p className="text-sm font-bold text-emerald-900 mb-0.5">Your picks are in — now make them count</p>
           <p className="text-xs text-emerald-700 mb-3">Create a free account to start a comp with your crew or join one and see how you stack up.</p>
           <div className="flex gap-2">
