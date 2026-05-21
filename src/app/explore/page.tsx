@@ -88,6 +88,12 @@ export default function ExplorePage() {
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
 
+      {/* Back link */}
+      <button onClick={() => router.back()}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-4 transition-colors">
+        ← Back
+      </button>
+
       {/* Header */}
       <div className="mb-5">
         <h1 className="text-xl font-bold text-gray-900">Browse open comps</h1>
