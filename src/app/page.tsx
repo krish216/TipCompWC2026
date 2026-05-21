@@ -50,7 +50,7 @@ function CompModal({
   const { session } = useSupabase()
 
   type Step = 'choose' | 'join' | 'create' | 'created'
-  const [step,        setStep]        = useState<Step>(initialMode === 'create' ? 'create' : initialMode === 'join' ? 'join' : 'choose')
+  const [step,        setStep]        = useState<Step>(initialMode === 'create' ? 'create' : initialMode === 'join' && !hasOpenComps ? 'join' : 'choose')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
 
