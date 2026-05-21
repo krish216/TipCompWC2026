@@ -722,6 +722,7 @@ export default function HomePage() {
   const [cameFromChallenge, setCameFromChallenge] = useState(false)
   const [joiningWarmUp,    setJoiningWarmUp]    = useState(false)
   const [warmUpError,      setWarmUpError]      = useState<string | null>(null)
+  const [openCompCount,    setOpenCompCount]    = useState<number | null>(null)
   const [confirmAction,    setConfirmAction]    = useState<{ compId: string; action: 'leave' | 'delete'; name: string } | null>(null)
   const [compActionBusy,   setCompActionBusy]   = useState(false)
   const [teamsList,        setTeamsList]        = useState<{ name: string; fifa_code: string; flag_emoji: string }[]>([])
@@ -1070,6 +1071,15 @@ export default function HomePage() {
       setJoiningWarmUp(false)
     }
   }
+
+  // Fetch open comp count once when user has no comp — gates the Browse card
+  useEffect(() => {
+    if (selectedCompId || contextLoading) return
+    fetch('/api/comps/explore')
+      .then(r => r.json())
+      .then(d => setOpenCompCount((d.data ?? []).length))
+      .catch(() => setOpenCompCount(0))
+  }, [selectedCompId, contextLoading])
 
   const handleCompAction = async () => {
     if (!confirmAction) return
@@ -1682,15 +1692,17 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      <Link href="/explore"
-                        className="mb-3 flex items-center gap-3 p-3 rounded-xl border-2 border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100 transition-colors">
-                        <span className="text-2xl flex-shrink-0">🔍</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-sky-900">Browse open comps</p>
-                          <p className="text-[11px] text-sky-700">Find a comp open to everyone — no invite needed</p>
-                        </div>
-                        <span className="text-xs font-bold text-sky-600 flex-shrink-0">Browse →</span>
-                      </Link>
+                      {openCompCount !== null && openCompCount > 0 && (
+                        <Link href="/explore"
+                          className="mb-3 flex items-center gap-3 p-3 rounded-xl border-2 border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100 transition-colors">
+                          <span className="text-2xl flex-shrink-0">🔍</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-sky-900">Browse open comps</p>
+                            <p className="text-[11px] text-sky-700">{openCompCount} comp{openCompCount !== 1 ? 's' : ''} open to join right now</p>
+                          </div>
+                          <span className="text-xs font-bold text-sky-600 flex-shrink-0">Browse →</span>
+                        </Link>
+                      )}
                     </>
                   )}
 
