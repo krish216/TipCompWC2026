@@ -2761,7 +2761,7 @@ export default function HomePage() {
               <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>Invite tipsters</p>
                 <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:5, padding:'3px 6px', marginBottom:3, display:'flex', alignItems:'center', gap:4 }}>
-                  <span style={{ flex:1, fontSize:7, color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>tribepicks.com/join?code=ABC…</span>
+                  <span style={{ flex:1, fontSize:7, color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>t../join?code=ABC…</span>
                   <div style={{ background:'#dbeafe', borderRadius:3, padding:'2px 4px', fontSize:6.5, fontWeight:700, color:'#1d4ed8', flexShrink:0 }}>Copy</div>
                 </div>
                 <div style={{ background:'#1d4ed8', borderRadius:5, padding:'3px 0', textAlign:'center', fontSize:8, fontWeight:700, color:'#fff', marginBottom:4 }}>📤 Share invite link</div>
