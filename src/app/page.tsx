@@ -2702,7 +2702,7 @@ export default function HomePage() {
           {
             n:3, color:'#7c3aed',
             title: 'Track & Win',
-            desc:  'Climb the leaderboard, celebrate with your tribe.',
+            desc:  'Climb the leaderboard with every match & celebrate with your tribe.',
             phone: (
               <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>🏆 Leaderboard</p>
