@@ -1121,14 +1121,14 @@ export default function HomePage() {
     }
   }
 
-  // Fetch open comp count once when user has no comp — gates the Browse card
+  // Fetch open comp count — gates the Browse card and Explore header link
   useEffect(() => {
-    if (selectedCompId || contextLoading) return
+    if (contextLoading) return
     fetch('/api/comps/explore')
       .then(r => r.json())
       .then(d => setOpenCompCount((d.data ?? []).length))
       .catch(() => setOpenCompCount(0))
-  }, [selectedCompId, contextLoading])
+  }, [contextLoading])
 
   // Fetch latest tournament announcement — shown as a dismissable banner
   useEffect(() => {
