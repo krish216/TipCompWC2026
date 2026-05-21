@@ -2454,6 +2454,12 @@ export default function HomePage() {
                         className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
                         🔑 Join
                       </button>
+                      {openCompCount !== null && openCompCount > 0 && (
+                        <Link href="/explore"
+                          className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">
+                          🌐 Explore
+                        </Link>
+                      )}
                       <button
                         onClick={() => {
                           if (emailVerified === false) {
