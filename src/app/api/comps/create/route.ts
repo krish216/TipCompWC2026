@@ -149,7 +149,11 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
-  const { comp_id, logo_url, min_age, name, requires_payment_fee, entry_fee_amount, max_tribe_size } = body ?? {}
+  const {
+    comp_id, logo_url, min_age, name, requires_payment_fee, entry_fee_amount, max_tribe_size,
+    visibility, is_discoverable, comp_category, team_affiliation,
+    description, prize_type, prize_description, member_cap,
+  } = body ?? {}
   if (!comp_id) {
     return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
   }
@@ -168,13 +172,21 @@ export async function PATCH(request: NextRequest) {
 
   await (adminClient.from('comps') as any)
     .update({
-        ...(name      !== undefined ? { name:     name ?? null      } : {}),
-        ...(logo_url  !== undefined ? { logo_url }                    : {}),
-        ...(min_age              !== undefined ? { min_age:              min_age ?? null              } : {}),
-        ...(requires_payment_fee !== undefined ? { requires_payment_fee: requires_payment_fee ?? false } : {}),
-        ...(entry_fee_amount     !== undefined ? { entry_fee_amount:     entry_fee_amount ?? null      } : {}),
-        ...(max_tribe_size       !== undefined ? { max_tribe_size:       max_tribe_size ?? 15           } : {}),
-      }).eq('id', comp_id)
+      ...(name                 !== undefined ? { name:                 name ?? null                  } : {}),
+      ...(logo_url             !== undefined ? { logo_url }                                           : {}),
+      ...(min_age              !== undefined ? { min_age:              min_age ?? null               } : {}),
+      ...(requires_payment_fee !== undefined ? { requires_payment_fee: requires_payment_fee ?? false } : {}),
+      ...(entry_fee_amount     !== undefined ? { entry_fee_amount:     entry_fee_amount ?? null      } : {}),
+      ...(max_tribe_size       !== undefined ? { max_tribe_size:       max_tribe_size ?? 15          } : {}),
+      ...(visibility           !== undefined ? { visibility }                                         : {}),
+      ...(is_discoverable      !== undefined ? { is_discoverable }                                    : {}),
+      ...(comp_category        !== undefined ? { comp_category }                                      : {}),
+      ...(team_affiliation     !== undefined ? { team_affiliation }                                   : {}),
+      ...(description          !== undefined ? { description }                                        : {}),
+      ...(prize_type           !== undefined ? { prize_type }                                         : {}),
+      ...(prize_description    !== undefined ? { prize_description }                                  : {}),
+      ...(member_cap           !== undefined ? { member_cap }                                         : {}),
+    }).eq('id', comp_id)
 
   return NextResponse.json({ success: true })
 }
