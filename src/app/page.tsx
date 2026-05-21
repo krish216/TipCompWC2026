@@ -33,6 +33,7 @@ function CompModal({
   tournamentId,
   tournament,
   teams,
+  hasOpenComps,
   onSuccess,
   onManageComp,
   onClose,
@@ -41,6 +42,7 @@ function CompModal({
   tournamentId:  string | null
   tournament:    Tournament | null
   teams:         { name: string; fifa_code: string; flag_emoji: string }[]
+  hasOpenComps:  boolean
   onSuccess:     (comp: { id: string; name: string; logo_url?: string | null }) => void
   onManageComp?: (comp: { id: string; name: string }) => void
   onClose:       () => void
@@ -182,14 +184,34 @@ function CompModal({
           {/* ── CHOOSE ── */}
           {step === 'choose' && (
             <>
-              <button onClick={() => setStep('join')}
-                className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
-                <span className="text-2xl flex-shrink-0">🔑</span>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Join a comp</p>
-                  <p className="text-xs text-gray-500 mt-0.5">I have an invite code</p>
-                </div>
-              </button>
+              {hasOpenComps ? (
+                <>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Join a comp</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setStep('join')}
+                      className="flex flex-col items-center gap-1.5 border-2 border-gray-200 hover:border-green-400 rounded-xl py-3 px-2 text-center transition-colors bg-white">
+                      <span className="text-xl leading-none">🔑</span>
+                      <p className="text-xs font-semibold text-gray-900">Enter code</p>
+                      <p className="text-[10px] text-gray-400 leading-tight">You have an invite</p>
+                    </button>
+                    <a href="/explore"
+                      className="flex flex-col items-center gap-1.5 border-2 border-emerald-200 hover:border-emerald-400 rounded-xl py-3 px-2 text-center transition-colors bg-emerald-50">
+                      <span className="text-xl leading-none">🌐</span>
+                      <p className="text-xs font-semibold text-gray-900">Browse comps</p>
+                      <p className="text-[10px] text-gray-400 leading-tight">Find an open one</p>
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <button onClick={() => setStep('join')}
+                  className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
+                  <span className="text-2xl flex-shrink-0">🔑</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Join a comp</p>
+                    <p className="text-xs text-gray-500 mt-0.5">I have an invite code</p>
+                  </div>
+                </button>
+              )}
               <button onClick={() => setStep('create')}
                 className="w-full flex items-center gap-4 bg-white border-2 border-gray-200 hover:border-green-400 rounded-xl p-4 text-left transition-colors">
                 <span className="text-2xl flex-shrink-0">✨</span>
@@ -3034,6 +3056,7 @@ export default function HomePage() {
           tournamentId={selectedTournId}
           tournament={selectedTourn}
           teams={teamsList}
+          hasOpenComps={openCompCount !== null && openCompCount > 0}
           onClose={() => setModal(null)}
           onSuccess={async (comp) => {
             setModal(null)

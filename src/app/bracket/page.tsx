@@ -290,6 +290,7 @@ export default function BracketPage() {
   const prevThirdsCount = useRef(0)
   const prevFinalRef    = useRef<string | null>(null)
   const initializedRef  = useRef(false)
+  const confettiFiredRef = useRef(false)
   const resetTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sourceRef       = useRef<string | null>(searchParams.get('ref'))
   const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
@@ -542,12 +543,15 @@ export default function BracketPage() {
 
     if (champion === prev) return  // same pick reloaded, no action
 
-    // Confetti burst on new champion pick
-    import('canvas-confetti').then(({ default: confetti }) => {
-      const colors = ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#ffffff']
-      confetti({ particleCount: 80, spread: 65, origin: { x: 0.25, y: 0.85 }, colors })
-      confetti({ particleCount: 80, spread: 65, origin: { x: 0.75, y: 0.85 }, colors })
-    }).catch(() => {})
+    // Confetti burst — once per mount, not on tinkering or page reload
+    if (!confettiFiredRef.current) {
+      confettiFiredRef.current = true
+      import('canvas-confetti').then(({ default: confetti }) => {
+        const colors = ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#ffffff']
+        confetti({ particleCount: 80, spread: 65, origin: { x: 0.25, y: 0.85 }, colors })
+        confetti({ particleCount: 80, spread: 65, origin: { x: 0.75, y: 0.85 }, colors })
+      }).catch(() => {})
+    }
 
     // New champion: guests scroll to top (CTA card is first); logged-in scroll to champion banner
     setTimeout(() => {
