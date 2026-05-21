@@ -1586,8 +1586,14 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
               <div>
                 <p className="text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></p>
                 <textarea value={ocDescription} onChange={e => setOcDescription(e.target.value)}
-                  placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
+                  placeholder={ocVisibility === 'open'
+                    ? 'e.g. For all Socceroos fans — tip every match, free to join. Friendly competition, no entry fee!'
+                    : 'e.g. The Friday crew — $5 entry, winner takes all'}
+                  maxLength={300} rows={2}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
+                {ocVisibility === 'open' && ocDiscoverable && !ocDescription.trim() && (
+                  <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Tipsters browsing Explore won&apos;t know what this comp is about — a description helps them decide to join.</p>
+                )}
               </div>
 
               {/* Prize */}

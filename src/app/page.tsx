@@ -367,8 +367,14 @@ function CompModal({
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></label>
                   <textarea value={description} onChange={e => setDescription(e.target.value)}
-                    placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
+                    placeholder={visibility === 'open'
+                      ? 'e.g. For all Socceroos fans — tip every match, free to join. Friendly competition, no entry fee!'
+                      : 'e.g. The Friday crew — $5 entry, winner takes all'}
+                    maxLength={300} rows={2}
                     className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white resize-none" />
+                  {visibility === 'open' && !description.trim() && (
+                    <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Tipsters browsing Explore won&apos;t know what this comp is about — a description helps them decide to join.</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize?</label>
