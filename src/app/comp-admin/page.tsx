@@ -1479,7 +1479,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
             {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
           </div>
         )},
-        { title: 'Comp settings', sub: 'Control visibility, audience and prize for this comp', content: (
+        { title: 'Visibility & Details', sub: 'Control visibility, audience and prize for this comp', content: (
           <div className="p-4 space-y-4">
             {/* Visibility */}
             <div>

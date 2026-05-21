@@ -2578,9 +2578,9 @@ export default function HomePage() {
                           </span>
                         )}
                         {isAdm && (
-                          <Link href="/comp-admin" onClick={e => e.stopPropagation()}
+                          <Link href="/comp-admin?tab=settings" onClick={e => e.stopPropagation()}
                             className="text-[10px] font-semibold text-blue-600 bg-white border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-                            ⚙️ Manage
+                            ⚙️ Settings
                           </Link>
                         )}
                         {rank != null && (
