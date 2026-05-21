@@ -542,12 +542,16 @@ export default function BracketPage() {
 
     if (champion === prev) return  // same pick reloaded, no action
 
-    // New champion: scroll page to the champion banner (offset by sticky top navbar)
+    // New champion: guests scroll to top (CTA card is first); logged-in scroll to champion banner
     setTimeout(() => {
-      const el = championBannerRef.current
-      if (el) {
-        const top = el.getBoundingClientRect().top + window.scrollY - 64
-        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+      if (!session) {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else {
+        const el = championBannerRef.current
+        if (el) {
+          const top = el.getBoundingClientRect().top + window.scrollY - 64
+          window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+        }
       }
     }, 50)
 
