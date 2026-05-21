@@ -1195,7 +1195,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   // Open comp settings
   const [ocVisibility,    setOcVisibility]    = useState<'private' | 'open'>(comp?.visibility ?? 'private')
   const [ocDiscoverable,  setOcDiscoverable]  = useState<boolean>(comp?.is_discoverable ?? false)
-  const [ocCategory,      setOcCategory]      = useState<'all_welcome' | 'team_fans'>(comp?.comp_category ?? 'all_welcome')
+  const [ocCategory,      setOcCategory]      = useState<string>(comp?.comp_category ?? '')
   const [ocTeamAffil,     setOcTeamAffil]     = useState<string>(comp?.team_affiliation ?? '')
   const [ocDescription,   setOcDescription]   = useState<string>(comp?.description ?? '')
   const [ocPrizeType,     setOcPrizeType]     = useState<'none' | 'chief_offers' | 'pool'>(comp?.prize_type ?? 'none')
@@ -1221,12 +1221,12 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
         comp_id:          comp.id,
         visibility:       ocVisibility,
         is_discoverable:  ocVisibility === 'open' ? ocDiscoverable : false,
-        comp_category:    ocVisibility === 'open' ? ocCategory : null,
-        team_affiliation: ocVisibility === 'open' && ocCategory === 'team_fans' ? ocTeamAffil || null : null,
-        description:      ocVisibility === 'open' ? ocDescription.trim() || null : null,
-        prize_type:       ocVisibility === 'open' ? ocPrizeType : 'none',
-        prize_description: ocVisibility === 'open' && ocPrizeType !== 'none' ? ocPrizeDesc.trim() || null : null,
-        member_cap:       ocVisibility === 'open' && ocMemberCap ? parseInt(ocMemberCap) : null,
+        comp_category:    ocCategory || null,
+        team_affiliation: ocCategory === 'team_fans' ? ocTeamAffil || null : null,
+        description:      ocDescription.trim() || null,
+        prize_type:       ocPrizeType,
+        prize_description: ocPrizeType !== 'none' ? ocPrizeDesc.trim() || null : null,
+        member_cap:       ocMemberCap ? parseInt(ocMemberCap) : null,
       }),
     })
     setOcSaving(false)
@@ -1479,7 +1479,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
             {newMinAge && <span className="text-xs text-gray-400">years or older</span>}
           </div>
         )},
-        { title: 'Open comp settings', sub: 'Control visibility, audience and prize for this comp', content: (
+        { title: 'Comp settings', sub: 'Control visibility, audience and prize for this comp', content: (
           <div className="p-4 space-y-4">
             {/* Visibility */}
             <div>
@@ -1502,27 +1502,29 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
               </div>
             </div>
 
+            {/* Show on Explore — open only */}
             {ocVisibility === 'open' && (
-              <div className="space-y-3 border-t border-gray-100 pt-3">
-                {/* Show on Explore */}
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={ocDiscoverable} onChange={e => setOcDiscoverable(e.target.checked)}
-                    className="w-4 h-4 accent-gray-800 rounded" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-800">Show on Explore page</p>
-                    <p className="text-[11px] text-gray-500">Tipsters can discover and join without an invite code</p>
-                  </div>
-                </label>
-
-                {/* Audience */}
+              <label className="flex items-center gap-3 cursor-pointer border-t border-gray-100 pt-3">
+                <input type="checkbox" checked={ocDiscoverable} onChange={e => setOcDiscoverable(e.target.checked)}
+                  className="w-4 h-4 accent-gray-800 rounded" />
                 <div>
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">Who&apos;s this comp for?</p>
+                  <p className="text-xs font-semibold text-gray-800">Show on Explore page</p>
+                  <p className="text-[11px] text-gray-500">Tipsters can discover and join without an invite code</p>
+                </div>
+              </label>
+            )}
+
+            <div className="space-y-3 border-t border-gray-100 pt-3">
+              {/* Audience — chips differ by visibility */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-1.5">Group type <span className="text-gray-400">(optional)</span></p>
+                {ocVisibility === 'open' ? (
                   <div className="grid grid-cols-2 gap-2">
                     {([
                       { val: 'all_welcome', icon: '🌍', label: 'All Welcome' },
                       { val: 'team_fans',   icon: '⚽', label: 'Team Fans'  },
                     ] as const).map(opt => (
-                      <button key={opt.val} type="button" onClick={() => setOcCategory(opt.val)}
+                      <button key={opt.val} type="button" onClick={() => setOcCategory(ocCategory === opt.val ? '' : opt.val)}
                         className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
                           ${ocCategory === opt.val ? 'border-gray-800 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                         <span className="text-base leading-none">{opt.icon}</span>
@@ -1530,72 +1532,90 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Team picker */}
-                {ocCategory === 'team_fans' && (
-                  <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1.5">Which team?</p>
-                    <button type="button" onClick={() => setOcTeamPicker(true)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors">
-                      {ocTeamAffil
-                        ? (() => { const t = teamsList.find(t => t.name === ocTeamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{ocTeamAffil}</span></> })()
-                        : <span className="text-gray-400">Select a team…</span>}
-                      <span className="ml-auto text-gray-400 text-xs">▼</span>
-                    </button>
-                    <TeamPickerSheet open={ocTeamPicker} onClose={() => setOcTeamPicker(false)}
-                      teams={teamsList} value={ocTeamAffil} onSelect={setOcTeamAffil}
-                      title="Which team are the fans supporting?" />
-                  </div>
-                )}
-
-                {/* Member cap */}
-                <div>
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">Member cap <span className="text-gray-400">(optional)</span></p>
-                  <div className="flex items-center gap-3">
-                    <input type="number" min={2} max={500} value={ocMemberCap}
-                      onChange={e => setOcMemberCap(e.target.value)}
-                      placeholder="No limit"
-                      className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 font-mono" />
-                    <span className="text-xs text-gray-400">max tipsters</span>
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></p>
-                  <textarea value={ocDescription} onChange={e => setOcDescription(e.target.value)}
-                    placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
-                </div>
-
-                {/* Prize */}
-                <div>
-                  <p className="text-xs font-medium text-gray-700 mb-1.5">Prize?</p>
-                  <div className="flex gap-2">
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
                     {([
-                      { val: 'none',         label: '🚫 None'         },
-                      { val: 'chief_offers', label: '🎁 Chief offers' },
-                      { val: 'pool',         label: '💰 Pool'         },
+                      { val: 'friends_family', icon: '👨‍👩‍👧', label: 'Friends & Family', span: false },
+                      { val: 'office_work',    icon: '💼',     label: 'Office / Work',    span: false },
+                      { val: 'sports_club',    icon: '🏆',     label: 'Sports Club',      span: false },
+                      { val: 'school_uni',     icon: '🎓',     label: 'School / Uni',     span: false },
+                      { val: 'other',          icon: '🌐',     label: 'Other',            span: true  },
                     ] as const).map(opt => (
-                      <button key={opt.val} type="button" onClick={() => setOcPrizeType(opt.val)}
-                        className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
-                          ${ocPrizeType === opt.val ? 'border-gray-800 bg-gray-50 text-gray-900' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
-                        {opt.label}
+                      <button key={opt.val} type="button" onClick={() => setOcCategory(ocCategory === opt.val ? '' : opt.val)}
+                        className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
+                          ${opt.span ? 'col-span-2' : ''}
+                          ${ocCategory === opt.val ? 'border-gray-800 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                        <span className="text-base leading-none">{opt.icon}</span>
+                        <span className="text-xs font-bold text-gray-800">{opt.label}</span>
                       </button>
                     ))}
                   </div>
-                </div>
-                {ocPrizeType !== 'none' && (
-                  <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></p>
-                    <input type="text" value={ocPrizeDesc} onChange={e => setOcPrizeDesc(e.target.value)}
-                      placeholder={ocPrizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
-                  </div>
                 )}
               </div>
-            )}
+
+              {/* Team picker — open + team_fans only */}
+              {ocVisibility === 'open' && ocCategory === 'team_fans' && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">Which team?</p>
+                  <button type="button" onClick={() => setOcTeamPicker(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors">
+                    {ocTeamAffil
+                      ? (() => { const t = teamsList.find(t => t.name === ocTeamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{ocTeamAffil}</span></> })()
+                      : <span className="text-gray-400">Select a team…</span>}
+                    <span className="ml-auto text-gray-400 text-xs">▼</span>
+                  </button>
+                  <TeamPickerSheet open={ocTeamPicker} onClose={() => setOcTeamPicker(false)}
+                    teams={teamsList} value={ocTeamAffil} onSelect={setOcTeamAffil}
+                    title="Which team are the fans supporting?" />
+                </div>
+              )}
+
+              {/* Member cap */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-1.5">Member cap <span className="text-gray-400">(optional)</span></p>
+                <div className="flex items-center gap-3">
+                  <input type="number" min={2} max={500} value={ocMemberCap}
+                    onChange={e => setOcMemberCap(e.target.value)}
+                    placeholder="No limit"
+                    className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 font-mono" />
+                  <span className="text-xs text-gray-400">max tipsters</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></p>
+                <textarea value={ocDescription} onChange={e => setOcDescription(e.target.value)}
+                  placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 resize-none" />
+              </div>
+
+              {/* Prize */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 mb-1.5">Prize?</p>
+                <div className="flex gap-2">
+                  {([
+                    { val: 'none',         label: '🚫 None'         },
+                    { val: 'chief_offers', label: '🎁 Chief offers' },
+                    { val: 'pool',         label: '💰 Pool'         },
+                  ] as const).map(opt => (
+                    <button key={opt.val} type="button" onClick={() => setOcPrizeType(opt.val)}
+                      className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
+                        ${ocPrizeType === opt.val ? 'border-gray-800 bg-gray-50 text-gray-900' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {ocPrizeType !== 'none' && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></p>
+                  <input type="text" value={ocPrizeDesc} onChange={e => setOcPrizeDesc(e.target.value)}
+                    placeholder={ocPrizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+                </div>
+              )}
+            </div>
 
             {ocError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{ocError}</p>}
             <button onClick={saveOpenCompSettings} disabled={ocSaving || (ocVisibility === 'open' && ocCategory === 'team_fans' && !ocTeamAffil)}

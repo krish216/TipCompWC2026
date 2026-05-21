@@ -61,10 +61,10 @@ function CompModal({
   // Create — step 1
   const [compName,    setCompName]    = useState('')
   const [visibility,  setVisibility]  = useState<'private' | 'open'>('private')
-  // Create — step 2 (open only)
-  const [category,    setCategory]    = useState<'all_welcome' | 'team_fans'>('all_welcome')
+  // Create — open/private optional fields
+  const [category,    setCategory]    = useState('')
   const [teamAffil,   setTeamAffil]   = useState('')
-  const [memberCap,   setMemberCap]   = useState(50)
+  const [memberCap,   setMemberCap]   = useState('')
   const [teamPickerOpen, setTeamPickerOpen] = useState(false)
   // Create — step 3 (open only)
   const [description, setDescription] = useState('')
@@ -115,15 +115,13 @@ function CompModal({
         user_id: session.user.id, email: session.user.email,
         tournament_id: tournamentId,
         visibility,
-        ...(visibility === 'open' ? {
-          comp_category:    category,
-          team_affiliation: category === 'team_fans' ? teamAffil : undefined,
-          member_cap:       memberCap,
-          description:      description.trim() || undefined,
-          prize_type:       prizeType,
-          prize_description: prizeType !== 'none' ? prizeDesc.trim() || undefined : undefined,
-          is_discoverable:  true,
-        } : {}),
+        comp_category:    category || undefined,
+        team_affiliation: category === 'team_fans' ? teamAffil : undefined,
+        member_cap:       memberCap ? parseInt(memberCap) : undefined,
+        description:      description.trim() || undefined,
+        prize_type:       prizeType,
+        prize_description: prizeType !== 'none' ? prizeDesc.trim() || undefined : undefined,
+        is_discoverable:  visibility === 'open',
       }),
     })
     const { data: comp, error: err } = await res.json()
@@ -262,7 +260,7 @@ function CompModal({
                     { val: 'private', icon: '🔒', label: 'Private', sub: 'Invite only' },
                     { val: 'open',    icon: '🌐', label: 'Open',    sub: 'Anyone can join' },
                   ] as const).map(opt => (
-                    <button key={opt.val} type="button" onClick={() => setVisibility(opt.val)}
+                    <button key={opt.val} type="button" onClick={() => { setVisibility(opt.val); setCategory('') }}
                       className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
                         ${visibility === opt.val
                           ? 'border-sky-500 bg-sky-100'
@@ -277,85 +275,106 @@ function CompModal({
                 </div>
               </div>
 
-              {/* ── Progressive disclosure: open comp fields ── */}
-              {visibility === 'open' && (
-                <div className="border-t border-sky-200 pt-3 space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Who&apos;s this comp for?</label>
+              {/* ── Optional comp details — always visible ── */}
+              <div className="border-t border-sky-200 pt-3 space-y-3">
+                {/* Group type — chips differ by visibility */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Group type <span className="text-gray-400">(optional)</span></label>
+                  {visibility === 'open' ? (
                     <div className="grid grid-cols-2 gap-2">
                       {([
                         { val: 'all_welcome', icon: '🌍', label: 'All Welcome' },
                         { val: 'team_fans',   icon: '⚽', label: 'Team Fans'  },
                       ] as const).map(opt => (
-                        <button key={opt.val} type="button" onClick={() => setCategory(opt.val)}
+                        <button key={opt.val} type="button" onClick={() => setCategory(category === opt.val ? '' : opt.val)}
                           className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
-                            ${category === opt.val
-                              ? 'border-sky-500 bg-sky-100'
-                              : 'border-sky-200 bg-white hover:border-sky-300'}`}>
+                            ${category === opt.val ? 'border-sky-500 bg-sky-100' : 'border-sky-200 bg-white hover:border-sky-300'}`}>
                           <span className="text-base leading-none">{opt.icon}</span>
                           <span className="text-xs font-bold text-gray-800">{opt.label}</span>
                         </button>
                       ))}
                     </div>
-                  </div>
-                  {category === 'team_fans' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Which team?</label>
-                      <button type="button" onClick={() => setTeamPickerOpen(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-sky-200 rounded-lg bg-white hover:bg-sky-50 transition-colors">
-                        {teamAffil
-                          ? (() => { const t = teams.find(t => t.name === teamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{teamAffil}</span></> })()
-                          : <span className="text-gray-400">Select a team…</span>}
-                        <span className="ml-auto text-sky-400 text-xs">▼</span>
-                      </button>
-                      <TeamPickerSheet open={teamPickerOpen} onClose={() => setTeamPickerOpen(false)}
-                        teams={teams} value={teamAffil} onSelect={setTeamAffil}
-                        title="Which team are the fans supporting?" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Member cap</label>
-                    <div className="flex items-center gap-3">
-                      <input type="number" min={2} max={500} value={memberCap}
-                        onChange={e => setMemberCap(Math.max(2, Math.min(500, Number(e.target.value))))}
-                        className="w-24 px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-center font-mono" />
-                      <span className="text-xs text-gray-500">max tipsters (2–500)</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></label>
-                    <textarea value={description} onChange={e => setDescription(e.target.value)}
-                      placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
-                      className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white resize-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize?</label>
-                    <div className="flex gap-2">
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
                       {([
-                        { val: 'none',         label: '🚫 None'         },
-                        { val: 'chief_offers', label: '🎁 Chief offers' },
-                        { val: 'pool',         label: '💰 Pool'         },
+                        { val: 'friends_family', icon: '👨‍👩‍👧', label: 'Friends & Family', span: false },
+                        { val: 'office_work',    icon: '💼',     label: 'Office / Work',    span: false },
+                        { val: 'sports_club',    icon: '🏆',     label: 'Sports Club',      span: false },
+                        { val: 'school_uni',     icon: '🎓',     label: 'School / Uni',     span: false },
+                        { val: 'other',          icon: '🌐',     label: 'Other',            span: true  },
                       ] as const).map(opt => (
-                        <button key={opt.val} type="button" onClick={() => setPrizeType(opt.val)}
-                          className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
-                            ${prizeType === opt.val
-                              ? 'border-sky-500 bg-sky-100 text-sky-800'
-                              : 'border-sky-200 bg-white text-gray-600 hover:border-sky-300'}`}>
-                          {opt.label}
+                        <button key={opt.val} type="button" onClick={() => setCategory(category === opt.val ? '' : opt.val)}
+                          className={`flex items-center gap-2 py-2 px-3 rounded-xl border-2 transition-colors
+                            ${opt.span ? 'col-span-2' : ''}
+                            ${category === opt.val ? 'border-sky-500 bg-sky-100' : 'border-sky-200 bg-white hover:border-sky-300'}`}>
+                          <span className="text-base leading-none">{opt.icon}</span>
+                          <span className="text-xs font-bold text-gray-800">{opt.label}</span>
                         </button>
                       ))}
                     </div>
-                  </div>
-                  {prizeType !== 'none' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></label>
-                      <input type="text" value={prizeDesc} onChange={e => setPrizeDesc(e.target.value)}
-                        placeholder={prizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
-                        className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white" />
-                    </div>
                   )}
                 </div>
-              )}
+
+                {/* Team picker — open + team_fans only */}
+                {visibility === 'open' && category === 'team_fans' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Which team?</label>
+                    <button type="button" onClick={() => setTeamPickerOpen(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-sky-200 rounded-lg bg-white hover:bg-sky-50 transition-colors">
+                      {teamAffil
+                        ? (() => { const t = teams.find(t => t.name === teamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{teamAffil}</span></> })()
+                        : <span className="text-gray-400">Select a team…</span>}
+                      <span className="ml-auto text-sky-400 text-xs">▼</span>
+                    </button>
+                    <TeamPickerSheet open={teamPickerOpen} onClose={() => setTeamPickerOpen(false)}
+                      teams={teams} value={teamAffil} onSelect={setTeamAffil}
+                      title="Which team are the fans supporting?" />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Member cap <span className="text-gray-400">(optional)</span></label>
+                  <div className="flex items-center gap-3">
+                    <input type="number" min={2} max={500} value={memberCap}
+                      onChange={e => setMemberCap(e.target.value)}
+                      placeholder="No limit"
+                      className="w-24 px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-center font-mono" />
+                    <span className="text-xs text-gray-500">max tipsters (2–500)</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Description <span className="text-gray-400">(optional)</span></label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)}
+                    placeholder="Tell tipsters what this comp is about…" maxLength={300} rows={2}
+                    className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white resize-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize?</label>
+                  <div className="flex gap-2">
+                    {([
+                      { val: 'none',         label: '🚫 None'         },
+                      { val: 'chief_offers', label: '🎁 Chief offers' },
+                      { val: 'pool',         label: '💰 Pool'         },
+                    ] as const).map(opt => (
+                      <button key={opt.val} type="button" onClick={() => setPrizeType(opt.val)}
+                        className={`flex-1 py-2 px-1 rounded-xl border-2 text-xs font-semibold transition-colors
+                          ${prizeType === opt.val
+                            ? 'border-sky-500 bg-sky-100 text-sky-800'
+                            : 'border-sky-200 bg-white text-gray-600 hover:border-sky-300'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {prizeType !== 'none' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Prize details <span className="text-gray-400">(optional)</span></label>
+                    <input type="text" value={prizeDesc} onChange={e => setPrizeDesc(e.target.value)}
+                      placeholder={prizeType === 'pool' ? 'e.g. $5 per tipster' : 'e.g. $50 voucher for the winner'} maxLength={120}
+                      className="w-full px-3 py-2 text-sm border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white" />
+                  </div>
+                )}
+              </div>
 
               {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
               <button onClick={handleCreate}
