@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/comps/explore — public list of open + discoverable comps
 export async function GET() {
   const adminClient = createAdminClient()
