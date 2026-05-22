@@ -482,6 +482,51 @@ function CompModal({
   return createPortal(content, document.body)
 }
 
+// ── LivePulse ─────────────────────────────────────────────────────────────────
+function LivePulse({ data }: {
+  data: { comps_today: number; brackets_today: number; tipsters_today: number; latest_event: { text: string } | null } | null
+}) {
+  if (!data) return null
+  const stats = [
+    { icon: '⚡', value: data.comps_today,    label: 'COMPS TODAY'     },
+    { icon: '🏆', value: data.brackets_today, label: 'BRACKETS TODAY'  },
+    { icon: '👥', value: data.tipsters_today, label: 'TIPSTERS TODAY'  },
+  ]
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* Header row */}
+      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10, justifyContent:'center' }}>
+        <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:'#4ade80',
+          boxShadow:'0 0 0 0 rgba(74,222,128,0.6)', animation:'livePulseDot 2s ease-out infinite', flexShrink:0 }} />
+        <span style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:'rgba(255,255,255,0.55)' }}>LIVE PULSE</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.22)', letterSpacing:'0.06em' }}>· 24H</span>
+      </div>
+      {/* Stat cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:8 }}>
+        {stats.map(s => (
+          <div key={s.label} style={{
+            background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.10)',
+            borderRadius:12, padding:'10px 4px', textAlign:'center', backdropFilter:'blur(6px)',
+          }}>
+            <div style={{ fontSize:15, fontWeight:800, color:'#4ade80', lineHeight:1.1 }}>{s.icon} {s.value}</div>
+            <div style={{ fontSize:8, fontWeight:600, color:'rgba(255,255,255,0.38)', marginTop:4, letterSpacing:'0.08em' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      {/* Latest event ticker */}
+      {data.latest_event && (
+        <div style={{
+          background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)',
+          borderRadius:10, padding:'8px 12px', display:'flex', alignItems:'center', gap:8,
+        }}>
+          <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 6px rgba(74,222,128,0.8)' }} />
+          <span style={{ fontSize:12, color:'rgba(255,255,255,0.72)', fontWeight:500 }}>{data.latest_event.text}</span>
+        </div>
+      )}
+      <style>{`@keyframes livePulseDot{0%{box-shadow:0 0 0 0 rgba(74,222,128,0.6)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}`}</style>
+    </div>
+  )
+}
 
 export default function HomePage() {
   const router = useRouter()
@@ -766,6 +811,7 @@ export default function HomePage() {
   const [blockFuture,    setBlockFuture]    = useState(false)
   const [showAllSet,     setShowAllSet]     = useState(false)
   const [heroStats,      setHeroStats]      = useState<{ tipster_count: number; comp_count: number } | null>(null)
+  const [livePulse,      setLivePulse]      = useState<{ comps_today: number; brackets_today: number; tipsters_today: number; latest_event: { text: string } | null } | null>(null)
   const [decliningBusy,    setDecliningBusy]    = useState(false)
   const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
   const [cameFromChallenge, setCameFromChallenge] = useState(false)
@@ -901,6 +947,15 @@ export default function HomePage() {
   useEffect(() => {
     if (session) return
     fetch('/api/stats').then(r => r.json()).then(d => setHeroStats(d)).catch(() => {})
+  }, [session])
+
+  // Live pulse — poll every 60s for guests only
+  useEffect(() => {
+    if (session) return
+    const load = () => fetch('/api/live-pulse').then(r => r.json()).then(setLivePulse).catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
+    return () => clearInterval(id)
   }, [session])
 
   // Hydrate dismissed card state from localStorage so dismissals survive page remounts
@@ -1263,6 +1318,9 @@ export default function HomePage() {
           }} />
 
           <div style={{ position:'relative', padding:'20px 20px 28px' }}>
+
+            {/* Live pulse — 24h activity signal */}
+            <LivePulse data={livePulse} />
 
             {/* Persona toggle */}
             <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
