@@ -2905,7 +2905,7 @@ export default function HomePage() {
 
         const steps = isTipster ? tipsterSteps : organiserSteps
         const cta   = isTipster
-          ? { href:'/bracket', label:'Pick your WC2026 bracket →', sub: 'no sign-in needed' }
+          ? { href:'/bracket?slug=wc2026', label:'Pick your WC2026 bracket →', sub: 'no sign-in needed' }
           : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →', sub: null }
         const testimonial = isTipster
           ? { quote: 'I love seeing how my tribe\'s picks stack up each round!', author: 'Alex, TribePicks tipster' }
