@@ -494,6 +494,7 @@ function LivePulse({ data }: {
         <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0,
           boxShadow:'0 0 0 0 rgba(74,222,128,0.6)', animation:'livePulseDot 2s ease-out infinite' }} />
         <span style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:'rgba(255,255,255,0.50)' }}>LIVE PULSE</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.28)', fontWeight:600, letterSpacing:'0.05em' }}>24H</span>
         <span style={{ fontSize:10, color:'rgba(255,255,255,0.20)' }}>·</span>
         <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>⚡ {data.comps_today}</span>
         <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)', fontWeight:500 }}>comps</span>
