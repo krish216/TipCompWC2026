@@ -1250,7 +1250,7 @@ export default function HomePage() {
       <CountdownBanner />
 
       {/* Tournament announcement banner — dismissable per announcement via localStorage */}
-      {tournAnnouncement && !annDismissed && (
+      {session && tournAnnouncement && !annDismissed && (
         <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
           <span className="text-base flex-shrink-0 mt-0.5">📣</span>
           <div className="flex-1 min-w-0">
