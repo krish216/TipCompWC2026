@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 export const dynamic = 'force-dynamic'
 
 // GET /api/live-pulse — public, no auth required
-// Returns 24h activity counts and the latest activity event.
+// Returns 24h activity counts and the last 5 activity events for the ticker.
 export async function GET() {
   try {
     const admin = createAdminClient()
@@ -14,50 +14,50 @@ export async function GET() {
       { count: compsToday },
       { count: bracketsToday },
       { count: tipstersToday },
-      { data: latestJoin },
-      { data: latestSignup },
+      { data: recentJoins },
+      { data: recentSignups },
     ] = await Promise.all([
       admin.from('comps').select('*', { count: 'exact', head: true }).gte('created_at', since),
       admin.from('bracket_predictions').select('*', { count: 'exact', head: true }).gte('created_at', since),
       admin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', since),
-      // Recent comp joins (joined_at set by the join route going forward)
       (admin as any)
         .from('user_comps')
         .select('joined_at, users(first_name, display_name), comps(name, discoverable)')
         .not('joined_at', 'is', null)
         .gte('joined_at', since)
         .order('joined_at', { ascending: false })
-        .limit(1),
-      // Fallback: recent signups
+        .limit(5),
       admin
         .from('users')
         .select('created_at, first_name, display_name')
         .gte('created_at', since)
         .order('created_at', { ascending: false })
-        .limit(1),
+        .limit(5),
     ])
 
-    let latest_event: { text: string } | null = null
+    // Build a unified event list, merge and sort by timestamp, take top 5
+    type Event = { text: string; ts: string }
+    const events: Event[] = []
 
-    const join = latestJoin?.[0] as any
-    if (join) {
-      const u = join.users
-      const name = u?.first_name || (u?.display_name ?? '').split(' ')[0] || 'Someone'
-      const compName = join.comps?.discoverable ? join.comps.name : 'a comp'
-      latest_event = { text: `${name} joined ${compName}` }
-    } else {
-      const signup = latestSignup?.[0] as any
-      if (signup) {
-        const name = signup.first_name || (signup.display_name ?? '').split(' ')[0] || 'Someone'
-        latest_event = { text: `${name} joined TribePicks` }
-      }
+    for (const row of (recentJoins ?? []) as any[]) {
+      const name = row.users?.first_name || (row.users?.display_name ?? '').split(' ')[0] || 'Someone'
+      const compName = row.comps?.discoverable ? row.comps.name : 'a comp'
+      events.push({ text: `${name} joined ${compName}`, ts: row.joined_at })
     }
 
+    for (const row of (recentSignups ?? []) as any[]) {
+      const name = row.first_name || (row.display_name ?? '').split(' ')[0] || 'Someone'
+      events.push({ text: `${name} joined TribePicks`, ts: row.created_at })
+    }
+
+    events.sort((a, b) => b.ts.localeCompare(a.ts))
+    const top5 = events.slice(0, 5).map(e => e.text)
+
     return NextResponse.json(
-      { comps_today: compsToday ?? 0, brackets_today: bracketsToday ?? 0, tipsters_today: tipstersToday ?? 0, latest_event },
+      { comps_today: compsToday ?? 0, brackets_today: bracketsToday ?? 0, tipsters_today: tipstersToday ?? 0, events: top5 },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch {
-    return NextResponse.json({ comps_today: 0, brackets_today: 0, tipsters_today: 0, latest_event: null })
+    return NextResponse.json({ comps_today: 0, brackets_today: 0, tipsters_today: 0, events: [] })
   }
 }

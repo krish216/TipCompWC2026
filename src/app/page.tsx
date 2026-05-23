@@ -484,13 +484,31 @@ function CompModal({
 
 // ── LivePulse ─────────────────────────────────────────────────────────────────
 function LivePulse({ data }: {
-  data: { comps_today: number; brackets_today: number; tipsters_today: number; latest_event: { text: string } | null } | null
+  data: { comps_today: number; brackets_today: number; tipsters_today: number; events: string[] } | null
 }) {
+  const [idx,     setIdx]     = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    if (!data?.events.length) return
+    const id = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setIdx(i => (i + 1) % data.events.length)
+        setVisible(true)
+      }, 400)
+    }, 3500)
+    return () => clearInterval(id)
+  }, [data?.events.length])
+
   if (!data) return null
+
+  const event = data.events[idx] ?? null
+
   return (
     <div style={{ marginBottom: 16 }}>
-      {/* Single inline row: dot + label + stats */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flexWrap:'wrap', gap:'4px 10px', marginBottom: data.latest_event ? 8 : 0 }}>
+      {/* Inline stats row */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flexWrap:'wrap', gap:'4px 10px', marginBottom: event ? 8 : 0 }}>
         <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0,
           boxShadow:'0 0 0 0 rgba(74,222,128,0.6)', animation:'livePulseDot 2s ease-out infinite' }} />
         <span style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:'rgba(255,255,255,0.50)' }}>LIVE PULSE</span>
@@ -505,14 +523,12 @@ function LivePulse({ data }: {
         <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>👥 {data.tipsters_today}</span>
         <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)', fontWeight:500 }}>tipsters</span>
       </div>
-      {/* Latest event ticker */}
-      {data.latest_event && (
-        <div style={{
-          background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)',
-          borderRadius:10, padding:'7px 12px', display:'flex', alignItems:'center', gap:8,
-        }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 6px rgba(74,222,128,0.8)' }} />
-          <span style={{ fontSize:12, color:'rgba(255,255,255,0.72)', fontWeight:500 }}>{data.latest_event.text}</span>
+      {/* Cycling ticker — no card, plain text with fade */}
+      {event && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+          opacity: visible ? 1 : 0, transition:'opacity 0.4s ease' }}>
+          <span style={{ width:6, height:6, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 6px rgba(74,222,128,0.7)' }} />
+          <span style={{ fontSize:12, color:'rgba(255,255,255,0.65)', fontWeight:500 }}>{event}</span>
         </div>
       )}
       <style>{`@keyframes livePulseDot{0%{box-shadow:0 0 0 0 rgba(74,222,128,0.6)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}`}</style>
@@ -803,7 +819,7 @@ export default function HomePage() {
   const [blockFuture,    setBlockFuture]    = useState(false)
   const [showAllSet,     setShowAllSet]     = useState(false)
   const [heroStats,      setHeroStats]      = useState<{ tipster_count: number; comp_count: number } | null>(null)
-  const [livePulse,      setLivePulse]      = useState<{ comps_today: number; brackets_today: number; tipsters_today: number; latest_event: { text: string } | null } | null>(null)
+  const [livePulse,      setLivePulse]      = useState<{ comps_today: number; brackets_today: number; tipsters_today: number; events: string[] } | null>(null)
   const [decliningBusy,    setDecliningBusy]    = useState(false)
   const [challengeToast,   setChallengeToast]   = useState<string | null>(null)
   const [cameFromChallenge, setCameFromChallenge] = useState(false)
