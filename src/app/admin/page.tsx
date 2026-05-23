@@ -441,6 +441,17 @@ export default function AdminPage() {
 
   const sc = (scoringConfig ?? getDefaultScoringConfig()).rounds[activeRound]
 
+  // Load announcements when tab is opened
+  useEffect(() => {
+    if (activeTab !== 'announcements' || !selectedTournId) return
+    setAnnLoading(true)
+    fetch(`/api/tournament-announcements?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(d => setAnnouncements(d.data ?? []))
+      .catch(() => {})
+      .finally(() => setAnnLoading(false))
+  }, [activeTab, selectedTournId])
+
   if (isAdmin === null) return <div className="flex justify-center py-24"><Spinner className="w-8 h-8" /></div>
 
   if (!isAdmin) return (
@@ -463,17 +474,6 @@ export default function AdminPage() {
     { id: 'access',        label: 'Access',        icon: '👤' },
     { id: 'demo',          label: 'Demo',          icon: '🤖' },
   ]
-
-  // Load announcements when tab is opened
-  useEffect(() => {
-    if (activeTab !== 'announcements' || !selectedTournId) return
-    setAnnLoading(true)
-    fetch(`/api/tournament-announcements?tournament_id=${selectedTournId}`)
-      .then(r => r.json())
-      .then(d => setAnnouncements(d.data ?? []))
-      .catch(() => {})
-      .finally(() => setAnnLoading(false))
-  }, [activeTab, selectedTournId])
 
   const postAnnouncement = async () => {
     if (!annTitle.trim() || !selectedTournId) return
