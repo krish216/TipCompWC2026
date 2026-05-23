@@ -19,8 +19,8 @@ export async function GET() {
       admin.from('comps').select('*', { count: 'exact', head: true }).gte('created_at', since),
       admin.from('bracket_predictions').select('*', { count: 'exact', head: true }).gte('created_at', since),
       admin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', since),
-      admin
-        .from('comp_members')
+      (admin as any)
+        .from('user_comps')
         .select('joined_at, users(first_name, display_name), comps(name, discoverable)')
         .gte('joined_at', since)
         .order('joined_at', { ascending: false })
@@ -32,7 +32,7 @@ export async function GET() {
     if (row) {
       const u = row.users
       const name = u?.first_name || (u?.display_name ?? '').split(' ')[0] || 'Someone'
-      const compName = (row.comps as any)?.discoverable ? (row.comps as any).name : 'a comp'
+      const compName = row.comps?.discoverable ? row.comps.name : 'a comp'
       latest_event = { text: `${name} joined ${compName}` }
     }
 

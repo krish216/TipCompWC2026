@@ -487,39 +487,30 @@ function LivePulse({ data }: {
   data: { comps_today: number; brackets_today: number; tipsters_today: number; latest_event: { text: string } | null } | null
 }) {
   if (!data) return null
-  const stats = [
-    { icon: '⚡', value: data.comps_today,    label: 'COMPS TODAY'     },
-    { icon: '🏆', value: data.brackets_today, label: 'BRACKETS TODAY'  },
-    { icon: '👥', value: data.tipsters_today, label: 'TIPSTERS TODAY'  },
-  ]
   return (
     <div style={{ marginBottom: 16 }}>
-      {/* Header row */}
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10, justifyContent:'center' }}>
-        <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:'#4ade80',
-          boxShadow:'0 0 0 0 rgba(74,222,128,0.6)', animation:'livePulseDot 2s ease-out infinite', flexShrink:0 }} />
-        <span style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:'rgba(255,255,255,0.55)' }}>LIVE PULSE</span>
-        <span style={{ fontSize:10, color:'rgba(255,255,255,0.22)', letterSpacing:'0.06em' }}>· 24H</span>
-      </div>
-      {/* Stat cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:8 }}>
-        {stats.map(s => (
-          <div key={s.label} style={{
-            background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.10)',
-            borderRadius:12, padding:'10px 4px', textAlign:'center', backdropFilter:'blur(6px)',
-          }}>
-            <div style={{ fontSize:15, fontWeight:800, color:'#4ade80', lineHeight:1.1 }}>{s.icon} {s.value}</div>
-            <div style={{ fontSize:8, fontWeight:600, color:'rgba(255,255,255,0.38)', marginTop:4, letterSpacing:'0.08em' }}>{s.label}</div>
-          </div>
-        ))}
+      {/* Single inline row: dot + label + stats */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flexWrap:'wrap', gap:'4px 10px', marginBottom: data.latest_event ? 8 : 0 }}>
+        <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0,
+          boxShadow:'0 0 0 0 rgba(74,222,128,0.6)', animation:'livePulseDot 2s ease-out infinite' }} />
+        <span style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:'rgba(255,255,255,0.50)' }}>LIVE PULSE</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.20)' }}>·</span>
+        <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>⚡ {data.comps_today}</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)', fontWeight:500 }}>comps</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.20)' }}>·</span>
+        <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>🏆 {data.brackets_today}</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)', fontWeight:500 }}>brackets</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.20)' }}>·</span>
+        <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>👥 {data.tipsters_today}</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.30)', fontWeight:500 }}>tipsters</span>
       </div>
       {/* Latest event ticker */}
       {data.latest_event && (
         <div style={{
           background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)',
-          borderRadius:10, padding:'8px 12px', display:'flex', alignItems:'center', gap:8,
+          borderRadius:10, padding:'7px 12px', display:'flex', alignItems:'center', gap:8,
         }}>
-          <span style={{ width:7, height:7, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 6px rgba(74,222,128,0.8)' }} />
+          <span style={{ width:6, height:6, borderRadius:'50%', background:'#4ade80', flexShrink:0, boxShadow:'0 0 6px rgba(74,222,128,0.8)' }} />
           <span style={{ fontSize:12, color:'rgba(255,255,255,0.72)', fontWeight:500 }}>{data.latest_event.text}</span>
         </div>
       )}

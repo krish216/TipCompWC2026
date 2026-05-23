@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
   // 5. Enrol
   await (adminClient.from('user_comps') as any).upsert(
-    { user_id: user.id, comp_id },
+    { user_id: user.id, comp_id, joined_at: new Date().toISOString() },
     { onConflict: 'user_id,comp_id' }
   )
 
