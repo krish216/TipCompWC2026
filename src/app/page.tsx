@@ -2905,8 +2905,8 @@ export default function HomePage() {
 
         const steps = isTipster ? tipsterSteps : organiserSteps
         const cta   = isTipster
-          ? { href:'/login', label:'Start Your First Pick →' }
-          : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →' }
+          ? { href:'/bracket', label:'Pick your WC2026 bracket →', sub: 'no sign-in needed' }
+          : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →', sub: null }
         const testimonial = isTipster
           ? { quote: 'I love seeing how my tribe\'s picks stack up each round!', author: 'Alex, TribePicks tipster' }
           : { quote: 'Set it up in an evening — the app does the rest. Our group has never been more engaged.', author: 'Jordan, Comp Chief' }
@@ -2961,6 +2961,9 @@ export default function HomePage() {
               <Link href={cta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-2xl transition-colors shadow-md">
                 {cta.label}
               </Link>
+              {cta.sub && (
+                <p className="mt-2 text-[10px] text-gray-400">{cta.sub}</p>
+              )}
             </div>
           </div>
         )
