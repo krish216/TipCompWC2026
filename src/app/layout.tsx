@@ -71,6 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2 text-[11px] text-gray-400">
                 <span>TribePicks — unofficial fan competition, not affiliated with FIFA</span>
                 <div className="flex items-center gap-4">
+                  <a href="/faq" className="hover:text-gray-600 transition-colors">FAQ</a>
                   <a href="/privacy" className="hover:text-gray-600 underline transition-colors">Privacy Policy</a>
                   <a href="/rules/wc2026" className="hover:text-gray-600 transition-colors">Rules</a>
                 </div>

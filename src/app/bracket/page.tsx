@@ -672,6 +672,9 @@ export default function BracketPage() {
               Join a comp
             </a>
           </div>
+          <p className="text-center text-[11px] text-emerald-600 mt-2.5">
+            🔖 Sign up to save your bracket permanently — it'll be waiting for you.
+          </p>
         </div>
       )}
 
