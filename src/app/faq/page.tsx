@@ -10,7 +10,7 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
     items: [
       {
         q: 'Do I need an account to fill in the bracket?',
-        a: 'No — you can fill in the full WC 2026 bracket as a guest, no sign-in needed. Your picks are saved in your browser while you're on the page.',
+        a: 'No — you can fill in the full WC 2026 bracket as a guest, no sign-in needed. Your picks are saved in your browser while you\'re on the page.',
       },
       {
         q: 'Where is my bracket saved?',
