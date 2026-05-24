@@ -29,9 +29,12 @@ export function FeedbackButton() {
     if (!message.trim()) return
     setSubmitting(true)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+
       await fetch('/api/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           category,
           message:       message.trim(),
