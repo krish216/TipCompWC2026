@@ -98,7 +98,7 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
     items: [
       {
         q: 'Is TribePicks free?',
-        a: 'Yes, TribePicks is completely free to use. There are no paid tiers.',
+        a: 'The core TribePicks experience — tipping, bracket challenge, joining comps — is completely free. A Pro tier is available for comp organisers who want advanced features.',
       },
       {
         q: 'Is TribePicks affiliated with FIFA?',
