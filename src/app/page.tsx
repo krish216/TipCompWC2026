@@ -1362,7 +1362,7 @@ export default function HomePage() {
                 <p style={{ margin:'0 0 5px', fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1.3 }}>Be the hero of your group.</p>
                 <p style={{ margin:'0 0 10px', fontSize:13, color:'rgba(255,255,255,0.50)' }}>Zero spreadsheets. Zero arguments. Set up in minutes.</p>
                 <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.35)', borderRadius:20, padding:'4px 12px' }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>🆓 Always free — no credit card, ever</span>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#4ade80' }}>🆓 Free to start — no credit card needed</span>
                 </div>
               </>)}
             </div>
@@ -1521,7 +1521,7 @@ export default function HomePage() {
                   'Tribe chatroom with your group',
                   'Exact score bonus from the semis',
                 ] : [
-                  'Set up in 10 minutes — always free',
+                  'Set up in 10 minutes — free to start',
                   'Invite by link — one tap to join',
                   'Auto-scoring, no manual work',
                   'Divide tipsters into rival Tribes',
@@ -2841,7 +2841,7 @@ export default function HomePage() {
           {
             n:1, color:'#15803d',
             title: 'Create a Comp',
-            desc:  'Name your comp and set it up in under 10 minutes — always free.',
+            desc:  'Name your comp and set it up in under 10 minutes — free to start.',
             phone: (
               <div style={ph}>
                 <p style={{ margin:'0 0 4px', fontSize:7.5, fontWeight:700, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.4px' }}>New Comp</p>
