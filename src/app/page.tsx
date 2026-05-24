@@ -878,7 +878,13 @@ export default function HomePage() {
       const ud = userRes.data as any
       if (ud?.display_name) setDisplayName(ud.display_name)
       if (ud?.avatar_url) setAvatar(ud.avatar_url)
-      setEmailVerified(ud?.email_verified === true)
+      // Treat as verified if our column is true OR Supabase's own email_confirmed_at is set
+      // (covers OAuth logins and cases where the PKCE callback didn't fire)
+      const isVerified = ud?.email_verified === true || !!session.user.email_confirmed_at
+      setEmailVerified(isVerified)
+      if (isVerified && !ud?.email_verified) {
+        ;(supabase.from('users') as any).update({ email_verified: true }).eq('id', session.user.id).then(() => {})
+      }
 
       const lbData = await lbRes.json()
       const myRow = lbData.my_entry ?? (lbData.data ?? []).find((e: any) => e.user_id === session.user.id)
