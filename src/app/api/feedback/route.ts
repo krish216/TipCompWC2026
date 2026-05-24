@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getSessionUser()
     const body = await request.json().catch(() => null)
-    const { category, message, page_url } = body ?? {}
+    const { category, message, page_url, contact_email } = body ?? {}
 
     if (!VALID_CATEGORIES.has(category) || !message?.trim()) {
       return NextResponse.json({ error: 'category and message required' }, { status: 400 })
@@ -18,10 +18,11 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
     await (admin.from('feedback') as any).insert({
-      user_id:  user?.id ?? null,
+      user_id:       user?.id ?? null,
       category,
-      message:  message.trim(),
-      page_url: page_url ?? null,
+      message:       message.trim(),
+      page_url:      page_url ?? null,
+      contact_email: user ? null : (contact_email?.trim() || null),
     })
 
     return NextResponse.json({ ok: true })

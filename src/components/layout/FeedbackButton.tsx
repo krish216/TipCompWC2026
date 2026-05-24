@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 type Category = 'bug' | 'suggestion' | 'other'
 
@@ -11,13 +12,17 @@ const CATEGORIES: { value: Category; label: string }[] = [
 ]
 
 export function FeedbackButton() {
-  const [open,       setOpen]       = useState(false)
-  const [category,   setCategory]   = useState<Category>('suggestion')
-  const [message,    setMessage]    = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [done,       setDone]       = useState(false)
+  const { session } = useSupabase()
+  const isGuest = !session
 
-  const reset = () => { setCategory('suggestion'); setMessage(''); setDone(false) }
+  const [open,         setOpen]         = useState(false)
+  const [category,     setCategory]     = useState<Category>('suggestion')
+  const [message,      setMessage]      = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [submitting,   setSubmitting]   = useState(false)
+  const [done,         setDone]         = useState(false)
+
+  const reset = () => { setCategory('suggestion'); setMessage(''); setContactEmail(''); setDone(false) }
   const close = () => { setOpen(false); reset() }
 
   const submit = async () => {
@@ -27,7 +32,12 @@ export function FeedbackButton() {
       await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, message: message.trim(), page_url: window.location.href }),
+        body: JSON.stringify({
+          category,
+          message:       message.trim(),
+          page_url:      window.location.href,
+          contact_email: isGuest && contactEmail.trim() ? contactEmail.trim() : undefined,
+        }),
       })
       setDone(true)
       setTimeout(close, 2000)
@@ -88,6 +98,20 @@ export function FeedbackButton() {
                              focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent
                              placeholder:text-gray-400"
                 />
+
+                {isGuest && (
+                  <div className="mt-3">
+                    <input
+                      type="email"
+                      value={contactEmail}
+                      onChange={e => setContactEmail(e.target.value)}
+                      placeholder="Your email (optional — if you'd like a reply)"
+                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2
+                                 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent
+                                 placeholder:text-gray-400"
+                    />
+                  </div>
+                )}
 
                 <button onClick={submit} disabled={!message.trim() || submitting}
                   className="mt-3 w-full bg-green-700 text-white font-semibold text-sm
