@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
 type LockMap    = Record<string, boolean>
-type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo' | 'announcements'
+type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo' | 'announcements' | 'feedback'
 
 // ALL_ROUNDS and ROUND_LABELS are now derived from tournament_rounds API
 // via scoringConfig loaded in UserPrefsContext — no hardcoding
@@ -170,6 +170,19 @@ export default function AdminPage() {
   const [annBody,           setAnnBody]           = useState('')
   const [annPosting,        setAnnPosting]        = useState(false)
   const [annError,          setAnnError]          = useState<string | null>(null)
+
+  // Feedback tab state
+  type FeedbackItem = {
+    id: string; user_id: string | null; user_email: string | null; contact_email: string | null
+    category: string; message: string; page_url: string | null; created_at: string
+    admin_response: string | null; response_at: string | null; show_response: boolean
+  }
+  const [feedbackItems,     setFeedbackItems]     = useState<FeedbackItem[]>([])
+  const [feedbackLoading,   setFeedbackLoading]   = useState(false)
+  const [feedbackFilter,    setFeedbackFilter]    = useState<'all' | 'responded' | 'unresponded'>('all')
+  const [feedbackCatFilter, setFeedbackCatFilter] = useState('all')
+  const [feedbackDrafts,    setFeedbackDrafts]    = useState<Record<string, string>>({})
+  const [feedbackSaving,    setFeedbackSaving]    = useState<Record<string, boolean>>({})
 
   // Tournament tab state
   const [tournLoading,    setTournLoading]    = useState(false)
@@ -441,6 +454,20 @@ export default function AdminPage() {
 
   const sc = (scoringConfig ?? getDefaultScoringConfig()).rounds[activeRound]
 
+  // Load feedback when tab is opened
+  useEffect(() => {
+    if (activeTab !== 'feedback') return
+    setFeedbackLoading(true)
+    const params = new URLSearchParams()
+    if (feedbackFilter !== 'all')    params.set('filter',   feedbackFilter)
+    if (feedbackCatFilter !== 'all') params.set('category', feedbackCatFilter)
+    fetch(`/api/admin/feedback?${params}`)
+      .then(r => r.json())
+      .then(d => setFeedbackItems(d.items ?? []))
+      .catch(() => {})
+      .finally(() => setFeedbackLoading(false))
+  }, [activeTab, feedbackFilter, feedbackCatFilter])
+
   // Load announcements when tab is opened
   useEffect(() => {
     if (activeTab !== 'announcements' || !selectedTournId) return
@@ -471,6 +498,7 @@ export default function AdminPage() {
     { id: 'scoring',       label: 'Scoring',       icon: '📊' },
     { id: 'tournament',    label: 'Tournament',    icon: '🏆' },
     { id: 'announcements', label: 'Announcements', icon: '📣' },
+    { id: 'feedback',      label: 'Feedback',      icon: '💬' },
     { id: 'access',        label: 'Access',        icon: '👤' },
     { id: 'demo',          label: 'Demo',          icon: '🤖' },
   ]
@@ -1103,6 +1131,138 @@ export default function AdminPage() {
                         title="Delete announcement">
                         ×
                       </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'feedback' && (
+        <div className="space-y-3">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              {(['all', 'unresponded', 'responded'] as const).map(f => (
+                <button key={f} onClick={() => setFeedbackFilter(f)}
+                  className={clsx('px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                    feedbackFilter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                  {f === 'all' ? 'All' : f === 'unresponded' ? 'Needs reply' : 'Responded'}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              {(['all', 'bug', 'suggestion', 'other'] as const).map(c => (
+                <button key={c} onClick={() => setFeedbackCatFilter(c)}
+                  className={clsx('px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                    feedbackCatFilter === c ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                  {c === 'all' ? 'All types' : c === 'bug' ? '🐛 Bug' : c === 'suggestion' ? '💡 Suggestion' : '💬 Other'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            {feedbackLoading ? (
+              <div className="flex justify-center py-10"><Spinner className="w-5 h-5" /></div>
+            ) : feedbackItems.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-10">No feedback matches this filter</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {feedbackItems.map(item => {
+                  const draft = feedbackDrafts[item.id] ?? (item.admin_response ?? '')
+                  const saving = feedbackSaving[item.id] ?? false
+                  const catLabel = item.category === 'bug' ? '🐛 Bug' : item.category === 'suggestion' ? '💡 Suggestion' : '💬 Other'
+                  const from = item.user_email ?? item.contact_email ?? 'Anonymous guest'
+                  const age = (() => {
+                    const diff  = Date.now() - new Date(item.created_at).getTime()
+                    const mins  = Math.floor(diff / 60000)
+                    const hours = Math.floor(diff / 3600000)
+                    const days  = Math.floor(diff / 86400000)
+                    return mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`
+                  })()
+
+                  const save = async (showResponse: boolean) => {
+                    setFeedbackSaving(s => ({ ...s, [item.id]: true }))
+                    await fetch('/api/admin/feedback', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id: item.id, admin_response: draft, show_response: showResponse }),
+                    })
+                    setFeedbackItems(prev => prev.map(i => i.id === item.id
+                      ? { ...i, admin_response: draft || null, show_response: showResponse }
+                      : i))
+                    setFeedbackSaving(s => ({ ...s, [item.id]: false }))
+                  }
+
+                  return (
+                    <div key={item.id} className="p-4 space-y-3">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md">{catLabel}</span>
+                          {item.admin_response && (
+                            <span className={clsx('text-[11px] font-semibold px-2 py-0.5 rounded-md',
+                              item.show_response ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
+                              {item.show_response ? 'Published' : 'Draft response'}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gray-400 flex-shrink-0">{age}</span>
+                      </div>
+
+                      {/* Message */}
+                      <p className="text-sm text-gray-800">{item.message}</p>
+
+                      {/* Meta */}
+                      <div className="text-[11px] text-gray-400 space-y-0.5">
+                        <p>From: <span className="text-gray-600">{from}</span></p>
+                        {item.page_url && <p>Page: <span className="text-gray-600 break-all">{item.page_url}</span></p>}
+                      </div>
+
+                      {/* Response */}
+                      <div className="space-y-2">
+                        <textarea
+                          value={draft}
+                          onChange={e => setFeedbackDrafts(d => ({ ...d, [item.id]: e.target.value }))}
+                          placeholder="Write a response…"
+                          rows={3}
+                          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 resize-none
+                                     focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent
+                                     placeholder:text-gray-400"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => save(true)}
+                            disabled={saving || !draft.trim()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
+                                       disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+                            {saving && <Spinner className="w-3 h-3 text-white" />}
+                            {item.show_response ? 'Update & publish' : 'Publish response'}
+                          </button>
+                          {item.admin_response && item.show_response && (
+                            <button
+                              onClick={() => save(false)}
+                              disabled={saving}
+                              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600
+                                         text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                              Unpublish
+                            </button>
+                          )}
+                          {item.admin_response && !item.show_response && (
+                            <button
+                              onClick={() => save(false)}
+                              disabled={saving}
+                              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600
+                                         text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
+                              Save draft
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )
                 })}
