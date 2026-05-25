@@ -14,8 +14,8 @@ export async function GET() {
       .order('response_at', { ascending: false })
       .limit(20)
 
-    return NextResponse.json({ responses: data ?? [] })
-  } catch {
-    return NextResponse.json({ responses: [] })
+    return NextResponse.json({ responses: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (err: any) {
+    return NextResponse.json({ responses: [], error: err?.message }, { headers: { 'Cache-Control': 'no-store' } })
   }
 }
