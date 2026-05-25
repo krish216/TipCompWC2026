@@ -1187,14 +1187,22 @@ export default function AdminPage() {
 
                   const save = async (showResponse: boolean) => {
                     setFeedbackSaving(s => ({ ...s, [item.id]: true }))
-                    await fetch('/api/admin/feedback', {
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+                    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+                    const res = await fetch('/api/admin/feedback', {
                       method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers,
                       body: JSON.stringify({ id: item.id, admin_response: draft, show_response: showResponse }),
                     })
-                    setFeedbackItems(prev => prev.map(i => i.id === item.id
-                      ? { ...i, admin_response: draft || null, show_response: showResponse }
-                      : i))
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}))
+                      toast.error(err.error ?? 'Failed to save response')
+                    } else {
+                      setFeedbackItems(prev => prev.map(i => i.id === item.id
+                        ? { ...i, admin_response: draft || null, show_response: showResponse }
+                        : i))
+                      toast.success(showResponse ? 'Response published' : 'Saved')
+                    }
                     setFeedbackSaving(s => ({ ...s, [item.id]: false }))
                   }
 

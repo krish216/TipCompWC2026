@@ -4,18 +4,30 @@ import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-async function resolveAdmin() {
-  const user = await getSessionUser()
-  if (!user) return null
+async function resolveAdmin(request: NextRequest) {
   const admin = createAdminClient()
-  const { data } = await (admin.from('admin_users') as any).select('user_id').eq('user_id', user.id).maybeSingle()
-  return data ? user : null
+  let userId: string | null = null
+
+  const authHeader = request.headers.get('Authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+  if (token) {
+    const { data: { user } } = await admin.auth.getUser(token)
+    userId = user?.id ?? null
+  } else {
+    const user = await getSessionUser()
+    userId = user?.id ?? null
+  }
+
+  if (!userId) return null
+  const { data } = await (admin.from('admin_users') as any).select('user_id').eq('user_id', userId).maybeSingle()
+  return data ? userId : null
 }
 
 // GET /api/admin/feedback — list all feedback with optional filter
 export async function GET(request: NextRequest) {
-  const caller = await resolveAdmin()
-  if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const callerId = await resolveAdmin(request)
+  if (!callerId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const filter = searchParams.get('filter') ?? 'all' // all | responded | unresponded
@@ -52,8 +64,8 @@ export async function GET(request: NextRequest) {
 
 // PATCH /api/admin/feedback — save response and/or toggle show_response
 export async function PATCH(request: NextRequest) {
-  const caller = await resolveAdmin()
-  if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const callerId = await resolveAdmin(request)
+  if (!callerId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json().catch(() => null)
   const { id, admin_response, show_response } = body ?? {}
@@ -63,7 +75,7 @@ export async function PATCH(request: NextRequest) {
   if (admin_response !== undefined) {
     update.admin_response = admin_response?.trim() || null
     update.response_at    = admin_response?.trim() ? new Date().toISOString() : null
-    update.responded_by   = admin_response?.trim() ? caller.id : null
+    update.responded_by   = admin_response?.trim() ? callerId : null
   }
 
   const admin = createAdminClient()
