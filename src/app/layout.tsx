@@ -72,6 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <span>TribePicks — unofficial fan competition, not affiliated with FIFA</span>
                 <div className="flex items-center gap-4">
                   <a href="/faq" className="hover:text-gray-600 transition-colors">FAQ</a>
+                  <a href="mailto:tribepicks@gmail.com" className="hover:text-gray-600 transition-colors">Contact</a>
                   <a href="/privacy" className="hover:text-gray-600 underline transition-colors">Privacy Policy</a>
                   <a href="/rules/wc2026" className="hover:text-gray-600 transition-colors">Rules</a>
                 </div>

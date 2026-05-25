@@ -156,7 +156,7 @@ export default function FAQPage() {
 
       <p className="text-center text-xs text-gray-400 mt-8">
         Still have questions?{' '}
-        <a href="mailto:hello@tribepicks.com" className="underline hover:text-gray-600 transition-colors">
+        <a href="mailto:tribepicks@gmail.com" className="underline hover:text-gray-600 transition-colors">
           Get in touch
         </a>
       </p>
