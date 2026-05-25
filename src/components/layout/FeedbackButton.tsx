@@ -38,7 +38,7 @@ export function FeedbackButton() {
       .then(r => r.json())
       .then(d => setPublicResponses(d.responses ?? []))
       .catch(() => {})
-  }, [])
+  }, [open])
 
   const hasUpdates = publicResponses.length > 0
 
