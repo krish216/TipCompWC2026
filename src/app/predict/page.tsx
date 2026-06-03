@@ -176,7 +176,10 @@ export default function PredictPage() {
       }
     }
     load()
-  }, [session, selectedTournId])
+    // Depend on the user id (a stable primitive), not the session object, so that
+    // token refreshes / focus events don't re-trigger a full reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, selectedTournId])
 
   // Re-fetch results when the window regains focus so scores entered by admin show up
   useEffect(() => {

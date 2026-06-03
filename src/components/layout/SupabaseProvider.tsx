@@ -24,7 +24,15 @@ export function SupabaseProvider({
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => setSession(session)
+      (_event, newSession) => {
+        // Supabase re-fires SIGNED_IN / INITIAL_SESSION every time the tab regains
+        // focus, handing back a fresh session object with the same token. Keeping the
+        // previous reference when nothing actually changed avoids re-rendering every
+        // consumer (and re-running their effects) on every tab switch.
+        setSession(prev =>
+          prev?.access_token === newSession?.access_token ? prev : newSession
+        )
+      }
     )
     return () => subscription.unsubscribe()
   }, [supabase])
