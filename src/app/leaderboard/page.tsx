@@ -28,6 +28,19 @@ const SCOPE_LABELS: Record<Scope, string> = {
 // inside the component from scoringConfig (loaded from tournament_rounds API)
 // — no hardcoding. Static 'all' snapshot is always prepended.
 
+// Module-level cache (survives unmount) so navigating away and back to the
+// scoreboard renders the last-loaded standings instantly instead of a full-page
+// spinner on every remount. Keyed by user + scope + tournament; stale-while-
+// revalidate — seed from it immediately, then always refetch to update both the
+// UI and the cache. A realtime subscription also keeps standings fresh.
+type LbCacheEntry = {
+  entries:        any[]
+  myEntry:        any | null
+  message:        string | null
+  compTribeCount: number | null
+}
+const lbCache = new Map<string, LbCacheEntry>()
+
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
@@ -91,8 +104,21 @@ export default function LeaderboardPage() {
   const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
-    setLoading(true); setError(null); setMessage(null)
+    setError(null)
     const tid = tournId ?? activeTournamentId
+    const cacheKey = `${session?.user?.id ?? ''}:${sc}:${tid ?? ''}`
+    // Seed instantly from cache (no spinner) when we've shown this scope before —
+    // remounts and realtime updates revalidate silently. Cold loads show the spinner.
+    const cached = lbCache.get(cacheKey)
+    if (cached) {
+      setEntries(cached.entries)
+      setMyEntry(cached.myEntry)
+      setMessage(cached.message)
+      if (sc === 'comp') setCompTribeCount(cached.compTribeCount)
+      setLoading(false)
+    } else {
+      setLoading(true); setMessage(null)
+    }
     try {
       const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}`
       const res  = await fetch(url)
@@ -108,13 +134,19 @@ export default function LeaderboardPage() {
       }
       const { data, my_entry, message: msg, error: apiErr } = json
       if (apiErr) { setError(apiErr); return }
-      setEntries(data ?? [])
-      setMyEntry(my_entry ?? null)
-      setMessage(msg ?? null)
+      const newEntries = (data ?? []) as any[]
+      const newMyEntry = my_entry ?? null
+      const newMessage = msg ?? null
+      setEntries(newEntries)
+      setMyEntry(newMyEntry)
+      setMessage(newMessage)
+      let tribeCount = cached?.compTribeCount ?? null
       if (sc === 'comp') {
-        const distinctTribes = new Set((data ?? []).filter((e: any) => e.tribe_name).map((e: any) => e.tribe_name))
-        setCompTribeCount(distinctTribes.size)
+        const distinctTribes = new Set(newEntries.filter((e: any) => e.tribe_name).map((e: any) => e.tribe_name))
+        tribeCount = distinctTribes.size
+        setCompTribeCount(tribeCount)
       }
+      lbCache.set(cacheKey, { entries: newEntries, myEntry: newMyEntry, message: newMessage, compTribeCount: tribeCount })
     } catch (e: any) { setError('Network error — please check your connection and try again') }
     finally { setLoading(false) }
   }
@@ -156,7 +188,10 @@ export default function LeaderboardPage() {
 
       fetchLeaderboard(scope, tid)
     })()
-  }, [session, scope])
+    // Key on user id (stable primitive), not the session object, so browser focus /
+    // token refresh don't re-trigger a full reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, scope])
 
   useEffect(() => {
     if (!session) return
@@ -171,7 +206,8 @@ export default function LeaderboardPage() {
       if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current)
       supabase.removeChannel(channel)
     }
-  }, [supabase, session, scope])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, session?.user?.id, scope])
 
   // If the tribe tab is hidden (≤1 tribe) and scope was somehow set to 'tribe', reset it
   useEffect(() => {
