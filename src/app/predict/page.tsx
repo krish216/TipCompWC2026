@@ -23,6 +23,22 @@ type RoundTab = string
 
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
 
+// Module-level cache (survives unmount) so navigating away and back to /predict
+// renders the last-loaded data instantly instead of a full-page spinner on every
+// remount. Keyed by user + tournament; treated as stale-while-revalidate — the page
+// seeds from it immediately, then a fresh fetch updates both the UI and the cache.
+type PredictCacheEntry = {
+  fixtures:           FixtureMap
+  predictions:        PredMap
+  results:            ResultMap
+  roundLocks:         Record<string, boolean>
+  tippingClosed:      Record<string, boolean>
+  favouriteTeam:      string | null
+  teamsList:          { name: string; fifa_code: string; flag_emoji: string }[]
+  firstWinCelebrated: boolean | null
+}
+const predictCache = new Map<string, PredictCacheEntry>()
+
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
@@ -71,6 +87,7 @@ export default function PredictPage() {
   const hasAutoSelectedRound   = useRef(false)
   const savedTimerRef          = useRef<ReturnType<typeof setTimeout> | null>(null)
   const failedPayloads         = useRef<Map<number, object>>(new Map())
+  const lastResultsFetch       = useRef(0)   // throttles the on-focus results refresh
 
   // ── Refresh a single prediction from the server (gets DB-trigger-computed scores) ─
   const refreshPrediction = useCallback(async (fixtureId: number) => {
@@ -97,6 +114,7 @@ export default function PredictPage() {
   // ── Load all data ─────────────────────────────────────────
   useEffect(() => {
     if (!session) return
+    const cacheKey = `${session.user.id}:${selectedTournId ?? ''}`
     // Record that the user has viewed their predictions — clears the homepage results nudge
     fetch('/api/user-preferences', {
       method: 'PATCH',
@@ -104,7 +122,23 @@ export default function PredictPage() {
       body: JSON.stringify({ last_predict_viewed_at: new Date().toISOString() }),
     }).catch(() => {})
     const load = async () => {
-      setLoading(true)
+      // Returning to the page (in-app navigation remounts it): seed instantly from the
+      // cache and skip the spinner, then revalidate in the background. Only a genuine
+      // cold load with nothing cached shows the full-page spinner.
+      const cached = predictCache.get(cacheKey)
+      if (cached) {
+        setFixtures(cached.fixtures)
+        setPredictions(cached.predictions)
+        setResults(cached.results)
+        setRoundLocks(cached.roundLocks)
+        setTippingClosed(cached.tippingClosed)
+        setFavouriteTeam(cached.favouriteTeam)
+        setTeamsList(cached.teamsList)
+        setFirstWinCelebrated(cached.firstWinCelebrated)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
       try {
         const [fxRes, predRes, resRes, locksRes, userRes, teamsRes, prefsRes] = await Promise.all([
           fetch('/api/fixtures'),
@@ -146,28 +180,42 @@ export default function PredictPage() {
           }
         }
         setResults(rm)
+        lastResultsFetch.current = Date.now()
 
         // Round locks
         const locks: Record<string, boolean> = locksData.data ?? {}
+        const tipClosed: Record<string, boolean> = locksData.tipping_closed ?? {}
         setRoundLocks(locks)
-        setTippingClosed(locksData.tipping_closed ?? {})
+        setTippingClosed(tipClosed)
 
         // User tournament prefs (favourite team)
+        let fav: string | null = cached?.favouriteTeam ?? null
         const userTournData = (await userRes.json().catch(() => ({}))) as any
         if (userTournData?.data?.length) {
           const ut = userTournData.data[0]
-          setFavouriteTeam((ut as any).favourite_team ?? null)
+          fav = (ut as any).favourite_team ?? null
+          setFavouriteTeam(fav)
         }
 
         // Teams list for fav picker
+        let teams = cached?.teamsList ?? []
         if (teamsRes) {
           const teamsData = await teamsRes.json().catch(() => ({}))
-          setTeamsList(teamsData.teams ?? [])
+          teams = teamsData.teams ?? []
+          setTeamsList(teams)
         }
 
         // Check whether first-win has already been celebrated (cross-device)
         const prefsData = await prefsRes.json().catch(() => ({}))
-        setFirstWinCelebrated(!!(prefsData.data as any)?.first_win_celebrated_at)
+        const fw = !!(prefsData.data as any)?.first_win_celebrated_at
+        setFirstWinCelebrated(fw)
+
+        // Refresh the cache so the next remount renders this state instantly
+        predictCache.set(cacheKey, {
+          fixtures: byRound, predictions: pm, results: rm,
+          roundLocks: locks, tippingClosed: tipClosed,
+          favouriteTeam: fav, teamsList: teams, firstWinCelebrated: fw,
+        })
 
       } catch (e) {
         console.error('[predict] load error', e)
@@ -181,10 +229,13 @@ export default function PredictPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, selectedTournId])
 
-  // Re-fetch results when the window regains focus so scores entered by admin show up
+  // Re-fetch results when the window regains focus so scores entered by admin show up.
+  // Throttled to once per 2 min so simply alt-tabbing / switching windows doesn't fire a
+  // refetch (and re-render the whole board) every single time — which users found jarring.
   useEffect(() => {
     if (!session) return
     const refresh = async () => {
+      if (Date.now() - lastResultsFetch.current < 120_000) return
       try {
         const res = await fetch('/api/results')
         const { data } = await res.json()
@@ -197,12 +248,23 @@ export default function PredictPage() {
             result_outcome: r.result_outcome ?? null,
           }
         }
+        lastResultsFetch.current = Date.now()
         setResults(rm)
       } catch { /* ignore */ }
     }
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
-  }, [session])
+  }, [session?.user?.id])
+
+  // Keep the navigation cache in sync as the user edits predictions / new scores arrive,
+  // so returning to the page seeds their latest state rather than the last full load.
+  useEffect(() => {
+    if (loading || !session) return
+    const cacheKey = `${session.user.id}:${selectedTournId ?? ''}`
+    const c = predictCache.get(cacheKey)
+    if (c) predictCache.set(cacheKey, { ...c, predictions, results })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictions, results, loading])
 
   const triggerCelebration = useCallback((fixtureId: number) => {
     setCelebrating(prev => new Set(prev).add(fixtureId))
