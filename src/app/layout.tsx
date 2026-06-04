@@ -34,11 +34,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const supabase = createServerSupabaseClient()
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Donation link (Stripe Payment Link). Set DONATE_URL in the environment to enable
-  // the footer "Support us" link/button — it stays hidden until configured, so we never
-  // ship a dead button. When a user is signed in we pass client_reference_id (their id)
-  // and prefilled_email so the webhook can attribute the donation back to them.
-  const donateBase = process.env.DONATE_URL
+  // Donation link (Stripe Payment Link, "customers choose what to pay"). Defaults to the
+  // live link; DONATE_URL env overrides it without a code change. When a user is signed in
+  // we pass client_reference_id (their id) and prefilled_email so the webhook can attribute
+  // the donation back to them.
+  const donateBase = process.env.DONATE_URL || 'https://buy.stripe.com/4gM3cubaUccifOg0igebu00'
   let donateHref: string | null = null
   if (donateBase) {
     const params = new URLSearchParams()
