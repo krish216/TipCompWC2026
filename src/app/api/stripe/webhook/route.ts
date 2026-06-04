@@ -20,8 +20,36 @@ export async function POST(request: NextRequest) {
 
   if (event.type === 'checkout.session.completed') {
     const session       = event.data.object as Stripe.Checkout.Session
-    const userId        = session.metadata?.user_id
     const tournamentId  = session.metadata?.tournament_id
+
+    // ── Donation (Support TribePicks Payment Link) ──────────────────────────────
+    // Premium upgrades always carry tournament_id metadata; donations never do, so
+    // the absence of it identifies a donation. Just record it — no entitlement to grant.
+    if (!tournamentId) {
+      const admin = createAdminClient()
+      const { error } = await (admin.from('donations') as any).upsert(
+        {
+          user_id:               session.client_reference_id || null,  // signed-in donor, else anonymous
+          email:                 session.customer_details?.email ?? session.customer_email ?? null,
+          amount_cents:          session.amount_total ?? 0,
+          currency:              session.currency ?? 'aud',
+          stripe_session_id:     session.id,
+          stripe_payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        },
+        { onConflict: 'stripe_session_id', ignoreDuplicates: true },  // idempotent across Stripe retries
+      )
+
+      if (error) {
+        console.error('[stripe/webhook] donation insert failed:', error)
+        return NextResponse.json({ error: 'DB update failed' }, { status: 500 })
+      }
+
+      console.log(`[stripe/webhook] donation recorded — ${session.amount_total} ${session.currency} (session ${session.id})`)
+      return NextResponse.json({ received: true })
+    }
+
+    // ── Premium upgrade ─────────────────────────────────────────────────────────
+    const userId = session.metadata?.user_id
 
     if (!userId || !tournamentId) {
       console.error('[stripe/webhook] missing metadata', session.metadata)
