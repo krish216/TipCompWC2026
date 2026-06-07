@@ -732,6 +732,73 @@ export default function PredictPage() {
     setSavingFav(false)
   }
 
+  // ── Export the user's predictions (all rounds) as a CSV download ──────────────
+  const downloadPredictionsCsv = () => {
+    const esc = (v: unknown) => `"${(v == null ? '' : String(v)).replace(/"/g, '""')}"`
+    const outcomeLabel = (o?: string | null) =>
+      o === 'H' ? 'Home' : o === 'A' ? 'Away' : o === 'D' ? 'Draw' : ''
+
+    const allFixtures = (Object.values(fixtures).flat().filter(Boolean) as Fixture[])
+      .sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
+
+    const header = [
+      'Round', 'Date', 'Venue', 'Home Team', 'Away Team',
+      'Predicted Home', 'Predicted Away', 'Predicted Outcome', 'Predicted Pen Winner',
+      'Actual Home', 'Actual Away', 'Points',
+    ]
+    const lines: string[] = [header.map(esc).join(',')]
+
+    for (const f of allFixtures) {
+      const pred = predictions[f.id]
+      if (!pred) continue   // only export matches the user has actually predicted
+      const res = results[f.id]
+      const hasResult = res != null && res.home != null
+
+      let date = f.kickoff_utc
+      try {
+        date = new Date(f.kickoff_utc).toLocaleString('en-GB', {
+          timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        })
+      } catch { /* fall back to raw ISO */ }
+
+      const predOutcome = pred.outcome
+        ? outcomeLabel(pred.outcome)
+        : (pred.home != null && pred.away != null
+            ? (pred.home > pred.away ? 'Home' : pred.home < pred.away ? 'Away' : 'Draw')
+            : '')
+
+      const points = hasResult ? ((pred.standard_points ?? 0) + (pred.bonus_points ?? 0)) : ''
+
+      lines.push([
+        ROUND_TAB_LABEL[f.tab_group] ?? f.tab_group ?? f.round,
+        date,
+        f.venue ?? '',
+        f.home,
+        f.away,
+        pred.home ?? '',
+        pred.away ?? '',
+        predOutcome,
+        pred.pen_winner ?? '',
+        hasResult ? res!.home : '',
+        hasResult ? res!.away : '',
+        points,
+      ].map(esc).join(','))
+    }
+
+    if (lines.length === 1) return   // no predictions to export
+
+    const rawName = (selectedTourn as any)?.slug ?? (selectedTourn as any)?.name ?? 'wc2026'
+    const slug = String(rawName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'wc2026'
+    // Prepend a UTF-8 BOM so Excel renders accented team names correctly.
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `tribepicks-predictions-${slug}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-24">
       <Spinner className="w-8 h-8" />
@@ -746,6 +813,22 @@ export default function PredictPage() {
     <>
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
+
+      {/* Download predictions as CSV — available whenever the user has made picks */}
+      {Object.keys(predictions).length > 0 && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={downloadPredictionsCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v6.586l1.293-1.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414L9 10.586V4a1 1 0 011-1z" clipRule="evenodd" />
+              <path d="M3 13a1 1 0 011 1v2a1 1 0 001 1h10a1 1 0 001-1v-2a1 1 0 112 0v2a3 3 0 01-3 3H5a3 3 0 01-3-3v-2a1 1 0 011-1z" />
+            </svg>
+            <span>Download CSV</span>
+          </button>
+        </div>
+      )}
 
       {/* Practice / onboarding mode banner */}
       {allowRetroactivePredictions && (
