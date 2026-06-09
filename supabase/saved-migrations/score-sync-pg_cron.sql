@@ -24,7 +24,7 @@ create extension if not exists pg_net;
 --    (Re-running create_secret with the same name errors — use vault.update_secret
 --     to change them later, or delete from vault.secrets first.)
 select vault.create_secret(
-  'https://www.tribepicks.com/api/scores/sync',   -- ← your production URL
+  'https://tribepicks.com/api/scores/sync',       -- ← your production URL (apex, no www)
   'score_sync_url'
 );
 select vault.create_secret(

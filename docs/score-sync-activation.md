@@ -30,7 +30,7 @@ In **Vercel → Settings → Environment Variables → Production**, confirm bot
 
 **Verify** (after deploy) — auth works if this returns 200 JSON, not 401:
 ```bash
-curl -s "https://www.tribepicks.com/api/scores/sync" \
+curl -s "https://tribepicks.com/api/scores/sync" \
   -H "Authorization: Bearer <YOUR_CRON_SECRET>"
 # Before 11 Jun → {"skipped":"Outside tournament window"}  ← 200 = secret is correct
 # Wrong/absent secret → {"error":"Unauthorized"}            ← 401
@@ -50,13 +50,13 @@ Only set `API_FOOTBALL_LEAGUE_ID` / `API_FOOTBALL_SEASON` in Vercel if the defau
 
 While **logged in as an admin** in the browser:
 
-1. **Preview:** open `https://www.tribepicks.com/api/admin/map-fixtures` (GET).
+1. **Preview:** open `https://tribepicks.com/api/admin/map-fixtures` (GET).
    Review the JSON:
    - `summary` — counts by confidence (`exact`, `swapped`, `time`, `ambiguous`, `unmatched`).
    - Scan `matches` for anything `ambiguous`/`unmatched` (expected for some knockouts).
 2. **Commit:** when it looks right, POST to the same URL:
    ```bash
-   curl -s -X POST "https://www.tribepicks.com/api/admin/map-fixtures" \
+   curl -s -X POST "https://tribepicks.com/api/admin/map-fixtures" \
      -H "Cookie: <your browser session cookie>"
    # → { "mode":"commit", "written": N, "unresolved": [...] }
    ```
@@ -79,7 +79,7 @@ select round, count(*) from fixtures where api_fixture_id is null group by round
 
 In **Supabase → SQL Editor**, run `supabase/saved-migrations/score-sync-pg_cron.sql`
 after editing the two placeholders:
-- [ ] `score_sync_url` → `https://www.tribepicks.com/api/scores/sync`
+- [ ] `score_sync_url` → `https://tribepicks.com/api/scores/sync`
 - [ ] `score_sync_cron_secret` → **exact same value** as Vercel's `CRON_SECRET`
 
 **Verify:**
