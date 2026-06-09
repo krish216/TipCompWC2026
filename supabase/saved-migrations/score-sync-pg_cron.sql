@@ -5,9 +5,14 @@
 -- numbered migration runner — it is environment-specific and reads secrets from
 -- Vault, so nothing sensitive is committed to git.
 --
--- It schedules a job that calls GET /api/scores/sync every 5 minutes. The route
+-- It schedules a job that calls GET /api/scores/sync every 15 minutes. The route
 -- itself is gated to the tournament window (11 Jun – 21 Jul 2026) and authed via
 -- CRON_SECRET, so running year-round is harmless.
+--
+-- Why 15 min: the route only calls API-Football on runs where a finished match is
+-- still unrecorded (it returns early otherwise), and caps at one batched request
+-- per run — so daily API usage stays inside the free tier's 100 req/day. The only
+-- cost is that a result can take up to ~15 min to appear instead of ~5.
 -- ============================================================================
 
 -- 1. Enable the extensions (no-op if already enabled)
@@ -27,10 +32,10 @@ select vault.create_secret(
   'score_sync_cron_secret'
 );
 
--- 3. Schedule the job — every 5 minutes.
+-- 3. Schedule the job — every 15 minutes.
 select cron.schedule(
   'score-sync',
-  '*/5 * * * *',
+  '*/15 * * * *',
   $$
   select net.http_get(
     url     := (select decrypted_secret from vault.decrypted_secrets where name = 'score_sync_url'),
