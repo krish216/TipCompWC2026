@@ -77,6 +77,8 @@ const TEAM_ALIASES: Record<string, string> = {
   caboverde: 'capeverde', capeverde: 'capeverde', capeverdeislands: 'capeverde',
   curazao: 'curacao', curacao: 'curacao',
   czechia: 'czechrepublic', czechrepublic: 'czechrepublic',
+  bosniaandherzegovina: 'bosnia', bosniaherzegovina: 'bosnia', bosnia: 'bosnia',
+  turkey: 'turkey', turkiye: 'turkey',
 }
 
 /** Canonical, accent/punctuation-insensitive team token used for matching. */

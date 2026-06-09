@@ -95,6 +95,13 @@ export async function GET(request: NextRequest) {
   if (new URL(request.url).searchParams.get('debug') === '1') {
     try {
       const raw = await footballDataRaw(`competitions/${FOOTBALL_DATA_COMPETITION}/matches`)
+      const all = (raw.matches ?? []) as any[]
+      // Unique team names exactly as football-data spells them — used to tune aliases.
+      const teamSet = new Set<string>()
+      for (const m of all) {
+        if (m.homeTeam?.name) teamSet.add(m.homeTeam.name)
+        if (m.awayTeam?.name) teamSet.add(m.awayTeam.name)
+      }
       return NextResponse.json({
         debug: true,
         competition: FOOTBALL_DATA_COMPETITION,
@@ -102,11 +109,8 @@ export async function GET(request: NextRequest) {
         message: raw.message ?? raw.error,
         filters: raw.filters,
         resultSet: raw.resultSet,
-        count: raw.matches?.length ?? 0,
-        sample: (raw.matches ?? []).slice(0, 3).map((m: any) => ({
-          id: m.id, utcDate: m.utcDate, status: m.status, stage: m.stage, group: m.group,
-          home: m.homeTeam?.name, away: m.awayTeam?.name,
-        })),
+        count: all.length,
+        teams: [...teamSet].sort(),
       })
     } catch (err: any) {
       return NextResponse.json({ error: err.message }, { status: 502 })
