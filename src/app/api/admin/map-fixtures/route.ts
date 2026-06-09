@@ -49,6 +49,8 @@ async function buildMatches() {
 
   const usedApiIds = new Set<number>()
   const matches: Match[] = []
+  // Every team name the provider knows — used to pinpoint a genuinely-missing team.
+  const apiTeams = new Set<string>(api.flatMap(x => [canonTeam(x.home), canonTeam(x.away)]))
 
   for (const f of locals) {
     const label = `${f.home} v ${f.away}`
@@ -63,13 +65,25 @@ async function buildMatches() {
 
     let m: Match
     if (f.round.startsWith('gs')) {
-      // Group stage: real team names — match on aliases + same calendar day.
-      const h = canonTeam(f.home), a = canonTeam(f.away), d = dayOf(f.kickoff_utc)
-      const exact = api.find(x => !usedApiIds.has(x.apiId) && dayOf(x.date) === d && canonTeam(x.home) === h && canonTeam(x.away) === a)
-      const swap  = exact ? null : api.find(x => !usedApiIds.has(x.apiId) && dayOf(x.date) === d && canonTeam(x.home) === a && canonTeam(x.away) === h)
-      if (exact)      m = { localId: f.id, apiId: exact.apiId, round: f.round, label, confidence: 'exact' }
-      else if (swap)  m = { localId: f.id, apiId: swap.apiId,  round: f.round, label, confidence: 'swapped', note: 'home/away reversed vs API' }
-      else            m = { localId: f.id, apiId: null, round: f.round, label, confidence: 'unmatched', note: 'no name+date match' }
+      // Group stage: each pairing occurs exactly once, so match on the team pair ALONE
+      // (ignore date). This is robust to the seed assigning a game to the wrong matchday
+      // /date; any such drift is surfaced in the note so the fixture date can be fixed.
+      const h = canonTeam(f.home), a = canonTeam(f.away)
+      const aligned  = api.find(x => !usedApiIds.has(x.apiId) && canonTeam(x.home) === h && canonTeam(x.away) === a)
+      const reversed = aligned ? null : api.find(x => !usedApiIds.has(x.apiId) && canonTeam(x.home) === a && canonTeam(x.away) === h)
+      const hit = aligned ?? reversed
+      if (hit) {
+        const drift = dayOf(hit.date) !== dayOf(f.kickoff_utc)
+        const note = [
+          reversed ? 'home/away reversed vs API' : null,
+          drift ? `⚠ date differs: seed ${dayOf(f.kickoff_utc)} vs actual ${dayOf(hit.date)}` : null,
+        ].filter(Boolean).join('; ') || undefined
+        m = { localId: f.id, apiId: hit.apiId, round: f.round, label, confidence: reversed ? 'swapped' : 'exact', note }
+      } else {
+        const missing = [f.home, f.away].filter(t => !apiTeams.has(canonTeam(t)))
+        m = { localId: f.id, apiId: null, round: f.round, label, confidence: 'unmatched',
+          note: missing.length ? `team not in competition: ${missing.join(', ')}` : 'no team-pair match' }
+      }
     } else {
       // Knockouts: teams are placeholders — match on exact kickoff time.
       const near = api.filter(x => !usedApiIds.has(x.apiId) && Math.abs(x.ts - localTs) <= TIME_TOLERANCE_MS)
