@@ -1,109 +1,132 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import {
+  apiFootballFixtures, FINISHED_STATUSES, canonTeam, isPlaceholderTeam,
+  notifyScoreUpdate, settleChallengesForFixture,
+} from '@/lib/match-results'
 
-// Vercel cron: runs every 2 minutes during tournament
-// vercel.json: { "crons": [{ "path": "/api/scores/sync", "schedule": "*/2 * * * *" }] }
+export const dynamic = 'force-dynamic'
+
+// Triggered by a scheduler (Supabase pg_cron via pg_net) every few minutes during
+// the tournament. Auth via CRON_SECRET bearer token. Fetches results from
+// API-Football by the stored api_fixture_id (see migration 112 + /api/admin/map-fixtures),
+// so there is no fragile team-name matching and no narrow time window.
+
+const TOURNAMENT_START = new Date('2026-06-11T00:00:00Z')
+const TOURNAMENT_END   = new Date('2026-07-21T00:00:00Z')
+
+// API-Football allows up to 20 fixture ids per `ids=` request.
+const ID_BATCH = 20
+// Cap fixtures processed per run so a backlog can't blow the 30s function budget.
+const MAX_PER_RUN = 15
+
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = createAdminClient()
-  const now = new Date()
+  const apiKey = process.env.API_FOOTBALL_KEY
+  if (!apiKey) return NextResponse.json({ error: 'API_FOOTBALL_KEY not configured' }, { status: 500 })
 
-  // Only run during tournament dates
-  const TOURNAMENT_START = new Date('2026-06-11')
-  const TOURNAMENT_END   = new Date('2026-07-20')
+  const now = new Date()
   if (now < TOURNAMENT_START || now > TOURNAMENT_END) {
     return NextResponse.json({ skipped: 'Outside tournament window' })
   }
 
-  // Find fixtures that started 90-150 mins ago with no result yet (likely finished)
-  const windowStart = new Date(now.getTime() - 150 * 60000).toISOString()
-  const windowEnd   = new Date(now.getTime() -  90 * 60000).toISOString()
+  const supabase = createAdminClient()
 
-  const { data: pendingFixtures } = await supabase
-    .from('fixtures')
-    .select('id, home, away')
-    .gte('kickoff_utc', windowStart)
-    .lte('kickoff_utc', windowEnd)
+  // Mapped fixtures that have kicked off but still have no result.
+  const { data: pending, error: pendErr } = await (supabase.from('fixtures') as any)
+    .select('id, home, away, api_fixture_id')
+    .not('api_fixture_id', 'is', null)
     .is('home_score', null)
+    .lte('kickoff_utc', now.toISOString())
+    .order('kickoff_utc', { ascending: true })
+    .limit(MAX_PER_RUN)
 
-  if (!pendingFixtures?.length) {
-    return NextResponse.json({ updated: 0, message: 'No pending fixtures' })
-  }
+  if (pendErr) return NextResponse.json({ error: pendErr.message }, { status: 500 })
+  if (!pending?.length) return NextResponse.json({ updated: 0, message: 'No pending mapped fixtures' })
 
-  const apiKey = process.env.API_FOOTBALL_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: 'API_FOOTBALL_KEY not configured' }, { status: 500 })
+  // One batched lookup by id (chunked) — not one call per fixture.
+  const apiById = new Map<number, any>()
+  const ids: number[] = pending.map((f: any) => f.api_fixture_id)
+  try {
+    for (let i = 0; i < ids.length; i += ID_BATCH) {
+      const chunk = ids.slice(i, i + ID_BATCH)
+      const rows = await apiFootballFixtures(`ids=${chunk.join('-')}`, apiKey)
+      for (const item of rows) apiById.set(item.fixture?.id, item)
+    }
+  } catch (err: any) {
+    return NextResponse.json({ error: `API-Football fetch failed: ${err.message}` }, { status: 502 })
   }
 
   let updated = 0
+  const skipped: { fixture_id: number; reason: string }[] = []
 
-  for (const fixture of pendingFixtures as { id: number; home: string; away: string }[]) {  
-    try {
-      // Query API-Football for this fixture's result
-      // In production, you'd map fixture.id to the API-Football fixture ID
-      const res = await fetch(
-        `https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${now.toISOString().split('T')[0]}&league=1&season=2026`,
-        {
-          headers: {
-            'X-RapidAPI-Key': apiKey,
-            'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com',
-          },
-        }
-      )
+  for (const f of pending as any[]) {
+    const item = apiById.get(f.api_fixture_id)
+    if (!item) { skipped.push({ fixture_id: f.id, reason: 'not in API response' }); continue }
 
-      if (!res.ok) continue
+    const status = item.fixture?.status?.short
+    if (!FINISHED_STATUSES.has(status)) continue   // not finished yet — try again next run
 
-      const json = await res.json()
-      const apiFixtures = json.response ?? []
-
-      // Find matching fixture by team names
-      const match = apiFixtures.find((f: any) => {
-        const home = f.teams?.home?.name?.toLowerCase()
-        const away = f.teams?.away?.name?.toLowerCase()
-        return (
-          home?.includes(fixture.home.toLowerCase()) ||
-          fixture.home.toLowerCase().includes(home ?? '')
-        ) && (
-          away?.includes(fixture.away.toLowerCase()) ||
-          fixture.away.toLowerCase().includes(away ?? '')
-        )
-      })
-
-      if (!match) continue
-
-      const status = match.fixture?.status?.short
-      const homeScore = match.goals?.home
-      const awayScore = match.goals?.away
-
-      // Only save if match is finished (FT, AET, PEN)
-      if (!['FT', 'AET', 'PEN'].includes(status)) continue
-      if (homeScore === null || homeScore === undefined) continue
-      if (awayScore === null || awayScore === undefined) continue
-
-      await (supabase.from('fixtures') as any)
-        .update({
-          home_score: homeScore,
-          away_score: awayScore,
-          result_set_at: new Date().toISOString(),
-          result_set_by: null, // automated
-        })
-        .eq('id', fixture.id)
-
-      updated++
-      console.log(`[scores/sync] Updated fixture ${fixture.id}: ${fixture.home} ${homeScore}-${awayScore} ${fixture.away}`)
-
-    } catch (err) {
-      console.error(`[scores/sync] Error for fixture ${fixture.id}:`, err)
+    let homeScore = item.goals?.home
+    let awayScore = item.goals?.away
+    if (homeScore == null || awayScore == null) {
+      skipped.push({ fixture_id: f.id, reason: `no goals (status ${status})` }); continue
     }
+
+    // Map API home/away onto OUR home/away by team identity (guards against a
+    // reversed home/away designation). Trust orientation only for placeholder teams.
+    const apiHome = canonTeam(item.teams?.home?.name)
+    const apiAway = canonTeam(item.teams?.away?.name)
+    const ourHome = canonTeam(f.home)
+    const ourAway = canonTeam(f.away)
+    let swapped = false
+    if (!isPlaceholderTeam(f.home) && !isPlaceholderTeam(f.away)) {
+      if (ourHome === apiHome && ourAway === apiAway) {
+        swapped = false
+      } else if (ourHome === apiAway && ourAway === apiHome) {
+        swapped = true
+        ;[homeScore, awayScore] = [awayScore, homeScore]
+      } else {
+        skipped.push({ fixture_id: f.id, reason: 'team mismatch — not written' }); continue
+      }
+    }
+
+    // Penalty shootout winner → our team name.
+    let penWinner: string | null = null
+    if (status === 'PEN') {
+      const winnerCanon = item.teams?.home?.winner ? apiHome
+        : item.teams?.away?.winner ? apiAway : null
+      penWinner = winnerCanon === ourHome ? f.home
+        : winnerCanon === ourAway ? f.away
+        : (item.teams?.home?.winner ? (swapped ? f.away : f.home) : (swapped ? f.home : f.away))
+    }
+
+    // Write — guard on home_score still null so we never clobber an admin entry.
+    const { data: upd, error } = await (supabase.from('fixtures') as any)
+      .update({
+        home_score: homeScore,
+        away_score: awayScore,
+        pen_winner: penWinner,
+        result_set_at: new Date().toISOString(),
+        result_set_by: null, // null = automated
+      })
+      .eq('id', f.id)
+      .is('home_score', null)
+      .select('id')
+
+    if (error) { skipped.push({ fixture_id: f.id, reason: error.message }); continue }
+    if (!upd?.length) { skipped.push({ fixture_id: f.id, reason: 'already had a result' }); continue }
+
+    updated++
+    console.log(`[scores/sync] fixture ${f.id}: ${f.home} ${homeScore}-${awayScore} ${f.away}${penWinner ? ` (pens: ${penWinner})` : ''}`)
+
+    // Same side effects as a manual admin entry (scoring itself is a DB trigger).
+    await notifyScoreUpdate(supabase, f.id)
+    await settleChallengesForFixture(supabase, f.id).catch(() => {})
   }
 
-  return NextResponse.json({
-    updated,
-    checked: pendingFixtures.length,
-    timestamp: now.toISOString(),
-  })
+  return NextResponse.json({ updated, checked: pending.length, skipped, timestamp: now.toISOString() })
 }
