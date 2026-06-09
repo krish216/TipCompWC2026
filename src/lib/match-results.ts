@@ -33,13 +33,20 @@ export function apiFootballConfigured(): boolean {
   return apiFootballConfig() !== null
 }
 
-/** Query the v3 /fixtures endpoint. `query` is the raw querystring, e.g. `ids=1-2-3`. */
-export async function apiFootballFixtures(query: string): Promise<any[]> {
+/** Raw GET against any v3 endpoint — returns the full parsed payload + httpStatus. */
+export async function apiFootballRaw(path: string, query = ''): Promise<any> {
   const cfg = apiFootballConfig()
   if (!cfg) throw new Error('No API-Football key configured (set API_SPORTS_KEY or API_FOOTBALL_KEY)')
-  const res = await fetch(`${cfg.base}/fixtures?${query}`, { headers: cfg.headers, cache: 'no-store' })
-  if (!res.ok) throw new Error(`API-Football ${res.status}`)
-  const json = await res.json()
+  const url = query ? `${cfg.base}/${path}?${query}` : `${cfg.base}/${path}`
+  const res = await fetch(url, { headers: cfg.headers, cache: 'no-store' })
+  const json = await res.json().catch(() => ({}))
+  return { httpStatus: res.status, ...json }
+}
+
+/** Query the v3 /fixtures endpoint. `query` is the raw querystring, e.g. `ids=1-2-3`. */
+export async function apiFootballFixtures(query: string): Promise<any[]> {
+  const json = await apiFootballRaw('fixtures', query)
+  if (json.httpStatus >= 400) throw new Error(`API-Football HTTP ${json.httpStatus}`)
   return json.response ?? []
 }
 
