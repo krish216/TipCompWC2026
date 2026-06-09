@@ -22,7 +22,8 @@ where table_name = 'fixtures' and column_name = 'api_fixture_id';
 ## 2. Confirm production env vars (Vercel)
 
 In **Vercel → Settings → Environment Variables → Production**, confirm both exist:
-- [ ] `API_FOOTBALL_KEY`
+- [ ] A football API key — **either** `API_SPORTS_KEY` (direct, from dashboard.api-football.com)
+      **or** `API_FOOTBALL_KEY` (RapidAPI). Direct key wins if both are set.
 - [ ] `CRON_SECRET`
 
 (Supabase URL + service-role key are already set.) If you add/change either, **redeploy**.

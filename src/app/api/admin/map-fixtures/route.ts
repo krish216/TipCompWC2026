@@ -31,16 +31,13 @@ async function requireAdmin() {
 const dayOf = (iso: string) => new Date(iso).toISOString().slice(0, 10)
 
 async function buildMatches() {
-  const apiKey = process.env.API_FOOTBALL_KEY
-  if (!apiKey) throw new Error('API_FOOTBALL_KEY not configured')
-
   const admin = createAdminClient()
   const { data: localRows } = await (admin.from('fixtures') as any)
     .select('id, round, home, away, kickoff_utc, venue, api_fixture_id, tournament_id')
     .order('kickoff_utc', { ascending: true })
   const locals = (localRows ?? []) as Local[]
 
-  const rawApi = await apiFootballFixtures(`league=${LEAGUE_ID}&season=${SEASON}`, apiKey)
+  const rawApi = await apiFootballFixtures(`league=${LEAGUE_ID}&season=${SEASON}`)
   const api: ApiFx[] = rawApi.map((r: any) => ({
     apiId: r.fixture?.id,
     ts: r.fixture?.timestamp ? r.fixture.timestamp * 1000 : new Date(r.fixture?.date).getTime(),

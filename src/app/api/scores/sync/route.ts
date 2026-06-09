@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import {
-  apiFootballFixtures, FINISHED_STATUSES, canonTeam, isPlaceholderTeam,
+  apiFootballFixtures, apiFootballConfigured, FINISHED_STATUSES, canonTeam, isPlaceholderTeam,
   notifyScoreUpdate, settleChallengesForFixture,
 } from '@/lib/match-results'
 
@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const apiKey = process.env.API_FOOTBALL_KEY
-  if (!apiKey) return NextResponse.json({ error: 'API_FOOTBALL_KEY not configured' }, { status: 500 })
+  if (!apiFootballConfigured()) {
+    return NextResponse.json({ error: 'No API-Football key configured (set API_SPORTS_KEY or API_FOOTBALL_KEY)' }, { status: 500 })
+  }
 
   const now = new Date()
   if (now < TOURNAMENT_START || now > TOURNAMENT_END) {
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
   try {
     for (let i = 0; i < ids.length; i += ID_BATCH) {
       const chunk = ids.slice(i, i + ID_BATCH)
-      const rows = await apiFootballFixtures(`ids=${chunk.join('-')}`, apiKey)
+      const rows = await apiFootballFixtures(`ids=${chunk.join('-')}`)
       for (const item of rows) apiById.set(item.fixture?.id, item)
     }
   } catch (err: any) {

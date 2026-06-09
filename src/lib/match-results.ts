@@ -9,13 +9,35 @@
 
 const RAPID_HOST = 'api-football-v1.p.rapidapi.com'
 
-// ── API-Football (via RapidAPI) ────────────────────────────────────────────────
+// ── API-Football — supports either provider ─────────────────────────────────────
+// Direct API-Sports key (dashboard.api-football.com) → host v3.football.api-sports.io
+// with `x-apisports-key`. RapidAPI key → the proxy host with X-RapidAPI-* headers.
+// Direct key wins if both are set.
+function apiFootballConfig(): { base: string; headers: Record<string, string> } | null {
+  const direct = process.env.API_SPORTS_KEY
+  if (direct) {
+    return { base: 'https://v3.football.api-sports.io', headers: { 'x-apisports-key': direct } }
+  }
+  const rapid = process.env.API_FOOTBALL_KEY
+  if (rapid && rapid !== 'your_rapidapi_key') {
+    return {
+      base: `https://${RAPID_HOST}/v3`,
+      headers: { 'X-RapidAPI-Key': rapid, 'X-RapidAPI-Host': RAPID_HOST },
+    }
+  }
+  return null
+}
+
+/** True when a usable API-Football key (direct or RapidAPI) is configured. */
+export function apiFootballConfigured(): boolean {
+  return apiFootballConfig() !== null
+}
+
 /** Query the v3 /fixtures endpoint. `query` is the raw querystring, e.g. `ids=1-2-3`. */
-export async function apiFootballFixtures(query: string, apiKey: string): Promise<any[]> {
-  const res = await fetch(`https://${RAPID_HOST}/v3/fixtures?${query}`, {
-    headers: { 'X-RapidAPI-Key': apiKey, 'X-RapidAPI-Host': RAPID_HOST },
-    cache: 'no-store',
-  })
+export async function apiFootballFixtures(query: string): Promise<any[]> {
+  const cfg = apiFootballConfig()
+  if (!cfg) throw new Error('No API-Football key configured (set API_SPORTS_KEY or API_FOOTBALL_KEY)')
+  const res = await fetch(`${cfg.base}/fixtures?${query}`, { headers: cfg.headers, cache: 'no-store' })
   if (!res.ok) throw new Error(`API-Football ${res.status}`)
   const json = await res.json()
   return json.response ?? []
