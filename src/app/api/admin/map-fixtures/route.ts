@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 // "TBD" by name) match on exact kickoff time (venue as tiebreak).
 
 const TIME_TOLERANCE_MS = 5 * 60_000 // knockout timestamp match tolerance
+const MAP_VERSION = 'teampair-1'     // bump on logic changes to confirm which build served
 
 type Local = { id: number; round: string; home: string; away: string; kickoff_utc: string; venue: string | null; api_fixture_id: number | null }
 type ApiFx = { apiId: number; ts: number; date: string; home: string; away: string; venue: string }
@@ -141,7 +142,10 @@ export async function GET(request: NextRequest) {
   try {
     const { matches, apiCount, localCount } = await buildMatches()
     const summary = matches.reduce((acc, m) => { acc[m.confidence] = (acc[m.confidence] ?? 0) + 1; return acc }, {} as Record<string, number>)
-    return NextResponse.json({ mode: 'preview', apiCount, localCount, summary, matches })
+    return NextResponse.json(
+      { mode: 'preview', version: MAP_VERSION, apiCount, localCount, summary, matches },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    )
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 502 })
   }
