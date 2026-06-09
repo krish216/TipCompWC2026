@@ -17,7 +17,7 @@ const TIME_TOLERANCE_MS = 5 * 60_000 // knockout timestamp match tolerance
 
 type Local = { id: number; round: string; home: string; away: string; kickoff_utc: string; venue: string | null; api_fixture_id: number | null }
 type ApiFx = { apiId: number; ts: number; date: string; home: string; away: string; venue: string }
-type Match = { localId: number; apiId: number | null; round: string; label: string; confidence: 'exact' | 'swapped' | 'time' | 'ambiguous' | 'unmatched'; note?: string }
+type Match = { localId: number; apiId: number | null; round: string; label: string; confidence: 'exact' | 'swapped' | 'time' | 'ambiguous' | 'unmatched' | 'skipped'; note?: string }
 
 async function requireAdmin() {
   const user = await getSessionUser()
@@ -54,8 +54,15 @@ async function buildMatches() {
     const label = `${f.home} v ${f.away}`
     const localTs = new Date(f.kickoff_utc).getTime()
 
+    // Warm-up / practice round — hypothetical results, never auto-synced. Don't map
+    // (and don't let it consume a real match's API id).
+    if (f.round === 'wup') {
+      matches.push({ localId: f.id, apiId: null, round: f.round, label, confidence: 'skipped', note: 'warm-up/practice — not mapped' })
+      continue
+    }
+
     let m: Match
-    if (f.round === 'gs') {
+    if (f.round.startsWith('gs')) {
       // Group stage: real team names — match on aliases + same calendar day.
       const h = canonTeam(f.home), a = canonTeam(f.away), d = dayOf(f.kickoff_utc)
       const exact = api.find(x => !usedApiIds.has(x.apiId) && dayOf(x.date) === d && canonTeam(x.home) === h && canonTeam(x.away) === a)
@@ -150,7 +157,7 @@ export async function POST(request: NextRequest) {
       if (!error) written++
     }
 
-    const unresolved = matches.filter(m => m.apiId == null)
+    const unresolved = matches.filter(m => m.apiId == null && m.confidence !== 'skipped')
     return NextResponse.json({ mode: 'commit', written, unresolved })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 502 })
