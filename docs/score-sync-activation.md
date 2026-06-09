@@ -22,8 +22,7 @@ where table_name = 'fixtures' and column_name = 'api_fixture_id';
 ## 2. Confirm production env vars (Vercel)
 
 In **Vercel → Settings → Environment Variables → Production**, confirm both exist:
-- [ ] A football API key — **either** `API_SPORTS_KEY` (direct, from dashboard.api-football.com)
-      **or** `API_FOOTBALL_KEY` (RapidAPI). Direct key wins if both are set.
+- [ ] `FOOTBALL_DATA_TOKEN` — free token from https://www.football-data.org/client/register
 - [ ] `CRON_SECRET`
 
 (Supabase URL + service-role key are already set.) If you add/change either, **redeploy**.
@@ -38,11 +37,11 @@ curl -s "https://tribepicks.com/api/scores/sync" \
 
 ---
 
-## 3. (Optional) Confirm league/season
+## 3. Confirm World Cup coverage
 
-Defaults are World Cup = league `1`, season `2026`. Sanity-check against your account
-if unsure (RapidAPI / API-Football): `GET /v3/leagues?search=World Cup`.
-Only set `API_FOOTBALL_LEAGUE_ID` / `API_FOOTBALL_SEASON` in Vercel if the defaults are wrong.
+Open `https://tribepicks.com/api/admin/map-fixtures?debug=1` (logged in as admin).
+Check `count` ≈ 104 and that `sample` shows real WC 2026 fixtures. Default competition
+is `WC`; only set `FOOTBALL_DATA_COMPETITION` / `FOOTBALL_DATA_SEASON` in Vercel if needed.
 
 ---
 
@@ -84,7 +83,7 @@ after editing the two placeholders:
 
 **Verify:**
 ```sql
-select jobname, schedule, active from cron.job;          -- 'score-sync', '*/15 * * * *', t
+select jobname, schedule, active from cron.job;          -- 'score-sync', '*/5 * * * *', t
 -- after ~15 min:
 select status, return_message, start_time
 from cron.job_run_details order by start_time desc limit 5;   -- status = 'succeeded'

@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { apiFootballFixtures, apiFootballRaw, canonTeam } from '@/lib/match-results'
+import { footballDataMatches, footballDataRaw, FOOTBALL_DATA_COMPETITION, canonTeam } from '@/lib/match-results'
 
 export const dynamic = 'force-dynamic'
 
-// One-time mapping of local fixtures → API-Football fixture ids.
-//   GET  /api/admin/map-fixtures   → dry-run preview (matched / unmatched), writes nothing
-//   POST /api/admin/map-fixtures   → commit api_fixture_id for confident matches
+// One-time mapping of local fixtures → football-data.org match ids (stored in
+// fixtures.api_fixture_id).
+//   GET  /api/admin/map-fixtures           → dry-run preview (matched / unmatched)
+//   GET  /api/admin/map-fixtures?debug=1   → raw provider response (diagnose coverage)
+//   POST /api/admin/map-fixtures           → commit ids for confident matches
 // Admin-only. Group-stage games match on team aliases + date; knockouts (still
 // "TBD" by name) match on exact kickoff time (venue as tiebreak).
 
-const LEAGUE_ID = Number(process.env.API_FOOTBALL_LEAGUE_ID ?? 1)   // 1 = World Cup
-const SEASON    = Number(process.env.API_FOOTBALL_SEASON ?? 2026)
 const TIME_TOLERANCE_MS = 5 * 60_000 // knockout timestamp match tolerance
 
 type Local = { id: number; round: string; home: string; away: string; kickoff_utc: string; venue: string | null; api_fixture_id: number | null }
@@ -37,14 +37,14 @@ async function buildMatches() {
     .order('kickoff_utc', { ascending: true })
   const locals = (localRows ?? []) as Local[]
 
-  const rawApi = await apiFootballFixtures(`league=${LEAGUE_ID}&season=${SEASON}`)
+  const rawApi = await footballDataMatches()
   const api: ApiFx[] = rawApi.map((r: any) => ({
-    apiId: r.fixture?.id,
-    ts: r.fixture?.timestamp ? r.fixture.timestamp * 1000 : new Date(r.fixture?.date).getTime(),
-    date: r.fixture?.date,
-    home: r.teams?.home?.name ?? '',
-    away: r.teams?.away?.name ?? '',
-    venue: r.fixture?.venue?.name ?? '',
+    apiId: r.id,
+    ts: new Date(r.utcDate).getTime(),
+    date: r.utcDate,
+    home: r.homeTeam?.name ?? '',
+    away: r.awayTeam?.name ?? '',
+    venue: r.venue ?? '',
   })).filter((r: ApiFx) => r.apiId != null)
 
   const usedApiIds = new Set<number>()
@@ -90,19 +90,23 @@ export async function GET(request: NextRequest) {
   const gate = await requireAdmin()
   if ('error' in gate) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
-  // ?debug=1 — surface the raw API-Football response + account/plan status so we can
-  // see *why* a query returns no fixtures (e.g. season not on the free plan).
+  // ?debug=1 — surface the raw football-data response so we can see coverage (season,
+  // match count) and the provider's exact team-name spellings (to tune aliases).
   if (new URL(request.url).searchParams.get('debug') === '1') {
     try {
-      const [fx, status] = await Promise.all([
-        apiFootballRaw('fixtures', `league=${LEAGUE_ID}&season=${SEASON}`),
-        apiFootballRaw('status'),
-      ])
+      const raw = await footballDataRaw(`competitions/${FOOTBALL_DATA_COMPETITION}/matches`)
       return NextResponse.json({
         debug: true,
-        query: { league: LEAGUE_ID, season: SEASON },
-        fixtures: { httpStatus: fx.httpStatus, results: fx.results, errors: fx.errors, paging: fx.paging, sample: (fx.response ?? []).slice(0, 1) },
-        account: { httpStatus: status.httpStatus, errors: status.errors, response: status.response },
+        competition: FOOTBALL_DATA_COMPETITION,
+        httpStatus: raw.httpStatus,
+        message: raw.message ?? raw.error,
+        filters: raw.filters,
+        resultSet: raw.resultSet,
+        count: raw.matches?.length ?? 0,
+        sample: (raw.matches ?? []).slice(0, 3).map((m: any) => ({
+          id: m.id, utcDate: m.utcDate, status: m.status, stage: m.stage, group: m.group,
+          home: m.homeTeam?.name, away: m.awayTeam?.name,
+        })),
       })
     } catch (err: any) {
       return NextResponse.json({ error: err.message }, { status: 502 })

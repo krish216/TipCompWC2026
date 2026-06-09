@@ -7,51 +7,64 @@
  * score notifications and prize-challenge settlement live in app code.
  */
 
-const RAPID_HOST = 'api-football-v1.p.rapidapi.com'
+// ── football-data.org (v4) — match results provider ─────────────────────────────
+// Free tier includes the FIFA World Cup (competition code "WC"). Auth: X-Auth-Token.
+const FOOTBALL_DATA_BASE = 'https://api.football-data.org/v4'
+export const FOOTBALL_DATA_COMPETITION = process.env.FOOTBALL_DATA_COMPETITION ?? 'WC'
 
-// ── API-Football — supports either provider ─────────────────────────────────────
-// Direct API-Sports key (dashboard.api-football.com) → host v3.football.api-sports.io
-// with `x-apisports-key`. RapidAPI key → the proxy host with X-RapidAPI-* headers.
-// Direct key wins if both are set.
-function apiFootballConfig(): { base: string; headers: Record<string, string> } | null {
-  const direct = process.env.API_SPORTS_KEY
-  if (direct) {
-    return { base: 'https://v3.football.api-sports.io', headers: { 'x-apisports-key': direct } }
-  }
-  const rapid = process.env.API_FOOTBALL_KEY
-  if (rapid && rapid !== 'your_rapidapi_key') {
-    return {
-      base: `https://${RAPID_HOST}/v3`,
-      headers: { 'X-RapidAPI-Key': rapid, 'X-RapidAPI-Host': RAPID_HOST },
-    }
-  }
-  return null
+/** True when a football-data.org API token is configured. */
+export function footballDataConfigured(): boolean {
+  return !!process.env.FOOTBALL_DATA_TOKEN
 }
 
-/** True when a usable API-Football key (direct or RapidAPI) is configured. */
-export function apiFootballConfigured(): boolean {
-  return apiFootballConfig() !== null
-}
-
-/** Raw GET against any v3 endpoint — returns the full parsed payload + httpStatus. */
-export async function apiFootballRaw(path: string, query = ''): Promise<any> {
-  const cfg = apiFootballConfig()
-  if (!cfg) throw new Error('No API-Football key configured (set API_SPORTS_KEY or API_FOOTBALL_KEY)')
-  const url = query ? `${cfg.base}/${path}?${query}` : `${cfg.base}/${path}`
-  const res = await fetch(url, { headers: cfg.headers, cache: 'no-store' })
+/** Raw GET against any v4 path — returns the parsed payload + httpStatus. */
+export async function footballDataRaw(path: string): Promise<any> {
+  const token = process.env.FOOTBALL_DATA_TOKEN
+  if (!token) throw new Error('FOOTBALL_DATA_TOKEN not configured')
+  const res = await fetch(`${FOOTBALL_DATA_BASE}/${path}`, {
+    headers: { 'X-Auth-Token': token },
+    cache: 'no-store',
+  })
   const json = await res.json().catch(() => ({}))
   return { httpStatus: res.status, ...json }
 }
 
-/** Query the v3 /fixtures endpoint. `query` is the raw querystring, e.g. `ids=1-2-3`. */
-export async function apiFootballFixtures(query: string): Promise<any[]> {
-  const json = await apiFootballRaw('fixtures', query)
-  if (json.httpStatus >= 400) throw new Error(`API-Football HTTP ${json.httpStatus}`)
-  return json.response ?? []
+/** All matches for the configured competition (World Cup by default) — one call. */
+export async function footballDataMatches(season?: string): Promise<any[]> {
+  const s = season ?? process.env.FOOTBALL_DATA_SEASON
+  const json = await footballDataRaw(`competitions/${FOOTBALL_DATA_COMPETITION}/matches${s ? `?season=${s}` : ''}`)
+  if (json.httpStatus >= 400) {
+    throw new Error(`football-data HTTP ${json.httpStatus}: ${json.message ?? json.error ?? ''}`)
+  }
+  return json.matches ?? []
 }
 
 /** Match statuses that mean the game is over and the score is final. */
-export const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN'])
+export const FINISHED_STATUSES = new Set(['FINISHED', 'AWARDED'])
+
+/**
+ * Normalise a football-data score node into our model: the LEVEL score (excluding
+ * any penalty shootout — football-data folds the shootout into fullTime) plus which
+ * side won (which, for a shootout, is the penalty winner). Handles the home/away
+ * key variants seen across v4 responses.
+ */
+export function normaliseScore(score: any): { home: number; away: number; isShootout: boolean; winner: 'HOME' | 'AWAY' | 'DRAW' | null } | null {
+  if (!score) return null
+  const ft = score.fullTime ?? {}
+  let home = ft.home ?? ft.homeTeam
+  let away = ft.away ?? ft.awayTeam
+  if (home == null || away == null) return null
+  const isShootout = score.duration === 'PENALTY_SHOOTOUT'
+  if (isShootout) {
+    const pens = score.penalties ?? {}
+    home -= (pens.home ?? pens.homeTeam ?? 0)   // strip shootout goals → pre-shootout draw
+    away -= (pens.away ?? pens.awayTeam ?? 0)
+  }
+  const winner = score.winner === 'HOME_TEAM' ? 'HOME'
+    : score.winner === 'AWAY_TEAM' ? 'AWAY'
+    : score.winner === 'DRAW' ? 'DRAW' : null
+  return { home, away, isShootout, winner }
+}
 
 // ── Team-name normalisation ─────────────────────────────────────────────────────
 // Maps the various spellings of the same nation (our seed vs API-Football) to a
