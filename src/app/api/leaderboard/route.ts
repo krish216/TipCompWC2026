@@ -157,15 +157,17 @@ export async function GET(request: NextRequest) {
 
       // Fetch tournament_rounds once — needed for round→tab fallback and prevRoundRank
       const roundTabMap: Record<string, string> = {}
+      const nonScoringRounds = new Set<string>()   // rounds flagged out of scoring (e.g. 'wup')
       if (tournamentId) {
         const { data: trs } = await adminClient
           .from('tournament_rounds')
-          .select('round_code, tab_group, round_order')
+          .select('round_code, tab_group, round_order, include_in_scoring')
           .eq('tournament_id', tournamentId)
           .order('round_order', { ascending: true })
         trRows = (trs ?? []) as any[]
         for (const tr of trRows) {
           roundTabMap[tr.round_code as string] = (tr.tab_group ?? tr.round_code) as string
+          if (tr.include_in_scoring === false) nonScoringRounds.add(tr.round_code as string)
         }
       }
 
@@ -180,6 +182,7 @@ export async function GET(request: NextRequest) {
       ;(predRows ?? []).forEach((p: any) => {
         const round = fixtureRoundMap[p.fixture_id]
         if (!round) return
+        if (nonScoringRounds.has(round)) return   // keep non-scoring rounds (e.g. 'wup') off the board
         if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
         if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
         if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
