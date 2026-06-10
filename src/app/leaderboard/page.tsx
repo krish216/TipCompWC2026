@@ -48,6 +48,7 @@ export default function LeaderboardPage() {
 
   const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
+      .filter(r => (r as any).include_in_scoring !== false)   // hide non-scoring rounds (e.g. warm-up)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
     const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
     for (const r of rounds) {

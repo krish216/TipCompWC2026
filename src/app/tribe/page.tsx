@@ -1334,6 +1334,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
   // Round order and short labels derived from tournament_rounds (via scoringConfig)
   const roundOrderDisplay = useMemo(() =>
     Object.values(scoringConfig.rounds)
+      .filter(r => (r as any).include_in_scoring !== false)   // hide non-scoring rounds (e.g. warm-up)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
       .map(r => r.round_code)
   , [scoringConfig])
