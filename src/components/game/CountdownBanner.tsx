@@ -47,9 +47,13 @@ export function CountdownBanner() {
     // Context not available (e.g. not logged in) — use WC2026 defaults
   }
 
-  // Derive kickoff from selected tournament start_date, or WC2026 fallback
-  const kickoff = selectedTourn?.start_date
-    ? new Date(selectedTourn.start_date + 'T00:00:00Z')
+  // Count down to the real first-match kickoff. NOTE: do NOT derive from start_date —
+  // that's a date only (no time), so it resolved to midnight UTC (~19h before the actual
+  // 19:00 kickoff), which made signed-in users (tournament selected) see a different
+  // countdown than signed-out. Prefer an explicit kickoff timestamp if the tournament
+  // provides one; otherwise the known WC2026 kickoff. Both auth states now agree.
+  const kickoff = selectedTourn?.first_match_utc
+    ? new Date(selectedTourn.first_match_utc)
     : WC2026_KICKOFF
 
   const tournName = selectedTourn?.name ?? WC2026_NAME
