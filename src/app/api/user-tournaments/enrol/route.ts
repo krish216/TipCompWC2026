@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
+import { isBonusTeamLocked } from '@/lib/tournament-lock'
 
 // POST /api/user-tournaments/enrol
 // Called immediately after signUp() during registration — before email confirmation.
@@ -21,12 +22,15 @@ export async function POST(request: NextRequest) {
     .from('tournaments').select('id').eq('id', tournament_id).maybeSingle()
   if (!tourn) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
+  // Bonus team is frozen once the first real match kicks off. Enrolment still
+  // succeeds after that — we just don't apply a (now-disallowed) favourite team.
+  const locked = await isBonusTeamLocked(admin, tournament_id)
+  const row: any = { user_id, tournament_id }
+  if (!locked) row.favourite_team = favourite_team || null
+
   // Upsert — idempotent, safe to call multiple times
   const { error } = await (admin.from('user_tournaments') as any)
-    .upsert(
-      { user_id, tournament_id, favourite_team: favourite_team || null },
-      { onConflict: 'user_id,tournament_id', ignoreDuplicates: false }
-    )
+    .upsert(row, { onConflict: 'user_id,tournament_id', ignoreDuplicates: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

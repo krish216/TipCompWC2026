@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
+import { isBonusTeamLocked } from '@/lib/tournament-lock'
 
 // GET /api/user-tournaments — list tournaments the current user is enrolled in
 export async function GET() {
@@ -31,12 +32,20 @@ export async function POST(request: NextRequest) {
     .from('tournaments').select('id, status').eq('id', tournament_id).single()
   if (!tourn) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
+  // Bonus team is frozen once the first real match kicks off. Reject an attempted
+  // change after the lock (enrolment itself still succeeds without touching the team).
+  const locked = await isBonusTeamLocked(supabase, tournament_id)
+  if (locked && favourite_team) {
+    return NextResponse.json({ error: 'Bonus team is locked — the tournament has started.' }, { status: 409 })
+  }
+
+  const row: any = { user_id: user.id, tournament_id }
+  if (!locked) row.favourite_team = favourite_team || null   // only writable before lock
+
   const { error } = await (supabase.from('user_tournaments') as any)
-    .upsert({ user_id: user.id, tournament_id, favourite_team: favourite_team || null },
-      { onConflict: 'user_id,tournament_id' })
+    .upsert(row, { onConflict: 'user_id,tournament_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
 
   return NextResponse.json({ success: true })
 }
