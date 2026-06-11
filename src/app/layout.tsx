@@ -81,7 +81,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               position="top-right"
               toastOptions={{ duration: 3000, style: { fontSize: '13px' } }}
             />
-            <footer className="border-t border-gray-200 bg-white mt-8 py-4 px-4">
+            {/* Bottom padding clears the fixed mobile bottom-nav (≈56px + safe area);
+                reset to normal on sm+ where that nav is hidden. */}
+            <footer className="border-t border-gray-200 bg-white mt-8 px-4 pt-4 pb-[calc(5rem_+_env(safe-area-inset-bottom))] sm:pb-4">
               <div className="max-w-4xl mx-auto space-y-3">
                 {/* Top row — disclaimer + nav links */}
                 <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-gray-400">
