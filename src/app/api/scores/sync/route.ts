@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import {
-  footballDataMatches, footballDataConfigured, FINISHED_STATUSES, canonTeam, isPlaceholderTeam,
-  normaliseScore, notifyScoreUpdate, settleChallengesForFixture,
+  espnScoreboard, parseEspnEvent, canonTeam, isPlaceholderTeam,
+  notifyScoreUpdate, settleChallengesForFixture,
 } from '@/lib/match-results'
 
 export const dynamic = 'force-dynamic'
 
-// Triggered by a scheduler (Supabase pg_cron via pg_net) every 15 min during the
-// tournament. Auth via CRON_SECRET bearer token. Fetches the whole competition's
-// matches from football-data.org in ONE call, then updates any mapped local fixture
-// (by stored api_fixture_id = football-data match id) that has finished.
+// Triggered by Supabase pg_cron every 5 min during the tournament. Auth via
+// CRON_SECRET. Pulls results from ESPN's free scoreboard API and matches them to
+// our fixtures by team pair + date (no stored id / mapping step needed). Manual
+// admin entries are never touched (guarded on home_score IS NULL).
 
 const TOURNAMENT_START = new Date('2026-06-11T00:00:00Z')
 const TOURNAMENT_END   = new Date('2026-07-21T00:00:00Z')
-
-// Cap fixtures processed per run so a backlog can't blow the 30s function budget.
 const MAX_PER_RUN = 20
+const DAY = 86_400_000
+const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
 
 export async function GET(request: NextRequest) {
   if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  if (!footballDataConfigured()) {
-    return NextResponse.json({ error: 'FOOTBALL_DATA_TOKEN not configured' }, { status: 500 })
   }
 
   const now = new Date()
@@ -34,86 +30,78 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // Mapped fixtures that have kicked off but still have no result.
+  // Real fixtures that have kicked off but have no result yet.
   const { data: pending, error: pendErr } = await (supabase.from('fixtures') as any)
-    .select('id, home, away, api_fixture_id')
-    .not('api_fixture_id', 'is', null)
+    .select('id, home, away, kickoff_utc')
+    .neq('round', 'wup')
     .is('home_score', null)
     .lte('kickoff_utc', now.toISOString())
     .order('kickoff_utc', { ascending: true })
     .limit(MAX_PER_RUN)
 
   if (pendErr) return NextResponse.json({ error: pendErr.message }, { status: 500 })
-  if (!pending?.length) return NextResponse.json({ updated: 0, message: 'No pending mapped fixtures' })
+  if (!pending?.length) return NextResponse.json({ updated: 0, message: 'No pending fixtures' })
 
-  // One call returns every match in the competition; index by football-data match id.
-  const matchById = new Map<number, any>()
+  // One ESPN call covers a date range spanning the pending kickoffs (± a day, since
+  // ESPN groups by its own local date).
+  const times = pending.map((f: any) => new Date(f.kickoff_utc).getTime())
+  const dates = `${yyyymmdd(new Date(Math.min(...times) - DAY))}-${yyyymmdd(new Date(Math.max(...times) + DAY))}`
+
+  const byPair = new Map<string, ReturnType<typeof parseEspnEvent>>()
   try {
-    for (const m of await footballDataMatches()) matchById.set(m.id, m)
+    for (const ev of await espnScoreboard(dates)) {
+      const p = parseEspnEvent(ev)
+      if (!p || p.comps.length !== 2) continue
+      byPair.set([p.comps[0].canon, p.comps[1].canon].sort().join('|'), p)
+    }
   } catch (err: any) {
-    return NextResponse.json({ error: `football-data fetch failed: ${err.message}` }, { status: 502 })
+    return NextResponse.json({ error: `ESPN fetch failed: ${err.message}` }, { status: 502 })
   }
 
   let updated = 0
   const skipped: { fixture_id: number; reason: string }[] = []
 
   for (const f of pending as any[]) {
-    const match = matchById.get(f.api_fixture_id)
-    if (!match) { skipped.push({ fixture_id: f.id, reason: 'not in competition matches' }); continue }
-    if (!FINISHED_STATUSES.has(match.status)) continue   // not finished yet — retry next run
+    if (isPlaceholderTeam(f.home) || isPlaceholderTeam(f.away)) continue   // TBD knockout — can't name-match yet
 
-    const ns = normaliseScore(match.score)
-    if (!ns) { skipped.push({ fixture_id: f.id, reason: `no score (status ${match.status})` }); continue }
+    const ourHome = canonTeam(f.home), ourAway = canonTeam(f.away)
+    const ev = byPair.get([ourHome, ourAway].sort().join('|'))
+    if (!ev) { skipped.push({ fixture_id: f.id, reason: 'not found on ESPN (date/name)' }); continue }
+    if (!ev.completed) continue   // still in progress — retry next run
 
-    let { home: homeScore, away: awayScore } = ns
-    let winner = ns.winner   // 'HOME' | 'AWAY' | 'DRAW' | null, relative to football-data home/away
-
-    // Map football-data home/away onto OUR home/away by team identity (guards against
-    // a reversed designation). Trust orientation only for placeholder (TBD) teams.
-    const fdHome = canonTeam(match.homeTeam?.name)
-    const fdAway = canonTeam(match.awayTeam?.name)
-    const ourHome = canonTeam(f.home)
-    const ourAway = canonTeam(f.away)
-    if (!isPlaceholderTeam(f.home) && !isPlaceholderTeam(f.away)) {
-      if (ourHome === fdHome && ourAway === fdAway) {
-        // aligned
-      } else if (ourHome === fdAway && ourAway === fdHome) {
-        ;[homeScore, awayScore] = [awayScore, homeScore]
-        if (winner === 'HOME') winner = 'AWAY'
-        else if (winner === 'AWAY') winner = 'HOME'
-      } else {
-        skipped.push({ fixture_id: f.id, reason: 'team mismatch — not written' }); continue
-      }
+    const homeComp = ev.comps.find(c => c.canon === ourHome)
+    const awayComp = ev.comps.find(c => c.canon === ourAway)
+    if (!homeComp || !awayComp || homeComp.score == null || awayComp.score == null) {
+      skipped.push({ fixture_id: f.id, reason: 'completed but no score' }); continue
     }
 
-    // Penalty shootout winner → our team name (level score above is already a draw).
-    const penWinner = ns.isShootout
-      ? (winner === 'HOME' ? f.home : winner === 'AWAY' ? f.away : null)
-      : null
+    // Penalty shootout winner → our team name (level score above stays a draw).
+    let penWinner: string | null = null
+    if (ev.isShootout) {
+      const w = ev.comps.find(c => c.winner)
+      penWinner = w?.canon === ourHome ? f.home : w?.canon === ourAway ? f.away : null
+    }
 
-    // Write — guard on home_score still null so we never clobber an admin entry.
     const { data: upd, error } = await (supabase.from('fixtures') as any)
       .update({
-        home_score: homeScore,
-        away_score: awayScore,
+        home_score: homeComp.score,
+        away_score: awayComp.score,
         pen_winner: penWinner,
         result_set_at: new Date().toISOString(),
         result_set_by: null, // null = automated
       })
       .eq('id', f.id)
-      .is('home_score', null)
+      .is('home_score', null)   // never clobber a manual entry
       .select('id')
 
     if (error) { skipped.push({ fixture_id: f.id, reason: error.message }); continue }
     if (!upd?.length) { skipped.push({ fixture_id: f.id, reason: 'already had a result' }); continue }
 
     updated++
-    console.log(`[scores/sync] fixture ${f.id}: ${f.home} ${homeScore}-${awayScore} ${f.away}${penWinner ? ` (pens: ${penWinner})` : ''}`)
-
-    // Same side effects as a manual admin entry (scoring itself is a DB trigger).
+    console.log(`[scores/sync] fixture ${f.id}: ${f.home} ${homeComp.score}-${awayComp.score} ${f.away}${penWinner ? ` (pens: ${penWinner})` : ''}`)
     await notifyScoreUpdate(supabase, f.id)
     await settleChallengesForFixture(supabase, f.id).catch(() => {})
   }
 
-  return NextResponse.json({ updated, checked: pending.length, skipped, timestamp: now.toISOString() })
+  return NextResponse.json({ updated, checked: pending.length, skipped, source: 'espn', timestamp: now.toISOString() })
 }

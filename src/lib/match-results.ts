@@ -66,6 +66,37 @@ export function normaliseScore(score: any): { home: number; away: number; isShoo
   return { home, away, isShootout, winner }
 }
 
+// ── ESPN (free, unofficial) — live-score source for the World Cup ───────────────
+// ESPN's hidden scoreboard API has WC scores the football-data free tier withholds.
+// No key. Queried by date(s): YYYYMMDD or YYYYMMDD-YYYYMMDD.
+const ESPN_BASE   = 'https://site.api.espn.com/apis/site/v2/sports/soccer'
+const ESPN_LEAGUE = process.env.ESPN_LEAGUE ?? 'fifa.world'
+
+export async function espnScoreboard(dates: string): Promise<any[]> {
+  const res = await fetch(`${ESPN_BASE}/${ESPN_LEAGUE}/scoreboard?dates=${dates}&limit=300`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`ESPN ${res.status}`)
+  const json = await res.json()
+  return json.events ?? []
+}
+
+export type EspnComp = { canon: string; name: string; score: number | null; shootout: number | null; winner: boolean }
+/** Normalise an ESPN event: the two competitors (canon name + score + shootout +
+ *  winner flag) and whether the match is completed. */
+export function parseEspnEvent(ev: any): { comps: EspnComp[]; completed: boolean; isShootout: boolean } | null {
+  const comp = ev?.competitions?.[0]
+  if (!comp) return null
+  const completed = !!(ev?.status?.type?.completed ?? comp?.status?.type?.completed)
+  const comps: EspnComp[] = (comp.competitors ?? []).map((c: any) => ({
+    canon:    canonTeam(c.team?.displayName ?? c.team?.shortDisplayName ?? c.team?.name),
+    name:     c.team?.displayName ?? c.team?.name ?? '',
+    score:    c.score != null && c.score !== '' ? Number(c.score) : null,
+    shootout: c.shootoutScore != null && c.shootoutScore !== '' ? Number(c.shootoutScore) : null,
+    winner:   !!c.winner,
+  }))
+  const isShootout = comps.some(c => c.shootout != null)
+  return { comps, completed, isShootout }
+}
+
 // ── Team-name normalisation ─────────────────────────────────────────────────────
 // Maps the various spellings of the same nation (our seed vs API-Football) to a
 // single canonical token, so name-based matching is robust.
@@ -79,6 +110,7 @@ const TEAM_ALIASES: Record<string, string> = {
   czechia: 'czechrepublic', czechrepublic: 'czechrepublic',
   bosniaandherzegovina: 'bosnia', bosniaherzegovina: 'bosnia', bosnia: 'bosnia',
   turkey: 'turkey', turkiye: 'turkey',
+  drcongo: 'congo', congodr: 'congo', democraticrepublicofcongo: 'congo',
 }
 
 /** Canonical, accent/punctuation-insensitive team token used for matching. */

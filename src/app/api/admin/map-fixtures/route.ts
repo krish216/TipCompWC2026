@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { footballDataMatches, footballDataRaw, FOOTBALL_DATA_COMPETITION, canonTeam } from '@/lib/match-results'
+import { footballDataMatches, footballDataRaw, FOOTBALL_DATA_COMPETITION, canonTeam, espnScoreboard, parseEspnEvent } from '@/lib/match-results'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,6 +111,37 @@ async function buildMatches() {
 export async function GET(request: NextRequest) {
   const gate = await requireAdmin()
   if ('error' in gate) return NextResponse.json({ error: gate.error }, { status: gate.status })
+
+  // ?espn=<dates> — dump ESPN scoreboard events (canon names + status + score) and
+  // flag any of our group-stage teams whose spelling ESPN doesn't match, so aliases
+  // can be tuned. `dates` defaults to a wide window; pass YYYYMMDD or YYYYMMDD-YYYYMMDD.
+  const espnParam = new URL(request.url).searchParams.get('espn')
+  if (espnParam) {
+    try {
+      const dates = espnParam === '1' ? '20260611-20260720' : espnParam
+      const events = (await espnScoreboard(dates)).map((ev: any) => {
+        const p = parseEspnEvent(ev)
+        return {
+          date: ev?.date,
+          status: ev?.status?.type?.name,
+          completed: p?.completed,
+          comps: (p?.comps ?? []).map(c => ({ name: c.name, canon: c.canon, score: c.score, shootout: c.shootout, winner: c.winner })),
+        }
+      })
+      // Which of our group-stage team names don't canon-match any ESPN team?
+      const espnCanon = new Set<string>()
+      for (const e of events) for (const c of e.comps) espnCanon.add(c.canon)
+      const admin = createAdminClient()
+      const { data: locals } = await (admin.from('fixtures') as any)
+        .select('home, away').like('round', 'gs%')
+      const ours = new Set<string>()
+      for (const f of locals ?? []) { ours.add(f.home); ours.add(f.away) }
+      const unmatchedTeams = [...ours].filter(n => !espnCanon.has(canonTeam(n))).sort()
+      return NextResponse.json({ dates, eventCount: events.length, unmatchedTeams, events })
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 502 })
+    }
+  }
 
   // ?match=<id> — compare the single-match endpoint (/v4/matches/{id}) against the
   // cached competition-list endpoint for the same match, to see which has the score.
