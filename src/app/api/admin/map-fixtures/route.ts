@@ -139,6 +139,39 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ?status=1 — show football-data's live status + score for each mapped fixture next
+  // to ours, so we can see whether a result has actually been published upstream yet.
+  if (new URL(request.url).searchParams.get('status') === '1') {
+    try {
+      const all = await footballDataMatches()
+      const byId = new Map<number, any>(all.map((m: any) => [m.id, m]))
+      const admin = createAdminClient()
+      const { data: locals } = await (admin.from('fixtures') as any)
+        .select('id, home, away, kickoff_utc, api_fixture_id, home_score, away_score')
+        .not('api_fixture_id', 'is', null)
+        .neq('round', 'wup')
+        .order('kickoff_utc', { ascending: true })
+        .limit(16)
+      const ft = (m: any) => m?.score?.fullTime ?? {}
+      const rows = (locals ?? []).map((f: any) => {
+        const m = byId.get(f.api_fixture_id)
+        const s = ft(m)
+        const fdHome = s.home ?? s.homeTeam, fdAway = s.away ?? s.awayTeam
+        return {
+          fixture:     `${f.home} v ${f.away}`,
+          kickoff_utc: f.kickoff_utc,
+          api_id:      f.api_fixture_id,
+          fd_status:   m?.status ?? 'NOT IN FEED',
+          fd_score:    (fdHome != null && fdAway != null) ? `${fdHome}-${fdAway}` : null,
+          our_result:  f.home_score != null ? `${f.home_score}-${f.away_score}` : 'pending',
+        }
+      })
+      return NextResponse.json({ now: new Date().toISOString(), rows })
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 502 })
+    }
+  }
+
   try {
     const { matches, apiCount, localCount } = await buildMatches()
     const summary = matches.reduce((acc, m) => { acc[m.confidence] = (acc[m.confidence] ?? 0) + 1; return acc }, {} as Record<string, number>)
