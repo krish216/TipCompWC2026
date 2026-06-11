@@ -90,6 +90,10 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
         q: 'Can I remove a member from my comp?',
         a: 'Yes — in the comp admin panel under the Tipsters tab you can block any member, which removes them from the standings.',
       },
+      {
+        q: 'How do I split my comp into tribes — and why would I?',
+        a: 'Go to Manage → Tribes, tap "Create new tribe" and make at least two (e.g. by office, city, or group of friends), then use the "Not in a tribe" list to assign members — tick people, pick a tribe, and tap Add. You can also set a default tribe so new joiners are placed automatically, or share a tribe\'s invite code so members add themselves. Why bother? Tribes turn one big comp into team-vs-team rivalry, give everyone a smaller, more winnable "My tribe" leaderboard, and unlock a private tribe chat — which keeps casual players engaged even when the overall title is out of reach. Note: tribe features only appear once a comp has 2 or more tribes, each member is in one tribe per comp, and tribes hold up to 15 members by default (25 max).',
+      },
     ],
   },
   {

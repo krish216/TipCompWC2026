@@ -1858,6 +1858,28 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
 
   return (
     <div>
+      {/* What/why help blurb — collapsible, surfaces the upsides right where admins create tribes */}
+      <details className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl" open>
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-emerald-800">
+          👥 What are tribes — and why split your comp?
+        </summary>
+        <div className="px-4 pb-4 pt-1 space-y-2 text-[13px] leading-relaxed text-emerald-900">
+          <p>Tribes are teams <em>inside</em> your comp (by office, city, mates…). Splitting members into 2+ tribes unlocks:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong>Team-vs-team rivalry</strong> — a race between groups, not just individuals.</li>
+            <li><strong>A smaller “My tribe” leaderboard</strong> — everyone gets a winnable contest.</li>
+            <li><strong>A private tribe chat</strong> with round channels &amp; reactions — keeps casual players engaged.</li>
+          </ul>
+          <p className="pt-1 font-semibold text-emerald-800">Set it up in 3 steps:</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>Create <strong>2 or more</strong> tribes below.</li>
+            <li>Assign members from the <strong>“Not in a tribe”</strong> list (tick → pick a tribe → <strong>Add</strong>).</li>
+            <li>Optional: <strong>Set default</strong> so new joiners land in a tribe automatically.</li>
+          </ol>
+          <p className="text-[12px] text-emerald-700">Tribe features show once you have 2+ tribes. Each member is in one tribe per comp; up to 25 per tribe.</p>
+        </div>
+      </details>
+
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[{ label:'Tribes', v:tribes.length },{ label:'Tipsters', v:tipsters.length },{ label:'No tribe', v:withoutTribe.length }].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-2.5 text-center shadow-sm">
