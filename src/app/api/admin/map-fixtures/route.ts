@@ -164,6 +164,7 @@ export async function GET(request: NextRequest) {
           fd_status:   m?.status ?? 'NOT IN FEED',
           fd_score:    (fdHome != null && fdAway != null) ? `${fdHome}-${fdAway}` : null,
           our_result:  f.home_score != null ? `${f.home_score}-${f.away_score}` : 'pending',
+          raw_score:   m?.score ?? null,   // exact football-data score object, to diagnose parsing
         }
       })
       return NextResponse.json({ now: new Date().toISOString(), rows })
