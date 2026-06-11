@@ -112,6 +112,33 @@ export async function GET(request: NextRequest) {
   const gate = await requireAdmin()
   if ('error' in gate) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
+  // ?match=<id> — compare the single-match endpoint (/v4/matches/{id}) against the
+  // cached competition-list endpoint for the same match, to see which has the score.
+  const matchId = new URL(request.url).searchParams.get('match')
+  if (matchId) {
+    try {
+      const [single, list] = await Promise.all([
+        footballDataRaw(`matches/${matchId}`),
+        footballDataRaw(`competitions/${FOOTBALL_DATA_COMPETITION}/matches`),
+      ])
+      const fromList = (list.matches ?? []).find((m: any) => String(m.id) === String(matchId))
+      return NextResponse.json({
+        match_id: matchId,
+        single_endpoint: {
+          httpStatus: single.httpStatus,
+          status: single.status ?? single.match?.status,
+          score:  single.score  ?? single.match?.score,
+        },
+        list_endpoint: {
+          status: fromList?.status ?? null,
+          score:  fromList?.score ?? null,
+        },
+      })
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 502 })
+    }
+  }
+
   // ?debug=1 — surface the raw football-data response so we can see coverage (season,
   // match count) and the provider's exact team-name spellings (to tune aliases).
   if (new URL(request.url).searchParams.get('debug') === '1') {
