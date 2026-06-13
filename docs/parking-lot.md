@@ -5,6 +5,24 @@ top. Each item: what it is, why, options/notes, and status.
 
 ---
 
+## Surface the Weekly Intelligence Report beyond chat
+**Added:** 2026-06-14 · **Status:** Deferred (intentional) · chat-first for now
+
+Today the report is reachable ONLY via the chat link (comp-admin "📋 Post weekly report"
+button → members-only `/tribe/report?tribe_id=…`). This is deliberate — driving members
+into the **tribe chat** first, to build chat adoption/retention.
+
+**Later** (once chat engagement is established), surface it elsewhere:
+- A "View report" link in the tribe **Standings** tab (members open it anytime).
+- A member-facing card on the comp/home view.
+- Optional: auto-post weekly as a "TribePicks 🤖" system message (needs the chat-schema
+  migration for a system sender — see notes in the social-posting discussion).
+
+Component + endpoints already exist (`WeeklyIntelligenceReport`, `/api/tribes/report`,
+`/api/comp-analytics/report`), so surfacing it elsewhere is mostly placement.
+
+---
+
 ## Client-side kickoff lock uses a hardcoded constant (multi-tournament)
 **Added:** 2026-06-11 · **Status:** Idea — not started · Low priority (correct for WC2026)
 
