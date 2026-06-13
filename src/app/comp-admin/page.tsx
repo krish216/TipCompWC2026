@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, UpgradeModal, TeamPickerSheet } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { WeeklyIntelligenceReport } from '@/components/comp-admin/WeeklyIntelligenceReport'
 import toast from 'react-hot-toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -2207,14 +2208,25 @@ function ChallengesTab({ comp }: { comp: any }) {
 
 // ─── Tab: Insights ─────────────────────────────────────────────────────────────
 function InsightsTab({ comp }: { comp: any }) {
-  const [insightSection, setInsightSection] = useState<'health' | 'tension' | 'share'>('health')
+  const [insightSection, setInsightSection] = useState<'report' | 'health' | 'tension' | 'share'>('report')
   const [insightsData,   setInsightsData]   = useState<any>(null)
   const [summaryData,    setSummaryData]    = useState<any>(null)
   const [profileStats,   setProfileStats]   = useState<any>(null)
+  const [reportData,     setReportData]     = useState<any>(null)
+  const [reportLoading,  setReportLoading]  = useState(true)
   const [selectedRound,  setSelectedRound]  = useState<string>('')
   const [loading,        setLoading]        = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [copied,         setCopied]         = useState(false)
+
+  useEffect(() => {
+    if (!comp?.id) return
+    setReportLoading(true)
+    fetch(`/api/comp-analytics/report?comp_id=${comp.id}`)
+      .then(r => r.json())
+      .then(d => { setReportData(d); setReportLoading(false) })
+      .catch(() => setReportLoading(false))
+  }, [comp?.id])
 
   useEffect(() => {
     if (!comp?.id) return
@@ -2270,7 +2282,8 @@ Head to Settings → Profile to update yours now. 🏆`
     })
   }
 
-  const NAV: { id: 'health' | 'tension' | 'share'; label: string }[] = [
+  const NAV: { id: 'report' | 'health' | 'tension' | 'share'; label: string }[] = [
+    { id: 'report',  label: '📋 Report' },
     { id: 'health',  label: 'Health'  },
     { id: 'tension', label: 'Tension' },
     { id: 'share',   label: 'Share'   },
@@ -2297,6 +2310,21 @@ Head to Settings → Profile to update yours now. 🏆`
       </div>
 
       <div className="space-y-4 mt-2">
+
+        {/* ── REPORT ── */}
+        {insightSection === 'report' && (
+          reportLoading
+            ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5" /></div>
+            : (reportData && !reportData.error)
+              ? <>
+                  <p className="text-[11px] text-gray-400">
+                    Auto-generated from this week&apos;s standings · refreshes each time you open it · admin-only for now.
+                  </p>
+                  <WeeklyIntelligenceReport data={reportData} />
+                  <p className="text-[10px] text-gray-400 text-center pt-1">A bit of fun — not an actual accusation. 🙂</p>
+                </>
+              : <EmptyState title="Report not ready" description="No standings yet — it'll populate once results are in." />
+        )}
 
         {/* ── HEALTH ── */}
         {insightSection === 'health' && (
