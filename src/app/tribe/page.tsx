@@ -1379,15 +1379,12 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
     members.some(m => (roundBreakdown[m.user_id]?.[r] ?? 0) > 0)
   )
 
-  // Sort by computed displayTotal (picks-based), falling back to total_points while picks load
-  const sortedMembers = useMemo(() => {
-    if (!tribePicksData) return [...members].sort((a, b) => b.total_points - a.total_points)
-    return [...members].sort((a, b) => {
-      const aTotal = Object.values(roundBreakdown[a.user_id] ?? {}).reduce((s: number, v: number) => s + v, 0)
-      const bTotal = Object.values(roundBreakdown[b.user_id] ?? {}).reduce((s: number, v: number) => s + v, 0)
-      return bTotal - aTotal
-    })
-  }, [members, roundBreakdown, tribePicksData])
+  // Sort by the authoritative leaderboard total (same value the scoreboard uses;
+  // counts live rounds, excludes non-scoring rounds). The picks-based per-round
+  // breakdown below is only for the per-round detail columns as rounds close.
+  const sortedMembers = useMemo(() =>
+    [...members].sort((a, b) => b.total_points - a.total_points)
+  , [members])
 
   if (picksLoading) return <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>
 
@@ -1404,7 +1401,7 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
   function MemberRow({ member, rank }: { member: typeof sortedMembers[0]; rank: number }) {
     const isMe         = member.user_id === myId
     const breakdown    = roundBreakdown[member.user_id] ?? {}
-    const displayTotal = Object.values(breakdown).reduce((s: number, v: number) => s + v, 0)
+    const displayTotal = member.total_points   // authoritative leaderboard total (matches the scoreboard)
     return (
       <tr className={clsx('border-b border-gray-100 last:border-0 transition-colors', isMe ? 'bg-green-50' : 'hover:bg-gray-50')}>
         <td className={clsx('px-3 py-2.5 sticky left-0', isMe ? 'bg-green-50' : 'bg-white hover:bg-gray-50')}>
@@ -1416,21 +1413,18 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
             </span>
           </div>
         </td>
-        {activeRounds.length === 0
-          ? <td className="px-3 py-2.5 text-center text-gray-400">—</td>
-          : activeRounds.map(r => {
-            const pts = breakdown[r] ?? 0
-            return (
-              <td key={r} className="px-2 py-2.5 text-center">
-                {pts > 0
-                  ? <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
-                      isMe ? 'bg-green-200 text-green-900' : 'bg-gray-100 text-gray-700')}>{pts}</span>
-                  : <span className="text-gray-300">—</span>
-                }
-              </td>
-            )
-          })
-        }
+        {activeRounds.map(r => {
+          const pts = breakdown[r] ?? 0
+          return (
+            <td key={r} className="px-2 py-2.5 text-center">
+              {pts > 0
+                ? <span className={clsx('inline-block px-1.5 py-0.5 rounded font-semibold min-w-[28px] text-center',
+                    isMe ? 'bg-green-200 text-green-900' : 'bg-gray-100 text-gray-700')}>{pts}</span>
+                : <span className="text-gray-300">—</span>
+              }
+            </td>
+          )
+        })}
         <td className="px-3 py-2.5 text-right">
           <span className={clsx('font-bold text-sm', isMe ? 'text-green-700' : 'text-gray-900')}>{displayTotal}</span>
         </td>
@@ -1447,14 +1441,11 @@ function TribeStandingsView({ members, myId, tribePicksData, onLoadPicks, picksL
               <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide sticky left-0 bg-gray-50 min-w-[120px]">
                 Member
               </th>
-              {activeRounds.length === 0
-                ? <th className="px-3 py-2.5 text-[11px] font-semibold text-gray-400">Awaiting results</th>
-                : activeRounds.map(r => (
-                  <th key={r} className="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide min-w-[44px]">
-                    {roundShort[r] ?? r.toUpperCase()}
-                  </th>
-                ))
-              }
+              {activeRounds.map(r => (
+                <th key={r} className="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide min-w-[44px]">
+                  {roundShort[r] ?? r.toUpperCase()}
+                </th>
+              ))}
               <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-gray-700 uppercase tracking-wide bg-gray-50">
                 Total
               </th>
