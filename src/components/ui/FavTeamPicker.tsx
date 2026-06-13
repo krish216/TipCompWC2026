@@ -70,14 +70,16 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
                 {saving && <span className="ml-1 text-purple-400 animate-pulse">•</span>}
               </button>
 
-              <span className="text-xs text-purple-700 flex-1 min-w-0">
-                {selected
-                  ? <>e.g. <strong>6 pts instead of 3</strong> when you correctly predict any <strong>{selected.name}</strong> result</>
-                  : <>Pick a team — earn <strong>e.g. 6 pts instead of 3</strong> when you correctly predict their result</>}
-              </span>
-
               {disabled && <span className="text-[10px] text-red-500 flex-shrink-0">Locked at tournament start</span>}
             </div>
+
+            {/* Description on its own line so it wraps naturally (was crushed beside the
+                button on narrow/iOS screens, wrapping one word per line). */}
+            <p className="mt-1.5 text-xs text-purple-700">
+              {selected
+                ? <>e.g. <strong>6 pts instead of 3</strong> when you correctly predict any <strong>{selected.name}</strong> result</>
+                : <>Pick a team — earn <strong>e.g. 6 pts instead of 3</strong> when you correctly predict their result</>}
+            </p>
 
             <button type="button" onClick={() => setHowItWorks(v => !v)}
               className="mt-1.5 flex items-center gap-1 text-[10px] text-purple-500 hover:text-purple-700 font-medium">
