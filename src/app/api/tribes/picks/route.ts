@@ -76,9 +76,20 @@ export async function GET(request: NextRequest) {
     ;(lockRows ?? []).forEach((r: any) => { tippingClosedMap[r.round_code] = r.tipping_closed ?? false })
   }
 
+  // Rounds flagged out of scoring (e.g. warm-up) must never appear in tribe/comp
+  // standings or picks — even though tipping is "closed" for them.
+  const nonScoringRounds = new Set<string>()
+  if (tournamentId) {
+    const { data: trs } = await (adminClient.from('tournament_rounds') as any)
+      .select('round_code, include_in_scoring').eq('tournament_id', tournamentId)
+    ;(trs ?? []).forEach((tr: any) => { if (tr.include_in_scoring === false) nonScoringRounds.add(tr.round_code) })
+  }
+
   // ── Fixtures ───────────────────────────────────────────────────────────────
   const closedRounds = new Set(
-    Object.entries(tippingClosedMap).filter(([, v]) => v).map(([k]) => k)
+    Object.entries(tippingClosedMap)
+      .filter(([k, v]) => v && !nonScoringRounds.has(k))   // exclude non-scoring rounds (warm-up)
+      .map(([k]) => k)
   )
   const closedRoundsArr = [...closedRounds]
 
