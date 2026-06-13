@@ -61,6 +61,15 @@ const ROUND_LABELS: Partial<Record<RoundId, string>> = {
 }
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
+// Render plain-text chat content with clickable links (http/https only).
+function linkify(text: string): React.ReactNode {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all">{part}</a>
+      : part
+  )
+}
+
 // ── Chat bubble ───────────────────────────────────────────────────────────────
 function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReact: (msgId: string, emoji: string) => void }) {
   const isMe        = msg.user_id === myId
@@ -78,7 +87,7 @@ function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReac
             'px-3 py-2 rounded-xl text-sm leading-relaxed',
             isMe ? 'bg-green-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
           )}>
-            {msg.content}
+            {linkify(msg.content)}
           </div>
           {/* React button — appears on hover */}
           <button onClick={() => setShowPicker(p => !p)}
@@ -162,10 +171,12 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
   onTopicChange: (t: ChatTopic) => void
 }) {
   const { supabase } = useSupabase()
+  const { isCompAdmin } = useUserPrefs()
   const [messages,  setMessages]  = useState<Message[]>([])
   const [loading,   setLoading]   = useState(true)
   const [msgInput,  setMsgInput]  = useState('')
   const [sending,   setSending]   = useState(false)
+  const [postingReport, setPostingReport] = useState(false)
   const bottomRef   = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -230,6 +241,21 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
     textareaRef.current?.focus()
   }
 
+  // Post a members-only link to this tribe's Weekly Intelligence Report into General chat.
+  const postReport = async () => {
+    setPostingReport(true)
+    const link = `${window.location.origin}/tribe/report?tribe_id=${tribeId}`
+    try {
+      await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tribe_id: tribeId, round_code: null,
+          content: `📋 This week's TribePicks Intelligence Report is in 👀 (members only)\n${link}`,
+        }),
+      })
+    } finally { setPostingReport(false) }
+  }
+
   const react = async (msgId: string, emoji: string) => {
     await fetch('/api/chat/reactions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -260,11 +286,19 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
       <RoundTopicPills activeTopic={topic} onSelect={onTopicChange} availableRounds={availableRounds} />
 
       {/* Topic sub-label */}
-      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/40">
-        <p className="text-sm font-semibold text-gray-800">{topicLabel}</p>
-        <p className="text-[10px] text-gray-400 mt-0.5">
-          {topic === 'general' ? 'Tribe-wide conversation' : `Chat about the ${topicLabel}`}
-        </p>
+      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/40 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">{topicLabel}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {topic === 'general' ? 'Tribe-wide conversation' : `Chat about the ${topicLabel}`}
+          </p>
+        </div>
+        {topic === 'general' && isCompAdmin && (
+          <button onClick={postReport} disabled={postingReport}
+            className="flex-shrink-0 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors">
+            {postingReport ? 'Posting…' : '📋 Post weekly report'}
+          </button>
+        )}
       </div>
 
       {/* Messages */}
