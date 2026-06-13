@@ -45,10 +45,14 @@ export function WeeklyIntelligenceReport({ data }: { data: ReportData }) {
     <div className="font-mono text-[12px] leading-relaxed text-gray-800 bg-[#fbfaf6] border-2 border-gray-800 rounded-lg overflow-hidden shadow-sm">
       {/* Letterhead */}
       <div className="border-b-2 border-gray-800 px-4 py-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">TribePicks · Office of Competitive Integrity</p>
-          <p className="text-sm font-bold tracking-wide">WEEKLY INTELLIGENCE REPORT</p>
-          <p className="text-[11px] text-gray-600">Re: {data.comp_name} · {data.member_count} registered operatives</p>
+        <div className="flex items-start gap-2.5 min-w-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="TribePicks" className="h-7 w-auto flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">Office of Competitive Integrity</p>
+            <p className="text-sm font-bold tracking-wide">WEEKLY INTELLIGENCE REPORT</p>
+            <p className="text-[11px] text-gray-600">Re: {data.comp_name} · {data.member_count} registered operatives</p>
+          </div>
         </div>
         <div className="text-right flex-shrink-0 space-y-1">
           <Stamp />
