@@ -303,6 +303,11 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
     }))
   }
 
+  // Pin the latest system/report message to the top so it stays visible
+  // regardless of scroll; keep the normal conversation in the stream below it.
+  const pinnedMsg = messages.filter(m => m.is_system).slice(-1)[0] ?? null
+  const streamMessages = messages.filter(m => !m.is_system)
+
   return (
     <div className="flex flex-col h-full">
       {/* Round topic pills */}
@@ -324,6 +329,17 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
         )}
       </div>
 
+      {/* Pinned system/report message — always visible at the top */}
+      {pinnedMsg && (
+        <div className="px-3 py-2 border-b border-emerald-100 bg-emerald-50/70 flex items-start gap-2">
+          <span className="text-sm flex-shrink-0 mt-0.5">📌</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold text-emerald-600 mb-0.5">TribePicks 🤖 · Pinned</p>
+            <div className="text-xs text-emerald-900 leading-relaxed whitespace-pre-line break-words">{linkify(pinnedMsg.content)}</div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {loading ? (
@@ -335,7 +351,7 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
             <p className="text-xs text-gray-300 mt-1">Be the first to say something!</p>
           </div>
         ) : (
-          messages.map(msg => <ChatBubble key={msg.id} msg={msg} myId={myId} onReact={react} />)
+          streamMessages.map(msg => <ChatBubble key={msg.id} msg={msg} myId={myId} onReact={react} />)
         )}
         <div ref={bottomRef} />
       </div>
