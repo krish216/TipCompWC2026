@@ -385,6 +385,25 @@ export default function AdminPage() {
   // ── Retroactive predictions toggle ───────────────────────────
   const [togglingRetroactive,    setTogglingRetroactive]    = useState(false)
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
+  const [reportCardOn,        setReportCardOn]        = useState(false)
+  const [togglingReportCard,  setTogglingReportCard]  = useState(false)
+  const [reportStats,         setReportStats]         = useState<{ clicks: number; posts: number } | null>(null)
+
+  const handleToggleReportCard = async () => {
+    const next = !reportCardOn
+    setTogglingReportCard(true)
+    const res = await fetch('/api/app-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'weekly_report_card', value: next ? 'on' : 'off' }),
+    })
+    setTogglingReportCard(false)
+    if (res.ok) {
+      setReportCardOn(next)
+      toast.success(next ? '📋 Weekly report card ON' : 'Weekly report card OFF')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
 
   const handleToggleRetroactive = async () => {
     if (!tournamentData) return
@@ -467,6 +486,16 @@ export default function AdminPage() {
       .catch(() => {})
       .finally(() => setFeedbackLoading(false))
   }, [activeTab, feedbackFilter, feedbackCatFilter])
+
+  // Load weekly-report toggle state + funnel counters when the Tournament tab opens
+  useEffect(() => {
+    if (activeTab !== 'tournament') return
+    fetch('/api/app-settings').then(r => r.json())
+      .then(d => setReportCardOn(d.data?.weekly_report_card === 'on')).catch(() => {})
+    fetch('/api/admin/report-stats').then(r => r.json())
+      .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, posts: d.posts }) })
+      .catch(() => {})
+  }, [activeTab])
 
   // Load announcements when tab is opened
   useEffect(() => {
@@ -962,6 +991,45 @@ export default function AdminPage() {
                 <p className="text-[11px] text-gray-500 mt-0.5">Total matches</p>
               </div>
             </div>
+          </div>
+
+          {/* Weekly Intelligence Report */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">📋 Weekly Intelligence Report</h3>
+            <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl">
+              <div className="pr-3">
+                <p className="text-xs font-semibold text-gray-800">Homepage card + weekly auto-post to chat</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {reportCardOn
+                    ? 'ON — tribes with 4+ members see a homepage card driving them to chat, and the report auto-posts to tribe chat each Monday.'
+                    : 'OFF — no homepage card and no auto-posts.'}
+                </p>
+              </div>
+              <button
+                onClick={handleToggleReportCard}
+                disabled={togglingReportCard}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                  reportCardOn ? 'bg-emerald-500' : 'bg-gray-200'
+                )}>
+                <span className={clsx(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                  reportCardOn ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
+            </div>
+            {reportStats && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-gray-700">{reportStats.clicks}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Chat link clicks</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-gray-700">{reportStats.posts}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Auto-posts sent</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Danger zone */}

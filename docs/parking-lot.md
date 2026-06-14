@@ -6,20 +6,24 @@ top. Each item: what it is, why, options/notes, and status.
 ---
 
 ## Surface the Weekly Intelligence Report beyond chat
-**Added:** 2026-06-14 · **Status:** Deferred (intentional) · chat-first for now
+**Added:** 2026-06-14 · **Updated:** 2026-06-15 · **Status:** Mostly SHIPPED (default OFF)
 
-Today the report is reachable ONLY via the chat link (comp-admin "📋 Post weekly report"
-button → members-only `/tribe/report?tribe_id=…`). This is deliberate — driving members
-into the **tribe chat** first, to build chat adoption/retention.
+Shipped 2026-06-15 (migration 114, all gated by the `weekly_report_card` app_setting,
+default OFF, toggled in Admin → Tournament tab; threshold = **4+ members per tribe**):
+- ✅ **Weekly auto-post** to tribe chat as a "TribePicks 🤖" **system message**
+  (`chat_messages.is_system`, nullable `user_id`) — `/api/cron/weekly-report`, scheduled
+  via `supabase/saved-migrations/weekly-report-pg_cron.sql` (Mon 08:00 UTC).
+- ✅ **Homepage card** for members of qualifying tribes → tracked redirect to chat
+  (`/api/r/tribe-chat` logs to `report_link_clicks`, then → `/tribe?tab=chat`).
+- ✅ **Click tracking** + counters surfaced to the admin (`/api/admin/report-stats`).
+- ✅ Report page (`/tribe/report`) got a **backlink, Download PDF, and social share**.
 
-**Later** (once chat engagement is established), surface it elsewhere:
-- A "View report" link in the tribe **Standings** tab (members open it anytime).
-- A member-facing card on the comp/home view.
-- Optional: auto-post weekly as a "TribePicks 🤖" system message (needs the chat-schema
-  migration for a system sender — see notes in the social-posting discussion).
+**Still deferred:**
+- A persistent "View report" link in the tribe **Standings** tab (members open it anytime,
+  not just via the weekly card/auto-post).
 
-Component + endpoints already exist (`WeeklyIntelligenceReport`, `/api/tribes/report`,
-`/api/comp-analytics/report`), so surfacing it elsewhere is mostly placement.
+**To activate:** apply migration 114, run the pg_cron saved-migration with the real
+CRON_SECRET, then flip the toggle ON in Admin → Tournament.
 
 ---
 

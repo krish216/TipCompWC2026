@@ -562,10 +562,22 @@ export default function HomePage() {
     isCompAdmin, adminComps,
     scoringConfig,
     pickTournament, pickComp, refreshComps,
-    hasTribe, refreshHasTribe,
+    hasTribe, selectedTribeId, refreshHasTribe,
     loading: contextLoading,
     isPremium,
   } = useUserPrefs()
+
+  // Weekly Intelligence Report homepage card (admin-gated, 4+ member tribes)
+  const [reportCardWeek,      setReportCardWeek]      = useState<string | null>(null)
+  const [dismissedReportWeek, setDismissedReportWeek] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!hasTribe || !selectedTribeId) { setReportCardWeek(null); return }
+    fetch(`/api/weekly-report-card?tribe_id=${selectedTribeId}`)
+      .then(r => r.json())
+      .then(d => setReportCardWeek(d.show ? d.week : null))
+      .catch(() => setReportCardWeek(null))
+  }, [hasTribe, selectedTribeId])
 
   // Current round = the open round with the lowest round_order.
   // Used to scope the tip completion flag to the round that matters now.
@@ -976,6 +988,7 @@ export default function HomePage() {
   useEffect(() => {
     setDismissedWrapUpRound(localStorage.getItem('dismissed_wrapup_round'))
     setDismissedTipsheetRound(localStorage.getItem('dismissed_tipsheet_round'))
+    setDismissedReportWeek(localStorage.getItem('dismissed_report_week'))
     if (localStorage.getItem('nudge_last_viewed_at')) setNudgeDismissed(true)
   }, [])
 
@@ -2413,6 +2426,25 @@ export default function HomePage() {
                       localStorage.setItem('dismissed_tipsheet_round', closedForTippingRound!)
                     }}
                     className="text-blue-400 hover:text-blue-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* Weekly Intelligence Report — drives members to the tribe chat (admin-gated) */}
+              {hasTribe && reportCardWeek && reportCardWeek !== dismissedReportWeek && (
+                <div className="mb-3 flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                  <span className="text-base flex-shrink-0">📋</span>
+                  <div className="flex-1 min-w-0 text-xs text-emerald-800">
+                    <strong>This week&apos;s tribe intel is in</strong> — see who&apos;s under investigation 👀{' '}
+                    <a href={`/api/r/tribe-chat?tribe_id=${selectedTribeId}`} className="underline font-semibold whitespace-nowrap">Open chat →</a>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDismissedReportWeek(reportCardWeek)
+                      localStorage.setItem('dismissed_report_week', reportCardWeek!)
+                    }}
+                    className="text-emerald-400 hover:text-emerald-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
                     ×
                   </button>
                 </div>

@@ -33,9 +33,10 @@ interface Reaction { emoji: string; count: number; users: string[] }
 
 interface Message {
   id: string
-  user_id: string
+  user_id: string | null
   content: string
   created_at: string
+  is_system?: boolean
   round_code?: string | null
   user: { display_name: string; avatar_url?: string | null }
   reactions: Reaction[]
@@ -76,6 +77,22 @@ function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReac
   const displayName = msg.user?.display_name ?? 'Unknown'
   const time        = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const [showPicker, setShowPicker] = useState(false)
+
+  // System message — posted by TribePicks (e.g. the weekly report), no human author.
+  if (msg.is_system) {
+    return (
+      <div className="flex gap-2 items-end">
+        <div className="flex-shrink-0 mb-0.5 w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-sm">🤖</div>
+        <div className="max-w-[80%]">
+          <p className="text-[10px] font-semibold text-emerald-600 mb-0.5 ml-1">TribePicks</p>
+          <div className="px-3 py-2 rounded-xl rounded-bl-sm text-sm leading-relaxed bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
+            {linkify(msg.content)}
+          </div>
+          <p className="text-[9px] text-gray-400 mt-0.5 mx-1">{time}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={clsx('group flex gap-2 items-end', isMe && 'flex-row-reverse')}>
@@ -212,7 +229,7 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
         const matchesTopic = roundCode ? newMsg.round_code === roundCode : newMsg.round_code === null
         if (!matchesTopic) return
         const { data } = await (supabase.from('chat_messages') as any)
-          .select('id, content, created_at, user_id, round_code, users(display_name, avatar_url)')
+          .select('id, content, created_at, user_id, is_system, round_code, users(display_name, avatar_url)')
           .eq('id', newMsg.id).single()
         if (data) {
           const raw = data as any

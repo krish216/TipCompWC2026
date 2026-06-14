@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   let query = (supabase
     .from('chat_messages') as any)
-    .select('id, content, created_at, user_id, round_code, users(display_name, avatar_url)')
+    .select('id, content, created_at, user_id, is_system, round_code, users(display_name, avatar_url)')
     .eq('tribe_id', tribe_id)
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await (supabase
     .from('chat_messages') as any)
     .insert({ tribe_id, user_id: user.id, content, round_code: round_code ?? null })
-    .select('id, content, created_at, user_id, round_code, users(display_name, avatar_url)')
+    .select('id, content, created_at, user_id, is_system, round_code, users(display_name, avatar_url)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
