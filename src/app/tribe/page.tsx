@@ -195,6 +195,7 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
   const [sending,   setSending]   = useState(false)
   const [postingReport, setPostingReport] = useState(false)
   const bottomRef   = useRef<HTMLDivElement>(null)
+  const listRef     = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const roundCode  = topic === 'general' ? null : topic
@@ -212,7 +213,7 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
       .then(({ data }) => {
         setMessages((data ?? []).map((m: any) => ({ ...m, reactions: m.reactions ?? [] })))
         setLoading(false)
-        scrollToBottom(false)
+        scrollToTop()
       })
       .catch(() => setLoading(false))
   }, [tribeId, topic])
@@ -244,6 +245,11 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
 
   const scrollToBottom = (smooth = true) => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' }), 60)
+  }
+  // Open the chat at the top of the conversation (so pinned/older items like the
+  // weekly report are visible) rather than jumping straight to the latest message.
+  const scrollToTop = () => {
+    setTimeout(() => { if (listRef.current) listRef.current.scrollTop = 0 }, 60)
   }
 
   const sendMessage = async () => {
@@ -319,7 +325,7 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {loading ? (
           <div className="flex justify-center py-8"><Spinner className="w-5 h-5" /></div>
         ) : messages.length === 0 ? (
