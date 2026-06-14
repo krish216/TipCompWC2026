@@ -9,6 +9,7 @@ export type NotificationType =
   | 'member_milestone'
   | 'low_tipping_alert'
   | 'round_complete'
+  | 'weekly_report'
 
 export interface CreateNotificationParams {
   user_id:  string

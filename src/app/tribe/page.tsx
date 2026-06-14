@@ -264,17 +264,14 @@ function ChatPanel({ tribeId, topic, myId, availableRounds, onTopicChange }: {
     textareaRef.current?.focus()
   }
 
-  // Post a members-only link to this tribe's Weekly Intelligence Report into General chat.
+  // Post this tribe's Weekly Intelligence Report into General chat (as a TribePicks
+  // system message) and notify members via the bell — mirrors the weekly cron.
   const postReport = async () => {
     setPostingReport(true)
-    const link = `${window.location.origin}/tribe/report?tribe_id=${tribeId}`
     try {
-      await fetch('/api/chat', {
+      await fetch('/api/tribes/post-report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tribe_id: tribeId, round_code: null,
-          content: `📋 This week's TribePicks Intelligence Report is in 👀 (members only)\n${link}`,
-        }),
+        body: JSON.stringify({ tribe_id: tribeId }),
       })
     } finally { setPostingReport(false) }
   }

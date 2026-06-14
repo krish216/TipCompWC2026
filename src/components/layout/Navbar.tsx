@@ -29,6 +29,7 @@ const NOTIF_ICONS: Record<string, string> = {
   member_milestone:  '🎉',
   low_tipping_alert: '⚠️',
   round_complete:    '🏁',
+  weekly_report:     '📋',
 }
 
 function timeAgo(dateStr: string): string {
@@ -308,10 +309,14 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                             <p className="text-sm text-gray-400">No notifications yet</p>
                           </div>
                         ) : (
-                          notifs.map(n => (
+                          notifs.map(n => {
+                            const href = (n.data as any)?.href as string | undefined
+                            return (
                             <div key={n.id}
+                              onClick={href ? () => { handleMarkAllRead(); setNotifOpen(false); router.push(href) } : undefined}
                               className={clsx(
                                 'flex items-start gap-3 px-4 py-3 transition-colors',
+                                href && 'cursor-pointer',
                                 !n.read_at ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-50'
                               )}>
                               <span className="text-lg leading-none mt-0.5 flex-shrink-0">
@@ -330,7 +335,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                                 <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-1.5" />
                               )}
                             </div>
-                          ))
+                            )
+                          })
                         )}
                       </div>
                     </div>

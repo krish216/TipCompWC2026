@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { MIN_TRIBE_MEMBERS, REPORT_SITE_URL, mondayOf, postReportToTribe } from '@/lib/weekly-report'
 
 export const dynamic = 'force-dynamic'
 
-// Auto-posts the members-only Weekly Intelligence Report link into each eligible
-// tribe's General chat, once per week. Gated by the `weekly_report_card` flag
-// (same toggle as the homepage card) and to tribes with >= MIN_TRIBE_MEMBERS.
-// Authed with CRON_SECRET (Bearer), scheduled via Supabase pg_cron — see
-// supabase/saved-migrations/weekly-report-pg_cron.sql.
-
-const MIN_TRIBE_MEMBERS = 4
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://tribepicks.com'
-
-// Monday (UTC) of the week containing d, as YYYY-MM-DD.
-function mondayOf(d: Date): string {
-  const day  = d.getUTCDay()                 // 0=Sun .. 6=Sat
-  const diff = day === 0 ? -6 : 1 - day
-  const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff))
-  return m.toISOString().slice(0, 10)
-}
+// Posts the members-only Weekly Intelligence Report link into each eligible
+// tribe's chat (as a system message) and notifies members via the bell, once per
+// week. Gated by the `weekly_report_card` flag (same toggle as the homepage card)
+// and to tribes with >= MIN_TRIBE_MEMBERS. Authed with CRON_SECRET (Bearer),
+// scheduled via Supabase pg_cron — see supabase/saved-migrations/weekly-report-pg_cron.sql.
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
@@ -61,16 +51,13 @@ export async function GET(request: NextRequest) {
   const done = new Set((already ?? []).map((r: any) => r.tribe_id))
   const todo = eligible.filter(id => !done.has(id))
 
-  let posted = 0
+  let posted = 0, notified = 0
   for (const tribeId of todo) {
-    const link    = `${SITE_URL}/tribe/report?tribe_id=${tribeId}`
-    const content = `📋 This week's TribePicks Intelligence Report is in 👀 (members only)\n${link}`
-    const { error: msgErr } = await (admin.from('chat_messages') as any)
-      .insert({ tribe_id: tribeId, user_id: null, is_system: true, content, round_code: null })
-    if (msgErr) continue
-    await (admin.from('weekly_report_posts') as any).insert({ tribe_id: tribeId, week_start: week })
-    posted++
+    try {
+      const r = await postReportToTribe(admin, tribeId, REPORT_SITE_URL)
+      posted++; notified += r.notified
+    } catch { /* skip this tribe, continue */ }
   }
 
-  return NextResponse.json({ posted, eligible: eligible.length, week })
+  return NextResponse.json({ posted, notified, eligible: eligible.length, week })
 }
