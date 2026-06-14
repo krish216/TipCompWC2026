@@ -32,14 +32,17 @@ export async function GET(request: NextRequest) {
     .select('value').eq('key', 'weekly_report_card').maybeSingle()
   if ((flag as any)?.value !== 'on') return NextResponse.json({ skipped: 'feature off' })
 
-  const { data: tournSetting } = await (admin.from('app_settings') as any)
-    .select('value').eq('key', 'active_tournament_id').maybeSingle()
-  const tournId = (tournSetting as any)?.value ?? null
-  if (!tournId) return NextResponse.json({ skipped: 'no active tournament' })
+  // Live tournament(s) — keyed off tournaments.is_active, NOT the
+  // app_settings.active_tournament_id flag (which can point at a future/inactive
+  // season, e.g. a pre-staged Champions League).
+  const { data: activeTourns } = await (admin.from('tournaments') as any)
+    .select('id').eq('is_active', true)
+  const tournIds: string[] = ((activeTourns ?? []) as any[]).map(t => t.id)
+  if (!tournIds.length) return NextResponse.json({ skipped: 'no active tournament' })
 
-  // Tribes in this tournament + their member counts.
+  // Tribes in the active tournament(s) + their member counts.
   const { data: tribes } = await (admin.from('tribes') as any)
-    .select('id').eq('tournament_id', tournId)
+    .select('id').in('tournament_id', tournIds)
   const tribeIds: string[] = (tribes ?? []).map((t: any) => t.id)
   if (!tribeIds.length) return NextResponse.json({ posted: 0, reason: 'no tribes' })
 
