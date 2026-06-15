@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Suspense } from 'react'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { Analytics } from '@vercel/analytics/next'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
 import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
@@ -168,6 +169,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </footer>
           </UserPrefsProvider>
         </SupabaseProvider>
+        <Analytics />
       </body>
     </html>
   )
