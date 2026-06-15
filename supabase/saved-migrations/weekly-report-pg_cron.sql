@@ -6,10 +6,16 @@
 -- Vault, so nothing sensitive is committed to git.
 --
 -- It schedules a job that calls GET /api/cron/weekly-report every Monday 08:00
--- UTC. The route is authed via CRON_SECRET and is a no-op unless the admin has
+-- AEST. The route is authed via CRON_SECRET and is a no-op unless the admin has
 -- turned the `weekly_report_card` toggle ON (Admin → Tournament tab). It posts
 -- the members-only report link into each eligible tribe's chat (tribes with 4+
 -- members), at most once per tribe per week.
+--
+-- TIMING: 08:00 Monday AEST = 22:00 Sunday UTC (AEST is UTC+10, no DST). pg_cron
+-- runs in UTC, so the expression is '0 22 * * 0' (Sunday). This is valid for the
+-- whole WC2026 window (Australia is in winter / AEST through ~4 Oct 2026). If the
+-- job is kept running past then, Sydney moves to AEDT (UTC+11) and you'd switch
+-- to '0 21 * * 0' to keep it 08:00 local — or set cron.timezone.
 -- ============================================================================
 
 -- 1. Enable the extensions (no-op if already enabled)
@@ -29,10 +35,10 @@ select vault.create_secret(
   'weekly_report_cron_secret'
 );
 
--- 3. Schedule the job — Monday 08:00 UTC.
+-- 3. Schedule the job — Monday 08:00 AEST (= Sunday 22:00 UTC, UTC+10).
 select cron.schedule(
   'weekly-report',
-  '0 8 * * 1',
+  '0 22 * * 0',
   $$
   select net.http_get(
     url     := (select decrypted_secret from vault.decrypted_secrets where name = 'weekly_report_url'),

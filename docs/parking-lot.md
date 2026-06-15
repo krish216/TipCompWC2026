@@ -12,7 +12,7 @@ Shipped 2026-06-15 (migration 114, all gated by the `weekly_report_card` app_set
 default OFF, toggled in Admin → Tournament tab; threshold = **4+ members per tribe**):
 - ✅ **Weekly auto-post** to tribe chat as a "TribePicks 🤖" **system message**
   (`chat_messages.is_system`, nullable `user_id`) — `/api/cron/weekly-report`, scheduled
-  via `supabase/saved-migrations/weekly-report-pg_cron.sql` (Mon 08:00 UTC).
+  via `supabase/saved-migrations/weekly-report-pg_cron.sql` (Mon 08:00 AEST = Sun 22:00 UTC).
 - ✅ **Homepage card** for members of qualifying tribes → tracked redirect to chat
   (`/api/r/tribe-chat` logs to `report_link_clicks`, then → `/tribe?tab=chat`).
 - ✅ **Click tracking** + counters surfaced to the admin (`/api/admin/report-stats`).
