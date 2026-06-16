@@ -396,7 +396,7 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      <WeeklyReportCard className="mb-4" />
+      <WeeklyReportCard className="mb-4" src="scoreboard" />
 
       {/* Multi-comp selector — only shown when user is in >1 comp */}
       {userComps.length > 1 && (

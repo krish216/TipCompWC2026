@@ -985,7 +985,7 @@ export default function PredictPage() {
         </div>
       )}
 
-      <WeeklyReportCard className="mb-3" />
+      <WeeklyReportCard className="mb-3" src="predict" />
 
       {/* Lock-in confirmation — irreversible */}
       {lockTarget != null && (

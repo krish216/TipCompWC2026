@@ -16,8 +16,10 @@ export function mondayOf(d: Date): string {
   return m.toISOString().slice(0, 10)
 }
 
+// Tracked link used in the chat post: routes via /api/r/report so opens are
+// counted (source='chat_report'), then forwards to the members-only report page.
 export function reportLink(siteUrl: string, tribeId: string): string {
-  return `${siteUrl}/tribe/report?tribe_id=${tribeId}`
+  return `${siteUrl}/api/r/report?tribe_id=${tribeId}`
 }
 
 // All member user_ids of a tribe — union of tribe_members and users.tribe_id, so

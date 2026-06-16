@@ -2433,18 +2433,18 @@ export default function HomePage() {
 
               {/* Weekly Intelligence Report — drives members to the tribe chat (admin-gated) */}
               {hasTribe && reportCardWeek && reportCardWeek !== dismissedReportWeek && (
-                <div className="mb-3 flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                <div className="mb-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                   <span className="text-base flex-shrink-0">📋</span>
-                  <div className="flex-1 min-w-0 text-xs text-emerald-800">
+                  <div className="flex-1 min-w-0 text-xs text-amber-900">
                     <strong>This week&apos;s tribe intel is in</strong> — see who&apos;s under investigation 👀{' '}
-                    <a href={`/api/r/tribe-chat?tribe_id=${selectedTribeId}`} className="underline font-semibold whitespace-nowrap">Open chat →</a>
+                    <a href={`/api/r/tribe-chat?tribe_id=${selectedTribeId}&src=home`} className="underline font-semibold whitespace-nowrap">Open chat →</a>
                   </div>
                   <button
                     onClick={() => {
                       setDismissedReportWeek(reportCardWeek)
                       localStorage.setItem('dismissed_report_week', reportCardWeek!)
                     }}
-                    className="text-emerald-400 hover:text-emerald-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
+                    className="text-amber-400 hover:text-amber-600 text-base font-semibold flex-shrink-0 px-1 leading-none">
                     ×
                   </button>
                 </div>

@@ -387,7 +387,7 @@ export default function AdminPage() {
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
-  const [reportStats,         setReportStats]         = useState<{ clicks: number; posts: number } | null>(null)
+  const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
   const handleToggleReportCard = async () => {
     const next = !reportCardOn
@@ -493,7 +493,7 @@ export default function AdminPage() {
     fetch('/api/app-settings').then(r => r.json())
       .then(d => setReportCardOn(d.data?.weekly_report_card === 'on')).catch(() => {})
     fetch('/api/admin/report-stats').then(r => r.json())
-      .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, posts: d.posts }) })
+      .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
       .catch(() => {})
   }, [activeTab])
 
@@ -1019,16 +1019,27 @@ export default function AdminPage() {
               </button>
             </div>
             {reportStats && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-gray-700">{reportStats.clicks}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Chat link clicks</p>
+              <>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-gray-700">{reportStats.clicks}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Card → chat clicks</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-gray-700">{reportStats.report_opens}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Report opens</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-gray-700">{reportStats.posts}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Auto-posts sent</p>
+                  </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-gray-700">{reportStats.posts}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Auto-posts sent</p>
-                </div>
-              </div>
+                {reportStats.by_source && (
+                  <p className="text-[11px] text-gray-400 text-center mt-1.5">
+                    Card clicks by page — home {reportStats.by_source.home} · predict {reportStats.by_source.predict} · scoreboard {reportStats.by_source.scoreboard}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
