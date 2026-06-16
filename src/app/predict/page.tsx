@@ -725,7 +725,7 @@ export default function PredictPage() {
       retroactive={allowRetroactivePredictions}
       onPredict={onPredict}
       onOutcome={onOutcome}
-      onLockIn={(f.round as string) === 'wup' ? handleLockIn : undefined}
+      onLockIn={handleLockIn}
       onViewTipsheet={selectedTribeId ? handleViewTipsheet : undefined}
       onPenWinner={onPenWinner}
     />

@@ -17,12 +17,6 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Rollout gate: lock-in is only enabled for the warm-up round for now.
-  const { data: fx } = await (admin.from('fixtures') as any)
-    .select('round').eq('id', fixture_id).maybeSingle()
-  if ((fx as any)?.round !== 'wup')
-    return NextResponse.json({ error: 'Lock-in is only available for warm-up matches right now.' }, { status: 403 })
-
   const { data: pred } = await (admin.from('predictions') as any)
     .select('id, locked_at').eq('user_id', user.id).eq('fixture_id', fixture_id).maybeSingle()
 

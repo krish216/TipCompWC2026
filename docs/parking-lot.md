@@ -5,7 +5,22 @@ top. Each item: what it is, why, options/notes, and status.
 
 ---
 
-## Surface the Weekly Intelligence Report beyond chat
+## Lock-in + fixture tipsheet — released for ALL rounds
+**Added:** 2026-06-16 · **Status:** Live (warm-up gate removed)
+
+The "lock a prediction → reveal the tribe's mutual-lock tipsheet" feature (migration
+115 `predictions.locked_at`; `/api/predictions/lock`; `/api/predictions/fixture-tipsheet`;
+`FixtureTipsheetModal`; lock button + committed state in `MatchRow`/predict page) is live
+on every still-editable fixture (any round). The lock button shows when a complete
+prediction exists and the fixture is pre-kickoff / round-open / no result.
+
+**Open follow-up — admin unlock safety valve (not built):** locking is irreversible with
+no unlock path, and now applies to scoring rounds, so an accidental lock can only be
+undone by editing `predictions.locked_at = null` in the DB. Consider a comp-admin (or
+support) "unlock this prediction" action if mistake-fix requests appear. Server backstop
+to consider too: `/api/predictions/lock` currently doesn't re-check the edit window
+(harmless — the client only shows the button pre-kickoff — but a direct API call could
+lock a past fixture).
 **Added:** 2026-06-14 · **Updated:** 2026-06-15 · **Status:** Mostly SHIPPED (default OFF)
 
 Shipped 2026-06-15 (migration 114, all gated by the `weekly_report_card` app_setting,
