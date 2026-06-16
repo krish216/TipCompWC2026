@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
+import { AdSlot } from '@/components/ui/AdSlot'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -788,6 +789,9 @@ export default function LeaderboardPage() {
                               </div>
                             )
                           })()}
+                          {i === 9 && filteredEntries.length > 12 && (
+                            <AdSlot slot="leaderboard-infeed" className="mx-3 my-2" />
+                          )}
                         </div>
                       )
                     })}

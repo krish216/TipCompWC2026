@@ -6,6 +6,7 @@ import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
+import { AdSlot } from '@/components/ui/AdSlot'
 import { FixtureTipsheetModal } from '@/components/game/FixtureTipsheetModal'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { RoundScoringCheatSheet } from '@/components/game/RoundScoringCheatSheet'
@@ -1027,8 +1028,10 @@ export default function PredictPage() {
           description="Check back once the previous round is complete."
         />
       ) : (
-        Object.entries(fixturesByDate).map(([date, dayFixtures]) => (
+        Object.entries(fixturesByDate).map(([date, dayFixtures], dateIdx) => (
           <div key={date}>
+            {/* Non-intrusive ad slot — sits between the first and second day's fixtures, away from inputs */}
+            {dateIdx === 1 && <AdSlot slot="predict-infeed" className="mt-4" />}
             {/* Date header */}
             <div className="flex items-center gap-3 mt-5 mb-2">
               <div className="h-px flex-1 bg-gray-200" />
