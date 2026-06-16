@@ -32,6 +32,10 @@ default OFF, toggled in Admin → Tournament tab; threshold = **4+ members per t
   (`/api/r/tribe-chat` logs to `report_link_clicks`, then → `/tribe?tab=chat`).
 - ✅ **Click tracking** + counters surfaced to the admin (`/api/admin/report-stats`).
 - ✅ Report page (`/tribe/report`) got a **backlink, Download PDF, and social share**.
+- ✅ **Predict + Scoreboard cards** (`WeeklyReportCard`) — same chat-first nudge as the
+  homepage card, on the two highest-traffic pages. Shared per-week dismiss across all
+  surfaces (`dismissed_report_week`). Posted chat message now carries the "By TribePicks
+  decree: table its findings at Monday stand-up" line.
 
 **Still deferred:**
 - A persistent "View report" link in the tribe **Standings** tab (members open it anytime,

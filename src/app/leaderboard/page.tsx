@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
+import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -394,6 +395,8 @@ export default function LeaderboardPage() {
           </div>
         )}
       </div>
+
+      <WeeklyReportCard className="mb-4" />
 
       {/* Multi-comp selector — only shown when user is in >1 comp */}
       {userComps.length > 1 && (

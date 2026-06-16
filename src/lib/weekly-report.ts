@@ -50,7 +50,7 @@ export async function notifyTribeReport(admin: any, tribeId: string): Promise<nu
 // Post the report system message into a tribe's chat, notify members, and record
 // the weekly dedupe row. Throws if the chat insert fails.
 export async function postReportToTribe(admin: any, tribeId: string, siteUrl: string): Promise<{ notified: number }> {
-  const content = `📋 This week's TribePicks Intelligence Report is in 👀 (members only)\n${reportLink(siteUrl, tribeId)}`
+  const content = `📋 This week's TribePicks Intelligence Report is in 👀 (members only)\n${reportLink(siteUrl, tribeId)}\n\n📌 By TribePicks decree: table its findings at this week's Monday stand-up / coffee chat. ☕`
   const { error } = await admin.from('chat_messages')
     .insert({ tribe_id: tribeId, user_id: null, is_system: true, content, round_code: null })
   if (error) throw new Error(error.message)

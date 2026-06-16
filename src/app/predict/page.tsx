@@ -8,6 +8,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { FixtureTipsheetModal } from '@/components/game/FixtureTipsheetModal'
+import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { RoundScoringCheatSheet } from '@/components/game/RoundScoringCheatSheet'
 import { EmptyState, Spinner } from '@/components/ui'
@@ -983,6 +984,8 @@ export default function PredictPage() {
           )}
         </div>
       )}
+
+      <WeeklyReportCard className="mb-3" />
 
       {/* Lock-in confirmation — irreversible */}
       {lockTarget != null && (
