@@ -63,7 +63,9 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
         {state === 'error'     && <p className="px-4 py-12 text-center text-sm text-gray-500">Couldn&apos;t load the tipsheet.</p>}
 
         {state === 'ok' && data && (
-          <div className="overflow-y-auto">
+          <>
+            {/* Fixture + aggregate — pinned while the tipster list scrolls */}
+            <div className="flex-shrink-0">
             {/* Fixture + lock count */}
             <div className="px-4 pt-3 pb-2 text-center">
               <p className="text-sm font-semibold text-gray-800">
@@ -89,9 +91,10 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                 </div>
               </div>
             )}
+            </div>
 
-            {/* Vertical list of tipsters */}
-            <div className="px-2 pb-3">
+            {/* Vertical list of tipsters — scrolls */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
               {data.picks.length === 0 ? (
                 <p className="px-2 py-10 text-center text-sm text-gray-400">No one else has locked in yet — you&apos;re first! 🥇</p>
               ) : data.picks.map(p => (
@@ -107,7 +110,7 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                 </div>
               ))}
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
