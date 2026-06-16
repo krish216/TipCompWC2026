@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 type Category = 'bug' | 'suggestion' | 'other'
@@ -32,13 +32,18 @@ export function FeedbackButton() {
   const [submitting,     setSubmitting]     = useState(false)
   const [done,           setDone]           = useState(false)
   const [publicResponses, setPublicResponses] = useState<PublicResponse[]>([])
+  const [refreshing,      setRefreshing]      = useState(false)
 
-  useEffect(() => {
-    fetch('/api/feedback/responses')
+  const loadResponses = useCallback(() => {
+    setRefreshing(true)
+    return fetch('/api/feedback/responses')
       .then(r => r.json())
       .then(d => setPublicResponses(d.responses ?? []))
       .catch(() => {})
-  }, [open])
+      .finally(() => setRefreshing(false))
+  }, [])
+
+  useEffect(() => { if (open) loadResponses() }, [open, loadResponses])
 
   const hasUpdates = publicResponses.length > 0
 
@@ -102,7 +107,7 @@ export function FeedbackButton() {
                   Share feedback
                 </button>
                 <button
-                  onClick={() => setActiveView('updates')}
+                  onClick={() => { setActiveView('updates'); loadResponses() }}
                   className={`flex-1 py-2.5 text-xs font-semibold transition-colors relative ${
                     activeView === 'updates' ? 'text-gray-900 border-b-2 border-green-700' : 'text-gray-400 hover:text-gray-600'
                   }`}>
@@ -189,7 +194,17 @@ export function FeedbackButton() {
               <div className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold text-gray-900">Updates from us</h2>
-                  <button onClick={close} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => loadResponses()} disabled={refreshing} aria-label="Refresh"
+                      className="text-gray-400 hover:text-gray-700 disabled:opacity-50 transition-colors">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}>
+                        <path d="M23 4v6h-6" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                    </button>
+                    <button onClick={close} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                  </div>
                 </div>
                 <div className="space-y-3 max-h-80 overflow-y-auto">
                   {publicResponses.map(r => {
