@@ -36,7 +36,9 @@ export function FeedbackButton() {
 
   const loadResponses = useCallback(() => {
     setRefreshing(true)
-    return fetch('/api/feedback/responses')
+    // Cache-buster + no-store: defeat any browser / service-worker caching so a
+    // refresh always reflects newly published responses.
+    return fetch(`/api/feedback/responses?_=${Date.now()}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setPublicResponses(d.responses ?? []))
       .catch(() => {})
