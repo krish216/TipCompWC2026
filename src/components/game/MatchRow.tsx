@@ -17,6 +17,7 @@ interface Props {
   prediction?: { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null } | null
   result?:     (MatchScore & { pen_winner?: string|null; result_outcome?: string|null }) | null
   locked?:     boolean
+  committed?:  boolean        // user has voluntarily locked in this prediction (final)
   saving?:     boolean
   isFavourite?: boolean
   challenge?:  { prize: string; sponsor?: string|null } | null
@@ -29,13 +30,14 @@ interface Props {
   onBlurScore?:  () => void
   onOutcome?:   (fixtureId: number, outcome: 'H'|'D'|'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
+  onLockIn?:    (fixtureId: number) => void
 }
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, saving = false, celebrating = false, isFavourite = false, challenge,
+  locked = false, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
-  onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore,
+  onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn,
 }: Props) {
   const { flag } = useUserPrefs()
   const [localHome, setLocalHome] = useState<string>(
@@ -72,12 +74,15 @@ export function MatchRow({
   const isPredDraw  = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
-  const inputDisabled = locked || (!!result && !retroactive)
-  const showPenPick = isKnockout && !locked && isPredDraw && (retroactive ? true : !result)
-  const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !locked && (retroactive ? true : !result)
+  const inputDisabled = locked || committed || (!!result && !retroactive)
+  const showPenPick = isKnockout && !locked && !committed && isPredDraw && (retroactive ? true : !result)
+  const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !locked && !committed && (retroactive ? true : !result)
   const hasPred     = isOutcomeRound
     ? (sel != null && !awaitingPen)
     : (prediction != null && prediction.home >= 0 && prediction.away >= 0)
+  // Lock-in is offered only for a complete prediction that's still editable and
+  // not yet committed (and not in practice/retroactive mode, where there's no reveal to gate).
+  const canLockIn = !!onLockIn && hasPred && !committed && !locked && !result && !retroactive
 
   // Ensure calcPoints receives the derived outcome (handles old predictions with null outcome)
   const predForCalc = prediction
@@ -380,6 +385,26 @@ export function MatchRow({
           )}
         </div>
       )}
+
+      {/* ── Lock-in / committed footer ─────────────────────────────────────── */}
+      {committed && !result ? (
+        <div className="mx-3 mb-3 pt-2.5 border-t border-emerald-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+          <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+            <rect x="1" y="5" width="10" height="7" rx="1.5"/>
+            <path d="M3.5 5V3.5a2.5 2.5 0 015 0V5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+          Locked in
+        </div>
+      ) : canLockIn ? (
+        <div className="mx-3 mb-3 pt-2.5 border-t border-gray-100">
+          <button
+            onClick={() => onLockIn!(fixture.id)}
+            className="w-full py-2 text-xs font-semibold rounded-xl border-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+            🔒 Lock in this prediction
+          </button>
+          <p className="text-[10px] text-gray-400 text-center mt-1">Final — reveals your tribe&apos;s tipsheet for this match</p>
+        </div>
+      ) : null}
     </div>
   )
 }

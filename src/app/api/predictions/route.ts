@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('predictions')
-    .select('id, fixture_id, home, away, outcome, pen_winner, points_earned, standard_points, bonus_points, tournament_id, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score, pen_winner, result_outcome, tournament_id)')
+    .select('id, fixture_id, home, away, outcome, pen_winner, locked_at, points_earned, standard_points, bonus_points, tournament_id, created_at, updated_at, fixtures!inner(round, kickoff_utc, home_score, away_score, pen_winner, result_outcome, tournament_id)')
     .eq('user_id', user.id)
     .order('fixture_id')
 
@@ -107,6 +107,18 @@ export async function POST(request: NextRequest) {
       }
     })
     if (locked.length > 0) return NextResponse.json({ error: 'This round is not open for predictions yet.' }, { status: 409 })
+
+    // ── LOCKED-IN CHECK ──────────────────────────────────────────────────────
+    // A prediction the user has voluntarily locked in (locked_at set) is final
+    // and cannot be edited — even while the round is still open.
+    const { data: lockedInRows } = await (admin.from('predictions') as any)
+      .select('fixture_id').eq('user_id', user.id).in('fixture_id', fixtureIds).not('locked_at', 'is', null)
+    if ((lockedInRows ?? []).length > 0) {
+      return NextResponse.json({
+        error: 'A locked-in prediction cannot be changed.',
+        locked_fixture_ids: (lockedInRows ?? []).map((r: any) => r.fixture_id),
+      }, { status: 409 })
+    }
 
     const rows = predictions.map((p: any) => {
       const isOutcome = p.outcome != null
@@ -178,6 +190,12 @@ export async function DELETE(request: NextRequest) {
   if (!fx) return NextResponse.json({ error: 'Fixture not found' }, { status: 404 })
   if ((new Date(fx.kickoff_utc).getTime() - Date.now()) / 60000 <= 5 || fx.home_score !== null)
     return NextResponse.json({ error: 'Cannot withdraw after lockout' }, { status: 409 })
+
+  // A locked-in prediction is final — it cannot be withdrawn.
+  const { data: predLock } = await (supabase.from('predictions') as any)
+    .select('locked_at').eq('user_id', user.id).eq('fixture_id', fixture_id).maybeSingle()
+  if ((predLock as any)?.locked_at)
+    return NextResponse.json({ error: 'A locked-in prediction cannot be withdrawn.' }, { status: 409 })
 
   const { error } = await (supabase.from('predictions') as any).delete().match({ user_id: user.id, fixture_id })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

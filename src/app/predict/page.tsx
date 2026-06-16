@@ -14,7 +14,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useTimezone } from '@/hooks/useTimezone'
 
-type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; standard_points?: number|null; bonus_points?: number|null }>
+type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; locked_at?: string|null; standard_points?: number|null; bonus_points?: number|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
@@ -76,6 +76,9 @@ export default function PredictPage() {
   const [firstWinCelebrated, setFirstWinCelebrated] = useState<boolean | null>(null)
   const [confirmClear,   setConfirmClear]   = useState(false)
   const [clearingPractice, setClearingPractice] = useState(false)
+  const [lockTarget,     setLockTarget]     = useState<number | null>(null)  // fixture pending lock-in confirm
+  const [lockingFixture, setLockingFixture] = useState(false)
+  const [lockError,      setLockError]      = useState<string | null>(null)
   const [failedSaves,        setFailedSaves]        = useState<Set<number>>(new Set())
   const [saveVisible,        setSaveVisible]        = useState(false)
 
@@ -103,6 +106,7 @@ export default function PredictPage() {
             away:            saved.away,
             outcome:         saved.outcome    ?? null,
             pen_winner:      saved.pen_winner ?? null,
+            locked_at:       saved.locked_at  ?? null,
             standard_points: saved.standard_points ?? null,
             bonus_points:    saved.bonus_points    ?? null,
           },
@@ -165,7 +169,7 @@ export default function PredictPage() {
         // Predictions map
         const pm: PredMap = {}
         for (const p of (predData.data ?? []) as any[]) {
-          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null, standard_points: p.standard_points ?? null, bonus_points: p.bonus_points ?? null }
+          pm[p.fixture_id] = { home: p.home, away: p.away, outcome: p.outcome ?? null, pen_winner: p.pen_winner ?? null, locked_at: p.locked_at ?? null, standard_points: p.standard_points ?? null, bonus_points: p.bonus_points ?? null }
         }
         setPredictions(pm)
 
@@ -469,6 +473,36 @@ export default function PredictPage() {
     return minsToKickoff <= 5
   }, [isRoundOpen, allowRetroactivePredictions])
 
+  // ── Lock-in (voluntary, irreversible commit that reveals the tribe tipsheet) ──
+  const isCommitted = useCallback((fixtureId: number) => !!predictions[fixtureId]?.locked_at, [predictions])
+
+  const handleLockIn = useCallback((fixtureId: number) => { setLockError(null); setLockTarget(fixtureId) }, [])
+
+  const confirmLockIn = useCallback(async () => {
+    if (lockTarget == null) return
+    const fixtureId = lockTarget
+    setLockingFixture(true); setLockError(null)
+    try {
+      const res  = await fetch('/api/predictions/lock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fixture_id: fixtureId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPredictions(prev => prev[fixtureId]
+          ? { ...prev, [fixtureId]: { ...prev[fixtureId], locked_at: body.locked_at ?? new Date().toISOString() } }
+          : prev)
+        setLockTarget(null)
+      } else {
+        setLockError(body.error ?? 'Could not lock this prediction.')
+      }
+    } catch {
+      setLockError('Network error — please try again.')
+    } finally {
+      setLockingFixture(false)
+    }
+  }, [lockTarget])
+
   // Current open round tab
   const currentRoundTab = useMemo(() => {
     const hasLocks = Object.keys(roundLocks).length > 0
@@ -676,6 +710,7 @@ export default function PredictPage() {
       prediction={predictions[f.id] ?? null}
       result={effectiveResult}
       locked={isLocked(f)}
+      committed={isCommitted(f.id)}
       saving={saving.has(f.id)}
       celebrating={celebrating.has(f.id)}
       isFavourite={!!favouriteTeam && (f.home === favouriteTeam || f.away === favouriteTeam)}
@@ -685,6 +720,7 @@ export default function PredictPage() {
       retroactive={allowRetroactivePredictions}
       onPredict={onPredict}
       onOutcome={onOutcome}
+      onLockIn={(f.round as string) === 'wup' ? handleLockIn : undefined}
       onPenWinner={onPenWinner}
     />
   )
@@ -938,6 +974,34 @@ export default function PredictPage() {
               </button>
             )
           )}
+        </div>
+      )}
+
+      {/* Lock-in confirmation — irreversible */}
+      {lockTarget != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={() => { if (!lockingFixture) setLockTarget(null) }}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">🔒</span>
+              <h3 className="text-base font-bold text-gray-900">Lock in this prediction?</h3>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Once locked, this prediction is <strong>final</strong> — you can&apos;t change or withdraw it.
+              In return, you&apos;ll unlock your tribe&apos;s tipsheet for this match (everyone who&apos;s also locked in).
+            </p>
+            {lockError && <p className="text-xs text-red-600 mt-2">{lockError}</p>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setLockTarget(null)} disabled={lockingFixture}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmLockIn} disabled={lockingFixture}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+                {lockingFixture ? 'Locking…' : 'Lock in'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
