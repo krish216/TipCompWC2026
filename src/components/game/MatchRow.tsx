@@ -31,13 +31,14 @@ interface Props {
   onOutcome?:   (fixtureId: number, outcome: 'H'|'D'|'A') => void
   onPenWinner?: (fixtureId: number, team: string) => void
   onLockIn?:    (fixtureId: number) => void
+  onViewTipsheet?: (fixtureId: number) => void
 }
 
 export function MatchRow({
   fixture, round, prediction, result,
   locked = false, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
-  onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn,
+  onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
   const { flag } = useUserPrefs()
   const [localHome, setLocalHome] = useState<string>(
@@ -388,12 +389,20 @@ export function MatchRow({
 
       {/* ── Lock-in / committed footer ─────────────────────────────────────── */}
       {committed && !result ? (
-        <div className="mx-3 mb-3 pt-2.5 border-t border-emerald-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-700">
-          <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-            <rect x="1" y="5" width="10" height="7" rx="1.5"/>
-            <path d="M3.5 5V3.5a2.5 2.5 0 015 0V5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-          </svg>
-          Locked in
+        <div className="mx-3 mb-3 pt-2.5 border-t border-emerald-100 flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+              <rect x="1" y="5" width="10" height="7" rx="1.5"/>
+              <path d="M3.5 5V3.5a2.5 2.5 0 015 0V5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+            </svg>
+            Locked in
+          </span>
+          {onViewTipsheet && (
+            <button onClick={() => onViewTipsheet(fixture.id)}
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+              📋 Tribe tipsheet →
+            </button>
+          )}
         </div>
       ) : canLockIn ? (
         <div className="mx-3 mb-3 pt-2.5 border-t border-gray-100">

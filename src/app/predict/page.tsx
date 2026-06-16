@@ -6,6 +6,7 @@ import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
+import { FixtureTipsheetModal } from '@/components/game/FixtureTipsheetModal'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { RoundScoringCheatSheet } from '@/components/game/RoundScoringCheatSheet'
 import { EmptyState, Spinner } from '@/components/ui'
@@ -42,7 +43,7 @@ const predictCache = new Map<string, PredictCacheEntry>()
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
-  const { selectedTourn, selectedTournId, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const { selectedTourn, selectedTournId, selectedTribeId, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
@@ -79,6 +80,7 @@ export default function PredictPage() {
   const [lockTarget,     setLockTarget]     = useState<number | null>(null)  // fixture pending lock-in confirm
   const [lockingFixture, setLockingFixture] = useState(false)
   const [lockError,      setLockError]      = useState<string | null>(null)
+  const [tipsheetFixture, setTipsheetFixture] = useState<number | null>(null)  // fixture whose tribe tipsheet is open
   const [failedSaves,        setFailedSaves]        = useState<Set<number>>(new Set())
   const [saveVisible,        setSaveVisible]        = useState(false)
 
@@ -477,6 +479,7 @@ export default function PredictPage() {
   const isCommitted = useCallback((fixtureId: number) => !!predictions[fixtureId]?.locked_at, [predictions])
 
   const handleLockIn = useCallback((fixtureId: number) => { setLockError(null); setLockTarget(fixtureId) }, [])
+  const handleViewTipsheet = useCallback((fixtureId: number) => setTipsheetFixture(fixtureId), [])
 
   const confirmLockIn = useCallback(async () => {
     if (lockTarget == null) return
@@ -493,6 +496,8 @@ export default function PredictPage() {
           ? { ...prev, [fixtureId]: { ...prev[fixtureId], locked_at: body.locked_at ?? new Date().toISOString() } }
           : prev)
         setLockTarget(null)
+        if (selectedTribeId) setTipsheetFixture(fixtureId)  // reveal the tribe tipsheet right after locking
+
       } else {
         setLockError(body.error ?? 'Could not lock this prediction.')
       }
@@ -501,7 +506,7 @@ export default function PredictPage() {
     } finally {
       setLockingFixture(false)
     }
-  }, [lockTarget])
+  }, [lockTarget, selectedTribeId])
 
   // Current open round tab
   const currentRoundTab = useMemo(() => {
@@ -721,6 +726,7 @@ export default function PredictPage() {
       onPredict={onPredict}
       onOutcome={onOutcome}
       onLockIn={(f.round as string) === 'wup' ? handleLockIn : undefined}
+      onViewTipsheet={selectedTribeId ? handleViewTipsheet : undefined}
       onPenWinner={onPenWinner}
     />
   )
@@ -1003,6 +1009,15 @@ export default function PredictPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tribe tipsheet for a locked fixture */}
+      {tipsheetFixture != null && selectedTribeId && (
+        <FixtureTipsheetModal
+          fixtureId={tipsheetFixture}
+          tribeId={selectedTribeId}
+          onClose={() => setTipsheetFixture(null)}
+        />
       )}
 
       {/* Fixtures — chronological, grouped by date */}
