@@ -1844,22 +1844,34 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             />
           </div>
 
-          {/* ── Final ── */}
-          <div style={{ position: 'absolute', top: matchTY(4, 0) - 14, left: colX(4), width: COL_W }}>
-            <div className="text-[8px] font-bold text-amber-500 tracking-wider uppercase text-center mb-1.5">
-              Final · Jul 20 · MetLife, NY
-            </div>
-            <BracketMatchCard
-              matchKey={BRACKET_TREE.final.key}
-              homeTeam={picks[BRACKET_TREE.final.from[0]] ?? null}
-              awayTeam={picks[BRACKET_TREE.final.from[1]] ?? null}
-              homeDesc={BRACKET_TREE.final.from[0]}
-              awayDesc={BRACKET_TREE.final.from[1]}
-              winner={champion}
-              savePick={savePick}
-              isFinal
-            />
-          </div>
+          {/* ── Final (locked until 3rd place is picked, so it isn't skipped) ── */}
+          {(() => {
+            const finalHome   = picks[BRACKET_TREE.final.from[0]] ?? null
+            const finalAway   = picks[BRACKET_TREE.final.from[1]] ?? null
+            const thirdPicked = !!picks[BRACKET_TREE.thirdPlace.key]
+            const finalLocked = !!(finalHome && finalAway) && !thirdPicked
+            return (
+              <div style={{ position: 'absolute', top: matchTY(4, 0) - 14, left: colX(4), width: COL_W }}>
+                <div className="text-[8px] font-bold text-amber-500 tracking-wider uppercase text-center mb-1.5">
+                  Final · Jul 20 · MetLife, NY
+                </div>
+                <BracketMatchCard
+                  matchKey={BRACKET_TREE.final.key}
+                  homeTeam={finalHome}
+                  awayTeam={finalAway}
+                  homeDesc={BRACKET_TREE.final.from[0]}
+                  awayDesc={BRACKET_TREE.final.from[1]}
+                  winner={champion}
+                  savePick={savePick}
+                  isFinal
+                  locked={finalLocked}
+                />
+                {finalLocked && (
+                  <p className="text-[8px] font-semibold text-amber-600 text-center mt-1 leading-tight">🥉 Pick the 3rd-place winner first</p>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ── Champion ── */}
           {champion && (
@@ -1907,7 +1919,7 @@ function BracketConnectors({ fromRoundIdx, fromCount }: { fromRoundIdx: number; 
   )
 }
 
-function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick, isFinal }: {
+function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick, isFinal, locked }: {
   matchKey: string
   homeTeam: string | null
   awayTeam: string | null
@@ -1916,16 +1928,18 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
   winner: string | null
   savePick: (k: string, v: string | null) => void
   isFinal?: boolean
+  locked?: boolean
 }) {
   const pick = (team: string | null) => {
-    if (!team) return
+    if (!team || locked) return
     savePick(matchKey, winner === team ? null : team)
   }
 
   return (
     <div className={clsx(
       'rounded-xl border bg-white shadow-sm overflow-hidden',
-      isFinal ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200'
+      isFinal ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200',
+      locked && 'opacity-60'
     )} style={{ height: CARD_H }}>
       {[
         { team: homeTeam, desc: homeDesc },
