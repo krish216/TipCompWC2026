@@ -274,18 +274,25 @@ export default function BracketLeaderboardPage() {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
-          <div className="bg-green-900 rounded-2xl px-5 py-8 text-center">
-            {/* Sponsor — large, centred hero */}
-            <p className="text-[10px] uppercase tracking-[0.22em] text-green-300/70 mb-3">Sponsored by</p>
-            {cfg.sponsor_url
-              ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-28 w-auto max-w-[320px] mx-auto" /></a>
-              : <SponsorLogoMark cfg={cfg} surface="dark" className="h-28 w-auto max-w-[320px] mx-auto" />}
+          <div className="bg-green-900 rounded-2xl px-5 py-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            {/* Title + prize — left */}
+            <div className="min-w-0">
+              <p className="text-base font-bold text-white leading-tight">Bracket Challenge 🏆</p>
+              {cfg.prize
+                ? <p className="text-xs text-green-200 mt-0.5">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+                : <p className="text-xs text-green-300 mt-0.5">Predict the knockout bracket</p>}
+            </div>
 
-            {/* Title + prize */}
-            <h1 className="text-2xl font-black text-white mt-6">Bracket Challenge 🏆</h1>
-            {cfg.prize
-              ? <p className="text-sm text-green-200 mt-1">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
-              : <p className="text-sm text-green-300 mt-1">Predict the knockout bracket</p>}
+            {/* Logo — large, centred */}
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-[8px] uppercase tracking-[0.2em] text-green-300/70 whitespace-nowrap">Sponsored by</span>
+              {cfg.sponsor_url
+                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-16 sm:h-24 w-auto max-w-[140px] sm:max-w-[220px]" /></a>
+                : <SponsorLogoMark cfg={cfg} surface="dark" className="h-16 sm:h-24 w-auto max-w-[140px] sm:max-w-[220px]" />}
+            </div>
+
+            {/* Spacer — keeps the logo centred against the left title */}
+            <div aria-hidden />
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">Global leaderboard · max {data?.max ?? 80} pts</p>
