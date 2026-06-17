@@ -10,4 +10,8 @@ export type Sponsor = {
 export const SPONSORS: Record<string, Sponsor | null> = {
   'leaderboard-infeed': null,
   'predict-infeed':     null,
+  // Bracket Challenge insert fallback. Normally driven by the admin co-branding
+  // config (app_settings bracket_sponsor_*); this static entry only shows if no
+  // bracket sponsor is configured. See BracketSponsorInsert.
+  'bracket-infeed':     null,
 }

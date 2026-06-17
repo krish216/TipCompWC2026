@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner } from '@/components/ui'
+import { AdSlot } from '@/components/ui/AdSlot'
 import { BracketEntryModal } from '@/components/game/BracketEntryModal'
 import { flagFor } from '@/lib/team-flags'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 type RoundKey = 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'final'
 interface Entry {
@@ -174,6 +176,43 @@ function Row({ e, isMe }: { e: Entry; isMe: boolean }) {
   )
 }
 
+// Sponsor insert below the bracket. Driven by the same admin co-branding config
+// as the header (app_settings bracket_sponsor_*) — no deploy. Falls back to the
+// generic AdSlot when no bracket sponsor is set; never shown to premium users
+// (the insert space is ad-free for premium).
+function BracketSponsorInsert({ cfg }: { cfg: any }) {
+  const { isPremium } = useUserPrefs()
+  if (isPremium) return null
+
+  const hasSponsor = !!(cfg?.enabled && (cfg.sponsor_logo || cfg.sponsor_name))
+  if (!hasSponsor) return <AdSlot slot="bracket-infeed" className="mt-4" />
+
+  const inner = (
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        {cfg.sponsor_logo
+          ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-10 object-contain flex-shrink-0" />
+          : <span className="text-lg font-extrabold text-gray-900 flex-shrink-0">{cfg.sponsor_name}</span>}
+        <div className="min-w-0">
+          {cfg.prize
+            ? <p className="text-sm font-bold text-gray-900 truncate">🎁 Win <span className="text-emerald-700">{cfg.prize}</span></p>
+            : <p className="text-sm font-bold text-gray-900 truncate">{cfg.sponsor_name || 'Our sponsor'}</p>}
+          <p className="text-[11px] text-gray-400">Proud sponsor of the Bracket Challenge</p>
+        </div>
+      </div>
+      <p className="text-center text-[9px] uppercase tracking-widest text-gray-400 pb-1.5">Sponsored</p>
+    </div>
+  )
+
+  return (
+    <div className="mt-4">
+      {cfg.sponsor_url
+        ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="block">{inner}</a>
+        : inner}
+    </div>
+  )
+}
+
 function LeaderboardList({ data }: { data: Data }) {
   return (
     <>
@@ -330,6 +369,9 @@ export default function BracketLeaderboardPage() {
           ) : (
             <LeaderboardList data={data} />
           )}
+
+          {/* Sponsor insert / ad space below the bracket (admin-controlled) */}
+          <BracketSponsorInsert cfg={cfg} />
         </>
       )}
 
