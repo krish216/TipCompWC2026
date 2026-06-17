@@ -12,7 +12,7 @@ interface Entry {
   by_round: Record<RoundKey, number>; correct: Record<RoundKey, number>
 }
 interface Data {
-  entries: Entry[]; total_entrants: number; me: Entry | null; max: number; scoring_started: boolean
+  entries: Entry[]; total_entrants: number; me: Entry | null; max: number; scoring_started: boolean; simulated?: boolean
 }
 
 const ROUND_LABEL: { key: RoundKey; label: string; outOf: number }[] = [
@@ -132,6 +132,11 @@ export default function BracketLeaderboardPage() {
 
       {data && (
         <>
+          {data.simulated && (
+            <div className="mb-4 rounded-xl border border-purple-300 bg-purple-50 px-3 py-2.5 text-xs font-semibold text-purple-800">
+              🧪 Simulation mode — these standings are a test simulation, not live results.
+            </div>
+          )}
           {!data.scoring_started && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
               ⏳ Scoring begins at the <strong>Round of 32</strong> — everyone&apos;s on 0 until the knockouts kick off.

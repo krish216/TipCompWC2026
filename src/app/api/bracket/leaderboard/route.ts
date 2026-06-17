@@ -19,11 +19,22 @@ export async function GET(request: NextRequest) {
   }
   if (!tournamentId) return NextResponse.json({ entries: [], total_entrants: 0, me: null, max: BRACKET_MAX, scoring_started: false })
 
-  // Actual knockout winners (only matches with a result count).
-  const { data: fx } = await (admin.from('fixtures') as any)
-    .select('round, kickoff_utc, home, away, home_score, away_score, pen_winner')
-    .eq('tournament_id', tournamentId).in('round', ['r32', 'r16', 'qf', 'sf', 'tp', 'f'])
-  const actual = buildActualWinners((fx ?? []) as KnockoutFixture[])
+  // Simulation overlay: when bracket_sim_mode is ON, score against simulated
+  // winners (bracket_sim_results) instead of live fixtures — the main prediction
+  // game is never touched. Otherwise, derive winners from real knockout results.
+  const { data: simModeRow } = await (admin.from('app_settings') as any).select('value').eq('key', 'bracket_sim_mode').maybeSingle()
+  const simulated = (simModeRow as any)?.value === 'on'
+
+  let actual: Record<string, string> = {}
+  if (simulated) {
+    const { data: sim } = await (admin.from('bracket_sim_results') as any).select('slot_key, team_name').eq('tournament_id', tournamentId)
+    ;((sim ?? []) as any[]).forEach(r => { if (r.team_name) actual[r.slot_key] = r.team_name })
+  } else {
+    const { data: fx } = await (admin.from('fixtures') as any)
+      .select('round, kickoff_utc, home, away, home_score, away_score, pen_winner')
+      .eq('tournament_id', tournamentId).in('round', ['r32', 'r16', 'qf', 'sf', 'tp', 'f'])
+    actual = buildActualWinners((fx ?? []) as KnockoutFixture[])
+  }
   const scoringStarted = Object.keys(actual).length > 0
 
   // All bracket picks for this tournament (paged past PostgREST's 1000 cap).
@@ -72,5 +83,6 @@ export async function GET(request: NextRequest) {
     me,                                     // caller's own row (incl. rank), even if outside top 12
     max:             BRACKET_MAX,
     scoring_started: scoringStarted,
+    simulated,                              // true → results are an admin simulation, not live
   })
 }

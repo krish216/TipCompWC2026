@@ -8,6 +8,13 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
+import { SCORED_SLOTS } from '@/lib/bracket-scoring'
+
+const SIM_ROUND_DEFS: { round: string; label: string }[] = [
+  { round: 'r32', label: 'Round of 32' }, { round: 'r16', label: 'Round of 16' },
+  { round: 'qf',  label: 'Quarter-finals' }, { round: 'sf', label: 'Semi-finals' },
+  { round: 'tp',  label: '3rd place' }, { round: 'final', label: 'Final' },
+]
 
 
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
@@ -424,6 +431,27 @@ export default function AdminPage() {
       if (bracketLogoRef.current) bracketLogoRef.current.value = ''
     }
   }
+
+  // ── Bracket Simulator (Demo tab) ───────────────────────────────────────────
+  const [simCfg, setSimCfg] = useState<{ sim_mode: boolean; winners: Record<string, string>; teams: string[] }>(
+    { sim_mode: false, winners: {}, teams: [] })
+  const [simBusy, setSimBusy] = useState(false)
+
+  const reloadSim = () => fetch('/api/bracket/sim').then(r => r.json())
+    .then(d => { if (d && Array.isArray(d.teams)) setSimCfg({ sim_mode: !!d.sim_mode, winners: d.winners ?? {}, teams: d.teams }) })
+    .catch(() => {})
+
+  useEffect(() => { if (activeTab === 'demo') reloadSim() }, [activeTab])
+
+  const postSim = async (payload: any, okMsg: string) => {
+    setSimBusy(true)
+    const res = await fetch('/api/bracket/sim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    setSimBusy(false)
+    if (res.ok) { toast.success(okMsg); await reloadSim() } else toast.error('Failed')
+  }
+  const setSimSlot = (slot: string, team: string) => setSimCfg(p => {
+    const w = { ...p.winners }; if (team) w[slot] = team; else delete w[slot]; return { ...p, winners: w }
+  })
 
   const handleToggleReportCard = async () => {
     const next = !reportCardOn
@@ -1219,6 +1247,56 @@ export default function AdminPage() {
       {/* ════════════════════════════════════════════════════ */}
       {activeTab === 'demo' && (
         <div className="space-y-4">
+          {/* Bracket Simulator */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-bold text-gray-900">🏆 Bracket Simulator</h2>
+              <button onClick={() => setSimCfg(p => ({ ...p, sim_mode: !p.sim_mode }))}
+                className={clsx('relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors',
+                  simCfg.sim_mode ? 'bg-purple-500' : 'bg-gray-200')}>
+                <span className={clsx('pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform',
+                  simCfg.sim_mode ? 'translate-x-5' : 'translate-x-0')} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              {simCfg.sim_mode
+                ? 'SIM ON — the Bracket leaderboard shows these simulated standings to everyone (with a 🧪 banner). Turn OFF before going live.'
+                : 'SIM OFF — the Bracket leaderboard uses live knockout results.'}{' '}
+              Never touches the main prediction game.
+            </p>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <button onClick={() => postSim({ action: 'auto' }, 'Auto-simulated from picks')} disabled={simBusy}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">⚡ Auto-simulate</button>
+              <button onClick={() => postSim({ action: 'clear' }, 'Simulation cleared')} disabled={simBusy}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Clear</button>
+              <a href="/bracket/leaderboard" target="_blank" className="ml-auto px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 self-center">View leaderboard ↗</a>
+            </div>
+
+            {SIM_ROUND_DEFS.map(({ round, label }) => {
+              const slots = SCORED_SLOTS.filter(s => s.round === round).map(s => s.slot)
+              return (
+                <div key={round} className="mb-3">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {slots.map(slot => (
+                      <select key={slot} value={simCfg.winners[slot] ?? ''} onChange={e => setSimSlot(slot, e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                        <option value="">{slot} — winner?</option>
+                        {simCfg.teams.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+
+            <button onClick={() => postSim({ action: 'save', sim_mode: simCfg.sim_mode, winners: simCfg.winners }, 'Simulation saved')} disabled={simBusy}
+              className="mt-2 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
+              {simBusy ? 'Working…' : 'Save simulation'}
+            </button>
+            <p className="text-[10px] text-gray-400 mt-2">Tip: ⚡ Auto-simulate fills each slot with the most-popular pick (so the board populates), then toggle SIM ON + Save.</p>
+          </div>
+
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <h2 className="text-sm font-bold text-gray-900 mb-1">Pre-Tournament Demo Mode</h2>
             <p className="text-xs text-gray-500 mb-4">
