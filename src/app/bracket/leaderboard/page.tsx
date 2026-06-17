@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner } from '@/components/ui'
+import { BracketEntryModal } from '@/components/game/BracketEntryModal'
 
 type RoundKey = 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'final'
 interface Entry {
@@ -23,6 +24,13 @@ const ROUND_LABEL: { key: RoundKey; label: string; outOf: number }[] = [
   { key: 'final', label: 'Final', outOf: 1 },
 ]
 
+function closesLabel(iso: string): string {
+  const d = new Date(iso)
+  const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
+  const date = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+  return days > 1 ? `close ${date} · ${days} days` : `close ${date}`
+}
+
 function Row({ e, isMe }: { e: Entry; isMe: boolean }) {
   return (
     <div className={clsx('grid grid-cols-[36px_1fr_56px] gap-2 items-center px-3 py-2.5 border-b border-gray-100 last:border-0', isMe && 'bg-emerald-50')}>
@@ -39,12 +47,14 @@ function Row({ e, isMe }: { e: Entry; isMe: boolean }) {
 export default function BracketLeaderboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [err,  setErr]  = useState(false)
+  const [es,   setEs]   = useState<any | null>(null)   // entry status (/api/bracket/enter)
+  const [showEnter, setShowEnter] = useState(false)
+
+  const loadEntry = () => fetch('/api/bracket/enter').then(r => r.json()).then(setEs).catch(() => {})
 
   useEffect(() => {
-    fetch('/api/bracket/leaderboard')
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setErr(true))
+    fetch('/api/bracket/leaderboard').then(r => r.json()).then(setData).catch(() => setErr(true))
+    loadEntry()
   }, [])
 
   return (
@@ -56,6 +66,35 @@ export default function BracketLeaderboardPage() {
         </div>
         <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
       </div>
+
+      {/* Entry status / CTA */}
+      {es && es.available && (
+        es.locked ? (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">🔒 Entries closed — the knockouts have started.</div>
+        ) : !es.logged_in ? (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 flex items-center justify-between gap-2">
+            <span>Log in to enter the Bracket Challenge.</span>
+            <a href="/login" className="font-semibold underline whitespace-nowrap">Log in →</a>
+          </div>
+        ) : es.entered ? (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+            ✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goals · 3rd place <strong>{es.entry?.tp_goals}</strong> goals.
+          </div>
+        ) : !es.has_bracket ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 flex items-center justify-between gap-2">
+            <span>Pick your champion to complete your bracket, then enter.</span>
+            <a href="/bracket" className="font-semibold underline whitespace-nowrap">Finish bracket →</a>
+          </div>
+        ) : (
+          <div className="mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-emerald-900">🎯 Enter to win</p>
+              <p className="text-[11px] text-emerald-700 mt-0.5">{es.closes_at ? `Entries ${closesLabel(es.closes_at)}` : 'Open now'}</p>
+            </div>
+            <button onClick={() => setShowEnter(true)} className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter →</button>
+          </div>
+        )
+      )}
 
       {!data && !err && <div className="flex justify-center py-16"><Spinner className="w-7 h-7" /></div>}
       {err && <p className="text-center text-sm text-gray-500 py-16">Couldn&apos;t load the leaderboard.</p>}
@@ -114,6 +153,10 @@ export default function BracketLeaderboardPage() {
             {data.total_entrants} bracket{data.total_entrants === 1 ? '' : 's'} entered · one global pool
           </p>
         </>
+      )}
+
+      {showEnter && (
+        <BracketEntryModal onClose={() => setShowEnter(false)} onEntered={() => { setShowEnter(false); loadEntry() }} />
       )}
     </div>
   )
