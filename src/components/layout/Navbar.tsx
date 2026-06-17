@@ -30,6 +30,7 @@ const NOTIF_ICONS: Record<string, string> = {
   low_tipping_alert: '⚠️',
   round_complete:    '🏁',
   weekly_report:     '📋',
+  feedback_reply:    '💬',
 }
 
 function timeAgo(dateStr: string): string {

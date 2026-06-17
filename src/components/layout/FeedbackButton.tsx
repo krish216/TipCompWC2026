@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 type Category = 'bug' | 'suggestion' | 'other'
@@ -24,6 +25,9 @@ function timeAgo(iso: string) {
 export function FeedbackButton() {
   const { session } = useSupabase()
   const isGuest = !session
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
 
   const [open,           setOpen]           = useState(false)
   const [activeView,     setActiveView]     = useState<'submit' | 'mine' | 'updates'>('submit')
@@ -60,6 +64,16 @@ export function FeedbackButton() {
   useEffect(() => { if (open) { loadResponses(); loadMine() } }, [open, loadResponses, loadMine])
   // Restore which public responses this browser already marked helpful (soft dedupe).
   useEffect(() => { try { setHelpfulVoted(new Set(JSON.parse(localStorage.getItem('tribepicks_fb_helpful') || '[]'))) } catch {} }, [])
+
+  // Deep-link from the "We replied to your feedback" notification: ?feedback=1
+  // opens the panel on the Your-feedback tab, then strips the param.
+  useEffect(() => {
+    if (searchParams.get('feedback') !== '1') return
+    setOpen(true)
+    setActiveView('mine')
+    loadMine()
+    router.replace(pathname, { scroll: false })
+  }, [searchParams, pathname, router, loadMine])
 
   const hasUpdates = publicResponses.length > 0
   const hasMine    = myFeedback.length > 0

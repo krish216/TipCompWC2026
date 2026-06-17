@@ -10,6 +10,7 @@ export type NotificationType =
   | 'low_tipping_alert'
   | 'round_complete'
   | 'weekly_report'
+  | 'feedback_reply'
 
 export interface CreateNotificationParams {
   user_id:  string

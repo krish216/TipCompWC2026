@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
+import { createNotifications } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,8 +82,26 @@ export async function PATCH(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Snapshot the prior state so we only notify on the FIRST reply (not edits).
+  const { data: existing } = await (admin.from('feedback') as any)
+    .select('user_id, admin_response').eq('id', id).maybeSingle()
+
   const { error } = await (admin.from('feedback') as any).update(update).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // "We replied to your feedback" — bell notification to the submitter the first
+  // time a response is written. Guests (no user_id) can't be notified in-app.
+  const newResp = update.admin_response as string | null | undefined
+  if (newResp && existing && !(existing as any).admin_response && (existing as any).user_id) {
+    await createNotifications({
+      user_id: (existing as any).user_id,
+      type:    'feedback_reply',
+      title:   'We replied to your feedback',
+      body:    newResp.length > 90 ? `${newResp.slice(0, 90)}…` : newResp,
+      data:    { href: '/?feedback=1', feedback_id: id },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

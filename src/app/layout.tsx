@@ -77,7 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}
             </main>
-            <FeedbackButton />
+            <Suspense fallback={null}><FeedbackButton /></Suspense>
             <Suspense fallback={null}><RefCapture /></Suspense>
             <Toaster
               position="top-right"
