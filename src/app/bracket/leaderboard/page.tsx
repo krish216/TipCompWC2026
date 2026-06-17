@@ -262,23 +262,32 @@ export default function BracketLeaderboardPage() {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-900 text-white p-4 shadow">
-            <div className="flex items-center justify-between gap-3">
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-900 text-white p-5 shadow">
+            <div className="flex items-start justify-between gap-3">
+              {/* Sponsor — leads the card with a prominent logo */}
               {(() => {
                 const mark = cfg.sponsor_logo
-                  ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-9 bg-white rounded-lg px-3 py-1.5 object-contain" />
-                  : <span className="font-extrabold text-lg">{cfg.sponsor_name}</span>
-                return cfg.sponsor_url
-                  ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored">{mark}</a>
-                  : mark
+                  ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-16 bg-white rounded-xl px-3 py-2 object-contain shadow-sm" />
+                  : <span className="font-extrabold text-2xl">{cfg.sponsor_name}</span>
+                return (
+                  <div className="leading-none">
+                    <div className="text-[9px] uppercase tracking-widest opacity-75 mb-1.5">Sponsored by</div>
+                    {cfg.sponsor_url
+                      ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-block">{mark}</a>
+                      : mark}
+                  </div>
+                )
               })()}
               <div className="text-right leading-none">
                 <div className="text-[9px] uppercase tracking-widest opacity-75 mb-1">powered by</div>
                 <div className="font-extrabold text-sm">TribePicks</div>
               </div>
             </div>
-            <h1 className="text-xl font-black mt-3">Bracket Challenge 🏆</h1>
-            {cfg.prize && <p className="text-sm mt-1 opacity-95">Win <strong className="text-amber-300">{cfg.prize}</strong></p>}
+            {/* Title — centred */}
+            <div className="text-center mt-5">
+              <h1 className="text-2xl font-black">Bracket Challenge 🏆</h1>
+              {cfg.prize && <p className="text-sm mt-1 opacity-95">Win <strong className="text-amber-300">{cfg.prize}</strong></p>}
+            </div>
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">Global leaderboard · max {data?.max ?? 80} pts</p>
