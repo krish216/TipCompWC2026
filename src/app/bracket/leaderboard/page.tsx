@@ -262,26 +262,26 @@ export default function BracketLeaderboardPage() {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-900 text-white px-5 py-6 shadow text-center">
-            {/* Sponsor lockup — the hero of the card */}
-            <p className="text-[10px] uppercase tracking-[0.2em] opacity-70 mb-2.5">Sponsored by</p>
-            {(() => {
-              const mark = cfg.sponsor_logo
-                ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-16 bg-white rounded-xl px-4 py-2.5 object-contain shadow-md mx-auto" />
-                : <span className="block font-extrabold text-2xl">{cfg.sponsor_name}</span>
-              return cfg.sponsor_url
-                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-block">{mark}</a>
-                : mark
-            })()}
+          <div className="bg-green-900 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            {/* Title — left */}
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">Bracket Challenge 🏆</p>
+              {cfg.prize
+                ? <p className="text-[11px] text-green-300">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+                : <p className="text-[11px] text-green-300">Predict the knockout bracket</p>}
+            </div>
 
-            {/* Title + prize */}
-            <h1 className="text-2xl font-black mt-5">Bracket Challenge 🏆</h1>
-            {cfg.prize && <p className="text-sm mt-1 opacity-95">Win <strong className="text-amber-300">{cfg.prize}</strong></p>}
-
-            {/* Platform attribution */}
-            <div className="mt-5 pt-3 border-t border-white/15">
-              <span className="text-[10px] uppercase tracking-[0.2em] opacity-60">Powered by </span>
-              <span className="text-xs font-bold align-middle">TribePicks</span>
+            {/* Sponsor — right, logo blended (no chip) */}
+            <div className="flex flex-col items-end gap-1 flex-shrink-0 leading-none">
+              <span className="text-[8px] uppercase tracking-[0.18em] text-green-300/70">Sponsored by</span>
+              {(() => {
+                const mark = cfg.sponsor_logo
+                  ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-10 w-auto max-w-[130px] object-contain drop-shadow" />
+                  : <span className="text-sm font-bold text-white">{cfg.sponsor_name}</span>
+                return cfg.sponsor_url
+                  ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex">{mark}</a>
+                  : mark
+              })()}
             </div>
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
