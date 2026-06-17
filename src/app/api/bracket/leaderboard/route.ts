@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
-import { buildActualWinners, scoreBracket, BRACKET_MAX, type KnockoutFixture } from '@/lib/bracket-scoring'
+import { buildActualWinners, scoreBracket, BRACKET_MAX, SCORED_SLOTS, type KnockoutFixture } from '@/lib/bracket-scoring'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'   // live results — never serve a cached fetch
@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
 
   const byUser: Record<string, Record<string, string | null>> = {}
   for (const r of rows) (byUser[r.user_id] ??= {})[r.slot_key] = r.team_name
-  const userIds = Object.keys(byUser)
+  // Entrant = made ≥1 knockout (scored) pick. Excludes abandoned brackets that only
+  // have group-stage picks — they can never score and would just sit at 0.
+  const userIds = Object.keys(byUser).filter(uid => SCORED_SLOTS.some(s => byUser[uid][s.slot]))
   if (!userIds.length) return NextResponse.json({ entries: [], total_entrants: 0, me: null, max: BRACKET_MAX, scoring_started: scoringStarted })
 
   const { data: users } = await (admin.from('users') as any).select('id, display_name, avatar_url').in('id', userIds)
