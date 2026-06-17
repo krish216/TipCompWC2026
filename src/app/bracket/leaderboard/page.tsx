@@ -41,8 +41,8 @@ const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 function SponsorLogoMark({ cfg, surface, className }: { cfg: any; surface: 'dark' | 'light'; className?: string }) {
   const tone = cfg?.logo_tone === 'light' ? 'light' : 'dark'
   const chip =
-    surface === 'dark' && tone === 'dark'  ? 'bg-white rounded-lg px-2.5 py-1.5 shadow-sm' :
-    surface === 'light' && tone === 'light' ? 'bg-green-900 rounded-lg px-2.5 py-1.5' :
+    surface === 'dark' && tone === 'dark'  ? 'bg-white rounded-xl px-3.5 py-2.5 shadow-sm' :
+    surface === 'light' && tone === 'light' ? 'bg-green-900 rounded-xl px-3.5 py-2.5' :
     'drop-shadow'
   return cfg?.sponsor_logo
     ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className={clsx('object-contain', chip, className)} />
@@ -274,22 +274,18 @@ export default function BracketLeaderboardPage() {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
-          <div className="bg-green-900 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-            {/* Title — left */}
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-white truncate">Bracket Challenge 🏆</p>
-              {cfg.prize
-                ? <p className="text-[11px] text-green-300">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
-                : <p className="text-[11px] text-green-300">Predict the knockout bracket</p>}
-            </div>
+          <div className="bg-green-900 rounded-2xl px-5 py-8 text-center">
+            {/* Sponsor — large, centred hero */}
+            <p className="text-[10px] uppercase tracking-[0.22em] text-green-300/70 mb-3">Sponsored by</p>
+            {cfg.sponsor_url
+              ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-28 w-auto max-w-[320px] mx-auto" /></a>
+              : <SponsorLogoMark cfg={cfg} surface="dark" className="h-28 w-auto max-w-[320px] mx-auto" />}
 
-            {/* Sponsor — right, backed per logo tone */}
-            <div className="flex flex-col items-end gap-1 flex-shrink-0 leading-none">
-              <span className="text-[8px] uppercase tracking-[0.18em] text-green-300/70">Sponsored by</span>
-              {cfg.sponsor_url
-                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-9 w-auto max-w-[120px]" /></a>
-                : <SponsorLogoMark cfg={cfg} surface="dark" className="h-9 w-auto max-w-[120px]" />}
-            </div>
+            {/* Title + prize */}
+            <h1 className="text-2xl font-black text-white mt-6">Bracket Challenge 🏆</h1>
+            {cfg.prize
+              ? <p className="text-sm text-green-200 mt-1">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+              : <p className="text-sm text-green-300 mt-1">Predict the knockout bracket</p>}
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">Global leaderboard · max {data?.max ?? 80} pts</p>
