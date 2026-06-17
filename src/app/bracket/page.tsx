@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
+import { BracketGuestEntryModal, PENDING_ENTRY_KEY } from '@/components/game/BracketGuestEntryModal'
 
 // ── Group compositions (WC 2026) ─────────────────────────────────────────────
 type Team = { name: string; flag: string }
@@ -279,6 +280,7 @@ export default function BracketPage() {
   const [section, setSection] = useState<Section>('groups')
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [showGuestEnter, setShowGuestEnter] = useState(false)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -365,7 +367,23 @@ export default function BracketPage() {
           body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
         })
       )
-    ).catch(() => {})
+    ).then(() => {
+      // Phase 3: replay a prize entry stashed by a guest whose email already had
+      // an account (BracketGuestEntryModal). Now that they're logged in and their
+      // bracket has migrated, complete the entry they couldn't make unauthenticated.
+      let pending: any = null
+      try {
+        const raw = localStorage.getItem(PENDING_ENTRY_KEY)
+        if (raw) pending = JSON.parse(raw)
+      } catch {}
+      if (pending && pending.tournament_id === selectedTournId) {
+        fetch('/api/bracket/enter', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pending),
+        }).then(r => { if (r.ok) { try { localStorage.removeItem(PENDING_ENTRY_KEY) } catch {} } })
+          .catch(() => {})
+      }
+    }).catch(() => {})
 
     // Also claim any bracket_predictions guest row saved under the session_id
     const champion = picksRef.current['final'] ?? null
@@ -660,22 +678,27 @@ export default function BracketPage() {
             <span className="text-sm font-bold text-emerald-900">{champion}</span>
             <span className="text-2xl leading-none">🏆</span>
           </div>
-          <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — keep going</p>
-          <p className="text-xs text-emerald-700 mb-3">Your bracket is saved when you sign up — then tip every match of WC 2026 and compete with your crew all tournament long.</p>
-          <div className="flex gap-2">
-            <a href="/login?tab=register&bracket=1"
-              className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition-all">
-              Start a comp →
-            </a>
-            <a href="/login?tab=register&bracket=1"
-              className="flex-1 text-center bg-white border border-emerald-300 hover:bg-emerald-50 active:scale-95 text-emerald-700 text-xs font-semibold py-2.5 rounded-xl transition-all">
-              Join a comp
-            </a>
-          </div>
+          <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — enter to win 🏆</p>
+          <p className="text-xs text-emerald-700 mb-3">Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.</p>
+          <button onClick={() => setShowGuestEnter(true)}
+            className="w-full text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold py-3 rounded-xl transition-all">
+            Enter the Bracket Challenge →
+          </button>
           <p className="text-center text-[11px] text-emerald-600 mt-2.5">
-            🔖 Sign up to save your bracket permanently — it'll be waiting for you.
+            Want a full comp with your crew? <a href="/login?tab=register&bracket=1" className="underline font-semibold">Sign up here</a>.
           </p>
         </div>
+      )}
+
+      {showGuestEnter && selectedTournId && (
+        <BracketGuestEntryModal
+          tournamentId={selectedTournId}
+          picks={picks}
+          sessionId={getOrCreateSessionId()}
+          source={sourceRef.current}
+          device={deviceRef.current}
+          onClose={() => setShowGuestEnter(false)}
+        />
       )}
 
       {/* Champion share banner — shown above section tabs when bracket is complete */}
