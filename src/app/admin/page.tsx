@@ -402,6 +402,9 @@ export default function AdminPage() {
   const [savingBracket,         setSavingBracket]         = useState(false)
   const [bracketLogoUploading,  setBracketLogoUploading]  = useState(false)
   const bracketLogoRef = useRef<HTMLInputElement>(null)
+  // Load the sponsor config only once — re-fetching on every tab visit would
+  // overwrite unsaved edits (e.g. flipping the enabled toggle back to the server value).
+  const bracketCfgLoaded = useRef(false)
 
   const saveBracketConfig = async () => {
     setSavingBracket(true)
@@ -559,9 +562,11 @@ export default function AdminPage() {
     fetch('/api/admin/report-stats').then(r => r.json())
       .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
       .catch(() => {})
-    fetch('/api/bracket/config').then(r => r.json())
-      .then(d => { if (d && typeof d.enabled === 'boolean') setBracketCfg(d) })
-      .catch(() => {})
+    if (!bracketCfgLoaded.current) {
+      fetch('/api/bracket/config').then(r => r.json())
+        .then(d => { if (d && typeof d.enabled === 'boolean') { setBracketCfg(d); bracketCfgLoaded.current = true } })
+        .catch(() => {})
+    }
   }, [activeTab])
 
   // Load announcements when tab is opened
