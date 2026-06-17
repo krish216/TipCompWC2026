@@ -274,9 +274,9 @@ export default function BracketLeaderboardPage() {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
-          <div className="bg-green-900 rounded-2xl px-5 py-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            {/* Title — left */}
-            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight min-w-0">Bracket Challenge</h1>
+          <div className="bg-green-900 rounded-2xl px-5 py-6 flex flex-col items-center gap-4 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
+            {/* Title — centred on mobile (stacked), left in the three-up */}
+            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight text-center sm:text-left min-w-0">Bracket Challenge</h1>
 
             {/* Logo — centred; tile hugs the creative (max-h, not fixed h, so wide/short
                 wordmarks don't letterbox) */}
