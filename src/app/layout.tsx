@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Suspense } from 'react'
 import './globals.css'
+import 'flag-icons/css/flag-icons.min.css'   // image-based flags (emoji flags don't render on Windows)
 import { Toaster } from 'react-hot-toast'
 import { Analytics } from '@vercel/analytics/next'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'

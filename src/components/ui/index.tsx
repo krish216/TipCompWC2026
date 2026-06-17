@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 export { CrownBadge, PremiumSection, PremiumButton, UpgradeModal } from './PremiumGate'
 export { TeamPickerSheet } from './TeamPickerSheet'
 export { FavTeamPicker } from './FavTeamPicker'
+export { Flag } from './Flag'
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 export function Avatar({

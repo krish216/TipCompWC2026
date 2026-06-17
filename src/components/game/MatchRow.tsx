@@ -4,10 +4,10 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
+import { Flag } from '@/components/ui/Flag'
 import type { Fixture, MatchScore, RoundId } from '@/types'
 import { calcPoints, getDefaultScoringConfig, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
-import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const short = (t: string) => t.length > 14 ? t.replace('and ', '& ').split(' ').map((w,i) => i === 0 ? w : w[0]+'.').join(' ') : t
 
@@ -40,7 +40,6 @@ export function MatchRow({
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
-  const { flag } = useUserPrefs()
   const [localHome, setLocalHome] = useState<string>(
     prediction && prediction.home >= 0 ? String(prediction.home) : ''
   )
@@ -217,7 +216,7 @@ export function MatchRow({
 
         {/* Home team */}
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-          <span className="text-4xl leading-none">{flag(fixture.home)}</span>
+          <Flag team={fixture.home} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight',
             result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
@@ -339,7 +338,7 @@ export function MatchRow({
 
         {/* Away team */}
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-          <span className="text-4xl leading-none">{flag(fixture.away)}</span>
+          <Flag team={fixture.away} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight',
             result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
@@ -364,7 +363,7 @@ export function MatchRow({
                     ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                     : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50'
                 )}>
-                {flag(team)} {team}
+                <Flag team={team} className="text-base mr-1" /> {team}
               </button>
             ))}
           </div>
@@ -376,7 +375,7 @@ export function MatchRow({
         <div className="mx-3 mb-3 pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5">
           <span className="text-[11px] text-gray-500">
             Penalties: <span className="font-semibold text-gray-700">
-              {flag((result as any).pen_winner)} {(result as any).pen_winner}
+              <Flag team={(result as any).pen_winner} className="text-sm mr-0.5" /> {(result as any).pen_winner}
             </span>
           </span>
           {penWinner && (

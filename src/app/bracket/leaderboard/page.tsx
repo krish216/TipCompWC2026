@@ -6,7 +6,7 @@ import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { BracketEntryModal } from '@/components/game/BracketEntryModal'
-import { flagFor } from '@/lib/team-flags'
+import { Flag } from '@/components/ui/Flag'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 type RoundKey = 'r32' | 'r16' | 'qf' | 'sf' | 'tp' | 'final'
@@ -55,7 +55,7 @@ function MatchRow({ s }: { s: SlotCard }) {
   if (!s.played) {
     return (
       <div className="grid grid-cols-[1fr_auto] gap-2 items-center px-4 py-2.5 border-b border-gray-50 last:border-0">
-        <span className="text-sm text-gray-500 truncate">{s.pick ? <>{flagFor(s.pick)} <span className="font-medium text-gray-700">{s.pick}</span></> : <span className="italic text-gray-400">No pick</span>}</span>
+        <span className="text-sm text-gray-500 truncate">{s.pick ? <><Flag team={s.pick} className="text-sm mr-1 rounded-sm" /><span className="font-medium text-gray-700">{s.pick}</span></> : <span className="italic text-gray-400">No pick</span>}</span>
         <span className="text-xs font-semibold text-gray-400">to play</span>
       </div>
     )
@@ -67,8 +67,8 @@ function MatchRow({ s }: { s: SlotCard }) {
   return (
     <div className="grid grid-cols-[1fr_auto] gap-2 items-center px-4 py-2.5 border-b border-gray-50 last:border-0">
       <div className="min-w-0 text-sm truncate">
-        <span>{flagFor(subject)} <span className="font-semibold text-gray-900">{subject}</span></span>
-        {verb && object && <span className="text-gray-400"> {verb} {flagFor(object)} <span className="text-gray-500">{object}</span></span>}
+        <span><Flag team={subject} className="text-sm mr-1 rounded-sm" /><span className="font-semibold text-gray-900">{subject}</span></span>
+        {verb && object && <span className="text-gray-400"> {verb} <Flag team={object} className="text-sm mx-0.5 rounded-sm" /><span className="text-gray-500">{object}</span></span>}
         {note && <span className="block text-[11px] text-gray-400 truncate">{note}</span>}
       </div>
       {s.correct
@@ -119,7 +119,7 @@ function MeScorecard({ me, champion, scorecard, max, totalEntrants, entry }: {
         <div className="mx-4 mb-3 rounded-xl bg-gray-50 px-3 py-2.5 text-sm flex items-center gap-2">
           <span>🏆</span>
           <span className="text-gray-500">Champion pick:</span>
-          <span className="font-bold text-gray-900">{flagFor(champion.team)} {champion.team}</span>
+          <span className="font-bold text-gray-900 inline-flex items-center gap-1"><Flag team={champion.team} className="text-base rounded-sm" />{champion.team}</span>
           <span className="text-gray-300">—</span>
           {champBadge}
         </div>

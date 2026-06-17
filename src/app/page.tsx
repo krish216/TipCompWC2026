@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
-import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet } from '@/components/ui'
+import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet, Flag } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
@@ -346,7 +346,7 @@ function CompModal({
                     <button type="button" onClick={() => setTeamPickerOpen(true)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-sky-200 rounded-lg bg-white hover:bg-sky-50 transition-colors">
                       {teamAffil
-                        ? (() => { const t = teams.find(t => t.name === teamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{teamAffil}</span></> })()
+                        ? <><Flag team={teamAffil} className="text-base rounded-sm" /><span className="font-medium text-gray-800">{teamAffil}</span></>
                         : <span className="text-gray-400">Select a team…</span>}
                       <span className="ml-auto text-sky-400 text-xs">▼</span>
                     </button>

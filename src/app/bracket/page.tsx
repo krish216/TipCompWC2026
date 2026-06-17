@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
-import { Spinner } from '@/components/ui'
+import { Spinner, Flag } from '@/components/ui'
 import { BracketGuestEntryModal, PENDING_ENTRY_KEY } from '@/components/game/BracketGuestEntryModal'
 
 // ── Group compositions (WC 2026) ─────────────────────────────────────────────
@@ -674,7 +674,7 @@ export default function BracketPage() {
       {!session && champion && section === 'bracket' && (
         <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-3xl leading-none">{flagFor(champion)}</span>
+            <Flag team={champion} className="text-3xl rounded shadow-sm" />
             <span className="text-sm font-bold text-emerald-900">{champion}</span>
             <span className="text-2xl leading-none">🏆</span>
           </div>
@@ -880,7 +880,7 @@ function GroupCard({ group, picks, savePick }: {
               'text-xs px-2 py-0.5 rounded-full font-medium',
               t ? 'bg-emerald-600 text-white' : 'bg-white text-gray-400 border border-gray-200'
             )}>
-              {t ? `${flagFor(t)} ${t}` : (i === 0 ? '1st ?' : '2nd ?')}
+              {t ? <><Flag team={t} className="mr-1 rounded-[1px]" />{t}</> : (i === 0 ? '1st ?' : '2nd ?')}
             </span>
           ))}
         </div>
@@ -1023,7 +1023,7 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate, groupsDon
                         <span className="text-[9px] text-gray-400">· vs {fmtOpponent(opponent)}</span>
                       )}
                     </div>
-                    <span className="text-base leading-none">{flagFor(assigned)}</span>
+                    <Flag team={assigned} className="text-base rounded-sm" />
                     <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{assigned}</span>
                     <span className="text-[9px] font-bold text-emerald-600 flex-shrink-0">✓ Advancing</span>
                     <button
@@ -1067,7 +1067,7 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate, groupsDon
                             </span>
                             {thirdTeam ? (
                               <>
-                                <span className={disabled ? 'opacity-40' : ''}>{flagFor(thirdTeam)}</span>
+                                <Flag team={thirdTeam} className={clsx('text-base rounded-sm', disabled && 'opacity-40')} />
                                 <span className={clsx(
                                   'text-xs font-medium flex-1 truncate',
                                   disabled ? 'text-gray-300' : 'text-gray-700'
@@ -1105,7 +1105,7 @@ function ThirdsSection({ picks, savePick, advancingThirds, onNavigate, groupsDon
                   <div key={g.id}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 opacity-50">
                     <span className="text-[10px] font-bold text-gray-400 w-8 flex-shrink-0">Grp {g.id}</span>
-                    <span>{flagFor(team)}</span>
+                    <Flag team={team} className="text-base rounded-sm" />
                     <span className="text-xs text-gray-500 flex-1">{team}</span>
                     <span className="text-[9px] text-gray-400">Eliminated</span>
                   </div>
@@ -1197,7 +1197,7 @@ function ThirdsProgressBar({ advancingThirds, onNavigate }: {
                   team ? 'bg-emerald-50' : 'bg-gray-50'
                 )}>
                   <span className="text-sm leading-none">
-                    {team ? flagFor(team) : (
+                    {team ? <Flag team={team} className="text-sm rounded-sm" /> : (
                       <span className="text-[10px] font-bold text-gray-300">{i + 1}</span>
                     )}
                   </span>
@@ -1904,7 +1904,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
               left: colX(4) + COL_W + 10,
               width: CHAMP_W - 10,
             }} className="flex flex-col items-center gap-1 bg-amber-50 border border-amber-200 rounded-xl px-2 py-2.5">
-              <span className="text-2xl leading-none">{flagFor(champion)}</span>
+              <Flag team={champion} className="text-2xl rounded-sm" />
               <span className="text-[9px] font-bold text-amber-700 text-center leading-tight">{champion}</span>
               <span className="text-base leading-none">🏆</span>
             </div>
@@ -1987,7 +1987,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
               : 'cursor-default'
             )}>
             <span className="text-sm leading-none flex-shrink-0" aria-hidden="true">
-              {team ? flagFor(team) : '·'}
+              {team ? <Flag team={team} className="text-sm rounded-sm" /> : '·'}
             </span>
             <span className={clsx(
               'text-[11px] truncate flex-1 leading-none',

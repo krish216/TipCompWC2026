@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { TeamPickerSheet } from './TeamPickerSheet'
+import { Flag } from '@/components/ui/Flag'
 
 interface Team {
   name:       string
@@ -53,7 +54,7 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
               >
                 {selected ? (
                   <>
-                    <span className="text-base leading-none">{selected.flag_emoji}</span>
+                    <Flag team={selected.name} className="text-base rounded-sm" />
                     <span>{selected.name}</span>
                     {!disabled && (
                       <span role="button" onClick={clear}

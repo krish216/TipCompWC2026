@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, UpgradeModal, TeamPickerSheet } from '@/components/ui'
+import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, UpgradeModal, TeamPickerSheet, Flag } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { WeeklyIntelligenceReport } from '@/components/comp-admin/WeeklyIntelligenceReport'
@@ -1561,7 +1561,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
                   <button type="button" onClick={() => setOcTeamPicker(true)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors">
                     {ocTeamAffil
-                      ? (() => { const t = teamsList.find(t => t.name === ocTeamAffil); return <><span className="text-base">{t?.flag_emoji}</span><span className="font-medium text-gray-800">{ocTeamAffil}</span></> })()
+                      ? <><Flag team={ocTeamAffil} className="text-base rounded-sm" /><span className="font-medium text-gray-800">{ocTeamAffil}</span></>
                       : <span className="text-gray-400">Select a team…</span>}
                     <span className="ml-auto text-gray-400 text-xs">▼</span>
                   </button>
