@@ -48,24 +48,55 @@ export default function BracketLeaderboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [err,  setErr]  = useState(false)
   const [es,   setEs]   = useState<any | null>(null)   // entry status (/api/bracket/enter)
+  const [cfg,  setCfg]  = useState<any | null>(null)   // sponsor co-branding (/api/bracket/config)
   const [showEnter, setShowEnter] = useState(false)
 
   const loadEntry = () => fetch('/api/bracket/enter').then(r => r.json()).then(setEs).catch(() => {})
 
   useEffect(() => {
     fetch('/api/bracket/leaderboard').then(r => r.json()).then(setData).catch(() => setErr(true))
+    fetch('/api/bracket/config').then(r => r.json()).then(setCfg).catch(() => {})
     loadEntry()
   }, [])
 
+  const coBranded = !!(cfg?.enabled && (cfg.sponsor_name || cfg.sponsor_logo))
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">🏆 Bracket Challenge</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Global leaderboard · max {data?.max ?? 80} pts</p>
+      {coBranded ? (
+        <div className="mb-4">
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-900 text-white p-4 shadow">
+            <div className="flex items-center justify-between gap-3">
+              {(() => {
+                const mark = cfg.sponsor_logo
+                  ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-9 bg-white rounded-lg px-3 py-1.5 object-contain" />
+                  : <span className="font-extrabold text-lg">{cfg.sponsor_name}</span>
+                return cfg.sponsor_url
+                  ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored">{mark}</a>
+                  : mark
+              })()}
+              <div className="text-right leading-none">
+                <div className="text-[9px] uppercase tracking-widest opacity-75 mb-1">powered by</div>
+                <div className="font-extrabold text-sm">TribePicks</div>
+              </div>
+            </div>
+            <h1 className="text-xl font-black mt-3">Bracket Challenge 🏆</h1>
+            {cfg.prize && <p className="text-sm mt-1 opacity-95">Win <strong className="text-amber-300">{cfg.prize}</strong></p>}
+          </div>
+          <div className="flex items-center justify-between mt-2 px-1">
+            <p className="text-xs text-gray-500">Global leaderboard · max {data?.max ?? 80} pts</p>
+            <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Your bracket →</Link>
+          </div>
         </div>
-        <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">🏆 Bracket Challenge</h1>
+            <p className="text-xs text-gray-500 mt-0.5">Global leaderboard · max {data?.max ?? 80} pts</p>
+          </div>
+          <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
+        </div>
+      )}
 
       {/* Entry status / CTA */}
       {es && es.available && (
