@@ -397,8 +397,8 @@ export default function AdminPage() {
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
   // ── Bracket Challenge co-branding ──────────────────────────────────────────
-  const [bracketCfg, setBracketCfg] = useState<{ enabled: boolean; sponsor_name: string; sponsor_logo: string; prize: string; sponsor_url: string }>(
-    { enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', sponsor_url: '' })
+  const [bracketCfg, setBracketCfg] = useState<{ enabled: boolean; sponsor_name: string; sponsor_logo: string; prize: string; sponsor_url: string; logo_tone: 'dark' | 'light' }>(
+    { enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', sponsor_url: '', logo_tone: 'dark' })
   const [savingBracket,         setSavingBracket]         = useState(false)
   const [bracketLogoUploading,  setBracketLogoUploading]  = useState(false)
   const bracketLogoRef = useRef<HTMLInputElement>(null)
@@ -1109,8 +1109,13 @@ export default function AdminPage() {
               <div>
                 <label className="text-[11px] font-semibold text-gray-600">Sponsor logo</label>
                 <div className="flex items-center gap-3 mt-1">
+                  {/* Preview on the actual banner background so the tone choice is visible */}
                   {bracketCfg.sponsor_logo
-                    ? <img src={bracketCfg.sponsor_logo} alt="Sponsor logo" className="h-9 bg-gray-50 rounded px-2 border border-gray-200 object-contain" />
+                    ? <div className="bg-green-900 rounded-lg p-2 flex items-center">
+                        <img src={bracketCfg.sponsor_logo} alt="Sponsor logo"
+                          className={clsx('h-9 object-contain',
+                            bracketCfg.logo_tone === 'dark' ? 'bg-white rounded px-2 py-1' : 'drop-shadow')} />
+                      </div>
                     : <span className="text-xs text-gray-400">No logo</span>}
                   <button onClick={() => bracketLogoRef.current?.click()} disabled={bracketLogoUploading}
                     className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
@@ -1118,6 +1123,24 @@ export default function AdminPage() {
                   </button>
                   <input ref={bracketLogoRef} type="file" accept="image/*" className="hidden" onChange={handleBracketLogoUpload} />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-gray-600">Logo colour</label>
+                <div className="grid grid-cols-2 gap-1 mt-1 p-1 rounded-lg bg-gray-100">
+                  {([['dark', 'Dark logo'], ['light', 'Light logo']] as const).map(([val, lbl]) => (
+                    <button key={val} onClick={() => setBracketCfg(p => ({ ...p, logo_tone: val }))}
+                      className={clsx('py-1.5 rounded-md text-xs font-bold transition-colors',
+                        bracketCfg.logo_tone === val ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {bracketCfg.logo_tone === 'dark'
+                    ? 'Dark logo → shown on a light chip so it stands out on the green banner.'
+                    : 'Light / transparent logo → blends straight onto the green banner.'}
+                </p>
               </div>
             </div>
 

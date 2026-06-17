@@ -35,6 +35,20 @@ const ROUND_META: { key: RoundKey; label: string; outOf: number; pts: number }[]
 
 const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 
+// Sponsor logo, backed per surface so it stays visible regardless of its tone:
+// a dark logo gets a light chip on the green banner; a light logo gets a dark
+// chip on the white insert. Renders the mark only — callers add the link.
+function SponsorLogoMark({ cfg, surface, className }: { cfg: any; surface: 'dark' | 'light'; className?: string }) {
+  const tone = cfg?.logo_tone === 'light' ? 'light' : 'dark'
+  const chip =
+    surface === 'dark' && tone === 'dark'  ? 'bg-white rounded-lg px-2.5 py-1.5 shadow-sm' :
+    surface === 'light' && tone === 'light' ? 'bg-green-900 rounded-lg px-2.5 py-1.5' :
+    'drop-shadow'
+  return cfg?.sponsor_logo
+    ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className={clsx('object-contain', chip, className)} />
+    : <span className={clsx('font-bold', surface === 'dark' ? 'text-white' : 'text-gray-900')}>{cfg?.sponsor_name}</span>
+}
+
 // One match within an expanded round, framed from the player's pick.
 function MatchRow({ s }: { s: SlotCard }) {
   let subject = s.pick, verb: string | null = null, object: string | null = null, note: string | null = null
@@ -190,9 +204,7 @@ function BracketSponsorInsert({ cfg }: { cfg: any }) {
   const inner = (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3.5">
-        {cfg.sponsor_logo
-          ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-10 object-contain flex-shrink-0" />
-          : <span className="text-lg font-extrabold text-gray-900 flex-shrink-0">{cfg.sponsor_name}</span>}
+        <div className="flex-shrink-0"><SponsorLogoMark cfg={cfg} surface="light" className="h-10 w-auto max-w-[140px]" /></div>
         <div className="min-w-0">
           {cfg.prize
             ? <p className="text-sm font-bold text-gray-900 truncate">🎁 Win <span className="text-emerald-700">{cfg.prize}</span></p>
@@ -271,17 +283,12 @@ export default function BracketLeaderboardPage() {
                 : <p className="text-[11px] text-green-300">Predict the knockout bracket</p>}
             </div>
 
-            {/* Sponsor — right, logo blended (no chip) */}
+            {/* Sponsor — right, backed per logo tone */}
             <div className="flex flex-col items-end gap-1 flex-shrink-0 leading-none">
               <span className="text-[8px] uppercase tracking-[0.18em] text-green-300/70">Sponsored by</span>
-              {(() => {
-                const mark = cfg.sponsor_logo
-                  ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className="h-10 w-auto max-w-[130px] object-contain drop-shadow" />
-                  : <span className="text-sm font-bold text-white">{cfg.sponsor_name}</span>
-                return cfg.sponsor_url
-                  ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex">{mark}</a>
-                  : mark
-              })()}
+              {cfg.sponsor_url
+                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-9 w-auto max-w-[120px]" /></a>
+                : <SponsorLogoMark cfg={cfg} surface="dark" className="h-9 w-auto max-w-[120px]" />}
             </div>
           </div>
           <div className="flex items-center justify-between mt-2 px-1">

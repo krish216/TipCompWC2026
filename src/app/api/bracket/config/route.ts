@@ -13,6 +13,7 @@ const KEYS = {
   sponsor_logo: 'bracket_sponsor_logo',
   prize:        'bracket_prize',
   sponsor_url:  'bracket_sponsor_url',
+  logo_tone:    'bracket_sponsor_logo_tone',   // 'dark' | 'light' — drives backing per surface
 } as const
 
 export async function GET() {
@@ -26,6 +27,7 @@ export async function GET() {
     sponsor_logo: m[KEYS.sponsor_logo] ?? '',
     prize:        m[KEYS.prize] ?? '',
     sponsor_url:  m[KEYS.sponsor_url] ?? '',
+    logo_tone:    m[KEYS.logo_tone] === 'light' ? 'light' : 'dark',
   })
 }
 
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
     { key: KEYS.sponsor_logo, value: String(b.sponsor_logo ?? '').trim() },
     { key: KEYS.prize,        value: String(b.prize ?? '').trim() },
     { key: KEYS.sponsor_url,  value: String(b.sponsor_url ?? '').trim() },
+    { key: KEYS.logo_tone,    value: b.logo_tone === 'light' ? 'light' : 'dark' },
   ].map(r => ({ ...r, updated_at: now }))
 
   const { error } = await (admin.from('app_settings') as any).upsert(rows)
