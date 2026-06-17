@@ -275,15 +275,8 @@ export default function BracketLeaderboardPage() {
       {coBranded ? (
         <div className="mb-4">
           <div className="bg-green-900 rounded-2xl px-5 py-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            {/* Title + prize — block hugs the left, text centre-justified within it */}
-            <div className="min-w-0">
-              <div className="inline-block text-center">
-                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">Bracket Challenge</h1>
-                {cfg.prize
-                  ? <p className="text-sm sm:text-base text-green-200 mt-1.5">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
-                  : <p className="text-sm sm:text-base text-green-300 mt-1.5">🏆 Predict the knockout bracket</p>}
-              </div>
-            </div>
+            {/* Title — left */}
+            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight min-w-0">Bracket Challenge</h1>
 
             {/* Logo — centred; tile hugs the creative (max-h, not fixed h, so wide/short
                 wordmarks don't letterbox) */}
@@ -294,8 +287,12 @@ export default function BracketLeaderboardPage() {
                 : <SponsorLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
             </div>
 
-            {/* Spacer — keeps the logo centred against the left title */}
-            <div aria-hidden />
+            {/* Prize — right, balances the title and keeps the logo centred */}
+            <div className="text-center min-w-0">
+              {cfg.prize
+                ? <p className="text-sm sm:text-base text-green-200">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+                : <p className="text-sm sm:text-base text-green-300">🏆 Predict the knockout bracket</p>}
+            </div>
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">Global leaderboard · max {data?.max ?? 80} pts</p>
