@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 type Category = 'bug' | 'suggestion' | 'other'
-type PublicResponse = { id: string; category: string; message: string; admin_response: string; response_at: string }
+type PublicResponse = { id: string; category: string; message: string; admin_response: string; response_at: string; helpful_count?: number }
+type MyFeedback = { id: string; category: string; message: string; created_at: string; admin_response: string | null; response_at: string | null; response_rating: 'up' | 'down' | null }
 
 const CATEGORIES: { value: Category; label: string }[] = [
   { value: 'bug',        label: '🐛 Bug' },
@@ -25,13 +26,15 @@ export function FeedbackButton() {
   const isGuest = !session
 
   const [open,           setOpen]           = useState(false)
-  const [activeView,     setActiveView]     = useState<'submit' | 'updates'>('submit')
+  const [activeView,     setActiveView]     = useState<'submit' | 'mine' | 'updates'>('submit')
   const [category,       setCategory]       = useState<Category>('suggestion')
   const [message,        setMessage]        = useState('')
   const [contactEmail,   setContactEmail]   = useState('')
   const [submitting,     setSubmitting]     = useState(false)
   const [done,           setDone]           = useState(false)
   const [publicResponses, setPublicResponses] = useState<PublicResponse[]>([])
+  const [myFeedback,      setMyFeedback]      = useState<MyFeedback[]>([])
+  const [helpfulVoted,    setHelpfulVoted]    = useState<Set<string>>(new Set())
   const [refreshing,      setRefreshing]      = useState(false)
 
   const loadResponses = useCallback(() => {
@@ -45,9 +48,40 @@ export function FeedbackButton() {
       .finally(() => setRefreshing(false))
   }, [])
 
-  useEffect(() => { if (open) loadResponses() }, [open, loadResponses])
+  // The caller's own feedback + any reply (so they can see + rate responses to THEIR items).
+  const loadMine = useCallback(() => {
+    if (!session?.access_token) { setMyFeedback([]); return Promise.resolve() }
+    return fetch('/api/feedback/mine', { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setMyFeedback(d.items ?? []))
+      .catch(() => {})
+  }, [session])
+
+  useEffect(() => { if (open) { loadResponses(); loadMine() } }, [open, loadResponses, loadMine])
+  // Restore which public responses this browser already marked helpful (soft dedupe).
+  useEffect(() => { try { setHelpfulVoted(new Set(JSON.parse(localStorage.getItem('tribepicks_fb_helpful') || '[]'))) } catch {} }, [])
 
   const hasUpdates = publicResponses.length > 0
+  const hasMine    = myFeedback.length > 0
+
+  // A — mark a published response helpful (optimistic + soft client-side dedupe).
+  const voteHelpful = (id: string) => {
+    if (helpfulVoted.has(id)) return
+    setPublicResponses(prev => prev.map(r => r.id === id ? { ...r, helpful_count: (r.helpful_count ?? 0) + 1 } : r))
+    const next = new Set(helpfulVoted); next.add(id); setHelpfulVoted(next)
+    try { localStorage.setItem('tribepicks_fb_helpful', JSON.stringify([...next])) } catch {}
+    fetch('/api/feedback/responses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => {})
+  }
+
+  // B — rate the admin reply to your own feedback (tap again to clear).
+  const rateMine = (id: string, rating: 'up' | 'down') => {
+    const current = myFeedback.find(f => f.id === id)?.response_rating ?? null
+    const next = current === rating ? null : rating
+    setMyFeedback(prev => prev.map(f => f.id === id ? { ...f, response_rating: next } : f))
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+    fetch('/api/feedback/mine', { method: 'PATCH', headers, body: JSON.stringify({ id, rating: next }) }).catch(() => {})
+  }
 
   const reset = () => { setCategory('suggestion'); setMessage(''); setContactEmail(''); setDone(false) }
   const close = () => { setOpen(false); reset() }
@@ -98,26 +132,37 @@ export function FeedbackButton() {
           <div className="absolute inset-0 bg-black/40" onClick={close} />
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm z-10 overflow-hidden">
 
-            {/* Tab bar — only shown when there are published responses */}
-            {hasUpdates && (
+            {/* Tab bar — shown when there are published responses or the caller has feedback */}
+            {(hasUpdates || hasMine) && (
               <div className="flex border-b border-gray-100">
                 <button
                   onClick={() => setActiveView('submit')}
                   className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${
                     activeView === 'submit' ? 'text-gray-900 border-b-2 border-green-700' : 'text-gray-400 hover:text-gray-600'
                   }`}>
-                  Share feedback
+                  Share
                 </button>
-                <button
-                  onClick={() => { setActiveView('updates'); loadResponses() }}
-                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors relative ${
-                    activeView === 'updates' ? 'text-gray-900 border-b-2 border-green-700' : 'text-gray-400 hover:text-gray-600'
-                  }`}>
-                  Updates from us
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full">
-                    {publicResponses.length}
-                  </span>
-                </button>
+                {hasMine && (
+                  <button
+                    onClick={() => { setActiveView('mine'); loadMine() }}
+                    className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${
+                      activeView === 'mine' ? 'text-gray-900 border-b-2 border-green-700' : 'text-gray-400 hover:text-gray-600'
+                    }`}>
+                    Your feedback
+                  </button>
+                )}
+                {hasUpdates && (
+                  <button
+                    onClick={() => { setActiveView('updates'); loadResponses() }}
+                    className={`flex-1 py-2.5 text-xs font-semibold transition-colors relative ${
+                      activeView === 'updates' ? 'text-gray-900 border-b-2 border-green-700' : 'text-gray-400 hover:text-gray-600'
+                    }`}>
+                    Updates
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full">
+                      {publicResponses.length}
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -132,13 +177,13 @@ export function FeedbackButton() {
                   </div>
                 ) : (
                   <>
-                    {!hasUpdates && (
+                    {!(hasUpdates || hasMine) && (
                       <div className="flex items-center justify-between mb-4">
                         <h2 className="text-base font-bold text-gray-900">Share feedback</h2>
                         <button onClick={close} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                       </div>
                     )}
-                    {hasUpdates && (
+                    {(hasUpdates || hasMine) && (
                       <div className="flex justify-end mb-3">
                         <button onClick={close} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                       </div>
@@ -191,6 +236,47 @@ export function FeedbackButton() {
               </div>
             )}
 
+            {/* Your feedback view — replies to the caller's own items + rating */}
+            {activeView === 'mine' && (
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-gray-900">Your feedback</h2>
+                  <button onClick={close} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                </div>
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {myFeedback.map(f => {
+                    const catLabel = f.category === 'bug' ? '🐛' : f.category === 'suggestion' ? '💡' : '💬'
+                    return (
+                      <div key={f.id} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <span className="text-xs mt-0.5">{catLabel}</span>
+                          <p className="text-xs text-gray-600 flex-1 line-clamp-2">{f.message}</p>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(f.created_at)}</span>
+                        </div>
+                        {f.admin_response ? (
+                          <>
+                            <div className="bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                              <p className="text-[11px] font-semibold text-green-700 mb-0.5">From the team</p>
+                              <p className="text-xs text-green-900">{f.admin_response}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-gray-500">Did this resolve it?</span>
+                              <button onClick={() => rateMine(f.id, 'up')}
+                                className={`text-sm w-7 h-7 rounded-lg border transition-colors ${f.response_rating === 'up' ? 'bg-green-100 border-green-300' : 'bg-white border-gray-200 hover:border-green-300'}`}>👍</button>
+                              <button onClick={() => rateMine(f.id, 'down')}
+                                className={`text-sm w-7 h-7 rounded-lg border transition-colors ${f.response_rating === 'down' ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200 hover:border-red-300'}`}>👎</button>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic">Awaiting a reply from the team.</p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Updates view */}
             {activeView === 'updates' && (
               <div className="p-5">
@@ -221,7 +307,13 @@ export function FeedbackButton() {
                           <p className="text-[11px] font-semibold text-green-700 mb-0.5">From the team</p>
                           <p className="text-xs text-green-900">{r.admin_response}</p>
                         </div>
-                        <p className="text-[10px] text-gray-400 text-right">{timeAgo(r.response_at)}</p>
+                        <div className="flex items-center justify-between">
+                          <button onClick={() => voteHelpful(r.id)} disabled={helpfulVoted.has(r.id)}
+                            className={`text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors ${helpfulVoted.has(r.id) ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:border-green-300'}`}>
+                            👍 Helpful{(r.helpful_count ?? 0) > 0 ? ` · ${r.helpful_count}` : ''}
+                          </button>
+                          <span className="text-[10px] text-gray-400">{timeAgo(r.response_at)}</span>
+                        </div>
                       </div>
                     )
                   })}

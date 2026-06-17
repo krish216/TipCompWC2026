@@ -183,6 +183,7 @@ export default function AdminPage() {
     id: string; user_id: string | null; user_email: string | null; contact_email: string | null
     category: string; message: string; page_url: string | null; created_at: string
     admin_response: string | null; response_at: string | null; show_response: boolean
+    helpful_count?: number | null; response_rating?: 'up' | 'down' | null
   }
   const [feedbackItems,     setFeedbackItems]     = useState<FeedbackItem[]>([])
   const [feedbackLoading,   setFeedbackLoading]   = useState(false)
@@ -1503,6 +1504,17 @@ export default function AdminPage() {
                               item.show_response ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
                               {item.show_response ? 'Published' : 'Draft response'}
                             </span>
+                          )}
+                          {/* Submitter's verdict on the reply */}
+                          {item.response_rating === 'up' && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-green-100 text-green-700">👍 Helped</span>
+                          )}
+                          {item.response_rating === 'down' && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-red-100 text-red-700">👎 Didn&apos;t help</span>
+                          )}
+                          {/* Public-wall helpful reactions */}
+                          {!!item.helpful_count && item.helpful_count > 0 && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">👍 {item.helpful_count}</span>
                           )}
                         </div>
                         <span className="text-[11px] text-gray-400 flex-shrink-0">{age}</span>

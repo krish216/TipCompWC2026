@@ -34,15 +34,17 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category') ?? 'all'
 
   const admin = createAdminClient()
-  let query = (admin.from('feedback') as any)
-    .select('id, user_id, category, message, page_url, contact_email, created_at, admin_response, response_at, show_response')
-    .order('created_at', { ascending: false })
+  const build = (cols: string) => {
+    let q = (admin.from('feedback') as any).select(cols).order('created_at', { ascending: false })
+    if (filter === 'responded')   q = q.not('admin_response', 'is', null)
+    if (filter === 'unresponded') q = q.is('admin_response', null)
+    if (category !== 'all')       q = q.eq('category', category)
+    return q
+  }
 
-  if (filter === 'responded')   query = query.not('admin_response', 'is', null)
-  if (filter === 'unresponded') query = query.is('admin_response', null)
-  if (category !== 'all')       query = query.eq('category', category)
-
-  const { data, error } = await query
+  // Try with the rating columns (migration 118); fall back if not applied yet.
+  let { data, error } = await build('id, user_id, category, message, page_url, contact_email, created_at, admin_response, response_at, show_response, helpful_count, response_rating')
+  if (error) ({ data, error } = await build('id, user_id, category, message, page_url, contact_email, created_at, admin_response, response_at, show_response'))
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Resolve emails for logged-in submitters
