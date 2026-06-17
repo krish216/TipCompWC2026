@@ -61,6 +61,37 @@ export function buildActualWinners(fixtures: KnockoutFixture[]): Record<string, 
   return out
 }
 
+// Per-slot fixture detail for the match-by-match scorecard: the actual winner,
+// the team they beat, and whether the match has been played. Mirrors the same
+// kickoff-order slot mapping as buildActualWinners.
+export interface SlotResult {
+  winner: string | null   // actual winner of the slot (null if not played)
+  loser:  string | null   // the team they beat (for "X def. Y")
+  played: boolean         // the match has a result
+}
+
+export function buildSlotResults(fixtures: KnockoutFixture[]): Record<string, SlotResult> {
+  const byRound: Record<string, KnockoutFixture[]> = {}
+  for (const f of fixtures) (byRound[f.round] ??= []).push(f)
+  const sorted = (round: string) =>
+    (byRound[round] ?? []).slice().sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
+
+  const detail = (f: KnockoutFixture): SlotResult => {
+    const w = fixtureWinner(f)
+    const played = f.home_score != null && f.away_score != null
+    const loser = w ? (norm(w) === norm(f.home) ? f.away : f.home) : null
+    return { winner: w, loser, played }
+  }
+
+  const out: Record<string, SlotResult> = {}
+  for (const [round, prefix] of [['r32', 'r32'], ['r16', 'r16'], ['qf', 'qf'], ['sf', 'sf']] as const) {
+    sorted(round).forEach((f, i) => { out[`${prefix}:${i + 1}`] = detail(f) })
+  }
+  const tp = sorted('tp')[0]; if (tp) out.tp = detail(tp)
+  const fin = sorted('f')[0]; if (fin) out.final = detail(fin)
+  return out
+}
+
 export interface BracketScore {
   total:   number
   byRound: Record<BracketRound, number>

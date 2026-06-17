@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
-import { buildActualWinners, scoreBracket, BRACKET_MAX, type KnockoutFixture } from '@/lib/bracket-scoring'
+import { buildActualWinners, buildSlotResults, scoreBracket, BRACKET_MAX, BRACKET_SLOT_POINTS, SCORED_SLOTS, type KnockoutFixture, type SlotResult } from '@/lib/bracket-scoring'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'   // live results — never serve a cached fetch
@@ -26,14 +26,18 @@ export async function GET(request: NextRequest) {
   const simulated = (simModeRow as any)?.value === 'on'
 
   let actual: Record<string, string> = {}
+  let slotResults: Record<string, SlotResult> = {}
   if (simulated) {
     const { data: sim } = await (admin.from('bracket_sim_results') as any).select('slot_key, team_name').eq('tournament_id', tournamentId)
-    ;((sim ?? []) as any[]).forEach(r => { if (r.team_name) actual[r.slot_key] = r.team_name })
+    ;((sim ?? []) as any[]).forEach(r => {
+      if (r.team_name) { actual[r.slot_key] = r.team_name; slotResults[r.slot_key] = { winner: r.team_name, loser: null, played: true } }
+    })
   } else {
     const { data: fx } = await (admin.from('fixtures') as any)
       .select('round, kickoff_utc, home, away, home_score, away_score, pen_winner')
       .eq('tournament_id', tournamentId).in('round', ['r32', 'r16', 'qf', 'sf', 'tp', 'f'])
     actual = buildActualWinners((fx ?? []) as KnockoutFixture[])
+    slotResults = buildSlotResults((fx ?? []) as KnockoutFixture[])
   }
   const scoringStarted = Object.keys(actual).length > 0
 
@@ -77,6 +81,40 @@ export async function GET(request: NextRequest) {
 
   const me = user ? ranked.find(e => e.user_id === user.id) ?? null : null
 
+  // Match-by-match scorecard for the signed-in entrant: per slot, their pick vs the
+  // actual winner (and who that winner beat), so the UI can drill into each round.
+  const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
+  let scorecard: any[] | null = null
+  let champion: { team: string; status: 'in' | 'out' | 'won' } | null = null
+  if (me) {
+    const myPicks = byUser[user!.id]
+    scorecard = SCORED_SLOTS.map(({ slot, round }) => {
+      const res  = slotResults[slot]
+      const pick = myPicks[slot] ?? null
+      const win  = res?.winner ?? null
+      const correct = !!(win && pick && norm(win) === norm(pick))
+      return {
+        slot, round,
+        pick,
+        winner: win,
+        loser:  res?.loser ?? null,
+        played: !!res?.played,
+        correct,
+        points: correct ? BRACKET_SLOT_POINTS[round] : 0,
+      }
+    })
+
+    const champTeam = myPicks['final'] ?? null
+    if (champTeam) {
+      // 'won' if they took the Final; 'out' if their champion lost a played match
+      // (appears in slotResults but isn't that slot's winner); else 'in'.
+      let status: 'in' | 'out' | 'won' = 'in'
+      if (norm(actual['final']) === norm(champTeam)) status = 'won'
+      else if (Object.values(slotResults).some(r => r.played && r.loser && norm(r.loser) === norm(champTeam))) status = 'out'
+      champion = { team: champTeam, status }
+    }
+  }
+
   return NextResponse.json({
     entries:         ranked.slice(0, 12),   // top 12
     total_entrants:  ranked.length,
@@ -84,5 +122,7 @@ export async function GET(request: NextRequest) {
     max:             BRACKET_MAX,
     scoring_started: scoringStarted,
     simulated,                              // true → results are an admin simulation, not live
+    scorecard,                              // signed-in entrant's per-slot picks vs results
+    champion,                               // their champion pick + live status
   })
 }
