@@ -275,12 +275,14 @@ export default function BracketLeaderboardPage() {
       {coBranded ? (
         <div className="mb-4">
           <div className="bg-green-900 rounded-2xl px-5 py-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            {/* Title + prize — left, centre-justified */}
-            <div className="min-w-0 text-center">
-              <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">Bracket Challenge</h1>
-              {cfg.prize
-                ? <p className="text-sm sm:text-base text-green-200 mt-1.5">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
-                : <p className="text-sm sm:text-base text-green-300 mt-1.5">🏆 Predict the knockout bracket</p>}
+            {/* Title + prize — block hugs the left, text centre-justified within it */}
+            <div className="min-w-0">
+              <div className="inline-block text-center">
+                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">Bracket Challenge</h1>
+                {cfg.prize
+                  ? <p className="text-sm sm:text-base text-green-200 mt-1.5">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+                  : <p className="text-sm sm:text-base text-green-300 mt-1.5">🏆 Predict the knockout bracket</p>}
+              </div>
             </div>
 
             {/* Logo — centred; tile hugs the creative (max-h, not fixed h, so wide/short
