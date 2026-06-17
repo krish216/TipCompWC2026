@@ -62,6 +62,7 @@ export function BracketEntryModal({ onClose, onEntered }: { onClose: () => void;
             <label className="text-sm font-medium text-gray-800">Total goals in the <strong>3rd-place</strong> match</label>
             {numInput(tpGoals, setTpGoals)}
           </div>
+          <p className="text-[11px] text-gray-400 -mt-1">⚽ Count goals up to the end of extra time — penalty shootouts don&apos;t count.</p>
 
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
             placeholder="Phone (optional — for the prize)"
