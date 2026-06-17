@@ -275,20 +275,21 @@ export default function BracketLeaderboardPage() {
       {coBranded ? (
         <div className="mb-4">
           <div className="bg-green-900 rounded-2xl px-5 py-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            {/* Title + prize — left */}
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">Bracket Challenge 🏆</h1>
+            {/* Title + prize — left, centre-justified */}
+            <div className="min-w-0 text-center">
+              <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">Bracket Challenge</h1>
               {cfg.prize
-                ? <p className="text-sm sm:text-base text-green-200 mt-1.5">Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
-                : <p className="text-sm sm:text-base text-green-300 mt-1.5">Predict the knockout bracket</p>}
+                ? <p className="text-sm sm:text-base text-green-200 mt-1.5">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
+                : <p className="text-sm sm:text-base text-green-300 mt-1.5">🏆 Predict the knockout bracket</p>}
             </div>
 
-            {/* Logo — large, centred */}
+            {/* Logo — centred; tile hugs the creative (max-h, not fixed h, so wide/short
+                wordmarks don't letterbox) */}
             <div className="flex flex-col items-center gap-1.5">
-              <span className="text-[8px] uppercase tracking-[0.2em] text-green-300/70 whitespace-nowrap">Sponsored by</span>
+              <span className="text-[8px] uppercase tracking-[0.2em] text-amber-300 whitespace-nowrap">Sponsored by</span>
               {cfg.sponsor_url
-                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="h-16 sm:h-24 w-auto max-w-[140px] sm:max-w-[220px]" /></a>
-                : <SponsorLogoMark cfg={cfg} surface="dark" className="h-16 sm:h-24 w-auto max-w-[140px] sm:max-w-[220px]" />}
+                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" /></a>
+                : <SponsorLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
             </div>
 
             {/* Spacer — keeps the logo centred against the left title */}
