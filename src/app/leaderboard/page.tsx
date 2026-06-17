@@ -630,7 +630,7 @@ export default function LeaderboardPage() {
                                     {(entry.first_name || (entry.tribe_name && scope !== 'tribe') || (scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC')) && (
                                       <span className="text-[10px] text-gray-400 truncate block max-w-[140px]">
                                         {[
-                                          scope !== 'global' && entry.first_name,
+                                          entry.first_name,
                                           scope !== 'tribe'  && entry.tribe_name && `🏆 ${entry.tribe_name}`,
                                           scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && `🏢 ${entry.comp_name}`,
                                         ].filter(Boolean).join(' · ')}
@@ -729,7 +729,7 @@ export default function LeaderboardPage() {
                                   {(entry.first_name || entry.tribe_name || (scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC')) && (
                                     <span className="text-[10px] text-gray-400 truncate">
                                       {[
-                                        scope !== 'global' && entry.first_name,
+                                        entry.first_name,
                                         scope !== 'tribe'  && entry.tribe_name && `🏆 ${entry.tribe_name}`,
                                         scope === 'global' && entry.comp_name && entry.comp_name !== 'PUBLIC' && `🏢 ${entry.comp_name}`,
                                       ].filter(Boolean).join(' · ')}

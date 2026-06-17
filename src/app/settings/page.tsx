@@ -253,7 +253,7 @@ export default function SettingsPage() {
                 placeholder="e.g. Priya"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
               />
-              <p className="text-[11px] text-gray-400 mt-1">Shown beneath your display name on comp leaderboards when enabled below.</p>
+              <p className="text-[11px] text-gray-400 mt-1">Shown beneath your display name on leaderboards (including the global board) when enabled below.</p>
             </div>
             <button
               type="submit"
@@ -267,7 +267,7 @@ export default function SettingsPage() {
           <div className="mt-4 pt-4 border-t border-gray-100">
             <Toggle
               label="Show first name on leaderboards"
-              description="Your first name appears beneath your display name on comp and tribe scoreboards. Only visible to members of your comps."
+              description="Your first name appears beneath your display name on every scoreboard — your comp, your tribe, and the global leaderboard. Turn off to show only your display name to others."
               enabled={showFirstName}
               onChange={async v => {
                 setShowFirstName(v)

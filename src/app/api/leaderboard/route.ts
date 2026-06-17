@@ -137,6 +137,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Comp name per user — shown on the GLOBAL board in place of tribe (which is
+    // per-comp and undefined globally). Uses each player's currently-selected comp
+    // (user_preferences.comp_id). The default 'PUBLIC' comp is filtered out in the UI.
+    const compNameMap: Record<string, string> = {}
+    if (scope === 'global' && userIds.length > 0) {
+      const { data: prefRows } = await (adminClient.from('user_preferences') as any)
+        .select('user_id, comp_id').in('user_id', userIds)
+      const userComp: Record<string, string> = {}
+      const compIds = new Set<string>()
+      ;(prefRows ?? []).forEach((r: any) => { if (r.comp_id) { userComp[r.user_id] = r.comp_id; compIds.add(r.comp_id) } })
+      if (compIds.size > 0) {
+        const { data: compRows } = await (adminClient.from('comps') as any)
+          .select('id, name').in('id', Array.from(compIds))
+        const nameById: Record<string, string> = {}
+        ;(compRows ?? []).forEach((c: any) => { nameById[c.id] = c.name })
+        for (const [uid, cid] of Object.entries(userComp)) if (nameById[cid]) compNameMap[uid] = nameById[cid]
+      }
+    }
+
     // Build round/tab breakdowns (skipped when no_breakdown=true for faster responses)
     const breakdownMap: Record<string, Record<RoundId, number>> = {}
     const tabBreakdownMap: Record<string, Record<string, number>> = {}
@@ -271,10 +290,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // first_name is only exposed in comp/tribe scope and only when the user opted in
-    // (or it is the requesting user's own row). Reads from profileMap (live users table).
+    // first_name is exposed on every scope (incl. global) only when the user opted in
+    // via show_first_name (default true), or it's the requesting user's own row.
+    // Reads from profileMap (live users table) so Settings changes apply immediately.
     const resolveFirstName = (uid: string) => {
-      if (scope === 'global') return null
       const p = profileMap[uid]
       if (!p) return null
       if (uid === user.id) return p.first_name
@@ -287,6 +306,7 @@ export async function GET(request: NextRequest) {
       is_me:               row.user_id === user.id,
       first_name:          resolveFirstName(row.user_id),
       avatar_url:          profileMap[row.user_id]?.avatar_url  ?? null,
+      comp_name:           compNameMap[row.user_id]             ?? null,
       tribe_id:            tribeInfoMap[row.user_id]?.tribe_id   ?? null,
       tribe_name:          tribeInfoMap[row.user_id]?.tribe_name ?? null,
       round_breakdown:     breakdownMap[row.user_id]         ?? {},
@@ -324,6 +344,7 @@ export async function GET(request: NextRequest) {
           rank:                (ahead ?? 0) + 1,
           first_name:          profileMap[user.id]?.first_name  ?? null,
           avatar_url:          profileMap[user.id]?.avatar_url  ?? null,
+          comp_name:           compNameMap[user.id]             ?? null,
           tribe_id:            tribeInfoMap[user.id]?.tribe_id   ?? null,
           tribe_name:          tribeInfoMap[user.id]?.tribe_name ?? null,
           round_breakdown:     breakdownMap[user.id]         ?? {},
