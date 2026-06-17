@@ -8,13 +8,13 @@ export function BracketEntryModal({ onClose, onEntered }: { onClose: () => void;
   const [finalGoals, setFinalGoals] = useState('')
   const [tpGoals,    setTpGoals]    = useState('')
   const [terms,      setTerms]      = useState(false)
-  const [marketing,  setMarketing]  = useState(true)
+  const [marketing,  setMarketing]  = useState(false)
   const [phone,      setPhone]      = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
   const numOk = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
-  const canSubmit = terms && numOk(finalGoals) && numOk(tpGoals) && !submitting
+  const canSubmit = terms && marketing && numOk(finalGoals) && numOk(tpGoals) && !submitting
 
   const submit = async () => {
     setSubmitting(true); setError(null)
@@ -74,7 +74,7 @@ export function BracketEntryModal({ onClose, onEntered }: { onClose: () => void;
           </label>
           <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
             <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-            <span>It&apos;s OK to share my contact details with the prize sponsor.</span>
+            <span>I agree my contact details can be shared with the prize sponsor, who hands out the prizes. <span className="text-red-500">*</span></span>
           </label>
 
           {error && <p className="text-xs text-red-600">{error}</p>}

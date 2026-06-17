@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
   const finalGoals = Number(body.final_goals)
   const tpGoals    = Number(body.tp_goals)
   if (body.consent_terms !== true) return NextResponse.json({ error: 'Please accept the terms to enter.' }, { status: 400 })
+  if (body.consent_marketing !== true) return NextResponse.json({ error: 'You must agree to share your details with the prize sponsor to enter.' }, { status: 400 })
   if (!Number.isInteger(finalGoals) || finalGoals < 0 || finalGoals > 20 ||
       !Number.isInteger(tpGoals)    || tpGoals    < 0 || tpGoals    > 20)
     return NextResponse.json({ error: 'Enter your tie-break goal totals (0–20).' }, { status: 422 })
