@@ -109,7 +109,7 @@ export default function BracketLeaderboardPage() {
           </div>
         ) : es.entered ? (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
-            ✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goals · 3rd place <strong>{es.entry?.tp_goals}</strong> goals.
+            ✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.
           </div>
         ) : !es.has_bracket ? (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 flex items-center justify-between gap-2">
