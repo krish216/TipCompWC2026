@@ -174,12 +174,40 @@ function Row({ e, isMe }: { e: Entry; isMe: boolean }) {
   )
 }
 
+function LeaderboardList({ data }: { data: Data }) {
+  return (
+    <>
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[36px_1fr_56px] gap-2 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+          <span className="text-center">#</span><span>Player · top 12</span><span className="text-right">Pts</span>
+        </div>
+        {data.entries.length === 0 ? (
+          <p className="text-center text-sm text-gray-400 py-8">No entries yet.</p>
+        ) : data.entries.map(e => <Row key={e.user_id} e={e} isMe={data.me?.user_id === e.user_id} />)}
+
+        {/* Your position row when outside the top 12 */}
+        {data.me && data.me.rank > 12 && (
+          <>
+            <div className="text-center text-gray-300 py-1">⋯</div>
+            <Row e={data.me} isMe />
+          </>
+        )}
+      </div>
+
+      <p className="text-[11px] text-gray-400 text-center mt-3">
+        {data.total_entrants} bracket{data.total_entrants === 1 ? '' : 's'} entered · one global pool
+      </p>
+    </>
+  )
+}
+
 export default function BracketLeaderboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [err,  setErr]  = useState(false)
   const [es,   setEs]   = useState<any | null>(null)   // entry status (/api/bracket/enter)
   const [cfg,  setCfg]  = useState<any | null>(null)   // sponsor co-branding (/api/bracket/config)
   const [showEnter, setShowEnter] = useState(false)
+  const [tab,  setTab]  = useState<'leaderboard' | 'mine'>('leaderboard')
 
   const loadEntry = () => fetch('/api/bracket/enter').then(r => r.json()).then(setEs).catch(() => {})
 
@@ -273,39 +301,35 @@ export default function BracketLeaderboardPage() {
             </div>
           )}
 
-          {/* Your position + match-by-match scorecard */}
-          {data.me && (
-            <MeScorecard
-              me={data.me}
-              champion={data.champion}
-              scorecard={data.scorecard}
-              max={data.max}
-              totalEntrants={data.total_entrants}
-              entry={es?.entry}
-            />
+          {/* Segmented toggle — only when the caller has a bracket to show. */}
+          {data.me ? (
+            <>
+              <div className="mb-4 grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100">
+                {([['leaderboard', 'Leaderboard'], ['mine', 'My bracket']] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setTab(key)}
+                    className={clsx('py-2 rounded-lg text-sm font-bold transition-colors',
+                      tab === key ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {tab === 'mine' ? (
+                <MeScorecard
+                  me={data.me}
+                  champion={data.champion}
+                  scorecard={data.scorecard}
+                  max={data.max}
+                  totalEntrants={data.total_entrants}
+                  entry={es?.entry}
+                />
+              ) : (
+                <LeaderboardList data={data} />
+              )}
+            </>
+          ) : (
+            <LeaderboardList data={data} />
           )}
-
-          {/* Top 12 */}
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[36px_1fr_56px] gap-2 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-              <span className="text-center">#</span><span>Player · top 12</span><span className="text-right">Pts</span>
-            </div>
-            {data.entries.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-8">No entries yet.</p>
-            ) : data.entries.map(e => <Row key={e.user_id} e={e} isMe={data.me?.user_id === e.user_id} />)}
-
-            {/* Your position row when outside the top 12 */}
-            {data.me && data.me.rank > 12 && (
-              <>
-                <div className="text-center text-gray-300 py-1">⋯</div>
-                <Row e={data.me} isMe />
-              </>
-            )}
-          </div>
-
-          <p className="text-[11px] text-gray-400 text-center mt-3">
-            {data.total_entrants} bracket{data.total_entrants === 1 ? '' : 's'} entered · one global pool
-          </p>
         </>
       )}
 
