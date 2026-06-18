@@ -7,7 +7,6 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { campaignStatus } from '@/lib/sponsors/campaigns'
-import { sponsorLogoPath, SPONSOR_BUCKET } from '@/lib/sponsors/storage'
 import type { Sponsor, SponsorCampaign, CampaignStatus, LogoTone, SponsorStatus } from '@/lib/sponsors/types'
 
 type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; tournament_id: string } }
@@ -42,7 +41,7 @@ const SPONSOR_BADGE: Record<SponsorStatus, string> = {
 }
 
 export default function SponsorsAdminPage() {
-  const { session, supabase } = useSupabase()
+  const { session } = useSupabase()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,7 +103,7 @@ export default function SponsorsAdminPage() {
       ) : (
         <div className="space-y-2.5">
           {filtered.map(s => (
-            <SponsorRow key={s.id} sponsor={s} supabase={supabase}
+            <SponsorRow key={s.id} sponsor={s}
               expanded={selectedId === s.id}
               onToggle={() => setSelectedId(selectedId === s.id ? null : s.id)}
               onChanged={loadSponsors} />
@@ -163,8 +162,8 @@ function NewSponsorForm({ onCreated }: { onCreated: (s: Sponsor) => void }) {
 }
 
 // ── Sponsor row (collapsible editor + campaigns) ─────────────────────────────
-function SponsorRow({ sponsor, supabase, expanded, onToggle, onChanged }: {
-  sponsor: Sponsor; supabase: any; expanded: boolean; onToggle: () => void; onChanged: () => void
+function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
+  sponsor: Sponsor; expanded: boolean; onToggle: () => void; onChanged: () => void
 }) {
   const [edit, setEdit] = useState<Sponsor>(sponsor)
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([])
@@ -204,16 +203,16 @@ function SponsorRow({ sponsor, supabase, expanded, onToggle, onChanged }: {
     if (file.size > 5 * 1024 * 1024) { toast.error('Logo must be under 5 MB'); return }
     setUploading(true)
     try {
-      const ext  = file.name.split('.').pop() ?? 'png'
-      const path = sponsorLogoPath(sponsor.slug, ext)
-      const { error } = await supabase.storage.from(SPONSOR_BUCKET).upload(path, file, { upsert: true })
-      if (error) { toast.error('Upload failed: ' + error.message); return }
-      const { data } = supabase.storage.from(SPONSOR_BUCKET).getPublicUrl(path)
-      const url = `${data.publicUrl}?v=${Date.now()}`   // bust CDN cache on overwrite
-      const res = await fetch(`/api/sponsors/${sponsor.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logo_url: url }),
-      })
-      if (res.ok) { setEdit(p => ({ ...p, logo_url: url })); toast.success('Logo updated'); onChanged() }
+      // Upload server-side (service role) so it works regardless of storage RLS
+      // and overwrites the sponsor's existing logo cleanly.
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/sponsors/${sponsor.id}/logo`, { method: 'POST', body: fd })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error('Upload failed: ' + (d.error ?? res.status)); return }
+      setEdit(p => ({ ...p, logo_url: d.logo_url }))
+      toast.success('Logo updated')
+      onChanged()
     } finally {
       setUploading(false)
       if (logoRef.current) logoRef.current.value = ''
@@ -279,7 +278,7 @@ function SponsorRow({ sponsor, supabase, expanded, onToggle, onChanged }: {
               <input ref={logoRef} type="file" accept="image/*" onChange={uploadLogo} className="hidden" />
               <button onClick={() => logoRef.current?.click()} disabled={uploading}
                 className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50">
-                {uploading ? 'Uploading…' : 'Upload logo'}
+                {uploading ? 'Uploading…' : edit.logo_url ? 'Replace logo' : 'Upload logo'}
               </button>
               <div className="flex gap-1.5">
                 {(['dark', 'light'] as LogoTone[]).map(t => (
