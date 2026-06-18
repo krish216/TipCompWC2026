@@ -882,6 +882,24 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
   const [emailOpen,       setEmailOpen]       = useState(!!preset)
   const [roundInfo,       setRoundInfo]       = useState<{ round_name: string | null; deadline: string | null; untipped: { user_id: string; display_name: string; email: string }[] }>({ round_name: null, deadline: null, untipped: [] })
   const [loadingRoundInfo, setLoadingRoundInfo] = useState(false)
+  const [nudging, setNudging] = useState(false)
+
+  // FREE in-app reminder to members who haven't tipped the open round (no email).
+  const nudgeUntipped = async () => {
+    if (!comp?.id) return
+    setNudging(true)
+    try {
+      const res = await fetch('/api/comps/nudge-untipped', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(d.nudged > 0 ? `🔔 Nudged ${d.nudged} tipster${d.nudged === 1 ? '' : 's'} in-app` : (d.message ?? 'Nobody to nudge'))
+      else toast.error(d.error ?? 'Could not send nudge')
+    } finally {
+      setNudging(false)
+    }
+  }
 
   useEffect(() => {
     if (!emailOpen || !comp?.id) return
@@ -1077,19 +1095,32 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                   <p className="mt-2 text-xs text-gray-400">All tipsters have tipped this round 🎉</p>
                 )}
                 {recipients === 'not_tipped' && !loadingRoundInfo && roundInfo.untipped.length > 0 && (
-                  <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
-                    <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
-                      {roundInfo.untipped.map(t => (
-                        <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
-                          <Avi name={t.display_name} size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
-                            <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                  <>
+                    <div className="mt-2 border border-orange-100 rounded-xl overflow-hidden bg-orange-50/50">
+                      <div className="max-h-36 overflow-y-auto divide-y divide-orange-100">
+                        {roundInfo.untipped.map(t => (
+                          <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
+                            <Avi name={t.display_name} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                              <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                    {/* FREE in-app nudge — email campaign below is the Pro add-on. */}
+                    <div className="mt-2 flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                      <p className="text-[11px] text-emerald-800 leading-snug">
+                        <strong>Free:</strong> send these {roundInfo.untipped.length} a reminder straight to their in-app notifications.
+                        <span className="text-emerald-600"> Reaching them by email (below) is a Pro add-on.</span>
+                      </p>
+                      <button onClick={nudgeUntipped} disabled={nudging}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+                        {nudging ? 'Nudging…' : `🔔 Nudge ${roundInfo.untipped.length}`}
+                      </button>
+                    </div>
+                  </>
                 )}
                 {recipients === 'custom' && (
                   <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden">
