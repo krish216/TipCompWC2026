@@ -18,7 +18,7 @@ const MAP_VERSION = 'teampair-1'     // bump on logic changes to confirm which b
 
 type Local = { id: number; round: string; home: string; away: string; kickoff_utc: string; venue: string | null; api_fixture_id: number | null }
 type ApiFx = { apiId: number; ts: number; date: string; home: string; away: string; venue: string }
-type Match = { localId: number; apiId: number | null; round: string; label: string; confidence: 'exact' | 'swapped' | 'time' | 'ambiguous' | 'unmatched' | 'skipped'; note?: string }
+type Match = { localId: number; apiId: number | null; round: string; label: string; confidence: 'exact' | 'swapped' | 'time' | 'ambiguous' | 'unmatched' | 'skipped'; note?: string; apiDate?: string; seedKickoff?: string; timeDrift?: boolean }
 
 async function requireAdmin() {
   const user = await getSessionUser()
@@ -28,8 +28,6 @@ async function requireAdmin() {
   if (!data) return { error: 'Forbidden', status: 403 as const }
   return { admin }
 }
-
-const dayOf = (iso: string) => new Date(iso).toISOString().slice(0, 10)
 
 async function buildMatches() {
   const admin = createAdminClient()
@@ -74,12 +72,14 @@ async function buildMatches() {
       const reversed = aligned ? null : api.find(x => !usedApiIds.has(x.apiId) && canonTeam(x.home) === a && canonTeam(x.away) === h)
       const hit = aligned ?? reversed
       if (hit) {
-        const drift = dayOf(hit.date) !== dayOf(f.kickoff_utc)
+        // Compare the FULL timestamp, not just the day — a same-day wrong time still
+        // breaks the kickoff lock. The provider time (hit.date) is authoritative.
+        const timeDrift = Math.abs(hit.ts - localTs) > 60_000
         const note = [
           reversed ? 'home/away reversed vs API' : null,
-          drift ? `⚠ date differs: seed ${dayOf(f.kickoff_utc)} vs actual ${dayOf(hit.date)}` : null,
+          timeDrift ? `⚠ kickoff differs: seed ${f.kickoff_utc} vs actual ${hit.date}` : null,
         ].filter(Boolean).join('; ') || undefined
-        m = { localId: f.id, apiId: hit.apiId, round: f.round, label, confidence: reversed ? 'swapped' : 'exact', note }
+        m = { localId: f.id, apiId: hit.apiId, round: f.round, label, confidence: reversed ? 'swapped' : 'exact', note, apiDate: hit.date, seedKickoff: f.kickoff_utc, timeDrift }
       } else {
         const missing = [f.home, f.away].filter(t => !apiTeams.has(canonTeam(t)))
         m = { localId: f.id, apiId: null, round: f.round, label, confidence: 'unmatched',
@@ -247,12 +247,28 @@ export async function POST(request: NextRequest) {
   const gate = await requireAdmin()
   if ('error' in gate) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
+  const url = new URL(request.url)
   // ?force=1 re-maps fixtures that already have an api_fixture_id.
-  const force = new URL(request.url).searchParams.get('force') === '1'
+  const force = url.searchParams.get('force') === '1'
+  // ?times=1 overwrites kickoff_utc from the provider for drifted group-stage
+  // fixtures (matched by team pair → provider utcDate is the real kickoff). Use
+  // this to fix wrong seed times that stop matches from locking.
+  const timesMode = url.searchParams.get('times') === '1'
 
   try {
     const { matches } = await buildMatches()
     const admin = createAdminClient()
+
+    if (timesMode) {
+      const drifted = matches.filter(m => m.apiDate && m.timeDrift && (m.confidence === 'exact' || m.confidence === 'swapped'))
+      let updated = 0
+      const changes: { id: number; label: string; from?: string; to?: string }[] = []
+      for (const m of drifted) {
+        const { error } = await (admin.from('fixtures') as any).update({ kickoff_utc: m.apiDate }).eq('id', m.localId)
+        if (!error) { updated++; changes.push({ id: m.localId, label: m.label, from: m.seedKickoff, to: m.apiDate }) }
+      }
+      return NextResponse.json({ mode: 'sync-times', updated, changes })
+    }
 
     // Only commit confident matches; leave ambiguous/unmatched for manual handling.
     const committable = matches.filter(m => m.apiId != null && m.confidence !== 'ambiguous')
