@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { SPONSORS } from '@/lib/sponsors'
+import { RemoveAdsButton } from './RemoveAdsButton'
 
 // AdSense config. Client (publisher) id is app-wide; each placement maps to its
 // own AdSense ad-unit id so units can be turned on independently. All come from
@@ -47,10 +48,12 @@ export function AdSlot({ slot, className }: { slot: string; className?: string }
   // Admin master switch off, or this user paid to remove ads → render nothing.
   if (!adsEnabled || isAdFree) return null
 
+  let ad: ReactNode = null
+
   // 1. Direct sponsor banner (image + click-through) — zero ad-network setup.
   const sponsor = SPONSORS[slot] ?? null
   if (sponsor) {
-    return (
+    ad = (
       <a href={sponsor.href} target="_blank" rel="noopener noreferrer sponsored"
         data-ad-slot={slot}
         className={clsx('block overflow-hidden rounded-xl border border-gray-100', className)}>
@@ -59,15 +62,23 @@ export function AdSlot({ slot, className }: { slot: string; className?: string }
         <span className="block text-center text-[9px] uppercase tracking-widest text-gray-400 py-1">Sponsored</span>
       </a>
     )
+  } else {
+    // 2. AdSense — only when enabled and this slot has a unit id configured.
+    const enabled  = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true'
+    const adUnitId = ADSENSE_SLOT_IDS[slot]
+    if (enabled && ADSENSE_CLIENT && adUnitId) {
+      ad = <AdsenseUnit client={ADSENSE_CLIENT} adSlot={adUnitId} className={className} />
+    }
   }
 
-  // 2. AdSense — only when enabled and this slot has a unit id configured.
-  const enabled  = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true'
-  const adUnitId = ADSENSE_SLOT_IDS[slot]
-  if (enabled && ADSENSE_CLIENT && adUnitId) {
-    return <AdsenseUnit client={ADSENSE_CLIENT} adSlot={adUnitId} className={className} />
-  }
+  // 3. Dormant — nothing to show.
+  if (!ad) return null
 
-  // 3. Dormant.
-  return null
+  // An ad is showing → offer the cheap ad-free upsell directly beneath it.
+  return (
+    <div className="space-y-1">
+      {ad}
+      <div className="text-right"><RemoveAdsButton variant="link" /></div>
+    </div>
+  )
 }

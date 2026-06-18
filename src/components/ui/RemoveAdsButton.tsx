@@ -8,7 +8,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 // are actually being shown to this user — i.e. ads are on, they haven't already
 // paid (Pro or ad-free), and a tournament is selected. Price label mirrors
 // AD_FREE_PRICE_CENTS in /api/stripe/create-checkout.
-export function RemoveAdsButton({ className }: { className?: string }) {
+export function RemoveAdsButton({ className, variant = 'button' }: { className?: string; variant?: 'button' | 'link' }) {
   const { isAdFree, adsEnabled, selectedTournId } = useUserPrefs()
   const [loading, setLoading] = useState(false)
 
@@ -27,6 +27,15 @@ export function RemoveAdsButton({ className }: { className?: string }) {
     } catch {
       setLoading(false)
     }
+  }
+
+  if (variant === 'link') {
+    return (
+      <button onClick={go} disabled={loading}
+        className={clsx('text-[11px] text-gray-400 hover:text-gray-600 underline disabled:opacity-50 transition-colors', className)}>
+        {loading ? 'Redirecting…' : 'Remove ads · $2.95'}
+      </button>
+    )
   }
 
   return (
