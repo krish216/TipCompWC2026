@@ -12,6 +12,7 @@ interface Pick {
 interface Data {
   fixture: { id: number; round: string; home: string; away: string; kickoff_utc: string }
   is_exact: boolean
+  final?: boolean
   locked_count: number
   total_members: number
   picks: Pick[]
@@ -72,7 +73,7 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                 {flag(data.fixture.home)} {data.fixture.home} <span className="text-gray-300 font-normal">v</span> {data.fixture.away} {flag(data.fixture.away)}
               </p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                {data.locked_count} of {data.total_members} {data.total_members === 1 ? 'member' : 'members'} locked in
+                {data.locked_count} of {data.total_members} {data.total_members === 1 ? 'member' : 'members'} {data.final ? 'tipped' : 'locked in'}
               </p>
             </div>
 
@@ -96,7 +97,9 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
             {/* Vertical list of tipsters — scrolls */}
             <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
               {data.picks.length === 0 ? (
-                <p className="px-2 py-10 text-center text-sm text-gray-400">No one else has locked in yet — you&apos;re first! 🥇</p>
+                <p className="px-2 py-10 text-center text-sm text-gray-400">
+                  {data.final ? 'No one in your tribe tipped this match.' : 'No one else has locked in yet — you’re first! 🥇'}
+                </p>
               ) : data.picks.map(p => (
                 <div key={p.user_id} className={clsx('flex items-center gap-2.5 px-2 py-2 rounded-lg', p.is_me && 'bg-emerald-50/60')}>
                   <Avatar name={p.display_name} src={p.avatar_url} size="xs" className="flex-shrink-0" />

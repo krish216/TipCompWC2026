@@ -387,7 +387,16 @@ export function MatchRow({
       )}
 
       {/* ── Lock-in / committed footer ─────────────────────────────────────── */}
-      {committed && !result ? (
+      {(result || minsToKickoff <= 0) && onViewTipsheet ? (
+        // Picks are settled (result in) or frozen (kicked off) → reveal the whole
+        // tribe. Result-first means it also works in the warm-up round post-tip.
+        <div className="mx-3 mb-3 pt-2.5 border-t border-gray-100 flex justify-end">
+          <button onClick={() => onViewTipsheet(fixture.id)}
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors">
+            📋 Tribe tipsheet →
+          </button>
+        </div>
+      ) : committed && !result ? (
         <div className="mx-3 mb-3 pt-2.5 border-t border-emerald-100 flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden>

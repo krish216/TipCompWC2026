@@ -27,14 +27,26 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
 
   const { data: fx } = await (admin.from('fixtures') as any)
-    .select('id, round, home, away, kickoff_utc, tournament_id').eq('id', fixtureId).maybeSingle()
+    .select('id, round, home, away, kickoff_utc, home_score, tournament_id').eq('id', fixtureId).maybeSingle()
   if (!fx) return NextResponse.json({ error: 'Fixture not found' }, { status: 404 })
 
-  // Commit gate: the caller's own prediction for this fixture must be locked in.
-  const { data: mine } = await (admin.from('predictions') as any)
-    .select('locked_at').eq('user_id', user.id).eq('fixture_id', fixtureId).maybeSingle()
-  if (!(mine as any)?.locked_at)
-    return NextResponse.json({ error: 'Lock in your prediction to view the tipsheet.' }, { status: 403 })
+  // When to reveal the whole tribe (no commit gate), in order:
+  //   1. the RESULT is available — picks are settled (also covers the warm-up
+  //      round, whose result exists regardless of kickoff, and is robust to a
+  //      mis-set kickoff_utc);
+  //   2. otherwise, the fixture has KICKED OFF — predictions are locked/frozen at
+  //      kickoff, so they're no longer secret.
+  // Failing both, it stays a mutual-lock reveal: the caller must have locked their
+  // own prediction first.
+  const resultAvailable = (fx as any).home_score != null
+  const kickedOff       = Date.now() >= new Date((fx as any).kickoff_utc).getTime()
+  const reveal          = resultAvailable || kickedOff
+  if (!reveal) {
+    const { data: mine } = await (admin.from('predictions') as any)
+      .select('locked_at').eq('user_id', user.id).eq('fixture_id', fixtureId).maybeSingle()
+    if (!(mine as any)?.locked_at)
+      return NextResponse.json({ error: 'Lock in your prediction to view the tipsheet.' }, { status: 403 })
+  }
 
   // Is this round predicted by exact score or outcome?
   const { data: tr } = await (admin.from('tournament_rounds') as any)
@@ -51,10 +63,13 @@ export async function GET(request: NextRequest) {
   const memberMap = Object.fromEntries(members.map((m: any) => [m.user_id, m]))
   const memberIds = members.map((m: any) => m.user_id)
 
-  // Mutual-lock: only LOCKED predictions from tribe members for this fixture.
-  const { data: predRows } = await (admin.from('predictions') as any)
+  // Mutual-lock phase: only LOCKED predictions. Revealed phase: every tribe
+  // member's prediction for this fixture, locked or not.
+  let predQuery = (admin.from('predictions') as any)
     .select('user_id, home, away, outcome, pen_winner, locked_at')
-    .eq('fixture_id', fixtureId).in('user_id', memberIds).not('locked_at', 'is', null)
+    .eq('fixture_id', fixtureId).in('user_id', memberIds)
+  if (!reveal) predQuery = predQuery.not('locked_at', 'is', null)
+  const { data: predRows } = await predQuery
 
   let H = 0, D = 0, A = 0
   const picks = ((predRows ?? []) as any[]).map((p: any) => {
@@ -75,6 +90,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     fixture: { id: (fx as any).id, round: (fx as any).round, home: (fx as any).home, away: (fx as any).away, kickoff_utc: (fx as any).kickoff_utc },
     is_exact: isExact,
+    final: reveal,                  // true → showing the whole tribe (settled/locked)
     locked_count: locked,
     total_members: members.length,
     picks,
