@@ -1,6 +1,6 @@
 export const metadata = { title: 'Privacy Policy — TribePicks' }
 
-const LAST_UPDATED = '30 April 2026'
+const LAST_UPDATED = '18 June 2026'
 const CONTACT_EMAIL = 'privacy@tribepicks.com'
 const APP_NAME = 'TribePicks'
 const OPERATOR = '11outof10 Pty Ltd. (ACN 637 629 219)'
@@ -75,6 +75,7 @@ export default function PrivacyPage() {
             <li><strong>Supabase Inc.</strong> — database, authentication and file storage. Data is stored on servers in the United States (or Australia if applicable). Supabase is SOC 2 Type II certified.</li>
             <li><strong>Vercel Inc.</strong> — web hosting and deployment. Servers are located in the United States.</li>
             <li><strong>Resend Inc.</strong> — transactional email delivery.</li>
+            <li><strong>Google LLC</strong> — advertising via Google AdSense. Google may set cookies and use device identifiers to serve and measure ads (see section 6). Premium subscribers are not shown advertisements.</li>
           </ul>
           <p className="mt-2">
             We do not disclose your personal information to any other third parties except where required by
@@ -88,11 +89,35 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-2">6. Cookies and tracking</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-2">6. Cookies and advertising</h2>
           <p>
-            The Service uses cookies and local storage solely for authentication session management.
-            We do not use advertising cookies, tracking pixels, or third-party analytics that identify
-            individual users. We do not display advertisements.
+            We use cookies and local storage to keep you signed in and manage your session. These are
+            essential to the Service.
+          </p>
+          <p className="mt-2">
+            Parts of the Service display advertisements served by <strong>Google AdSense</strong> (a service of
+            Google LLC). To deliver, measure and — where permitted — personalise these ads, Google and its
+            partners may set and read cookies and similar device identifiers in your browser. This information
+            is collected and processed by Google under its own privacy policy; we do not receive or store it.
+          </p>
+          <ul className="list-disc pl-5 space-y-1 mt-2">
+            <li>
+              You can review and control how Google uses data for ads, and opt out of personalised
+              advertising, via{' '}
+              <a href="https://myadcenter.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Ad Center</a>{' '}
+              and Google&apos;s{' '}
+              <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">How Google uses information from sites that use its services</a>.
+            </li>
+            <li>
+              If you are in the European Economic Area, the United Kingdom, or Switzerland, we present a
+              Google-certified consent message before any non-essential or advertising cookies are set, and we
+              honour your choice.
+            </li>
+            <li><strong>Premium subscribers are not shown advertisements.</strong></li>
+          </ul>
+          <p className="mt-2">
+            Other than the advertising described above, we do not use third-party analytics or tracking pixels
+            that identify individual users, and we do not sell your personal information.
           </p>
         </section>
 
