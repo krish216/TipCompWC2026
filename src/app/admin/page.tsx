@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Spinner, EmptyState, Card } from '@/components/ui'
 import { DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY } from '@/lib/welcome-email-defaults'
@@ -400,44 +401,8 @@ export default function AdminPage() {
   const [postingDebrief,      setPostingDebrief]      = useState(false)
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
-  // ── Bracket Challenge co-branding ──────────────────────────────────────────
-  const [bracketCfg, setBracketCfg] = useState<{ enabled: boolean; sponsor_name: string; sponsor_logo: string; prize: string; sponsor_url: string; logo_tone: 'dark' | 'light' }>(
-    { enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', sponsor_url: '', logo_tone: 'dark' })
-  const [savingBracket,         setSavingBracket]         = useState(false)
-  const [bracketLogoUploading,  setBracketLogoUploading]  = useState(false)
-  const bracketLogoRef = useRef<HTMLInputElement>(null)
-  // Load the sponsor config only once — re-fetching on every tab visit would
-  // overwrite unsaved edits (e.g. flipping the enabled toggle back to the server value).
-  const bracketCfgLoaded = useRef(false)
-
-  const saveBracketConfig = async () => {
-    setSavingBracket(true)
-    const res = await fetch('/api/bracket/config', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bracketCfg),
-    })
-    setSavingBracket(false)
-    if (res.ok) toast.success('Bracket sponsor branding saved')
-    else toast.error('Failed to save branding')
-  }
-
-  const handleBracketLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('Logo must be under 5 MB'); return }
-    setBracketLogoUploading(true)
-    try {
-      const ext  = file.name.split('.').pop()
-      const path = `bracket/sponsor-logo-${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('org-logos').upload(path, file, { upsert: true })
-      if (error) { toast.error('Upload failed: ' + error.message); return }
-      const { data } = supabase.storage.from('org-logos').getPublicUrl(path)
-      setBracketCfg(prev => ({ ...prev, sponsor_logo: data.publicUrl }))
-      toast.success('Logo uploaded — click Save to publish')
-    } finally {
-      setBracketLogoUploading(false)
-      if (bracketLogoRef.current) bracketLogoRef.current.value = ''
-    }
-  }
+  // Bracket Challenge sponsor co-branding now lives in the Sponsor Campaigns
+  // module (/admin/sponsors). The legacy single-sponsor card was removed here.
 
   // ── Bracket Simulator (Demo tab) ───────────────────────────────────────────
   const [simCfg, setSimCfg] = useState<{ sim_mode: boolean; winners: Record<string, string>; teams: string[] }>(
@@ -598,11 +563,6 @@ export default function AdminPage() {
     fetch('/api/admin/report-stats').then(r => r.json())
       .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
       .catch(() => {})
-    if (!bracketCfgLoaded.current) {
-      fetch('/api/bracket/config').then(r => r.json())
-        .then(d => { if (d && typeof d.enabled === 'boolean') { setBracketCfg(d); bracketCfgLoaded.current = true } })
-        .catch(() => {})
-    }
   }, [activeTab])
 
   // Load announcements when tab is opened
@@ -1101,89 +1061,16 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Bracket Challenge sponsor co-branding */}
+          {/* Bracket Challenge sponsor → Sponsor Campaigns module */}
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">🏆 Bracket Challenge sponsor</h3>
-              <button
-                onClick={() => setBracketCfg(p => ({ ...p, enabled: !p.enabled }))}
-                className={clsx(
-                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none',
-                  bracketCfg.enabled ? 'bg-emerald-500' : 'bg-gray-200'
-                )}>
-                <span className={clsx(
-                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
-                  bracketCfg.enabled ? 'translate-x-5' : 'translate-x-0'
-                )} />
-              </button>
-            </div>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🏆 Sponsor Campaigns</h3>
             <p className="text-[11px] text-gray-500 mb-3">
-              {bracketCfg.enabled
-                ? 'ON — the Bracket Challenge shows the sponsor co-brand + prize.'
-                : 'OFF — the Bracket Challenge runs TribePicks-only (no sponsor shown).'}
+              Onboard sponsors and schedule co-branded campaigns (logo, prize, click-through) on the Bracket Challenge, with auto start/stop over the campaign window.
             </p>
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600">Sponsor name</label>
-                <input value={bracketCfg.sponsor_name} onChange={e => setBracketCfg(p => ({ ...p, sponsor_name: e.target.value }))}
-                  placeholder="e.g. Ray White Earlwood"
-                  className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600">Prize</label>
-                <input value={bracketCfg.prize} onChange={e => setBracketCfg(p => ({ ...p, prize: e.target.value }))}
-                  placeholder="e.g. $500 voucher"
-                  className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600">Sponsor link</label>
-                <input value={bracketCfg.sponsor_url} onChange={e => setBracketCfg(p => ({ ...p, sponsor_url: e.target.value }))}
-                  placeholder="https://…" inputMode="url"
-                  className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600">Sponsor logo</label>
-                <div className="flex items-center gap-3 mt-1">
-                  {/* Preview on the actual banner background so the tone choice is visible */}
-                  {bracketCfg.sponsor_logo
-                    ? <div className="bg-green-900 rounded-lg p-2 flex items-center">
-                        <img src={bracketCfg.sponsor_logo} alt="Sponsor logo"
-                          className={clsx('h-9 object-contain',
-                            bracketCfg.logo_tone === 'dark' ? 'bg-white rounded px-2 py-1' : 'drop-shadow')} />
-                      </div>
-                    : <span className="text-xs text-gray-400">No logo</span>}
-                  <button onClick={() => bracketLogoRef.current?.click()} disabled={bracketLogoUploading}
-                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                    {bracketLogoUploading ? 'Uploading…' : bracketCfg.sponsor_logo ? 'Change' : 'Upload logo'}
-                  </button>
-                  <input ref={bracketLogoRef} type="file" accept="image/*" className="hidden" onChange={handleBracketLogoUpload} />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600">Logo colour</label>
-                <div className="grid grid-cols-2 gap-1 mt-1 p-1 rounded-lg bg-gray-100">
-                  {([['dark', 'Dark logo'], ['light', 'Light logo']] as const).map(([val, lbl]) => (
-                    <button key={val} onClick={() => setBracketCfg(p => ({ ...p, logo_tone: val }))}
-                      className={clsx('py-1.5 rounded-md text-xs font-bold transition-colors',
-                        bracketCfg.logo_tone === val ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-                      {lbl}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  {bracketCfg.logo_tone === 'dark'
-                    ? 'Dark logo → shown on a light chip so it stands out on the green banner.'
-                    : 'Light / transparent logo → blends straight onto the green banner.'}
-                </p>
-              </div>
-            </div>
-
-            <button onClick={saveBracketConfig} disabled={savingBracket}
-              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
-              {savingBracket ? 'Saving…' : 'Save sponsor branding'}
-            </button>
+            <Link href="/admin/sponsors"
+              className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              Manage sponsors →
+            </Link>
           </div>
 
           {/* Round 1 wrap-up (satirical debrief) */}
