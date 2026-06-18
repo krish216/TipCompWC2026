@@ -399,6 +399,7 @@ export default function AdminPage() {
   const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
   const [togglingAds,         setTogglingAds]         = useState(false)
   const [postingDebrief,      setPostingDebrief]      = useState(false)
+  const [syncingTimes,        setSyncingTimes]        = useState(false)
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
   // Bracket Challenge sponsor co-branding now lives in the Sponsor Campaigns
@@ -454,6 +455,24 @@ export default function AdminPage() {
       else toast.error(d.error ?? 'Failed to post wrap-up')
     } finally {
       setPostingDebrief(false)
+    }
+  }
+
+  const handleSyncTimes = async () => {
+    if (!confirm('Overwrite kickoff times for group-stage fixtures from the live provider (football-data.org)? Use this to fix wrong seed times that stop matches from locking.')) return
+    setSyncingTimes(true)
+    try {
+      const res = await fetch('/api/admin/map-fixtures?times=1', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const n = d.updated ?? 0
+        toast.success(n ? `🕒 Synced ${n} fixture time${n === 1 ? '' : 's'} from the provider` : 'All fixture times already match the provider')
+        if (n) console.log('[sync-times] changes:', d.changes)
+      } else {
+        toast.error(d.error ?? 'Failed to sync fixture times')
+      }
+    } finally {
+      setSyncingTimes(false)
     }
   }
 
@@ -1071,6 +1090,18 @@ export default function AdminPage() {
               className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
               Manage sponsors →
             </Link>
+          </div>
+
+          {/* Sync fixture times from provider */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🕒 Sync fixture times</h3>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Overwrites <strong>group-stage</strong> kickoff times from the live provider (football-data.org). Fixes wrong seed times that leave already-played matches unlocked. Matched by team pair, so it's safe to re-run; the changed fixtures are logged to the console.
+            </p>
+            <button onClick={handleSyncTimes} disabled={syncingTimes}
+              className="w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+              {syncingTimes ? 'Syncing…' : 'Sync fixture times from provider'}
+            </button>
           </div>
 
           {/* Round 1 wrap-up (satirical debrief) */}
