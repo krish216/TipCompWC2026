@@ -63,7 +63,8 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
     if (!stats) return
     const f = stats.fixture, a = stats.aggregate
     const score = f.home_score != null ? ` ${f.home_score}–${f.away_score}` : ''
-    const text = `📊 ${f.home}${score} ${f.away} — how TribePicks tipped (${stats.total_predictions} tips)\n${f.home} ${a.home_pct}% · Draw ${a.draw_pct}% · ${f.away} ${a.away_pct}%`
+    let text = `📊 ${f.home}${score} ${f.away} — how TribePicks tipped (${stats.total_predictions} tips)\n${f.home} ${a.home_pct}% · Draw ${a.draw_pct}% · ${f.away} ${a.away_pct}%`
+    if (stats.pen) text += `\n🥅 Draw picks on pens: ${f.home} ${stats.pen.home_pct}% · ${f.away} ${stats.pen.away_pct}%`
     navigator.clipboard.writeText(text).then(() => toast.success('Stats copied'))
   }
 
@@ -187,6 +188,22 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
                     <span>Draw {stats.aggregate.draw_pct}%</span>
                     <span>{fixture.away} {stats.aggregate.away_pct}% 🛫</span>
                   </div>
+
+                  {/* Knockout: of the draw picks, who wins on penalties */}
+                  {stats.pen && (
+                    <div className="mt-2.5">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">🥅 Draw picks — penalty winner ({stats.pen.total})</p>
+                      <div className="flex h-5 rounded-md overflow-hidden text-[9px] font-bold text-white">
+                        {stats.pen.home_pct > 0 && <div className="bg-emerald-500 flex items-center justify-center" style={{ width: `${stats.pen.home_pct}%` }}>{stats.pen.home_pct}%</div>}
+                        {stats.pen.away_pct > 0 && <div className="bg-sky-500 flex items-center justify-center"     style={{ width: `${stats.pen.away_pct}%` }}>{stats.pen.away_pct}%</div>}
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>{fixture.home} {stats.pen.home_pct}%</span>
+                        <span>{fixture.away} {stats.pen.away_pct}%</span>
+                      </div>
+                    </div>
+                  )}
+
                   <button onClick={copyStats} className="mt-2.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
                     📋 Copy stats
                   </button>
