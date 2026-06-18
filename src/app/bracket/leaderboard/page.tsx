@@ -195,8 +195,8 @@ function Row({ e, isMe }: { e: Entry; isMe: boolean }) {
 // generic AdSlot when no bracket sponsor is set; never shown to premium users
 // (the insert space is ad-free for premium).
 function BracketSponsorInsert({ cfg }: { cfg: any }) {
-  const { isPremium } = useUserPrefs()
-  if (isPremium) return null
+  const { isAdFree } = useUserPrefs()
+  if (isAdFree) return null
 
   const hasSponsor = !!(cfg?.enabled && (cfg.sponsor_logo || cfg.sponsor_name))
   if (!hasSponsor) return <AdSlot slot="bracket-infeed" className="mt-4" />

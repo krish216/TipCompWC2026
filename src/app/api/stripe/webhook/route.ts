@@ -48,8 +48,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    // ── Premium upgrade ─────────────────────────────────────────────────────────
+    // ── Premium upgrade / ad-free pass ──────────────────────────────────────────
     const userId = session.metadata?.user_id
+    const kind   = session.metadata?.kind   // 'ad_free' | undefined (undefined = Pro)
 
     if (!userId || !tournamentId) {
       console.error('[stripe/webhook] missing metadata', session.metadata)
@@ -58,10 +59,12 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    // Upsert the user_tournaments row and mark as premium
+    // Upsert grants the right entitlement. Upsert only sets the provided columns,
+    // so an ad-free purchase never clears is_premium and vice-versa.
+    const entitlement = kind === 'ad_free' ? { is_ad_free: true } : { is_premium: true }
     const { error } = await (admin.from('user_tournaments') as any)
       .upsert(
-        { user_id: userId, tournament_id: tournamentId, is_premium: true },
+        { user_id: userId, tournament_id: tournamentId, ...entitlement },
         { onConflict: 'user_id,tournament_id' }
       )
 
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'DB update failed' }, { status: 500 })
     }
 
-    console.log(`[stripe/webhook] premium granted — user ${userId} tournament ${tournamentId}`)
+    console.log(`[stripe/webhook] ${kind === 'ad_free' ? 'ad-free' : 'premium'} granted — user ${userId} tournament ${tournamentId}`)
   }
 
   return NextResponse.json({ received: true })

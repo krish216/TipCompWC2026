@@ -62,6 +62,8 @@ interface UserPrefsCtx {
   loading:            boolean
   isPremium:          boolean
   enforcePremium:     boolean
+  isAdFree:           boolean   // paid Pro OR paid ad-free pass — hides ads (independent of enforce_premium)
+  adsEnabled:         boolean   // admin master switch (app_settings.ads_enabled); false = no ads site-wide
 }
 
 const UserPrefsContext = createContext<UserPrefsCtx | null>(null)
@@ -89,7 +91,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [hasTribe,        setHasTribe]        = useState<boolean | null>(null)
   const [selectedTribeId, setSelectedTribeId] = useState<string | null>(null)
   const [isPremiumOrg,    setIsPremiumOrg]    = useState(false)
+  const [isAdFreeOrg,     setIsAdFreeOrg]     = useState(false)
   const [enforcePremium,  setEnforcePremium]  = useState(false)
+  const [adsEnabled,      setAdsEnabled]      = useState(true)   // app_settings.ads_enabled; unset = on
+
+  // Global ads on/off switch (admin-controlled, app_settings). Public read.
+  useEffect(() => {
+    fetch('/api/app-settings').then(r => r.json())
+      .then(d => setAdsEnabled((d.data?.ads_enabled ?? 'on') !== 'off'))
+      .catch(() => {})
+  }, [])
 
   const fetchHasTribe = useCallback(async (compId: string) => {
     try {
@@ -206,9 +217,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           fetch(`/api/tournament-rounds?tournament_id=${startTournId}`).then(r => r.json()).catch(() => ({ data: [] })),
           loadComps(startTournId, session.user.id, prefCompId),
           fetch('/api/comp-admins').then(r => r.json()).catch(() => ({})),
-          supabase.from('user_tournaments').select('is_premium').eq('user_id', session.user.id).eq('tournament_id', startTournId).maybeSingle(),
+          supabase.from('user_tournaments').select('is_premium, is_ad_free').eq('user_id', session.user.id).eq('tournament_id', startTournId).maybeSingle(),
         ])
         setIsPremiumOrg(!!(premiumRow.data as any)?.is_premium)
+        setIsAdFreeOrg(!!(premiumRow.data as any)?.is_ad_free)
 
         const rows: RoundConfig[] = roundsData.data ?? []
         setRoundConfigs(rows)
@@ -254,8 +266,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     if (session) {
       ;(async () => {
         try {
-          const { data } = await supabase.from('user_tournaments').select('is_premium').eq('user_id', session.user.id).eq('tournament_id', id).maybeSingle()
+          const { data } = await supabase.from('user_tournaments').select('is_premium, is_ad_free').eq('user_id', session.user.id).eq('tournament_id', id).maybeSingle()
           setIsPremiumOrg(!!(data as any)?.is_premium)
+          setIsAdFreeOrg(!!(data as any)?.is_ad_free)
         } catch { /* non-critical */ }
       })()
     }
@@ -317,6 +330,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const isCompAdmin = selectedCompId != null && adminCompIds.has(selectedCompId)
   // isPremium: true when enforcement is off (everyone free) OR user has paid for this tournament
   const isPremium   = !enforcePremium || isPremiumOrg
+  // isAdFree: ONLY true for users who actually paid (Pro or ad-free pass) — NOT tied to
+  // enforce_premium, so free users still see ads regardless of the premium-feature switch.
+  const isAdFree    = isPremiumOrg || isAdFreeOrg
 
   return (
     <UserPrefsContext.Provider value={{
@@ -330,6 +346,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       hasTribe, selectedTribeId, refreshHasTribe,
       loading,
       isPremium, enforcePremium,
+      isAdFree, adsEnabled,
     }}>
       {children}
     </UserPrefsContext.Provider>

@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { Spinner, Card } from '@/components/ui'
+import { Spinner, Card, RemoveAdsButton } from '@/components/ui'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { TIMEZONES, COUNTRIES, COUNTRY_CODE_MAP, getTimezonesForCountry } from '@/lib/timezone'
 import toast from 'react-hot-toast'
 
@@ -56,6 +57,17 @@ function Toggle({ enabled, onChange, label, description }: {
 
 export default function SettingsPage() {
   const { session, supabase } = useSupabase()
+  const { isAdFree, adsEnabled } = useUserPrefs()
+
+  // Ad-free purchase success (Stripe success_url → /settings?adfree=1)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('adfree') === '1') {
+      toast.success('🎉 Ads removed — thanks for supporting TribePicks!')
+      window.history.replaceState({}, '', '/settings')
+    }
+  }, [])
 
   const [displayName,    setDisplayName]    = useState('')
   const [firstName,      setFirstName]      = useState('')
@@ -282,6 +294,26 @@ export default function SettingsPage() {
           </p>
         </Card>
       </section>
+
+      {/* Ad-free — hidden entirely when ads are off site-wide */}
+      {adsEnabled && (
+        <section className="mb-6">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ads</h2>
+          <Card>
+            {isAdFree ? (
+              <p className="text-sm text-gray-700">✓ You&apos;re <strong>ad-free</strong> for this tournament. Thanks for supporting TribePicks!</p>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">Remove ads</p>
+                  <p className="text-xs text-gray-500 mt-0.5">One-time $2.95 — no ads for the rest of WC 2026.</p>
+                </div>
+                <RemoveAdsButton className="flex-shrink-0" />
+              </div>
+            )}
+          </Card>
+        </section>
+      )}
 
       {/* Country & Timezone */}
       <section className="mb-6">

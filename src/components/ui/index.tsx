@@ -5,6 +5,7 @@ export { CrownBadge, PremiumSection, PremiumButton, UpgradeModal } from './Premi
 export { TeamPickerSheet } from './TeamPickerSheet'
 export { FavTeamPicker } from './FavTeamPicker'
 export { Flag } from './Flag'
+export { RemoveAdsButton } from './RemoveAdsButton'
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 export function Avatar({

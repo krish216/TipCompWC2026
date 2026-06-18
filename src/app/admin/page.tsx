@@ -395,6 +395,8 @@ export default function AdminPage() {
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
+  const [adsOn,               setAdsOn]               = useState(true)   // app_settings.ads_enabled (unset = on)
+  const [togglingAds,         setTogglingAds]         = useState(false)
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
   // ── Bracket Challenge co-branding ──────────────────────────────────────────
@@ -468,6 +470,22 @@ export default function AdminPage() {
     if (res.ok) {
       setReportCardOn(next)
       toast.success(next ? '📋 Weekly report card ON' : 'Weekly report card OFF')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const handleToggleAds = async () => {
+    const next = !adsOn
+    setTogglingAds(true)
+    const res = await fetch('/api/app-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'ads_enabled', value: next ? 'on' : 'off' }),
+    })
+    setTogglingAds(false)
+    if (res.ok) {
+      setAdsOn(next)
+      toast.success(next ? '📢 Ads ON' : 'Ads OFF site-wide')
     } else {
       toast.error('Failed to update setting')
     }
@@ -559,7 +577,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab !== 'tournament') return
     fetch('/api/app-settings').then(r => r.json())
-      .then(d => setReportCardOn(d.data?.weekly_report_card === 'on')).catch(() => {})
+      .then(d => { setReportCardOn(d.data?.weekly_report_card === 'on'); setAdsOn((d.data?.ads_enabled ?? 'on') !== 'off') }).catch(() => {})
     fetch('/api/admin/report-stats').then(r => r.json())
       .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
       .catch(() => {})
@@ -1149,6 +1167,34 @@ export default function AdminPage() {
               className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
               {savingBracket ? 'Saving…' : 'Save sponsor branding'}
             </button>
+          </div>
+
+          {/* Ads master switch */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">📢 Ads</h3>
+            <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl">
+              <div className="pr-3">
+                <p className="text-xs font-semibold text-gray-800">Show ads to free users</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {adsOn
+                    ? 'ON — ad slots show to free users (AdSense, where configured). Premium & ad-free users never see ads.'
+                    : 'OFF — no ads shown to anyone site-wide.'}
+                </p>
+              </div>
+              <button
+                onClick={handleToggleAds}
+                disabled={togglingAds}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                  adsOn ? 'bg-emerald-500' : 'bg-gray-200'
+                )}>
+                <span className={clsx(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                  adsOn ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">Note: ads also require AdSense env vars to be set & the account approved — this switch is the on/off control on top of that.</p>
           </div>
 
           {/* Weekly Intelligence Report */}

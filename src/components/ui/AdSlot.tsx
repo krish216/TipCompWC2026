@@ -43,8 +43,9 @@ function AdsenseUnit({ client, adSlot, className }: { client: string; adSlot: st
 //   2. A Google AdSense unit — when ads are enabled AND this slot has a unit id.
 //   3. Otherwise nothing (dormant).
 export function AdSlot({ slot, className }: { slot: string; className?: string }) {
-  const { isPremium } = useUserPrefs()
-  if (isPremium) return null
+  const { isAdFree, adsEnabled } = useUserPrefs()
+  // Admin master switch off, or this user paid to remove ads → render nothing.
+  if (!adsEnabled || isAdFree) return null
 
   // 1. Direct sponsor banner (image + click-through) — zero ad-network setup.
   const sponsor = SPONSORS[slot] ?? null
