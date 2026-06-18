@@ -40,6 +40,33 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
   const [awayVal,   setAwayVal]   = useState(result?.away?.toString() ?? '')
   const [penWinner, setPenWinner] = useState<string>(result?.pen_winner ?? '')
 
+  // Tournament-wide pick stats (lazy-loaded, for stats sharing).
+  const [showStats,    setShowStats]    = useState(false)
+  const [stats,        setStats]        = useState<any | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+  const kickedOff = Date.now() >= new Date(fixture.kickoff_utc).getTime()
+
+  const toggleStats = async () => {
+    if (showStats) { setShowStats(false); return }
+    setShowStats(true)
+    if (stats) return
+    setLoadingStats(true)
+    try {
+      const res = await fetch(`/api/admin/fixture-pickstats?fixture_id=${fixture.id}`)
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) setStats(d)
+      else { toast.error(d.error ?? 'Failed to load picks'); setShowStats(false) }
+    } finally { setLoadingStats(false) }
+  }
+
+  const copyStats = () => {
+    if (!stats) return
+    const f = stats.fixture, a = stats.aggregate
+    const score = f.home_score != null ? ` ${f.home_score}–${f.away_score}` : ''
+    const text = `📊 ${f.home}${score} ${f.away} — how TribePicks tipped (${stats.total_predictions} tips)\n${f.home} ${a.home_pct}% · Draw ${a.draw_pct}% · ${f.away} ${a.away_pct}%`
+    navigator.clipboard.writeText(text).then(() => toast.success('Stats copied'))
+  }
+
   const isKnockout  = (knockoutRounds ?? []).includes(fixture.round)
   const h = parseInt(homeVal, 10), a = parseInt(awayVal, 10)
   const scoresLevel = !isNaN(h) && !isNaN(a) && h === a
@@ -130,6 +157,43 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
             </button>
           ))}
           {!penWinner && <span className="text-[11px] text-amber-500">Select winner ↑</span>}
+        </div>
+      )}
+
+      {/* Tournament-wide pick stats (for stats sharing) */}
+      {(result || kickedOff) && (
+        <div className="mt-2">
+          <button onClick={toggleStats} className="text-[11px] font-semibold text-emerald-700 hover:underline">
+            📊 {showStats ? 'Hide picks' : 'How everyone picked'}
+          </button>
+          {showStats && (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+              {loadingStats ? (
+                <div className="flex justify-center py-3"><Spinner className="w-4 h-4" /></div>
+              ) : !stats ? (
+                <p className="text-[11px] text-gray-400">No data.</p>
+              ) : stats.total_predictions === 0 ? (
+                <p className="text-[11px] text-gray-400">No tips for this fixture yet.</p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-gray-500 mb-1.5">{stats.total_predictions} tip{stats.total_predictions === 1 ? '' : 's'} across the tournament</p>
+                  <div className="flex h-5 rounded-md overflow-hidden text-[9px] font-bold text-white">
+                    {stats.aggregate.home_pct > 0 && <div className="bg-emerald-500 flex items-center justify-center" style={{ width: `${stats.aggregate.home_pct}%` }}>{stats.aggregate.home_pct}%</div>}
+                    {stats.aggregate.draw_pct > 0 && <div className="bg-gray-400 flex items-center justify-center"    style={{ width: `${stats.aggregate.draw_pct}%` }}>{stats.aggregate.draw_pct}%</div>}
+                    {stats.aggregate.away_pct > 0 && <div className="bg-sky-500 flex items-center justify-center"      style={{ width: `${stats.aggregate.away_pct}%` }}>{stats.aggregate.away_pct}%</div>}
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>🏠 {fixture.home} {stats.aggregate.home_pct}%</span>
+                    <span>Draw {stats.aggregate.draw_pct}%</span>
+                    <span>{fixture.away} {stats.aggregate.away_pct}% 🛫</span>
+                  </div>
+                  <button onClick={copyStats} className="mt-2.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+                    📋 Copy stats
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
