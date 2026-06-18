@@ -8,7 +8,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 // linking the tribe to its satirical Round Debrief. Gated by /api/round-debrief-card
 // (round complete + you're in a tribe). Dismiss is per-round and shared across
 // every surface so it's never naggy.
-export function RoundDebriefCard({ className, round = 'gs1' }: { className?: string; round?: string }) {
+export function RoundDebriefCard({ className, round = 'gs1', source = 'debrief' }: { className?: string; round?: string; source?: string }) {
   const { hasTribe, selectedTribeId } = useUserPrefs()
   const [info, setInfo]           = useState<{ round_code: string; round_name: string } | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export function RoundDebriefCard({ className, round = 'gs1' }: { className?: str
       <span className="text-base flex-shrink-0">🕵️</span>
       <div className="flex-1 min-w-0 text-xs text-amber-900">
         <strong>The {info.round_name} debrief is in</strong> — who bagged the Wooden Spoon? 🥄{' '}
-        <a href={`/tribe/round-debrief?tribe_id=${selectedTribeId}&round=${info.round_code}`}
+        <a href={`/api/r/round-debrief?tribe_id=${selectedTribeId}&round=${info.round_code}&source=${source}`}
           className="underline font-semibold whitespace-nowrap">Read the dossier →</a>
       </div>
       <button

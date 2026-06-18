@@ -481,7 +481,7 @@ export default function AdminPage() {
   const [togglingAds,         setTogglingAds]         = useState(false)
   const [postingDebrief,      setPostingDebrief]      = useState(false)
   const [syncingTimes,        setSyncingTimes]        = useState(false)
-  const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
+  const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number }; debrief?: { total: number; leaderboard: number; predict: number } } | null>(null)
 
   // Bracket Challenge sponsor co-branding now lives in the Sponsor Campaigns
   // module (/admin/sponsors). The legacy single-sponsor card was removed here.
@@ -666,7 +666,7 @@ export default function AdminPage() {
     fetch('/api/app-settings').then(r => r.json())
       .then(d => { setReportCardOn(d.data?.weekly_report_card === 'on'); setAdsOn(d.data?.ads_enabled === 'on') }).catch(() => {})
     fetch('/api/admin/report-stats').then(r => r.json())
-      .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
+      .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source, debrief: d.debrief }) })
       .catch(() => {})
   }, [activeTab])
 
@@ -1274,6 +1274,11 @@ export default function AdminPage() {
                 {reportStats.by_source && (
                   <p className="text-[11px] text-gray-400 text-center mt-1.5">
                     Card clicks by page — home {reportStats.by_source.home} · predict {reportStats.by_source.predict} · scoreboard {reportStats.by_source.scoreboard}
+                  </p>
+                )}
+                {reportStats.debrief && (
+                  <p className="text-[11px] text-gray-400 text-center mt-1">
+                    🕵️ Round Debrief opens — {reportStats.debrief.total} total · leaderboard {reportStats.debrief.leaderboard} · predict {reportStats.debrief.predict}
                   </p>
                 )}
               </>

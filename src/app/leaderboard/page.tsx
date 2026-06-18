@@ -397,7 +397,7 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      <RoundDebriefCard className="mb-4" />
+      <RoundDebriefCard className="mb-4" source="debrief_leaderboard" />
       <WeeklyReportCard className="mb-4" src="scoreboard" />
 
       {/* Multi-comp selector — only shown when user is in >1 comp */}

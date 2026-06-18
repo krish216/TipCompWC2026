@@ -986,7 +986,7 @@ export default function PredictPage() {
         </div>
       )}
 
-      <RoundDebriefCard className="mb-3" />
+      <RoundDebriefCard className="mb-3" source="debrief_predict" />
       <WeeklyReportCard className="mb-3" src="predict" />
 
       {/* Lock-in confirmation — irreversible */}
