@@ -397,6 +397,7 @@ export default function AdminPage() {
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
   const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
   const [togglingAds,         setTogglingAds]         = useState(false)
+  const [postingDebrief,      setPostingDebrief]      = useState(false)
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
   // ── Bracket Challenge co-branding ──────────────────────────────────────────
@@ -472,6 +473,22 @@ export default function AdminPage() {
       toast.success(next ? '📋 Weekly report card ON' : 'Weekly report card OFF')
     } else {
       toast.error('Failed to update setting')
+    }
+  }
+
+  const handlePostDebrief = async () => {
+    if (!confirm('Post the Round 1 wrap-up to every eligible tribe chat (4+ members)? This notifies members. Tribes already posted to are skipped.')) return
+    setPostingDebrief(true)
+    try {
+      const res = await fetch('/api/admin/post-round-debrief', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ round: 'gs1' }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(`🕵️ Posted to ${d.posted} tribe${d.posted === 1 ? '' : 's'} · ${d.notified} notified${d.skipped ? ` · ${d.skipped} skipped` : ''}`)
+      else toast.error(d.error ?? 'Failed to post wrap-up')
+    } finally {
+      setPostingDebrief(false)
     }
   }
 
@@ -1166,6 +1183,18 @@ export default function AdminPage() {
             <button onClick={saveBracketConfig} disabled={savingBracket}
               className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
               {savingBracket ? 'Saving…' : 'Save sponsor branding'}
+            </button>
+          </div>
+
+          {/* Round 1 wrap-up (satirical debrief) */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🕵️ Round 1 wrap-up</h3>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Posts the satirical <strong>Round 1 debrief</strong> (MVP, Wooden Spoon, Collective Faceplant…) into every eligible tribe chat (4+ members) and notifies members. Only works once all Round 1 (gs1) matches are scored. Tribes already posted to are skipped.
+            </p>
+            <button onClick={handlePostDebrief} disabled={postingDebrief}
+              className="w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+              {postingDebrief ? 'Posting…' : 'Post Round 1 wrap-up to tribes'}
             </button>
           </div>
 

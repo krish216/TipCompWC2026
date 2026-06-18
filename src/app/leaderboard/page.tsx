@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
+import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -396,6 +397,7 @@ export default function LeaderboardPage() {
         )}
       </div>
 
+      <RoundDebriefCard className="mb-4" />
       <WeeklyReportCard className="mb-4" src="scoreboard" />
 
       {/* Multi-comp selector — only shown when user is in >1 comp */}
