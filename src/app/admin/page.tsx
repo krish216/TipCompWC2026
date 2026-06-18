@@ -468,6 +468,11 @@ export default function AdminPage() {
         const n = d.updated ?? 0
         toast.success(n ? `🕒 Synced ${n} fixture time${n === 1 ? '' : 's'} from the provider` : 'All fixture times already match the provider')
         if (n) console.log('[sync-times] changes:', d.changes)
+        if (d.flagged) {
+          // Provider tried to back-date fixtures by >1 day — likely wrong-season data.
+          toast(d.message ?? `⚠️ Skipped ${d.skipped?.length ?? 0} suspicious back-dated fixture(s)`, { icon: '⚠️', duration: 8000 })
+          console.warn('[sync-times] SKIPPED (back-date guard):', d.skipped)
+        }
       } else {
         toast.error(d.error ?? 'Failed to sync fixture times')
       }

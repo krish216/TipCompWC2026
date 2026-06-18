@@ -254,6 +254,15 @@ export async function POST(request: NextRequest) {
   // fixtures (matched by team pair → provider utcDate is the real kickoff). Use
   // this to fix wrong seed times that stop matches from locking.
   const timesMode = url.searchParams.get('times') === '1'
+  // ?allowBackdate=1 overrides the back-dating safety guard below (use only after
+  // reviewing the flagged fixtures — e.g. a genuine large reschedule).
+  const allowBackdate = url.searchParams.get('allowBackdate') === '1'
+
+  // Safety guard: a real schedule correction nudges a kickoff by hours, not days.
+  // A provider response from the WRONG SEASON would back-date fixtures by months,
+  // dragging future matches into the past and locking them. So we refuse to move a
+  // kickoff EARLIER than its current time by more than this, and flag it instead.
+  const MAX_BACKDATE_MS = 24 * 60 * 60 * 1000
 
   try {
     const { matches } = await buildMatches()
@@ -262,12 +271,26 @@ export async function POST(request: NextRequest) {
     if (timesMode) {
       const drifted = matches.filter(m => m.apiDate && m.timeDrift && (m.confidence === 'exact' || m.confidence === 'swapped'))
       let updated = 0
-      const changes: { id: number; label: string; from?: string; to?: string }[] = []
+      const changes:  { id: number; label: string; from?: string; to?: string }[] = []
+      const skipped:  { id: number; label: string; from?: string; to?: string; backdatedHours: number }[] = []
       for (const m of drifted) {
+        const fromMs = new Date(m.seedKickoff!).getTime()
+        const toMs   = new Date(m.apiDate!).getTime()
+        const backdateMs = fromMs - toMs   // positive = provider time is EARLIER
+        if (!allowBackdate && backdateMs > MAX_BACKDATE_MS) {
+          skipped.push({ id: m.localId, label: m.label, from: m.seedKickoff, to: m.apiDate, backdatedHours: Math.round(backdateMs / 3_600_000) })
+          continue
+        }
         const { error } = await (admin.from('fixtures') as any).update({ kickoff_utc: m.apiDate }).eq('id', m.localId)
         if (!error) { updated++; changes.push({ id: m.localId, label: m.label, from: m.seedKickoff, to: m.apiDate }) }
       }
-      return NextResponse.json({ mode: 'sync-times', updated, changes })
+      const flagged = skipped.length > 0
+      return NextResponse.json({
+        mode: 'sync-times', updated, changes, skipped, flagged,
+        message: flagged
+          ? `⚠ Skipped ${skipped.length} fixture(s) whose provider time was >1 day earlier than the current time — likely a wrong-season provider response. Review "skipped"; re-run with ?allowBackdate=1 only if the reschedule is genuine.`
+          : undefined,
+      })
     }
 
     // Only commit confident matches; leave ambiguous/unmatched for manual handling.
