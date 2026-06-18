@@ -11,6 +11,7 @@ export type NotificationType =
   | 'round_complete'
   | 'weekly_report'
   | 'feedback_reply'
+  | 'sponsor_lead'
 
 export interface CreateNotificationParams {
   user_id:  string

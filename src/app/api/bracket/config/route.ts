@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-// Bracket Challenge co-branding, stored as app_settings rows (admin-editable, no
-// deploy). enabled=false → the bracket runs TribePicks-only (no sponsor shown).
+// Bracket Challenge co-branding. READS now resolve the active campaign from the
+// Sponsor Campaigns module (with a legacy app_settings fallback baked into the
+// resolver), so the bracket header/insert auto on/off with the campaign window.
+// The legacy app_settings WRITE (POST) below remains for the old admin card until
+// the Sponsor Campaigns admin UI (Phase 2) replaces it.
 const KEYS = {
   enabled:      'bracket_sponsor_enabled',
   sponsor_name: 'bracket_sponsor_name',
@@ -18,17 +22,8 @@ const KEYS = {
 
 export async function GET() {
   const admin = createAdminClient()
-  const { data } = await (admin.from('app_settings') as any).select('key, value').in('key', Object.values(KEYS))
-  const m: Record<string, string> = {}
-  ;((data ?? []) as any[]).forEach(r => { m[r.key] = r.value })
-  return NextResponse.json({
-    enabled:      m[KEYS.enabled] === 'on',
-    sponsor_name: m[KEYS.sponsor_name] ?? '',
-    sponsor_logo: m[KEYS.sponsor_logo] ?? '',
-    prize:        m[KEYS.prize] ?? '',
-    sponsor_url:  m[KEYS.sponsor_url] ?? '',
-    logo_tone:    m[KEYS.logo_tone] === 'light' ? 'light' : 'dark',
-  })
+  const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket' })
+  return NextResponse.json(cfg)
 }
 
 export async function POST(request: NextRequest) {
