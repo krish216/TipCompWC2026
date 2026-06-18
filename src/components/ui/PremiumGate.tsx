@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { RemoveAdsButton } from './RemoveAdsButton'
 
 // ── Crown badge ──────────────────────────────────────────────────────────────
 export function CrownBadge({ className = '' }: { className?: string }) {
@@ -22,6 +23,7 @@ export function UpgradeModal({ tournamentId, tournamentName, onClose }: {
   tournamentName: string
   onClose:        () => void
 }) {
+  const { adsEnabled, isAdFree } = useUserPrefs()
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
@@ -91,6 +93,13 @@ export function UpgradeModal({ tournamentId, tournamentName, onClose }: {
             {loading ? 'Redirecting to checkout…' : 'Upgrade to Pro →'}
           </button>
           <p className="text-[10px] text-gray-400 text-center mt-2">Secure payment via Stripe</p>
+
+          {/* Downsell — only when ads are live and the user isn't already ad-free */}
+          {adsEnabled && !isAdFree && (
+            <div className="mt-3 pt-3 border-t border-gray-100 text-center text-[11px] text-gray-400">
+              Just want the ads gone? <RemoveAdsButton variant="link" className="ml-0.5" />
+            </div>
+          )}
         </div>
       </div>
     </>

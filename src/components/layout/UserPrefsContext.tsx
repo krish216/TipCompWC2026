@@ -93,12 +93,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [isPremiumOrg,    setIsPremiumOrg]    = useState(false)
   const [isAdFreeOrg,     setIsAdFreeOrg]     = useState(false)
   const [enforcePremium,  setEnforcePremium]  = useState(false)
-  const [adsEnabled,      setAdsEnabled]      = useState(true)   // app_settings.ads_enabled; unset = on
+  const [adsEnabled,      setAdsEnabled]      = useState(false)  // app_settings.ads_enabled; OFF until admin turns ads on
 
   // Global ads on/off switch (admin-controlled, app_settings). Public read.
+  // Default OFF — ads AND every "remove ads" upsell stay hidden until an admin
+  // explicitly flips the switch on (once AdSense is approved + env configured).
   useEffect(() => {
     fetch('/api/app-settings').then(r => r.json())
-      .then(d => setAdsEnabled((d.data?.ads_enabled ?? 'on') !== 'off'))
+      .then(d => setAdsEnabled(d.data?.ads_enabled === 'on'))
       .catch(() => {})
   }, [])
 

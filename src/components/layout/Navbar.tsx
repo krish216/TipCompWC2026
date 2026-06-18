@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { Avatar } from '@/components/ui'
+import { Avatar, RemoveAdsButton } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 const CHAT_SEEN_KEY = (tribeId: string) => `tc_chat_seen_${tribeId}`
@@ -391,6 +391,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <span>⚙️</span> Settings
                       </Link>
+                      {/* Self-hides unless ads are on and the user isn't already ad-free */}
+                      <RemoveAdsButton variant="menu" />
                       <button onClick={signOut}
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
                         <span>🚪</span> Sign out

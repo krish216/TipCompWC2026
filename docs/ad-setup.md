@@ -77,6 +77,29 @@ to anything but `true`) turns all ads off site-wide.
 
 ---
 
+## Monetisation tiers
+
+| Tier | Price | What they get | Flag |
+|---|---|---|---|
+| **Free** | — | Sees ads (when ads are on) | — |
+| **Ad-free** | **$2.95 one-time / tournament** | No ads | `user_tournaments.is_ad_free` |
+| **Pro** | **$9.95 one-time / tournament** | No ads **+** organiser features | `user_tournaments.is_premium` |
+
+- `isAdFree = paid Pro OR paid ad-free` (decoupled from `enforce_premium`).
+- Ad-free price lives in one constant: `AD_FREE_PRICE_CENTS` in `/api/stripe/create-checkout`.
+
+### The master switch (gates ads AND every upsell)
+`app_settings.ads_enabled` (admin → Tournament tab → 📢 Ads). **Defaults OFF.**
+While off: no ads render and **no "Remove ads" upsell appears anywhere**. Flip it
+**on** once AdSense is approved + the env vars are set — that single switch turns
+on ads and the ad-free upsell together.
+
+### Where the ad-free upsell surfaces (all self-hide when ads are off / already ad-free)
+- **Beneath every rendered ad** — "Remove ads · $2.95" link (highest intent).
+- **Settings → Ads** — button + "you're ad-free" state.
+- **Pro upgrade modal** — downsell line: "Just want the ads gone?"
+- **Nav dropdown** — "🚫 Go ad-free · $2.95".
+
 ## Notes
 - **Premium = ad-free** is enforced in `AdSlot` (returns null for premium). Keep **Auto ads** and **Auto optimize** OFF so Google can't inject ads that bypass this.
 - **EEA/UK/CH** users get the consent banner automatically (Google CMP) — no code.

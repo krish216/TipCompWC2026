@@ -395,7 +395,7 @@ export default function AdminPage() {
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
-  const [adsOn,               setAdsOn]               = useState(true)   // app_settings.ads_enabled (unset = on)
+  const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
   const [togglingAds,         setTogglingAds]         = useState(false)
   const [reportStats,         setReportStats]         = useState<{ clicks: number; report_opens: number; posts: number; by_source?: { home: number; predict: number; scoreboard: number } } | null>(null)
 
@@ -577,7 +577,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab !== 'tournament') return
     fetch('/api/app-settings').then(r => r.json())
-      .then(d => { setReportCardOn(d.data?.weekly_report_card === 'on'); setAdsOn((d.data?.ads_enabled ?? 'on') !== 'off') }).catch(() => {})
+      .then(d => { setReportCardOn(d.data?.weekly_report_card === 'on'); setAdsOn(d.data?.ads_enabled === 'on') }).catch(() => {})
     fetch('/api/admin/report-stats').then(r => r.json())
       .then(d => { if (typeof d.clicks === 'number') setReportStats({ clicks: d.clicks, report_opens: d.report_opens ?? 0, posts: d.posts, by_source: d.by_source }) })
       .catch(() => {})
@@ -1177,8 +1177,8 @@ export default function AdminPage() {
                 <p className="text-xs font-semibold text-gray-800">Show ads to free users</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">
                   {adsOn
-                    ? 'ON — ad slots show to free users (AdSense, where configured). Premium & ad-free users never see ads.'
-                    : 'OFF — no ads shown to anyone site-wide.'}
+                    ? 'ON — ads show to free users (AdSense, where configured) and the “Remove ads” $2.95 upsell appears. Premium & ad-free users never see ads.'
+                    : 'OFF — no ads and no “Remove ads” upsell anywhere. Turn on once AdSense is approved & the env vars are set.'}
                 </p>
               </div>
               <button
