@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import Script from 'next/script'
 import { Suspense } from 'react'
 import './globals.css'
 import 'flag-icons/css/flag-icons.min.css'   // image-based flags (emoji flags don't render on Windows)
@@ -64,9 +65,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   }
 
+  // Google AdSense loader — only injected once both env vars are set, so ads stay
+  // fully dormant until configured (NEXT_PUBLIC_ADS_ENABLED + NEXT_PUBLIC_ADSENSE_CLIENT).
+  const adsEnabled = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true'
+  const adsClient  = process.env.NEXT_PUBLIC_ADSENSE_CLIENT   // e.g. ca-pub-XXXXXXXXXXXXXXXX
+
   return (
     <html lang="en">
       <body className={inter.className}>
+        {adsEnabled && adsClient && (
+          <Script
+            id="adsbygoogle-loader"
+            strategy="afterInteractive"
+            async
+            crossOrigin="anonymous"
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsClient}`}
+          />
+        )}
         <SupabaseProvider initialSession={session}>
           <UserPrefsProvider>
             <Suspense fallback={<div className="h-12 bg-white border-b border-gray-200" />}>
