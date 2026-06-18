@@ -31,6 +31,11 @@ export const metadata: Metadata = {
     title: 'TribePicks',
     description: 'Predict every match. Beat your tribe. Win bragging rights.',
   },
+  // AdSense site verification: <meta name="google-adsense-account" ...>. Present
+  // only once NEXT_PUBLIC_ADSENSE_CLIENT is set, so it's inert until configured.
+  ...(process.env.NEXT_PUBLIC_ADSENSE_CLIENT
+    ? { other: { 'google-adsense-account': process.env.NEXT_PUBLIC_ADSENSE_CLIENT } }
+    : {}),
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
