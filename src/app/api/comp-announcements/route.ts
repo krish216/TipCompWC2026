@@ -91,14 +91,27 @@ export async function POST(request: NextRequest) {
       .select('name').eq('id', comp_id).single()
     const compName = (comp as any)?.name ?? 'Your comp'
 
+    // Resolve display names so {name} personalises per recipient (matched
+    // case-insensitively; recipients with no account fall back to "there").
+    const { data: nameRows } = await (adminClient.from('users') as any)
+      .select('email, display_name, first_name').in('email', recipients as string[])
+    const nameByEmail: Record<string, string> = {}
+    for (const u of (nameRows ?? []) as any[]) {
+      if (u.email) nameByEmail[String(u.email).toLowerCase()] = (u.display_name || u.first_name || '').trim()
+    }
+    const nameFor = (email: string) => nameByEmail[email.toLowerCase()] || 'there'
+
     const resend  = new Resend(process.env.RESEND_API_KEY)
-    const html    = buildHtml(compName, msgBody.trim())
     const subject = title.trim()
+    const trimmedBody = msgBody.trim()
 
     const BATCH = 100
     for (let i = 0; i < recipients.length; i += BATCH) {
       const slice    = (recipients as string[]).slice(i, i + BATCH)
-      const messages = slice.map((to: string) => ({ from: FROM, to, subject, html }))
+      const messages = slice.map((to: string) => ({
+        from: FROM, to, subject,
+        html: buildHtml(compName, personalise(trimmedBody, nameFor(to), true)),
+      }))
       const { error } = await resend.batch.send(messages)
       if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
       sent += slice.length
@@ -108,17 +121,20 @@ export async function POST(request: NextRequest) {
     ;(async () => {
       try {
         const { data: userRows } = await (adminClient.from('users') as any)
-          .select('id').in('email', recipients as string[])
-        const userIds = ((userRows ?? []) as any[]).map((u: any) => u.id as string)
-        if (!userIds.length) return
-        const preview = msgBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
-        await createNotifications(userIds.map((uid: string) => ({
-          user_id: uid,
-          type:    'comp_announcement' as const,
-          title:   `📢 ${title.trim()}`,
-          body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
-          data:    { comp_id },
-        })))
+          .select('id, display_name, first_name').in('email', recipients as string[])
+        const rows = (userRows ?? []) as any[]
+        if (!rows.length) return
+        await createNotifications(rows.map((u: any) => {
+          const nm      = (u.display_name || u.first_name || '').trim() || 'there'
+          const preview = personalise(msgBody.trim(), nm).split('\n').find((l: string) => l.trim()) ?? ''
+          return {
+            user_id: u.id as string,
+            type:    'comp_announcement' as const,
+            title:   `📢 ${title.trim()}`,
+            body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
+            data:    { comp_id },
+          }
+        }))
       } catch {}
     })()
   } else if (persist) {
@@ -131,19 +147,36 @@ export async function POST(request: NextRequest) {
           .map((m: any) => m.user_id as string)
           .filter((uid: string) => uid !== user.id)
         if (!userIds.length) return
-        const preview = msgBody.trim().split('\n').find((l: string) => l.trim()) ?? ''
-        await createNotifications(userIds.map((uid: string) => ({
-          user_id: uid,
-          type:    'comp_announcement' as const,
-          title:   `📢 ${title.trim()}`,
-          body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
-          data:    { comp_id },
-        })))
+        const { data: us } = await (adminClient.from('users') as any)
+          .select('id, display_name, first_name').in('id', userIds)
+        const nameById: Record<string, string> = {}
+        for (const u of (us ?? []) as any[]) nameById[u.id] = (u.display_name || u.first_name || '').trim()
+        await createNotifications(userIds.map((uid: string) => {
+          const nm      = nameById[uid] || 'there'
+          const preview = personalise(msgBody.trim(), nm).split('\n').find((l: string) => l.trim()) ?? ''
+          return {
+            user_id: uid,
+            type:    'comp_announcement' as const,
+            title:   `📢 ${title.trim()}`,
+            body:    preview.length > 120 ? preview.slice(0, 117) + '…' : preview,
+            data:    { comp_id },
+          }
+        }))
       } catch {}
     })()
   }
 
   return NextResponse.json({ persisted: !!persistedId, id: persistedId, sent })
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+}
+
+// Replace {name} with the recipient's name. For email the name is HTML-escaped
+// (it's user-supplied); the plain-text notification path passes raw.
+function personalise(text: string, name: string, forHtml = false): string {
+  return text.replace(/\{name\}/g, forHtml ? escapeHtml(name) : name)
 }
 
 function buildHtml(compName: string, body: string): string {
