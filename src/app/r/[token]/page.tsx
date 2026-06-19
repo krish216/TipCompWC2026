@@ -49,8 +49,6 @@ export default function SurveyRespondPage({ params }: { params: { token: string 
     }
   }
 
-  const tone = (n: number) => n <= 6 ? 'detractor' : n <= 8 ? 'passive' : 'promoter'
-
   return (
     <div className="max-w-md mx-auto px-4 py-10">
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -79,23 +77,17 @@ export default function SurveyRespondPage({ params }: { params: { token: string 
 
             {/* 0–10 scale */}
             <div className="grid grid-cols-11 gap-1">
-              {Array.from({ length: 11 }, (_, n) => {
-                const sel = score === n
-                const t = tone(n)
-                return (
-                  <button key={n} onClick={() => setScore(n)}
-                    className={clsx(
-                      'h-9 rounded-md text-xs font-bold border transition-colors',
-                      sel
-                        ? t === 'detractor' ? 'bg-red-500 border-red-500 text-white'
-                          : t === 'passive' ? 'bg-amber-500 border-amber-500 text-white'
-                          : 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
-                    )}>
-                    {n}
-                  </button>
-                )
-              })}
+              {Array.from({ length: 11 }, (_, n) => (
+                <button key={n} onClick={() => setScore(n)}
+                  className={clsx(
+                    'h-9 rounded-md text-xs font-bold border transition-colors',
+                    score === n
+                      ? 'bg-gray-900 border-gray-900 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
+                  )}>
+                  {n}
+                </button>
+              ))}
             </div>
 
             <div>

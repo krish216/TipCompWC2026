@@ -17,10 +17,9 @@ function escapeHtml(s: string): string {
 // opaque (no identity in the URL).
 function buildSurveyHtml(name: string, token: string): string {
   const link = (n: number) => `${APPURL}/r/${token}?s=${n}`
-  const cell = (n: number) => {
-    const bg = n <= 6 ? '#ef4444' : n <= 8 ? '#f59e0b' : '#059669'
-    return `<td style="padding:2px;"><a href="${link(n)}" style="display:block;width:30px;line-height:34px;text-align:center;border-radius:6px;background:${bg};color:#ffffff;font-weight:700;font-size:13px;text-decoration:none;">${n}</a></td>`
-  }
+  // Uniform, neutral scale — no colour coding (keeps the NPS unbiased).
+  const cell = (n: number) =>
+    `<td style="padding:2px;"><a href="${link(n)}" style="display:block;width:30px;line-height:32px;text-align:center;border-radius:6px;background:#f3f4f6;color:#111827;border:1px solid #d1d5db;font-weight:700;font-size:13px;text-decoration:none;">${n}</a></td>`
   const scale = `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:6px auto;"><tr>${Array.from({ length: 11 }, (_, n) => cell(n)).join('')}</tr></table>`
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">

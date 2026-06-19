@@ -83,7 +83,7 @@ export function NpsPulse() {
                 <button key={n} onClick={() => setScore(n)}
                   className={clsx('h-7 rounded text-[11px] font-bold border transition-colors',
                     score === n
-                      ? n <= 6 ? 'bg-red-500 border-red-500 text-white' : n <= 8 ? 'bg-amber-500 border-amber-500 text-white' : 'bg-emerald-600 border-emerald-600 text-white'
+                      ? 'bg-gray-900 border-gray-900 text-white'
                       : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400')}>
                   {n}
                 </button>
