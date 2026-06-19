@@ -1985,8 +1985,12 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
   isFinal?: boolean
   locked?: boolean
 }) {
+  // A winner can only be chosen once BOTH competitors are known — otherwise a
+  // lone qualifier (e.g. one semi-finalist while the other slot is still a
+  // placeholder) could be crowned, skipping the unfinished side of the bracket.
+  const bothPresent = !!homeTeam && !!awayTeam
   const pick = (team: string | null) => {
-    if (!team || locked) return
+    if (!team || locked || !bothPresent) return
     savePick(matchKey, winner === team ? null : team)
   }
 
@@ -2006,7 +2010,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
           <button
             key={i}
             onClick={() => pick(team)}
-            disabled={!team}
+            disabled={!team || !bothPresent}
             aria-label={team ? `Pick ${team}${isWinner ? ' (selected)' : ''}` : 'TBD'}
             aria-pressed={isWinner}
             style={{ height: CARD_H / 2 }}
