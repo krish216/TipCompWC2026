@@ -1168,6 +1168,18 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Customer Pulse (NPS) */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📣 Customer Pulse</h3>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Send a one-tap “how are we doing?” (NPS) email and track sentiment. Responses are attributed but confidential.
+            </p>
+            <Link href="/admin/pulse"
+              className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              Open pulse →
+            </Link>
+          </div>
+
           {/* Bracket Challenges → create challenges + attach a sponsor to each */}
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🏆 Bracket Challenges</h3>

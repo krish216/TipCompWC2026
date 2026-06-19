@@ -11,6 +11,7 @@ import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
 import { FeedbackButton } from '@/components/layout/FeedbackButton'
+import { NpsPulse } from '@/components/game/NpsPulse'
 import { RefCapture } from '@/components/layout/RefCapture'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
@@ -98,6 +99,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {children}
             </main>
             <Suspense fallback={null}><FeedbackButton /></Suspense>
+            <Suspense fallback={null}><NpsPulse /></Suspense>
             <Suspense fallback={null}><RefCapture /></Suspense>
             <Toaster
               position="top-right"
