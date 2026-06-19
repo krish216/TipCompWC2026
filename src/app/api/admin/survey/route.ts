@@ -27,7 +27,7 @@ function buildSurveyHtml(name: string, token: string): string {
   <p style="margin:0 0 4px;font-size:20px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks</p>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0 20px;"/>
   <p style="font-size:15px;color:#111827;margin:0 0 6px;">Hi ${escapeHtml(name)},</p>
-  <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 4px;">You've been reporting issues and we've been shipping fixes fast. Now the bigger picture — one tap:</p>
+  <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 4px;">One quick question — your honest answer helps us most:</p>
   <p style="font-size:15px;font-weight:700;color:#111827;margin:16px 0 2px;text-align:center;">How likely are you to recommend TribePicks to a mate?</p>
   ${scale}
   <p style="font-size:11px;color:#9ca3af;margin:0;text-align:center;">0 = not at all&nbsp;&nbsp;·&nbsp;&nbsp;10 = absolutely</p>
