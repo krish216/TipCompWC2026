@@ -1167,11 +1167,23 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Bracket Challenge sponsor → Sponsor Campaigns module */}
+          {/* Bracket Challenges → create challenges + attach a sponsor to each */}
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🏆 Sponsor Campaigns</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🏆 Bracket Challenges</h3>
             <p className="text-[11px] text-gray-500 mb-3">
-              Onboard sponsors and schedule co-branded campaigns (logo, prize, click-through) on the Bracket Challenge, with auto start/stop over the campaign window.
+              Create bracket challenges — each with its own shareable leaderboard URL — and attach a sponsor (logo, prize, link) to each one.
+            </p>
+            <Link href="/admin/challenges"
+              className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              Manage challenges →
+            </Link>
+          </div>
+
+          {/* Sponsor brands → Sponsor Campaigns module */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🏷️ Sponsors</h3>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Onboard sponsor brands and upload their logos. Attach a sponsor to a specific challenge from <strong>Bracket Challenges</strong>.
             </p>
             <Link href="/admin/sponsors"
               className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">

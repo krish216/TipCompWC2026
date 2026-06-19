@@ -74,12 +74,13 @@ export default function SponsorsAdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <Link href="/admin" className="text-sm text-emerald-600 hover:underline">← Admin</Link>
           <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Sponsor Campaigns</h1>
-          <p className="text-sm text-gray-500">Onboard sponsors and schedule co-branded challenge campaigns.</p>
+          <p className="text-sm text-gray-500">Onboard sponsors and their logos. To attach a sponsor to a specific challenge, use Challenges.</p>
         </div>
+        <Link href="/admin/challenges" className="text-sm font-semibold text-emerald-600 hover:underline mt-1">Manage challenges →</Link>
       </div>
 
       {/* Filter tabs */}
