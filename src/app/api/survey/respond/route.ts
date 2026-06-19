@@ -21,16 +21,20 @@ async function resolveResponder(admin: any, token: string | null): Promise<{ use
   return { userId: user.id, survey: DEFAULT_SURVEY, source: 'in_app' }
 }
 
-// GET /api/survey/respond?survey= — has the signed-in user already responded?
-// Powers the in-app pulse gate (don't nag people who've answered).
+// GET /api/survey/respond?survey= — has the signed-in user already responded, and
+// is the in-app pulse live for everyone? Powers the in-app pulse gate.
 export async function GET(request: NextRequest) {
-  const user = await getSessionUser().catch(() => null)
-  if (!user) return NextResponse.json({ responded: false, logged_in: false })
-  const survey = new URL(request.url).searchParams.get('survey') || DEFAULT_SURVEY
+  const user  = await getSessionUser().catch(() => null)
   const admin = createAdminClient()
+  // app_settings.nps_pulse_live = 'on' → show the in-app pulse to all users.
+  const { data: liveRow } = await (admin.from('app_settings') as any).select('value').eq('key', 'nps_pulse_live').maybeSingle()
+  const live = (liveRow as any)?.value === 'on'
+
+  if (!user) return NextResponse.json({ responded: false, logged_in: false, live })
+  const survey = new URL(request.url).searchParams.get('survey') || DEFAULT_SURVEY
   const { data } = await (admin.from('nps_responses') as any)
     .select('score').eq('user_id', user.id).eq('survey_key', survey).maybeSingle()
-  return NextResponse.json({ responded: !!data, logged_in: true })
+  return NextResponse.json({ responded: !!data, logged_in: true, live })
 }
 
 // POST /api/survey/respond — record a score and/or comment.

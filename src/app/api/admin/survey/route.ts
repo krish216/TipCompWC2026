@@ -64,13 +64,28 @@ export async function GET(request: NextRequest) {
   const { count: invited } = await (admin.from('nps_invites') as any)
     .select('token', { count: 'exact', head: true }).eq('survey_key', survey)
 
+  const { data: liveRow } = await (admin.from('app_settings') as any).select('value').eq('key', 'nps_pulse_live').maybeSingle()
+
   return NextResponse.json({
+    live: (liveRow as any)?.value === 'on',
     summary: { total, promoters, passives, detractors, nps, avg: total ? +(sum / total).toFixed(1) : null, invited: invited ?? 0 },
     responses: rows.map(r => ({
       score: r.score, comment: r.comment, source: r.source, created_at: r.created_at,
       display_name: r.users?.display_name ?? 'Member',
     })),
   })
+}
+
+// PATCH /api/admin/survey — admin: turn the in-app pulse on/off for all users.
+// Body: { live: boolean }. Admins always see the pulse regardless (preview).
+export async function PATCH(request: NextRequest) {
+  const { admin, ok } = await requireAdmin()
+  if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const b = await request.json().catch(() => ({} as any))
+  const value = b.live ? 'on' : 'off'
+  const { error } = await (admin.from('app_settings') as any).upsert({ key: 'nps_pulse_live', value, updated_at: new Date().toISOString() })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, live: value === 'on' })
 }
 
 // POST /api/admin/survey — admin: send the NPS email.

@@ -7,8 +7,9 @@ import { TRUSTPILOT_REVIEW_URL, isPromoter } from '@/lib/trustpilot'
 
 // In-app NPS pulse — a small dismissible card for signed-in users who haven't
 // responded yet. Identified (session) + confidential, lands in the same
-// nps_responses table as the email flow. Admin-only for now (early rollout);
-// drop the is_admin check to open it to everyone.
+// nps_responses table as the email flow. Shows when the survey is live for
+// everyone (app_settings.nps_pulse_live = 'on', toggled in /admin/pulse) OR to
+// admins always (preview).
 const DISMISS_KEY = 'tribepicks_nps_dismissed_wc2026'
 
 export function NpsPulse() {
@@ -24,12 +25,13 @@ export function NpsPulse() {
   useEffect(() => {
     if (hidden) return
     try { if (localStorage.getItem(DISMISS_KEY) === '1') return } catch {}
-    // Admin-only gate + not-yet-responded check.
+    // Show when live for everyone, or always to admins (preview) — and only to
+    // signed-in users who haven't responded.
     Promise.all([
       fetch('/api/admin').then(r => r.json()).catch(() => ({})),
       fetch('/api/survey/respond').then(r => r.json()).catch(() => ({})),
     ]).then(([a, s]) => {
-      if (a?.is_admin && s?.logged_in && !s?.responded) setShow(true)
+      if ((s?.live || a?.is_admin) && s?.logged_in && !s?.responded) setShow(true)
     })
   }, [hidden])
 

@@ -22,6 +22,8 @@ export default function PulseAdminPage() {
   const [testEmail, setTestEmail] = useState('')
   const [list, setList] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [live, setLive] = useState(false)
+  const [togglingLive, setTogglingLive] = useState(false)
 
   useEffect(() => {
     if (!session) { setIsAdmin(false); return }
@@ -31,11 +33,25 @@ export default function PulseAdminPage() {
   const load = useCallback(() => {
     setLoading(true)
     fetch('/api/admin/survey').then(r => r.json())
-      .then(d => { setSummary(d.summary ?? null); setResponses(d.responses ?? []) })
+      .then(d => { setSummary(d.summary ?? null); setResponses(d.responses ?? []); setLive(!!d.live) })
       .catch(() => toast.error('Failed to load results'))
       .finally(() => setLoading(false))
   }, [])
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
+
+  const toggleLive = async () => {
+    const next = !live
+    setTogglingLive(true)
+    try {
+      const res = await fetch('/api/admin/survey', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ live: next }) })
+      if (res.ok) { setLive(next); toast.success(next ? 'In-app pulse is now LIVE for everyone' : 'In-app pulse turned off') }
+      else toast.error('Could not update')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setTogglingLive(false)
+    }
+  }
 
   const send = async (body: any, label: string, confirmMsg?: string) => {
     if (confirmMsg && !confirm(confirmMsg)) return
@@ -64,6 +80,22 @@ export default function PulseAdminPage() {
         <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Customer Pulse (NPS)</h1>
         <p className="text-sm text-gray-500">Send a one-tap “how are we doing?” email and track sentiment. Responses are attributed but confidential.</p>
       </div>
+
+      {/* In-app pulse on/off */}
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900">In-app pulse {live ? <span className="text-emerald-600">· LIVE</span> : <span className="text-gray-400">· off</span>}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {live ? 'Showing to all signed-in users who haven’t responded.' : 'Hidden from users — only admins see it (preview).'} Admins always see it.
+            </p>
+          </div>
+          <button onClick={toggleLive} disabled={togglingLive} aria-pressed={live}
+            className={clsx('relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50', live ? 'bg-emerald-600' : 'bg-gray-300')}>
+            <span className={clsx('absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform', live ? 'translate-x-5' : 'translate-x-0.5')} />
+          </button>
+        </div>
+      </Card>
 
       {/* Results */}
       <Card>
