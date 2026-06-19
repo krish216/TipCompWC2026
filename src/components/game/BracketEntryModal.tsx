@@ -5,12 +5,20 @@ import { useState } from 'react'
 // Member entry into the Bracket Challenge prize comp: capture the two tie-break
 // totals (goals in the Final + the 3rd-place match) and consent, then POST.
 // `challenge` is the challenge slug being entered (omitted → the default one).
-export function BracketEntryModal({ challenge, onClose, onEntered }: { challenge?: string; onClose: () => void; onEntered: () => void }) {
-  const [finalGoals, setFinalGoals] = useState('')
-  const [tpGoals,    setTpGoals]    = useState('')
-  const [terms,      setTerms]      = useState(false)
-  const [marketing,  setMarketing]  = useState(false)
-  const [phone,      setPhone]      = useState('')
+// `editing` + `initial` re-open the form to amend an existing entry (the POST
+// upserts on user+challenge, so re-submitting overwrites the tie-breakers).
+export function BracketEntryModal({ challenge, editing, initial, onClose, onEntered }: {
+  challenge?: string
+  editing?: boolean
+  initial?: { final_goals?: number | null; tp_goals?: number | null; phone?: string | null }
+  onClose: () => void
+  onEntered: () => void
+}) {
+  const [finalGoals, setFinalGoals] = useState(initial?.final_goals != null ? String(initial.final_goals) : '')
+  const [tpGoals,    setTpGoals]    = useState(initial?.tp_goals != null ? String(initial.tp_goals) : '')
+  const [terms,      setTerms]      = useState(!!editing)     // already consented when amending
+  const [marketing,  setMarketing]  = useState(!!editing)
+  const [phone,      setPhone]      = useState(initial?.phone ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -49,7 +57,7 @@ export function BracketEntryModal({ challenge, onClose, onEntered }: { challenge
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">🏆 Enter the Bracket Challenge</h3>
+          <h3 className="text-base font-bold text-gray-900">{editing ? '✏️ Update your entry' : '🏆 Enter the Bracket Challenge'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1" aria-label="Close">✕</button>
         </div>
 
@@ -83,7 +91,7 @@ export function BracketEntryModal({ challenge, onClose, onEntered }: { challenge
 
           <button onClick={submit} disabled={!canSubmit}
             className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
-            {submitting ? 'Entering…' : 'Enter to win 🎯'}
+            {submitting ? (editing ? 'Updating…' : 'Entering…') : (editing ? 'Update entry' : 'Enter to win 🎯')}
           </button>
         </div>
       </div>

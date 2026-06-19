@@ -253,6 +253,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   const [es,   setEs]   = useState<any | null>(null)   // entry status (/api/bracket/enter)
   const [cfg,  setCfg]  = useState<any | null>(null)   // sponsor co-branding (/api/bracket/config)
   const [showEnter, setShowEnter] = useState(false)
+  const [editingEntry, setEditingEntry] = useState(false)   // re-opening the modal to amend an existing entry
   const [tab,  setTab]  = useState<'leaderboard' | 'mine'>('leaderboard')
   const [resolvedSlug, setResolvedSlug] = useState<string | undefined>(slug)
   const [allChallenges, setAllChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
@@ -345,8 +346,9 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
         es.locked ? (
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">🔒 Entries closed — the knockouts have started.</div>
         ) : es.entered ? (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
-            ✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 flex items-start justify-between gap-2">
+            <span className="min-w-0">✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.</span>
+            <button onClick={() => { setEditingEntry(true); setShowEnter(true) }} className="flex-shrink-0 font-semibold underline hover:text-emerald-900">Edit</button>
           </div>
         ) : (
           // Not yet entered (guest, no bracket, or bracket-ready): explain the loop
@@ -356,7 +358,11 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <div className="px-4 pt-3 pb-2">
               <p className="text-sm font-extrabold text-emerald-900">🏆 How to get on this leaderboard</p>
               <ol className="mt-1.5 text-[12px] text-emerald-800 space-y-0.5 list-decimal list-inside">
-                <li>Build your World Cup knockout bracket</li>
+                <li>
+                  <Link href={bracketHref} className="font-bold text-emerald-700 underline hover:text-emerald-800">
+                    Build your bracket{cfg?.sponsor_name ? ` with ${cfg.sponsor_name}` : ''} now{cfg?.prize ? ' for a chance to win' : ''} →
+                  </Link>
+                </li>
                 <li>Enter the <strong>{challengeName}</strong>{cfg?.prize ? <> for a shot at <strong className="text-emerald-700">{cfg.prize}</strong></> : null}</li>
                 <li>Score points all tournament — your name appears right here</li>
               </ol>
@@ -435,7 +441,13 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
       )}
 
       {showEnter && (
-        <BracketEntryModal challenge={resolvedSlug} onClose={() => setShowEnter(false)} onEntered={() => { setShowEnter(false); loadEntry(resolvedSlug) }} />
+        <BracketEntryModal
+          challenge={resolvedSlug}
+          editing={editingEntry}
+          initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone } : undefined}
+          onClose={() => { setShowEnter(false); setEditingEntry(false) }}
+          onEntered={() => { setShowEnter(false); setEditingEntry(false); loadEntry(resolvedSlug) }}
+        />
       )}
     </div>
   )

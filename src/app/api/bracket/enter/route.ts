@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   // Entry row — gracefully report unavailable if the table isn't migrated yet.
   let entry: any = null, available = true
   const { data, error } = await admin.from('bracket_entries')
-    .select('final_goals, tp_goals, consent_marketing, entered_at')
+    .select('final_goals, tp_goals, phone, consent_marketing, entered_at')
     .eq('user_id', user.id).eq('challenge_id', challenge.id).maybeSingle()
   if (error) available = false
   else entry = data
