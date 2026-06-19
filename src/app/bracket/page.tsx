@@ -283,7 +283,7 @@ export default function BracketPage() {
   const [showGuestEnter, setShowGuestEnter] = useState(false)
   // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
   const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
-  const [guestChallenge, setGuestChallenge] = useState<string | undefined>(undefined)
+  const [guestChallenge, setGuestChallenge] = useState<string | undefined>(searchParams.get('challenge') ?? undefined)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -553,6 +553,12 @@ export default function BracketPage() {
 
   const champion = picks['final'] ?? null
 
+  // Arrived from a specific sponsor's leaderboard (/bracket?challenge=slug)?
+  // Then focus the entry on that challenge and offer a link back to its board.
+  const challengeParam = searchParams.get('challenge')
+  const targetedChallenge = challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined
+  const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
+
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
     if (!loading) {
@@ -682,6 +688,15 @@ export default function BracketPage() {
         </button>
       </div>
 
+      {/* Context when arriving from a sponsor's leaderboard — link back to that board */}
+      {targetedChallenge && (
+        <a href={`/bracket/leaderboard/${targetedChallenge.slug}`}
+          className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <span className="min-w-0 truncate">🏆 Building your bracket for <strong>{targetedChallenge.sponsor?.name ? `${targetedChallenge.sponsor.name} · ` : ''}{targetedChallenge.name}</strong></span>
+          <span className="font-semibold underline whitespace-nowrap">Leaderboard →</span>
+        </a>
+      )}
+
       {/* Completion CTA — persistent card for guests once champion is picked */}
       {!session && champion && section === 'bracket' && (
         <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -692,10 +707,10 @@ export default function BracketPage() {
           </div>
           <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — enter to win 🏆</p>
           <p className="text-xs text-emerald-700 mb-3">Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.</p>
-          {challenges.length > 1 ? (
+          {ctaChallenges.length > 1 ? (
             // Several concurrent challenges → let the guest pick which to enter.
             <div className="space-y-2">
-              {challenges.map(c => (
+              {ctaChallenges.map(c => (
                 <button key={c.slug} onClick={() => { setGuestChallenge(c.slug); setShowGuestEnter(true) }}
                   className="w-full flex items-center justify-between gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all">
                   <span className="truncate">Enter {c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</span>
@@ -704,9 +719,9 @@ export default function BracketPage() {
               ))}
             </div>
           ) : (
-            <button onClick={() => { setGuestChallenge(challenges[0]?.slug); setShowGuestEnter(true) }}
+            <button onClick={() => { setGuestChallenge(ctaChallenges[0]?.slug ?? challengeParam ?? undefined); setShowGuestEnter(true) }}
               className="w-full text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold py-3 rounded-xl transition-all">
-              Enter the {challenges[0]?.name ?? 'Bracket Challenge'} →
+              Enter the {ctaChallenges[0]?.name ?? 'Bracket Challenge'} →
             </button>
           )}
           <p className="text-center text-[11px] text-emerald-600 mt-2.5">

@@ -290,6 +290,9 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   const coBranded = !!(cfg?.enabled && (cfg.sponsor_name || cfg.sponsor_logo))
   const challengeName = data?.challenge?.name ?? 'Bracket Challenge'
   const otherChallenges = allChallenges.filter(c => c.slug !== resolvedSlug)
+  // Carry the challenge slug to the builder so finishing there routes the entry
+  // back to THIS challenge (and the bracket page can link back to this board).
+  const bracketHref = resolvedSlug ? `/bracket?challenge=${encodeURIComponent(resolvedSlug)}` : '/bracket'
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
@@ -317,7 +320,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">{challengeName} leaderboard · max {data?.max ?? 80} pts</p>
-            <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Your bracket →</Link>
+            <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Your bracket →</Link>
           </div>
         </div>
       ) : (
@@ -326,7 +329,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <h1 className="text-lg font-bold text-gray-900">🏆 {challengeName}</h1>
             <p className="text-xs text-gray-500 mt-0.5">Leaderboard · max {data?.max ?? 80} pts</p>
           </div>
-          <Link href="/bracket" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
+          <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
         </div>
       )}
 
@@ -343,31 +346,45 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
         </div>
       )}
 
-      {/* Entry status / CTA */}
+      {/* How you get on this board + entry CTA */}
       {es && es.available && (
         es.locked ? (
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">🔒 Entries closed — the knockouts have started.</div>
-        ) : !es.logged_in ? (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 flex items-center justify-between gap-2">
-            <span>Log in to enter the {challengeName}.</span>
-            <a href="/login" className="font-semibold underline whitespace-nowrap">Log in →</a>
-          </div>
         ) : es.entered ? (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
             ✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.
           </div>
-        ) : !es.has_bracket ? (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 flex items-center justify-between gap-2">
-            <span>Pick your champion to complete your bracket, then enter.</span>
-            <a href="/bracket" className="font-semibold underline whitespace-nowrap">Finish bracket →</a>
-          </div>
         ) : (
-          <div className="mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-3 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-emerald-900">🎯 Enter to win</p>
-              <p className="text-[11px] text-emerald-700 mt-0.5">{es.closes_at ? `Entries ${closesLabel(es.closes_at)}` : 'Open now'}</p>
+          // Not yet entered (guest, no bracket, or bracket-ready): explain the loop
+          // and link to the builder. The slug travels with the link so finishing
+          // there enters THIS challenge and lands the player on this board.
+          <div className="mb-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50 overflow-hidden">
+            <div className="px-4 pt-3 pb-2">
+              <p className="text-sm font-extrabold text-emerald-900">🏆 How to get on this leaderboard</p>
+              <ol className="mt-1.5 text-[12px] text-emerald-800 space-y-0.5 list-decimal list-inside">
+                <li>Build your World Cup knockout bracket</li>
+                <li>Enter the <strong>{challengeName}</strong>{cfg?.prize ? <> for a shot at <strong className="text-emerald-700">{cfg.prize}</strong></> : null}</li>
+                <li>Score points all tournament — your name appears right here</li>
+              </ol>
             </div>
-            <button onClick={() => setShowEnter(true)} className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter →</button>
+            <div className="px-4 pb-3 pt-1">
+              {!es.logged_in ? (
+                <>
+                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Build your bracket →</Link>
+                  <p className="text-center text-[11px] text-emerald-700 mt-2">No account needed to start · <a href="/login" className="underline font-semibold">log in</a> if you already have one</p>
+                </>
+              ) : !es.has_bracket ? (
+                <>
+                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Finish your bracket →</Link>
+                  <p className="text-center text-[11px] text-emerald-700 mt-2">Pick your champion to complete it, then enter.</p>
+                </>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] text-emerald-700 min-w-0">Your bracket&apos;s ready · {es.closes_at ? `entries ${closesLabel(es.closes_at)}` : 'open now'}</p>
+                  <button onClick={() => setShowEnter(true)} className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter to win →</button>
+                </div>
+              )}
+            </div>
           </div>
         )
       )}
