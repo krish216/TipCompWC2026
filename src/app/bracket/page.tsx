@@ -2006,21 +2006,29 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
       ].map(({ team, desc }, i) => {
         const isWinner = !!team && winner === team
         const isLoser  = !!winner && !!team && winner !== team
+        const competitorTbd = !!team && !bothPresent          // opponent slot still a placeholder
+        const pickable      = !!team && bothPresent && !locked
         return (
           <button
             key={i}
+            type="button"
             onClick={() => pick(team)}
-            disabled={!team || !bothPresent}
+            // aria-disabled (not native `disabled`) so the not-allowed cursor still
+            // renders on hover — disabled buttons ignore CSS cursor. pick() guards the click.
+            aria-disabled={!team || !bothPresent || locked}
             aria-label={team ? `Pick ${team}${isWinner ? ' (selected)' : ''}` : 'TBD'}
             aria-pressed={isWinner}
             style={{ height: CARD_H / 2 }}
             className={clsx(
               'w-full flex items-center gap-1.5 px-2.5 text-left transition-all',
               i === 0 ? '' : 'border-t border-gray-100',
-              isWinner ? 'bg-emerald-50'
-              : isLoser ? 'opacity-40'
-              : team ? 'hover:bg-gray-50'
-              : 'cursor-default'
+              isWinner && 'bg-emerald-50',
+              isLoser && 'opacity-40',
+              !team && 'cursor-default',
+              competitorTbd && 'cursor-not-allowed',   // not ready — opponent still TBD
+              pickable && clsx('cursor-pointer', !isWinner && !isLoser && 'hover:bg-gray-50'),
+              // when locked (both present — the Final's 3rd-place gate), the cursor-help
+              // on the wrapper is inherited rather than overridden here
             )}>
             <span className="text-sm leading-none flex-shrink-0" aria-hidden="true">
               {team ? <Flag team={team} className="text-sm rounded-sm" /> : '·'}
