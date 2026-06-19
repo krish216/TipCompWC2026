@@ -715,9 +715,10 @@ export default function AdminPage() {
     })
     const data = await res.json()
     setAnnPosting(false)
-    if (!res.ok) { setAnnError(data.error ?? 'Failed to post'); return }
+    if (!res.ok) { setAnnError(data.error ?? 'Failed to post'); toast.error(data.error ?? 'Failed to post announcement'); return }
     setAnnouncements(prev => [data.data, ...prev])
     setAnnTitle(''); setAnnBody('')
+    toast.success('📣 Announcement posted — live in-app for players')
   }
 
   const deleteAnnouncement = async (id: string) => {
