@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
+import { TRUSTPILOT_REVIEW_URL, isPromoter } from '@/lib/trustpilot'
 
 // One-tap NPS landing page reached from the email links (/r/<token>?s=<score>).
 // The clicked score is recorded immediately; the visitor can adjust it and add a
@@ -58,7 +59,16 @@ export default function SurveyRespondPage({ params }: { params: { token: string 
             <div className="text-4xl">🙏</div>
             <p className="text-lg font-bold text-gray-900">Thanks for the feedback!</p>
             <p className="text-sm text-gray-500">It genuinely helps us make TribePicks better. We read every response.</p>
-            <a href="/" className="inline-block mt-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Back to TribePicks →</a>
+            {isPromoter(score) ? (
+              <div className="pt-1 space-y-2">
+                <p className="text-sm font-semibold text-gray-800">Loved it? A quick Trustpilot review helps others find us 🙌</p>
+                <a href={TRUSTPILOT_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+                  className="block px-4 py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">⭐ Leave a Trustpilot review →</a>
+                <a href="/" className="block text-xs text-gray-400 hover:text-gray-600">No thanks, back to TribePicks</a>
+              </div>
+            ) : (
+              <a href="/" className="inline-block mt-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Back to TribePicks →</a>
+            )}
           </div>
         ) : (
           <div className="px-6 py-6 space-y-4">

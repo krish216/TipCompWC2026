@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
+import { TRUSTPILOT_REVIEW_URL, isPromoter } from '@/lib/trustpilot'
 
 // In-app NPS pulse — a small dismissible card for signed-in users who haven't
 // responded yet. Identified (session) + confidential, lands in the same
@@ -42,7 +43,12 @@ export function NpsPulse() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ score, comment: comment.trim() || undefined }),
       })
-      if (res.ok) { setDone(true); try { localStorage.setItem(DISMISS_KEY, '1') } catch {} ; setTimeout(() => setShow(false), 1800) }
+      if (res.ok) {
+        setDone(true)
+        try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
+        // Promoters get the review CTA — keep the card up so they can tap it.
+        if (!isPromoter(score)) setTimeout(() => setShow(false), 1800)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -54,7 +60,16 @@ export function NpsPulse() {
     <div className="fixed z-40 left-1/2 -translate-x-1/2 bottom-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 w-[calc(100%-2rem)] max-w-sm">
       <div className="rounded-2xl border border-gray-200 bg-white shadow-xl p-4">
         {done ? (
-          <p className="text-sm font-bold text-emerald-800 text-center py-2">🙏 Thanks for the feedback!</p>
+          <div className="text-center py-1 space-y-2">
+            <p className="text-sm font-bold text-emerald-800">🙏 Thanks for the feedback!</p>
+            {isPromoter(score) && (
+              <>
+                <a href={TRUSTPILOT_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+                  className="block px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">⭐ Leave a Trustpilot review →</a>
+                <button onClick={() => setShow(false)} className="text-[11px] text-gray-400 hover:text-gray-600">Close</button>
+              </>
+            )}
+          </div>
         ) : (
           <>
             <div className="flex items-start justify-between gap-2 mb-2">
