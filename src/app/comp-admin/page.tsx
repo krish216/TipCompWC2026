@@ -843,27 +843,35 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     if (!annBody.trim()) { toast.error('Message is required'); return }
     setPosting(true)
     const recipients = annSendEmail ? tipsters.map(t => t.email) : []
-    const res = await fetch('/api/comp-announcements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        comp_id:    comp.id,
-        title:      annTitle.trim() || 'Announcement',
-        body:       annBody.trim(),
-        recipients,
-        send_email: annSendEmail,
-        persist:    true,
-      }),
-    })
-    setPosting(false)
-    if (res.ok) {
-      setAnnouncements(prev => [{ id: Date.now(), title: annTitle.trim() || 'Announcement', body: annBody.trim(), created_at: new Date().toISOString() }, ...prev])
-      setAnnTitle('')
-      setAnnBody('')
-      toast.success(annSendEmail ? `Posted + emailed ${tipsters.length} tipster${tipsters.length !== 1 ? 's' : ''}` : 'Announcement posted')
-    } else {
-      const d = await res.json()
-      toast.error(d.error ?? 'Failed to post')
+    try {
+      const res = await fetch('/api/comp-announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comp_id:    comp.id,
+          title:      annTitle.trim() || 'Announcement',
+          body:       annBody.trim(),
+          recipients,
+          send_email: annSendEmail,
+          persist:    true,
+        }),
+      })
+      const d = await res.json().catch(() => ({}))   // 504/HTML error pages aren't JSON
+      if (res.ok) {
+        setAnnouncements(prev => [{ id: Date.now(), title: annTitle.trim() || 'Announcement', body: annBody.trim(), created_at: new Date().toISOString() }, ...prev])
+        setAnnTitle('')
+        setAnnBody('')
+        toast.success(annSendEmail ? `Posted + emailed ${tipsters.length} tipster${tipsters.length !== 1 ? 's' : ''}` : 'Announcement posted')
+      } else {
+        toast.error(d.error ?? `Failed to post (${res.status})`)
+      }
+    } catch {
+      // Network drop or function timeout — the send may have partly gone through.
+      toast.error(annSendEmail
+        ? 'Network/timeout error — some emails may have sent. Check before resending.'
+        : 'Network error — please try again.')
+    } finally {
+      setPosting(false)
     }
   }
 
@@ -951,13 +959,20 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     if (!emailSubject.trim() || !emailBody.trim()) { toast.error('Subject and body required'); return }
     if (!recipientList.length) { toast.error('No recipients'); return }
     setSending(true)
-    const res = await fetch('/api/comp-announcements', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id, title: emailSubject, body: emailBody, recipients: recipientList }),
-    })
-    setSending(false)
-    if (res.ok) { toast.success(`Email sent to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`); setEmailSubject(''); setEmailBody('') }
-    else { const d = await res.json(); toast.error(d.error ?? 'Failed to send') }
+    try {
+      const res = await fetch('/api/comp-announcements', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id, title: emailSubject, body: emailBody, recipients: recipientList }),
+      })
+      const d = await res.json().catch(() => ({}))   // 504/HTML error pages aren't JSON
+      if (res.ok) { toast.success(`Email sent to ${recipientList.length} tipster${recipientList.length !== 1 ? 's' : ''}`); setEmailSubject(''); setEmailBody('') }
+      else { toast.error(d.error ?? `Failed to send (${res.status})`) }
+    } catch {
+      // Network drop or function timeout — the email may have partly sent.
+      toast.error('Network/timeout error — some emails may have sent. Check before resending.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (

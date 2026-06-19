@@ -5,6 +5,9 @@
     },
     "src/app/api/notifications/reminders/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/comp-announcements/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
