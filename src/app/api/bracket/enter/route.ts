@@ -98,3 +98,21 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, challenge: { slug: challenge.slug, name: challenge.name } })
 }
+
+// DELETE /api/bracket/enter?challenge=<slug> — caller withdraws from the draw.
+// Removes their own entry for this challenge (and the consent to share details);
+// their bracket picks are kept. Allowed any time — it's the user's own data.
+export async function DELETE(request: NextRequest) {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: 'Sign in to manage your entry' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const slug = new URL(request.url).searchParams.get('challenge')
+  const challenge = await resolveBracketChallenge(admin, { slug })
+  if (!challenge) return NextResponse.json({ error: 'No active bracket challenge' }, { status: 400 })
+
+  const { error } = await (admin.from('bracket_entries') as any)
+    .delete().eq('user_id', user.id).eq('challenge_id', challenge.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

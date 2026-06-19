@@ -47,6 +47,21 @@ export function BracketEntryModal({ challenge, editing, initial, onClose, onEnte
     }
   }
 
+  const withdraw = async () => {
+    if (!confirm('Withdraw from the draw? This removes your entry and takes you off this leaderboard. You can re-enter any time before entries close.')) return
+    setSubmitting(true); setError(null)
+    try {
+      const res = await fetch(`/api/bracket/enter${challenge ? `?challenge=${encodeURIComponent(challenge)}` : ''}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) onEntered()   // refresh entry status → caller now sees the "enter" CTA
+      else setError(data.error ?? 'Could not withdraw your entry.')
+    } catch {
+      setError('Network error — please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const numInput = (v: string, set: (s: string) => void) => (
     <input type="number" min={0} max={20} value={v} inputMode="numeric"
       onChange={e => set(e.target.value.replace(/[^0-9]/g, ''))}
@@ -93,6 +108,13 @@ export function BracketEntryModal({ challenge, editing, initial, onClose, onEnte
             className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
             {submitting ? (editing ? 'Updating…' : 'Entering…') : (editing ? 'Update entry' : 'Enter to win 🎯')}
           </button>
+
+          {editing && (
+            <button onClick={withdraw} disabled={submitting}
+              className="w-full text-center text-xs font-medium text-red-600 hover:text-red-700 underline disabled:opacity-50">
+              Withdraw from the draw
+            </button>
+          )}
         </div>
       </div>
     </div>
