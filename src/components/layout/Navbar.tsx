@@ -225,8 +225,11 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                     className={clsx(
                       'relative px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
                       isActive(item.href)
-                        ? 'bg-green-50 text-green-700'
-                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                        // Match the comp-admin blue theme when inside comp-admin.
+                        ? (isCompAdminPage ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700')
+                        : isCompAdminPage
+                          ? 'text-gray-500 hover:text-blue-700 hover:bg-blue-50'
+                          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     )}>
                     {item.label}
                     {item.href === '/tribe' && hasUnread && (
@@ -431,14 +434,14 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                   onClick={tab.disabled ? e => e.preventDefault() : undefined}
                   className={clsx(
                     'relative flex-1 flex flex-col items-center justify-center pt-2 pb-1.5 gap-0.5 min-h-[56px] transition-colors select-none',
-                    active         ? 'text-green-700'
+                    active         ? (isCompAdminPage ? 'text-blue-700' : 'text-green-700')
                     : tab.disabled ? 'text-gray-300 cursor-not-allowed'
                     :                'text-gray-400 active:text-gray-600'
                   )}>
-                  {/* Active indicator — green pill at top of tab */}
+                  {/* Active indicator — pill at top of tab (blue inside comp-admin) */}
                   <span className={clsx(
                     'absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full transition-all duration-200',
-                    active ? 'w-8 bg-green-500' : 'w-0'
+                    active ? (isCompAdminPage ? 'w-8 bg-blue-500' : 'w-8 bg-green-500') : 'w-0'
                   )} />
                   <span className="text-[22px] leading-none">{tab.icon}</span>
                   <span className={clsx(
