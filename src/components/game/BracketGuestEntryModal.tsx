@@ -17,10 +17,11 @@ interface Props {
   sessionId: string
   source?: string | null
   device?: string
+  challenge?: string           // challenge slug being entered (omitted → default)
   onClose: () => void
 }
 
-export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, onClose }: Props) {
+export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, onClose }: Props) {
   const [name,       setName]       = useState('')
   const [email,      setEmail]      = useState('')
   const [finalGoals, setFinalGoals] = useState('')
@@ -43,6 +44,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: tournamentId,
+          challenge:     challenge || undefined,
           name:          name.trim(),
           email:         email.trim(),
           final_goals:   +finalGoals,
@@ -65,7 +67,8 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
       if (data.status === 'existing') {
         try {
           localStorage.setItem(PENDING_ENTRY_KEY, JSON.stringify({
-            tournament_id: tournamentId, final_goals: +finalGoals, tp_goals: +tpGoals,
+            tournament_id: tournamentId, challenge: challenge || undefined,
+            final_goals: +finalGoals, tp_goals: +tpGoals,
             phone: phone.trim() || null, consent_terms: true, consent_marketing: true,
           }))
         } catch {}

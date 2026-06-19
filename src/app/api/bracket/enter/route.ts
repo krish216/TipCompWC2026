@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
+import { resolveBracketChallenge } from '@/lib/bracket/challenge'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
-
-async function activeTournamentId(admin: any): Promise<string | null> {
-  const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
-  return (data as any)?.id ?? null
-}
 
 // First R32 kick-off = when the bracket (and entry) locks.
 async function closesAt(admin: any, tid: string): Promise<string | null> {
@@ -25,17 +21,21 @@ async function hasChampion(admin: any, userId: string, tid: string): Promise<boo
   return !!data
 }
 
-// GET /api/bracket/enter — the caller's entry status (drives the Enter CTA).
-export async function GET() {
+// GET /api/bracket/enter?challenge=<slug> — the caller's entry status for one
+// challenge (drives the Enter CTA). No ?challenge → the default bracket challenge.
+export async function GET(request: NextRequest) {
   const user = await getSessionUser().catch(() => null)
   const admin = createAdminClient()
-  const tid = await activeTournamentId(admin)
-  if (!tid) return NextResponse.json({ available: false, logged_in: !!user })
+  const slug = new URL(request.url).searchParams.get('challenge')
+  const challenge = await resolveBracketChallenge(admin, { slug })
+  if (!challenge) return NextResponse.json({ available: false, logged_in: !!user })
 
+  const tid = challenge.tournament_id
   const closes_at = await closesAt(admin, tid)
   const locked = closes_at ? Date.now() >= new Date(closes_at).getTime() : false
+  const challengeInfo = { slug: challenge.slug, name: challenge.name }
 
-  if (!user) return NextResponse.json({ available: true, logged_in: false, closes_at, locked })
+  if (!user) return NextResponse.json({ available: true, logged_in: false, closes_at, locked, challenge: challengeInfo })
 
   const has_bracket = await hasChampion(admin, user.id, tid)
 
@@ -43,16 +43,17 @@ export async function GET() {
   let entry: any = null, available = true
   const { data, error } = await admin.from('bracket_entries')
     .select('final_goals, tp_goals, consent_marketing, entered_at')
-    .eq('user_id', user.id).eq('tournament_id', tid).maybeSingle()
+    .eq('user_id', user.id).eq('challenge_id', challenge.id).maybeSingle()
   if (error) available = false
   else entry = data
 
   return NextResponse.json({
-    available, logged_in: true, has_bracket, entered: !!entry, entry, closes_at, locked,
+    available, logged_in: true, has_bracket, entered: !!entry, entry, closes_at, locked, challenge: challengeInfo,
   })
 }
 
-// POST /api/bracket/enter — member enters the prize comp.
+// POST /api/bracket/enter — member enters one challenge's prize comp.
+// Body: { final_goals, tp_goals, consent_terms, consent_marketing, phone?, challenge? }
 export async function POST(request: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Sign in to enter' }, { status: 401 })
@@ -67,8 +68,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Enter your tie-break goal totals (0–20).' }, { status: 422 })
 
   const admin = createAdminClient()
-  const tid = await activeTournamentId(admin)
-  if (!tid) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
+  // `challenge` may be a slug (current UI) or, for replayed legacy entries, absent
+  // → the default bracket challenge. (`tournament_id` in old stashes is ignored;
+  // the challenge carries its own tournament.)
+  const challenge = await resolveBracketChallenge(admin, { slug: body.challenge ?? null })
+  if (!challenge) return NextResponse.json({ error: 'No active bracket challenge' }, { status: 400 })
+  const tid = challenge.tournament_id
 
   const closes_at = await closesAt(admin, tid)
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
@@ -80,6 +85,7 @@ export async function POST(request: NextRequest) {
   const { error } = await (admin.from('bracket_entries') as any).upsert({
     user_id:           user.id,
     tournament_id:     tid,
+    challenge_id:      challenge.id,
     final_goals:       finalGoals,
     tp_goals:          tpGoals,
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
@@ -87,8 +93,8 @@ export async function POST(request: NextRequest) {
     consent_marketing: body.consent_marketing === true,
     source:            'member',
     updated_at:        new Date().toISOString(),
-  }, { onConflict: 'user_id,tournament_id' })
+  }, { onConflict: 'user_id,challenge_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, challenge: { slug: challenge.slug, name: challenge.name } })
 }

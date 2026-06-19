@@ -144,3 +144,25 @@ notifications, and the sponsor still gets the emails.
      localStorage bracket migrates and the stashed entry (`PENDING_ENTRY_KEY`) replays
      via `/api/bracket/enter`. No new migration required.
 4. **Notifications + share** (reuse existing systems).
+
+## Per-challenge leaderboards (multi-sponsor) — mig 121
+The original model was **one** bracket challenge per tournament. It's now **many
+concurrent challenges, one shared bracket**: a user fills a single bracket
+(`bracket_picks`, still tournament-keyed) and *enters* specific challenges; each
+challenge has its own entry pool + branded, shareable leaderboard you can point a
+sponsor at.
+
+- **Schema (mig 121):** `challenges` gains a unique `slug` and drops the
+  one-bracket-per-tournament constraint; `bracket_entries` gains `challenge_id`
+  with a `(user_id, challenge_id)` unique (was `(user_id, tournament_id)`).
+- **Resolution:** every bracket API resolves its challenge via
+  `lib/bracket/challenge.ts` — by `?challenge=<slug>`, else the tournament's
+  default bracket challenge (so legacy slug-less URLs keep working).
+- **Leaderboard = the challenge's entrants** (a `bracket_entries` row), not "anyone
+  who filled a bracket". Tie-break (Final + 3rd-place goal totals from the entry)
+  is now applied. URL: **`/bracket/leaderboard/<slug>`** (slug-less → default).
+- **Entry** (`/api/bracket/enter`, guest-enter) and **config** take a `challenge`
+  slug; `/bracket` lists open challenges so guests pick which to enter.
+- **Still to do (Phase C — admin):** a UI to create bracket challenges (name +
+  slug) and attach a sponsor campaign. `ensureChallenge` currently mints a default
+  slug; there's no first-class "new challenge" admin form yet.

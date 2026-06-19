@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveBracketChallenge } from '@/lib/bracket/challenge'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -82,8 +83,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })
 
   const admin = createAdminClient()
-  const tid = (typeof body.tournament_id === 'string' && body.tournament_id) || await activeTournamentId(admin)
+  // The challenge being entered: a slug (current UI) or the default bracket
+  // challenge for the (hinted) tournament. The challenge carries the tournament.
+  const tournamentHint = typeof body.tournament_id === 'string' && body.tournament_id ? body.tournament_id : null
+  const challenge = await resolveBracketChallenge(admin, { slug: body.challenge ?? null, tournamentId: tournamentHint })
+  const tid = challenge?.tournament_id ?? tournamentHint ?? await activeTournamentId(admin)
   if (!tid) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
+  if (!challenge) return NextResponse.json({ error: 'No active bracket challenge' }, { status: 400 })
 
   const closes_at = await closesAt(admin, tid)
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
@@ -146,6 +152,7 @@ export async function POST(request: NextRequest) {
   const { error: entryErr } = await (admin.from('bracket_entries') as any).upsert({
     user_id:           userId,
     tournament_id:     tid,
+    challenge_id:      challenge.id,
     final_goals:       finalGoals,
     tp_goals:          tpGoals,
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
@@ -153,7 +160,7 @@ export async function POST(request: NextRequest) {
     consent_marketing: true,
     source:            'guest',
     updated_at:        now,
-  }, { onConflict: 'user_id,tournament_id' })
+  }, { onConflict: 'user_id,challenge_id' })
   if (entryErr) return NextResponse.json({ error: entryErr.message }, { status: 500 })
 
   // Funnel analytics row (best-effort) — attribute the champion/runner-up capture.

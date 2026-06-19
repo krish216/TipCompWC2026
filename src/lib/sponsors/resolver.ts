@@ -14,19 +14,32 @@ const EMPTY: ResolvedSponsorConfig = {
 
 export async function resolveActiveCampaign(
   admin: any,
-  opts: { challengeType: ChallengeType; tournamentId?: string | null },
+  opts: { challengeType: ChallengeType; tournamentId?: string | null; challengeId?: string | null; slug?: string | null },
 ): Promise<ResolvedSponsorConfig> {
   try {
-    let tid = opts.tournamentId ?? null
-    if (!tid) {
-      const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
-      tid = (t as any)?.id ?? null
+    // Resolve the target challenge. A tournament may host several bracket
+    // challenges now, so resolve by explicit id/slug when given; otherwise pick
+    // the first of the (tournament, type) — never .maybeSingle() (throws on >1).
+    let challengeId = opts.challengeId ?? null
+    if (!challengeId && opts.slug) {
+      const { data: bySlug } = await (admin.from('challenges') as any)
+        .select('id, type').eq('slug', opts.slug).maybeSingle()
+      challengeId = (bySlug as any)?.type === opts.challengeType ? (bySlug as any).id : null
+      if (!challengeId) return await legacyConfig(admin, opts.challengeType)
     }
-    if (!tid) return await legacyConfig(admin, opts.challengeType)
+    if (!challengeId) {
+      let tid = opts.tournamentId ?? null
+      if (!tid) {
+        const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+        tid = (t as any)?.id ?? null
+      }
+      if (!tid) return await legacyConfig(admin, opts.challengeType)
 
-    const { data: ch } = await (admin.from('challenges') as any)
-      .select('id').eq('tournament_id', tid).eq('type', opts.challengeType).maybeSingle()
-    const challengeId = (ch as any)?.id
+      const { data: chs } = await (admin.from('challenges') as any)
+        .select('id').eq('tournament_id', tid).eq('type', opts.challengeType)
+        .order('created_at', { ascending: true }).limit(1)
+      challengeId = (chs as any)?.[0]?.id ?? null
+    }
     if (!challengeId) return await legacyConfig(admin, opts.challengeType)
 
     const nowIso = new Date().toISOString()

@@ -281,6 +281,9 @@ export default function BracketPage() {
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
+  // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
+  const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
+  const [guestChallenge, setGuestChallenge] = useState<string | undefined>(undefined)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -301,6 +304,15 @@ export default function BracketPage() {
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
+
+  // Load the tournament's open bracket challenges (for the enter chooser + links).
+  useEffect(() => {
+    if (!selectedTournId) return
+    fetch(`/api/bracket/challenges?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(d => setChallenges(Array.isArray(d?.challenges) ? d.challenges : []))
+      .catch(() => {})
+  }, [selectedTournId])
 
   // Load picks — localStorage for guests, DB for signed-in users (with migration)
   useEffect(() => {
@@ -680,10 +692,23 @@ export default function BracketPage() {
           </div>
           <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — enter to win 🏆</p>
           <p className="text-xs text-emerald-700 mb-3">Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.</p>
-          <button onClick={() => setShowGuestEnter(true)}
-            className="w-full text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold py-3 rounded-xl transition-all">
-            Enter the Bracket Challenge →
-          </button>
+          {challenges.length > 1 ? (
+            // Several concurrent challenges → let the guest pick which to enter.
+            <div className="space-y-2">
+              {challenges.map(c => (
+                <button key={c.slug} onClick={() => { setGuestChallenge(c.slug); setShowGuestEnter(true) }}
+                  className="w-full flex items-center justify-between gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all">
+                  <span className="truncate">Enter {c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</span>
+                  <span aria-hidden>→</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => { setGuestChallenge(challenges[0]?.slug); setShowGuestEnter(true) }}
+              className="w-full text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold py-3 rounded-xl transition-all">
+              Enter the {challenges[0]?.name ?? 'Bracket Challenge'} →
+            </button>
+          )}
           <p className="text-center text-[11px] text-emerald-600 mt-2.5">
             Want a full comp with your crew? <a href="/login?tab=register&bracket=1" className="underline font-semibold">Sign up here</a>.
           </p>
@@ -693,6 +718,7 @@ export default function BracketPage() {
       {showGuestEnter && selectedTournId && (
         <BracketGuestEntryModal
           tournamentId={selectedTournId}
+          challenge={guestChallenge}
           picks={picks}
           sessionId={getOrCreateSessionId()}
           source={sourceRef.current}
@@ -1878,20 +1904,26 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
                 <div className="text-[8px] font-bold text-amber-500 tracking-wider uppercase text-center mb-1.5">
                   Final · Jul 20 · MetLife, NY
                 </div>
-                <BracketMatchCard
-                  matchKey={BRACKET_TREE.final.key}
-                  homeTeam={finalHome}
-                  awayTeam={finalAway}
-                  homeDesc={BRACKET_TREE.final.from[0]}
-                  awayDesc={BRACKET_TREE.final.from[1]}
-                  winner={champion}
-                  savePick={savePick}
-                  isFinal
-                  locked={finalLocked}
-                />
-                {finalLocked && (
-                  <p className="text-[8px] font-semibold text-amber-600 text-center mt-1 leading-tight">🥉 Pick the 3rd-place winner first</p>
-                )}
+                <div className={clsx('relative group', finalLocked && 'cursor-help')} title={finalLocked ? 'Pick the 3rd-place winner first' : undefined}>
+                  <BracketMatchCard
+                    matchKey={BRACKET_TREE.final.key}
+                    homeTeam={finalHome}
+                    awayTeam={finalAway}
+                    homeDesc={BRACKET_TREE.final.from[0]}
+                    awayDesc={BRACKET_TREE.final.from[1]}
+                    winner={champion}
+                    savePick={savePick}
+                    isFinal
+                    locked={finalLocked}
+                  />
+                  {finalLocked && (
+                    <div className="pointer-events-none absolute inset-x-0 -bottom-8 flex justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-amber-600 text-white text-[10px] rounded-full px-3 py-1.5 shadow-lg whitespace-nowrap">
+                        🥉 Pick the 3rd-place winner first
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })()}

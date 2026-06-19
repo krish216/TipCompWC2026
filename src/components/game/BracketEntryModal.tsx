@@ -4,7 +4,8 @@ import { useState } from 'react'
 
 // Member entry into the Bracket Challenge prize comp: capture the two tie-break
 // totals (goals in the Final + the 3rd-place match) and consent, then POST.
-export function BracketEntryModal({ onClose, onEntered }: { onClose: () => void; onEntered: () => void }) {
+// `challenge` is the challenge slug being entered (omitted → the default one).
+export function BracketEntryModal({ challenge, onClose, onEntered }: { challenge?: string; onClose: () => void; onEntered: () => void }) {
   const [finalGoals, setFinalGoals] = useState('')
   const [tpGoals,    setTpGoals]    = useState('')
   const [terms,      setTerms]      = useState(false)
@@ -25,6 +26,7 @@ export function BracketEntryModal({ onClose, onEntered }: { onClose: () => void;
           final_goals: +finalGoals, tp_goals: +tpGoals,
           consent_terms: terms, consent_marketing: marketing,
           phone: phone.trim() || undefined,
+          challenge: challenge || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))

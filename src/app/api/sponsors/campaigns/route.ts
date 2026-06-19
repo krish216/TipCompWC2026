@@ -24,11 +24,14 @@ export async function GET(request: NextRequest) {
 // Resolve (or create) the challenge row for a (tournament, type) pair.
 async function ensureChallenge(admin: any, tournamentId: string, type: ChallengeType): Promise<string | null> {
   const { data: existing } = await (admin.from('challenges') as any)
-    .select('id').eq('tournament_id', tournamentId).eq('type', type).maybeSingle()
-  if ((existing as any)?.id) return (existing as any).id
+    .select('id').eq('tournament_id', tournamentId).eq('type', type)
+    .order('created_at', { ascending: true }).limit(1)
+  if ((existing as any)?.[0]?.id) return (existing as any)[0].id
   const name = type === 'bracket' ? 'Bracket Challenge' : type
+  // challenges.slug is NOT NULL + UNIQUE; mint a stable, readable default.
+  const slug = `${type}-${Date.now().toString(36)}`
   const { data } = await (admin.from('challenges') as any)
-    .insert({ tournament_id: tournamentId, type, name }).select('id').single()
+    .insert({ tournament_id: tournamentId, type, name, slug }).select('id').single()
   return (data as any)?.id ?? null
 }
 

@@ -20,9 +20,12 @@ const KEYS = {
   logo_tone:    'bracket_sponsor_logo_tone',   // 'dark' | 'light' — drives backing per surface
 } as const
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const admin = createAdminClient()
-  const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket' })
+  // ?challenge=<slug> resolves that specific bracket challenge's sponsor; absent,
+  // the resolver falls back to the tournament's default bracket challenge.
+  const slug = new URL(request.url).searchParams.get('challenge')
+  const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', slug })
   return NextResponse.json(cfg)
 }
 
