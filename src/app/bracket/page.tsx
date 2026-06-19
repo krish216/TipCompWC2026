@@ -7,6 +7,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner, Flag } from '@/components/ui'
 import { BracketGuestEntryModal, PENDING_ENTRY_KEY } from '@/components/game/BracketGuestEntryModal'
+import { SponsorLogoMark } from '@/components/game/SponsorLogoMark'
 
 // ── Group compositions (WC 2026) ─────────────────────────────────────────────
 type Team = { name: string; flag: string }
@@ -252,6 +253,7 @@ export default function BracketPage() {
   const { session } = useSupabase()
   const { selectedTournId: ctxTournId } = useUserPrefs()
   const searchParams = useSearchParams()
+  const challengeParam = searchParams.get('challenge')   // sponsor challenge slug, if any
 
   // Guests: resolve tournament ID from ?slug= URL param (context is always null for non-signed-in users)
   const [resolvedTournId, setResolvedTournId] = useState<string | null>(null)
@@ -283,7 +285,10 @@ export default function BracketPage() {
   const [showGuestEnter, setShowGuestEnter] = useState(false)
   // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
   const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
-  const [guestChallenge, setGuestChallenge] = useState<string | undefined>(searchParams.get('challenge') ?? undefined)
+  const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
+  // Sponsor co-branding for the builder: the URL's challenge sponsor, else the
+  // default bracket challenge's sponsor (resolver falls back to legacy app_settings).
+  const [sponsorCfg, setSponsorCfg] = useState<any | null>(null)
 
   const pendingRef       = useRef<Map<string, string | null>>(new Map())
   const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -313,6 +318,12 @@ export default function BracketPage() {
       .then(d => setChallenges(Array.isArray(d?.challenges) ? d.challenges : []))
       .catch(() => {})
   }, [selectedTournId])
+
+  // Sponsor co-branding for the builder header (specific challenge or default).
+  useEffect(() => {
+    const qp = challengeParam ? `?challenge=${encodeURIComponent(challengeParam)}` : ''
+    fetch(`/api/bracket/config${qp}`).then(r => r.json()).then(setSponsorCfg).catch(() => {})
+  }, [challengeParam])
 
   // Load picks — localStorage for guests, DB for signed-in users (with migration)
   useEffect(() => {
@@ -555,9 +566,11 @@ export default function BracketPage() {
 
   // Arrived from a specific sponsor's leaderboard (/bracket?challenge=slug)?
   // Then focus the entry on that challenge and offer a link back to its board.
-  const challengeParam = searchParams.get('challenge')
   const targetedChallenge = challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
+  const branded = !!(sponsorCfg?.enabled && (sponsorCfg.sponsor_logo || sponsorCfg.sponsor_name))
+  // Leaderboard the header links to: the targeted board, else the generic one.
+  const leaderboardHref = targetedChallenge ? `/bracket/leaderboard/${targetedChallenge.slug}` : '/bracket/leaderboard'
 
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
@@ -670,32 +683,51 @@ export default function BracketPage() {
       )}
 
 
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
-          <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
-        </div>
-        {/* Two-tap reset: first tap arms confirmation, second tap executes */}
-        <button
-          onClick={resetAllPicks}
-          className={clsx(
-            'flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all mt-0.5',
-            confirmReset
-              ? 'bg-red-50 border-red-300 text-red-600'
-              : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600'
-          )}>
-          {confirmReset ? 'Confirm reset?' : 'Reset all'}
-        </button>
-      </div>
-
-      {/* Context when arriving from a sponsor's leaderboard — link back to that board */}
-      {targetedChallenge && (
-        <a href={`/bracket/leaderboard/${targetedChallenge.slug}`}
-          className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          <span className="min-w-0 truncate">🏆 Building your bracket for <strong>{targetedChallenge.sponsor?.name ? `${targetedChallenge.sponsor.name} · ` : ''}{targetedChallenge.name}</strong></span>
-          <span className="font-semibold underline whitespace-nowrap">Leaderboard →</span>
-        </a>
-      )}
+      {/* Two-tap reset: first tap arms confirmation, second tap executes */}
+      {(() => {
+        const resetBtn = (extra: string) => (
+          <button onClick={resetAllPicks}
+            className={clsx('text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all', extra,
+              confirmReset ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600')}>
+            {confirmReset ? 'Confirm reset?' : 'Reset all'}
+          </button>
+        )
+        return branded ? (
+          // Co-branded builder header — sponsor logo + prize, like the leaderboard.
+          <div className="mb-5">
+            <div className="bg-green-900 rounded-2xl px-5 py-5 flex flex-col items-center gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
+              <div className="text-center sm:text-left min-w-0">
+                <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">{targetedChallenge?.name ?? 'Bracket Challenge'}</h1>
+                <p className="text-[11px] text-green-300 mt-0.5">Build your bracket to enter</p>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[8px] uppercase tracking-[0.2em] text-amber-300 whitespace-nowrap">Sponsored by</span>
+                {sponsorCfg.sponsor_url
+                  ? <a href={sponsorCfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" /></a>
+                  : <SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" />}
+              </div>
+              <div className="text-center sm:text-right min-w-0">
+                {sponsorCfg.prize
+                  ? <p className="text-sm text-green-200">🏆 Win <strong className="text-amber-300 font-bold">{sponsorCfg.prize}</strong></p>
+                  : <p className="text-sm text-green-300">🏆 Predict the knockout bracket</p>}
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2 px-1">
+              <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Leaderboard →</a>
+              {resetBtn('')}
+            </div>
+          </div>
+        ) : (
+          // Plain header (no sponsor configured).
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
+              <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
+            </div>
+            {resetBtn('flex-shrink-0 mt-0.5')}
+          </div>
+        )
+      })()}
 
       {/* Completion CTA — persistent card for guests once champion is picked */}
       {!session && champion && section === 'bracket' && (

@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { BracketEntryModal } from '@/components/game/BracketEntryModal'
+import { SponsorLogoMark } from '@/components/game/SponsorLogoMark'
 import { Flag } from '@/components/ui/Flag'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
@@ -36,18 +37,9 @@ const ROUND_META: { key: RoundKey; label: string; outOf: number; pts: number }[]
 
 const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 
-// Sponsor logo, backed per surface so it stays visible regardless of its tone:
-// a dark logo gets a light chip on the green banner; a light logo gets a dark
-// chip on the white insert. Renders the mark only — callers add the link.
-function SponsorLogoMark({ cfg, surface, className }: { cfg: any; surface: 'dark' | 'light'; className?: string }) {
-  const tone = cfg?.logo_tone === 'light' ? 'light' : 'dark'
-  const chip =
-    surface === 'dark' && tone === 'dark'  ? 'bg-white rounded-xl px-3.5 py-2.5 shadow-sm' :
-    surface === 'light' && tone === 'light' ? 'bg-green-900 rounded-xl px-3.5 py-2.5' :
-    'drop-shadow'
-  return cfg?.sponsor_logo
-    ? <img src={cfg.sponsor_logo} alt={cfg.sponsor_name || 'Sponsor'} className={clsx('object-contain', chip, className)} />
-    : <span className={clsx('font-bold', surface === 'dark' ? 'text-white' : 'text-gray-900')}>{cfg?.sponsor_name}</span>
+// Adapts the resolved-config shape to the shared SponsorLogoMark.
+function CfgLogoMark({ cfg, surface, className }: { cfg: any; surface: 'dark' | 'light'; className?: string }) {
+  return <SponsorLogoMark logo={cfg?.sponsor_logo} name={cfg?.sponsor_name} logoTone={cfg?.logo_tone} surface={surface} className={className} />
 }
 
 // One match within an expanded round, framed from the player's pick.
@@ -204,7 +196,7 @@ function BracketSponsorInsert({ cfg }: { cfg: any }) {
   const inner = (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className="flex-shrink-0"><SponsorLogoMark cfg={cfg} surface="light" className="h-10 w-auto max-w-[140px]" /></div>
+        <div className="flex-shrink-0"><CfgLogoMark cfg={cfg} surface="light" className="h-10 w-auto max-w-[140px]" /></div>
         <div className="min-w-0">
           {cfg.prize
             ? <p className="text-sm font-bold text-gray-900 truncate">🎁 Win <span className="text-emerald-700">{cfg.prize}</span></p>
@@ -307,8 +299,8 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <div className="flex flex-col items-center gap-1.5">
               <span className="text-[8px] uppercase tracking-[0.2em] text-amber-300 whitespace-nowrap">Sponsored by</span>
               {cfg.sponsor_url
-                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" /></a>
-                : <SponsorLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
+                ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" /></a>
+                : <CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
             </div>
 
             {/* Prize — right, balances the title and keeps the logo centred */}
