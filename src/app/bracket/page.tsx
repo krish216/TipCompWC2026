@@ -7,6 +7,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner, Flag } from '@/components/ui'
 import { BracketGuestEntryModal, PENDING_ENTRY_KEY } from '@/components/game/BracketGuestEntryModal'
+import { BracketEntryModal } from '@/components/game/BracketEntryModal'
 import { SponsorLogoMark } from '@/components/game/SponsorLogoMark'
 
 // ── Group compositions (WC 2026) ─────────────────────────────────────────────
@@ -284,7 +285,10 @@ export default function BracketPage() {
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
   // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
-  const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
+  const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean }[]>([])
+  const [challengeMeta, setChallengeMeta] = useState<{ closes_at: string | null; locked: boolean }>({ closes_at: null, locked: false })
+  const [isAdmin, setIsAdmin] = useState(false)               // gate the challenges hub (admin-only rollout)
+  const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
   const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
   // Sponsor co-branding for the builder: the URL's challenge sponsor, else the
   // default bracket challenge's sponsor (resolver falls back to legacy app_settings).
@@ -310,14 +314,24 @@ export default function BracketPage() {
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
 
-  // Load the tournament's open bracket challenges (for the enter chooser + links).
-  useEffect(() => {
+  // Load the tournament's open bracket challenges (enter hub, chooser + links).
+  const loadChallenges = useCallback(() => {
     if (!selectedTournId) return
     fetch(`/api/bracket/challenges?tournament_id=${selectedTournId}`)
       .then(r => r.json())
-      .then(d => setChallenges(Array.isArray(d?.challenges) ? d.challenges : []))
+      .then(d => {
+        setChallenges(Array.isArray(d?.challenges) ? d.challenges : [])
+        setChallengeMeta({ closes_at: d?.closes_at ?? null, locked: !!d?.locked })
+      })
       .catch(() => {})
   }, [selectedTournId])
+  useEffect(() => { loadChallenges() }, [loadChallenges])
+
+  // Admin gate for the Sponsor Challenges hub (surfaced to admins only for now).
+  useEffect(() => {
+    if (!session) { setIsAdmin(false); return }
+    fetch('/api/admin').then(r => r.json()).then(d => setIsAdmin(!!d.is_admin)).catch(() => setIsAdmin(false))
+  }, [session])
 
   // Sponsor co-branding for the builder header (specific challenge or default).
   useEffect(() => {
@@ -802,6 +816,50 @@ export default function BracketPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sponsor Challenges hub — build one bracket, enter many (admin-only for now) */}
+      {isAdmin && challenges.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-900">🏆 Sponsor Challenges</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Build your bracket below, then enter each challenge with it — one bracket, many draws.</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {challenges.map(c => (
+              <div key={c.slug} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {c.sponsor?.logo ? <img src={c.sponsor.logo} alt="" className="max-w-full max-h-full object-contain p-0.5" /> : <span className="text-gray-300">🏆</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</p>
+                  <p className="text-[11px] text-gray-500 truncate">{c.sponsor?.prize ? `🎁 ${c.sponsor.prize} · ` : ''}{c.entrants} entered</p>
+                </div>
+                <div className="flex-shrink-0">
+                  {c.entered ? (
+                    <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">✓ Entered →</a>
+                  ) : challengeMeta.locked ? (
+                    <span className="text-xs text-gray-400">Closed</span>
+                  ) : !champion ? (
+                    <span className="text-[11px] text-amber-600 whitespace-nowrap">Finish bracket to enter</span>
+                  ) : (
+                    <button onClick={() => setMemberEnterSlug(c.slug)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap">Enter →</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {memberEnterSlug && (
+        <BracketEntryModal
+          challenge={memberEnterSlug}
+          onClose={() => setMemberEnterSlug(null)}
+          onEntered={() => { setMemberEnterSlug(null); loadChallenges() }}
+        />
       )}
 
       {/* Section nav */}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { getSessionUser } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/sponsors/auth'
 import { toSlug } from '@/lib/sponsors/campaigns'
 import { listBracketChallenges } from '@/lib/bracket/challenge'
@@ -56,17 +57,41 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ challenges, tournament_id: tid })
   }
 
-  // ── public list ──
+  // ── public list (+ per-user entry status for the Bracket hub) ──
   const admin = createAdminClient()
+  const user  = await getSessionUser().catch(() => null)
   const list  = await listBracketChallenges(admin, { tournamentId })
+  const tid   = tournamentId ?? list[0]?.tournament_id ?? (await activeTournamentId(admin))
+
+  // Which of these challenges the caller has entered, whether they have a
+  // completed bracket (champion picked), and when entries lock (first R32 KO).
+  const entered = new Set<string>()
+  let has_bracket = false
+  let closes_at: string | null = null
+  if (tid) {
+    const { data: fx } = await (admin.from('fixtures') as any)
+      .select('kickoff_utc').eq('tournament_id', tid).eq('round', 'r32')
+      .order('kickoff_utc', { ascending: true }).limit(1)
+    closes_at = (fx as any)?.[0]?.kickoff_utc ?? null
+  }
+  if (user && tid && list.length) {
+    const [{ data: ents }, { data: champ }] = await Promise.all([
+      (admin.from('bracket_entries') as any).select('challenge_id').eq('user_id', user.id).in('challenge_id', list.map(c => c.id)),
+      (admin.from('bracket_picks') as any).select('team_name').eq('user_id', user.id).eq('tournament_id', tid).eq('slot_key', 'final').not('team_name', 'is', null).maybeSingle(),
+    ])
+    ;((ents ?? []) as any[]).forEach(e => entered.add(e.challenge_id))
+    has_bracket = !!champ
+  }
+  const locked = closes_at ? Date.now() >= new Date(closes_at).getTime() : false
+
   const challenges = await Promise.all(list.map(async ch => {
     const [entrants, cfg] = await Promise.all([
       entrantCount(admin, ch.id),
       resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: ch.id }),
     ])
-    return { slug: ch.slug, name: ch.name, entrants, sponsor: sponsorSummary(cfg) }
+    return { slug: ch.slug, name: ch.name, entrants, sponsor: sponsorSummary(cfg), entered: entered.has(ch.id) }
   }))
-  return NextResponse.json({ challenges })
+  return NextResponse.json({ challenges, logged_in: !!user, has_bracket, closes_at, locked })
 }
 
 // POST /api/bracket/challenges — admin: create a bracket challenge.
