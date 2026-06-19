@@ -161,12 +161,14 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
         </div>
       )}
 
-      {/* Tournament-wide pick stats (for stats sharing) */}
-      {(result || kickedOff) && (
+      {/* Tournament-wide pick stats (for stats sharing) — admins can view anytime */}
         <div className="mt-2">
-          <button onClick={toggleStats} className="text-[11px] font-semibold text-emerald-700 hover:underline">
-            📊 {showStats ? 'Hide picks' : 'How everyone picked'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleStats} className="text-[11px] font-semibold text-emerald-700 hover:underline">
+              📊 {showStats ? 'Hide picks' : 'How everyone picked'}
+            </button>
+            {!result && !kickedOff && <span className="text-[10px] text-amber-600">live · picks still open</span>}
+          </div>
           {showStats && (
             <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
               {loadingStats ? (
@@ -212,7 +214,6 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
             </div>
           )}
         </div>
-      )}
     </div>
   )
 }
