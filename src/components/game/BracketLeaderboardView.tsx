@@ -333,8 +333,10 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
         </div>
       )}
 
-      {/* Switch between concurrent challenges */}
-      {otherChallenges.length > 0 && (
+      {/* Switch between concurrent challenges — only on the generic (slug-less) hub.
+          A sponsor's own URL (/bracket/leaderboard/<slug>) stays dedicated to that
+          sponsor and never cross-promotes other challenges. */}
+      {!slug && otherChallenges.length > 0 && (
         <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1">
           <span className="text-[11px] font-semibold text-gray-400 whitespace-nowrap">Other challenges:</span>
           {otherChallenges.map(c => (
