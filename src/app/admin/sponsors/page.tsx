@@ -512,14 +512,12 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
       <p className="text-xs text-gray-500">New <b>{challengeTypeLabel(type)}</b> challenge for <b>{sponsorName}</b> → <b className="text-gray-700">{name}</b>. Starts now → live immediately.</p>
       <div className="grid sm:grid-cols-2 gap-2.5">
-        {available.length > 1 && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-            <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
-              {available.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
-            </select>
-          </div>
-        )}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+          <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+            {available.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
+          </select>
+        </div>
         <div>
           <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from name" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
           <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>

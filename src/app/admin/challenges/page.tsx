@@ -163,14 +163,12 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
             onChange={v => { setSlug(v); setTouchedSlug(true) }} />
           <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>
         </div>
-        {AVAILABLE_CHALLENGE_TYPES.length > 1 && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-            <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
-              {AVAILABLE_CHALLENGE_TYPES.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
-            </select>
-          </div>
-        )}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+          <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+            {AVAILABLE_CHALLENGE_TYPES.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -178,8 +176,8 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
           {(['open', 'invite'] as const).map(a => (
             <button key={a} type="button" onClick={() => setAccess(a)}
-              className={clsx('px-3 py-1.5 font-medium', access === a ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}>
-              {a === 'open' ? 'Open · anyone can join' : 'Invite-only · link only'}
+              className={clsx('px-2.5 py-1 font-medium', access === a ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}>
+              {a === 'open' ? 'Open · anyone' : 'Invite-only · link'}
             </button>
           ))}
         </div>
