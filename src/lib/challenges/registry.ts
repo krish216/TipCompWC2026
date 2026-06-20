@@ -6,17 +6,20 @@
 // scoring built anyway. `available: false` types exist in the type system but
 // aren't selectable until their flow is built (no orphan/broken challenges).
 
+import { toSlug } from '@/lib/sponsors/campaigns'
+
 export type ChallengeTypeKey = 'bracket' | 'four_pick'
 
 interface ChallengeTypeDef {
   label:           string
   available:       boolean
+  slugPrefix:      string                       // 2-letter slug prefix → globally-unique slugs
   leaderboardPath: (slug: string) => string
 }
 
 export const CHALLENGE_TYPES: Record<ChallengeTypeKey, ChallengeTypeDef> = {
-  bracket:   { label: 'Bracket',    available: true,  leaderboardPath: slug => `/bracket/leaderboard/${slug}` },
-  four_pick: { label: 'Four Pick',  available: false, leaderboardPath: slug => `/four-pick/leaderboard/${slug}` },
+  bracket:   { label: 'Bracket',    available: true,  slugPrefix: 'br', leaderboardPath: slug => `/bracket/leaderboard/${slug}` },
+  four_pick: { label: 'Four Pick',  available: false, slugPrefix: '4p', leaderboardPath: slug => `/four-pick/leaderboard/${slug}` },
 }
 
 // Types that are actually built → the only ones offered in create forms / accepted by the API.
@@ -42,4 +45,13 @@ export function leaderboardPathFor(type: string, slug: string): string {
 export function deriveChallengeName(sponsorName: string | null | undefined, type: string): string {
   const label = challengeTypeLabel(type)
   return sponsorName?.trim() ? `${sponsorName.trim()} ${label} Challenge` : `${label} Challenge`
+}
+
+// Default slug: <type-prefix>-<base>, e.g. "br-gatedflow". The prefix keeps slugs
+// globally unique across types (br-tribepicks vs 4p-tribepicks).
+export function deriveChallengeSlug(base: string | null | undefined, type: string): string {
+  const b = toSlug(base ?? '')
+  if (!b) return ''
+  const prefix = (CHALLENGE_TYPES as any)[type]?.slugPrefix as string | undefined
+  return prefix ? `${prefix}-${b}` : b
 }

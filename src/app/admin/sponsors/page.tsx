@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
-import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, leaderboardPathFor } from '@/lib/challenges/registry'
+import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, deriveChallengeSlug, leaderboardPathFor } from '@/lib/challenges/registry'
 import type { Sponsor, SponsorCampaign, CampaignStatus, LogoTone, SponsorStatus } from '@/lib/sponsors/types'
 
 type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; tournament_id: string } }
@@ -471,8 +471,8 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
   const [endsAt, setEndsAt] = useState<string | null>(null)
 
   const name = deriveChallengeName(sponsorName, type)
-  // Slug defaults to just the sponsor — the type is already in the route (/bracket/…).
-  const defaultSlug = toSlug(sponsorName)
+  // Slug = <type-prefix>-<sponsor>, e.g. "br-gatedflow" (globally unique by type).
+  const defaultSlug = deriveChallengeSlug(sponsorName, type)
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const create = async () => {

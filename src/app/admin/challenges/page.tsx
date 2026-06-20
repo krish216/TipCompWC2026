@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
-import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, leaderboardPathFor } from '@/lib/challenges/registry'
+import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, deriveChallengeSlug, leaderboardPathFor } from '@/lib/challenges/registry'
 import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
@@ -108,9 +108,9 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const sponsorName = sponsors.find(s => s.id === sponsorId)?.name ?? null
   const derivedName = deriveChallengeName(sponsorName, type)
   const effName = touchedName && name.trim() ? name : derivedName
-  // Slug defaults to the sponsor (type is already in the route); falls back to the
-  // name for a house challenge with no sponsor.
-  const defaultSlug = toSlug(sponsorName || effName)
+  // Slug = <type-prefix>-<sponsor> (e.g. "br-gatedflow"); house challenges with no
+  // sponsor fall back to <prefix>-<name>.
+  const defaultSlug = deriveChallengeSlug(sponsorName || effName, type)
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const reset = () => {
