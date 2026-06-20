@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TribePicks Bracket Challenge — progress & leaderboard mockup</title>
+<style>
+  :root{--green:#16a34a;--green-d:#14532d;--ink:#111827;--muted:#6b7280;--line:#eef0f2;--bg:#f3f4f6;--chip:#fcd34d;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
+  .wrap{max-width:900px;margin:0 auto;padding:24px 16px 60px}
+  .note{font-size:12px;color:var(--muted);line-height:1.5}
+
+  /* TribePicks header band */
+  .hero{background:linear-gradient(135deg,var(--green),var(--green-d));color:#fff;border-radius:20px;padding:20px 22px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+  .hero .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:15px}
+  .logo .dot{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#86efac,#22c55e)}
+  /* Co-branded header: sponsor logo leads, TribePicks "powered by" on the right */
+  .cobrand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .sponlogo{background:#fff;border-radius:10px;padding:14px 22px;font-weight:800;color:#9ca3af;font-size:14px;letter-spacing:.06em;box-shadow:0 2px 10px rgba(0,0,0,.18);min-width:150px;text-align:center}
+  .tpright{display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+  .tpright .pb{font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.75;margin-bottom:4px}
+  .hero h1{font-size:22px;margin:10px 0 0}
+  .prize{font-size:13px;opacity:.95}.prize b{color:var(--chip)}
+  .lock{margin-left:auto;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600}
+
+  .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;margin-top:18px}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 24px rgba(0,0,0,.05);overflow:hidden}
+  .card h2{font-size:13px;margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:800}
+  .pad{padding:14px 16px}
+
+  /* Your progress */
+  .score{display:flex;align-items:flex-end;gap:14px}
+  .score .big{font-size:38px;font-weight:800;color:var(--green);line-height:.9}
+  .score .of{font-size:16px;color:var(--muted);font-weight:700}
+  .score .rank{margin-left:auto;text-align:right}
+  .score .rank .r{font-size:20px;font-weight:800;color:var(--ink)}
+  .score .rank .s{font-size:11px;color:var(--green-d);font-weight:700}
+  .champ{margin-top:12px;background:#f9fafb;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .champ b{color:var(--ink)}.ok{color:var(--green);font-weight:800}.out{color:#dc2626;font-weight:800}
+  .tb{margin-top:8px;font-size:11px;color:var(--muted)}
+  .tb b{color:#374151}
+
+  .rd{display:grid;grid-template-columns:54px 1fr 64px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .rd:last-child{border-bottom:0}
+  .rd .lbl{font-weight:700;color:#374151}
+  .rd .bar{height:8px;border-radius:999px;background:#eef0f2;overflow:hidden}
+  .rd .bar i{display:block;height:100%;background:var(--green);border-radius:999px}
+  .rd .pts{text-align:right;font-weight:800;color:var(--green)}
+  .rd .pts.pend{color:#9ca3af;font-weight:700}
+  .rd .cc{font-size:11px;color:var(--muted)}
+  .rd .lbl{cursor:pointer}
+  .rd.open{background:#f0fdf4;border-radius:8px}
+  /* drill-in: per-match scorecard for a round */
+  .drill{background:#f9fafb;border:1px solid var(--line);border-radius:10px;padding:4px 10px;margin:2px 0 8px}
+  .dm{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eef0f2;font-size:12px}
+  .dm:last-of-type{border-bottom:0}
+  .dm .you{font-weight:700;min-width:120px}
+  .dm .res{color:#6b7280;flex:1}
+  .dm .dp{margin-left:auto;font-weight:800;color:var(--green)}
+  .dm .dp.z{color:#cbd5e1}
+  .ok{color:var(--green);font-weight:800}.out{color:#dc2626;font-weight:800}
+  .dtot{padding:8px 2px 4px;font-size:12px;color:#374151}
+
+  /* Leaderboard */
+  .lbhead{display:grid;grid-template-columns:34px 1fr 56px;gap:8px;padding:8px 16px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#fafafa;border-bottom:1px solid var(--line)}
+  .lbrow{display:grid;grid-template-columns:34px 1fr 56px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);font-size:13px}
+  .lbrow.me{background:#ecfdf5}
+  .rk{font-weight:800;text-align:center;color:#9ca3af}.rk.g{color:#d4a017}.rk.s{color:#9aa3af}.rk.b{color:#b06a2c}
+  .who{display:flex;align-items:center;gap:8px;min-width:0}
+  .av{width:24px;height:24px;border-radius:50%;background:#dcfce7;color:#15803d;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+  .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lpts{text-align:right;font-weight:800}
+  .gap{text-align:center;color:#cbd5e1;font-size:13px;padding:4px}
+
+  /* Ad space below the bracket */
+  .adspace{margin-top:18px}
+  .adlabel{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:#9ca3af;text-align:center;display:block;margin-bottom:6px}
+  .adbox{border:1px dashed #d1d5db;border-radius:14px;background:#fff;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#9ca3af;text-align:center}
+  .adbox .b{font-size:14px;font-weight:700;color:#6b7280}
+  .adbox .s{font-size:11px}
+
+  /* Entry CTA */
+  .entry{margin-top:18px;background:#fff;border:2px dashed #bbf7d0;border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .entry .t{font-weight:800;font-size:15px}
+  .entry .d{font-size:13px;color:var(--muted);margin-top:2px}
+  .entry .cta{margin-left:auto;background:var(--green);color:#fff;font-weight:800;font-size:14px;padding:11px 18px;border-radius:12px;text-decoration:none;white-space:nowrap}
+  .entry .sub{font-size:11px;color:var(--muted);margin-top:6px;width:100%}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="note" style="margin:0 0 12px">Design mockup — <b>co-branded header</b> (sponsor logo leads · "powered by TribePicks" on the right), the per-round drill-in scorecard, the top-12 leaderboard, and the ad space below. One TribePicks login tracks everything.</p>
+
+  <!-- TribePicks header -->
+  <div class="hero">
+    <div class="cobrand">
+      <div class="sponlogo">[ SPONSOR LOGO ]</div>
+      <div class="tpright"><span class="pb">powered by</span><span class="logo"><span class="dot"></span>TribePicks</span></div>
+    </div>
+    <h1>Bracket Challenge 🏆</h1>
+    <div class="row" style="margin-top:10px">
+      <span class="prize">Predict the knockouts. Top the ladder. <b>Win a $500 voucher.</b></span>
+      <span class="lock">🔒 Entries locked · scoring live</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- YOUR BRACKET PROGRESS -->
+    <div class="card">
+      <h2>📊 Your bracket</h2>
+      <div class="pad">
+        <div class="score">
+          <div><span class="big">34</span><span class="of"> / 80 pts</span></div>
+          <div class="rank"><div class="r">#12</div><div class="s">of 540 · top 3%</div></div>
+        </div>
+        <div class="champ">🏆 <span>Champion pick:</span> <b>🇧🇷 Brazil</b> — <span class="ok">still in ✅</span></div>
+        <p class="tb">Tie-break (if level on points): your predicted <b>Final 2–1</b> · <b>3rd place 2–0</b> → compared to the real scores.</p>
+
+        <p class="tb" style="margin-top:12px">📋 Tap a round to see your match-by-match picks ↓</p>
+        <div style="margin-top:6px">
+          <div class="rd"><span class="lbl">▸ R32</span><div><div class="bar"><i style="width:75%"></i></div><div class="cc">12 / 16 correct</div></div><span class="pts">+12</span></div>
+
+          <div class="rd open"><span class="lbl">▾ R16</span><div><div class="bar"><i style="width:63%"></i></div><div class="cc">5 / 8 correct</div></div><span class="pts">+10</span></div>
+          <div class="drill">
+            <div class="dm"><span class="you">🇧🇷 Brazil</span><span class="res">def. 🇲🇽 Mexico</span><span class="ok">✓</span><b class="dp">+2</b></div>
+            <div class="dm"><span class="you">🇦🇷 Argentina</span><span class="res">def. 🇳🇱 Netherlands</span><span class="ok">✓</span><b class="dp">+2</b></div>
+            <div class="dm"><span class="you">🇫🇷 France</span><span class="res">def. 🇸🇳 Senegal</span><span class="ok">✓</span><b class="dp">+2</b></div>
+            <div class="dm"><span class="you">🇪🇸 Spain</span><span class="res">def. 🇭🇷 Croatia</span><span class="ok">✓</span><b class="dp">+2</b></div>
+            <div class="dm"><span class="you">🇺🇾 Uruguay</span><span class="res">def. 🇰🇷 South Korea</span><span class="ok">✓</span><b class="dp">+2</b></div>
+            <div class="dm"><span class="you">🏴 England</span><span class="res">lost to 🇧🇪 Belgium</span><span class="out">✗</span><b class="dp z">0</b></div>
+            <div class="dm"><span class="you">🇩🇪 Germany</span><span class="res">lost to 🇯🇵 Japan</span><span class="out">✗</span><b class="dp z">0</b></div>
+            <div class="dm"><span class="you">🇵🇹 Portugal</span><span class="res">lost to 🇨🇭 Switzerland</span><span class="out">✗</span><b class="dp z">0</b></div>
+            <div class="dtot">R16: <b>5 / 8 correct · +10 pts</b> (2 pts each)</div>
+          </div>
+
+          <div class="rd"><span class="lbl">▸ QF</span><div><div class="bar"><i style="width:50%"></i></div><div class="cc">2 / 4 correct</div></div><span class="pts">+8</span></div>
+          <div class="rd"><span class="lbl">▸ SF</span><div><div class="bar"><i style="width:50%"></i></div><div class="cc">1 / 2 · 1 to play</div></div><span class="pts pend">+8 / 16</span></div>
+          <div class="rd"><span class="lbl">▸ 3rd</span><div><div class="bar"><i style="width:0%"></i></div><div class="cc">to play</div></div><span class="pts pend">+0 / 4</span></div>
+          <div class="rd"><span class="lbl">▸ Final</span><div><div class="bar"><i style="width:0%"></i></div><div class="cc">your 🇧🇷 still alive</div></div><span class="pts pend">+0 / 12</span></div>
+        </div>
+        <p class="note" style="margin:12px 0 0">Up to <b>20 pts</b> still in play (SF + 3rd + Final). Each round lights up ✅/❌ as results land.</p>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="card">
+      <h2>🏆 Bracket leaderboard · 540 entered</h2>
+      <div class="lbhead"><span>#</span><span>Player · top 12</span><span style="text-align:right">Pts</span></div>
+      <div class="lbrow"><span class="rk g">1</span><div class="who"><span class="av">JM</span><span class="nm">Jordan M.</span></div><span class="lpts">58</span></div>
+      <div class="lbrow"><span class="rk s">2</span><div class="who"><span class="av">AP</span><span class="nm">Aisha P.</span></div><span class="lpts">55</span></div>
+      <div class="lbrow"><span class="rk b">3</span><div class="who"><span class="av">TN</span><span class="nm">Tom N.</span></div><span class="lpts">54</span></div>
+      <div class="lbrow"><span class="rk">4</span><div class="who"><span class="av">RS</span><span class="nm">Ravi S.</span></div><span class="lpts">52</span></div>
+      <div class="lbrow"><span class="rk">5</span><div class="who"><span class="av">LC</span><span class="nm">Lena C.</span></div><span class="lpts">49</span></div>
+      <div class="lbrow"><span class="rk">6</span><div class="who"><span class="av">PD</span><span class="nm">Priya D.</span></div><span class="lpts">47</span></div>
+      <div class="lbrow"><span class="rk">7</span><div class="who"><span class="av">MB</span><span class="nm">Marco B.</span></div><span class="lpts">45</span></div>
+      <div class="lbrow"><span class="rk">8</span><div class="who"><span class="av">SR</span><span class="nm">Sofia R.</span></div><span class="lpts">43</span></div>
+      <div class="lbrow"><span class="rk">9</span><div class="who"><span class="av">LW</span><span class="nm">Liam W.</span></div><span class="lpts">41</span></div>
+      <div class="lbrow"><span class="rk">10</span><div class="who"><span class="av">NK</span><span class="nm">Nina K.</span></div><span class="lpts">39</span></div>
+      <div class="lbrow"><span class="rk">11</span><div class="who"><span class="av">DK</span><span class="nm">Dan K.</span></div><span class="lpts">36</span></div>
+      <div class="lbrow me"><span class="rk">12</span><div class="who"><span class="av" style="background:#bbf7d0">YOU</span><span class="nm">You</span></div><span class="lpts">34</span></div>
+      <p class="note" style="padding:10px 16px;margin:0">Top 12 shown · single global pool of 540. Ties broken by closest <b>Final</b> score → <b>3rd-place</b> score → entry time.</p>
+    </div>
+  </div>
+
+  <!-- Ad space below the bracket -->
+  <div class="adspace">
+    <span class="adlabel">Advertisement</span>
+    <div class="adbox">
+      <span class="b">Ad / sponsor banner space</span>
+      <span class="s">Reserved below the bracket · responsive (e.g. 970×120 / 728×90) · ad-free for premium</span>
+    </div>
+  </div>
+
+  <!-- ENTRY CTA (guest / not yet entered) -->
+  <div class="entry">
+    <div>
+      <div class="t">📝 Not entered yet?</div>
+      <div class="d">Register to lock your bracket, join the leaderboard, and go in the draw for the <b>$500 [Sponsor] voucher</b>. Free.</div>
+    </div>
+    <a class="cta" href="#">Enter to win →</a>
+    <div class="sub">Open to everyone. Already have a TribePicks account? You're one tap in. New here? Enter your email — we'll save your bracket and you can claim your account after.</div>
+  </div>
+
+  <p class="note" style="margin-top:18px">One TribePicks login tracks everything — your bracket progress, your rank, and notifications. No separate bracket account. Guests are tracked by session until they register, which converts them into a normal account (the acquisition funnel).</p>
+</div>
+</body>
+</html>

@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
-import { resolveBracketChallenge } from '@/lib/bracket/challenge'
+import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
-
-// First R32 kick-off = when the bracket (and entry) locks.
-async function closesAt(admin: any, tid: string): Promise<string | null> {
-  const { data } = await admin.from('fixtures')
-    .select('kickoff_utc').eq('tournament_id', tid).eq('round', 'r32')
-    .order('kickoff_utc', { ascending: true }).limit(1)
-  return (data as any)?.[0]?.kickoff_utc ?? null
-}
 
 async function hasChampion(admin: any, userId: string, tid: string): Promise<boolean> {
   const { data } = await admin.from('bracket_picks')
@@ -31,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (!challenge) return NextResponse.json({ available: false, logged_in: !!user })
 
   const tid = challenge.tournament_id
-  const closes_at = await closesAt(admin, tid)
+  const closes_at = await challengeClosesAt(admin, challenge)
   const locked = closes_at ? Date.now() >= new Date(closes_at).getTime() : false
   const challengeInfo = { slug: challenge.slug, name: challenge.name }
 
@@ -75,9 +67,9 @@ export async function POST(request: NextRequest) {
   if (!challenge) return NextResponse.json({ error: 'No active bracket challenge' }, { status: 400 })
   const tid = challenge.tournament_id
 
-  const closes_at = await closesAt(admin, tid)
+  const closes_at = await challengeClosesAt(admin, challenge)
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
-    return NextResponse.json({ error: 'Entries are closed — the knockouts have started.' }, { status: 409 })
+    return NextResponse.json({ error: 'Entries are closed for this challenge.' }, { status: 409 })
 
   if (!(await hasChampion(admin, user.id, tid)))
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })

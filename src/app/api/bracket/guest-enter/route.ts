@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase'
-import { resolveBracketChallenge } from '@/lib/bracket/challenge'
+import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -27,13 +27,6 @@ async function activeTournamentId(admin: any): Promise<string | null> {
   return (data as any)?.id ?? null
 }
 
-// First R32 kick-off = when the bracket (and entry) locks.
-async function closesAt(admin: any, tid: string): Promise<string | null> {
-  const { data } = await admin.from('fixtures')
-    .select('kickoff_utc').eq('tournament_id', tid).eq('round', 'r32')
-    .order('kickoff_utc', { ascending: true }).limit(1)
-  return (data as any)?.[0]?.kickoff_utc ?? null
-}
 
 // Anon client used purely to dispatch the passwordless login email (service-role
 // can't send auth emails). shouldCreateUser:false — the account already exists
@@ -91,7 +84,7 @@ export async function POST(request: NextRequest) {
   if (!tid) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
   if (!challenge) return NextResponse.json({ error: 'No active bracket challenge' }, { status: 400 })
 
-  const closes_at = await closesAt(admin, tid)
+  const closes_at = challenge ? await challengeClosesAt(admin, challenge) : null
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
     return NextResponse.json({ error: 'Entries are closed — the knockouts have started.' }, { status: 409 })
 

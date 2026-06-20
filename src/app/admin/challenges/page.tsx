@@ -11,7 +11,7 @@ import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, der
 import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
-  id: string; slug: string; name: string; type: string; access: string; enabled: boolean; entrants: number
+  id: string; slug: string; name: string; type: string; access: string; closes_at: string | null; enabled: boolean; entrants: number
   sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
 }
@@ -95,6 +95,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [touchedName, setTouchedName] = useState(false)
   const [type, setType] = useState<string>(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket')
   const [access, setAccess] = useState<'open' | 'invite'>('open')
+  const [closesAt, setClosesAt] = useState<string | null>(null)   // blank → first R32 kick-off
   const [slug, setSlug] = useState('')          // blank → auto from name
   const [touchedSlug, setTouchedSlug] = useState(false)
   // The sponsor campaign attached at creation (optional). Starts now → live now.
@@ -114,7 +115,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const reset = () => {
-    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setAccess('open'); setSlug(''); setTouchedSlug(false)
+    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setAccess('open'); setClosesAt(null); setSlug(''); setTouchedSlug(false)
     setSponsorId(''); setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null)
     setOpen(false)
   }
@@ -125,7 +126,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
     try {
       const res = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: effName.trim(), type, access, slug: touchedSlug ? slug.trim() : defaultSlug }),
+        body: JSON.stringify({ name: effName.trim(), type, access, closes_at: closesAt, slug: touchedSlug ? slug.trim() : defaultSlug }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
@@ -137,8 +138,15 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
           body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: d.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
         })
         const cd = await cr.json().catch(() => ({}))
-        if (!cr.ok) toast.error(`Challenge created, but sponsor not attached: ${cd.error ?? 'failed'}`)
-        else toast.success('Challenge + sponsor created')
+        if (!cr.ok) {
+          // Roll back the challenge so a rejected sponsor doesn't leave an orphan.
+          toast.error(`Couldn’t attach sponsor: ${cd.error ?? 'failed'}. No challenge created.`)
+          await fetch(`/api/bracket/challenges/${d.challenge.id}`, { method: 'DELETE' }).catch(() => {})
+          reset()
+          onCreated(d.challenge)
+          return
+        }
+        toast.success('Challenge + sponsor created')
       } else {
         toast.success('Challenge created')
       }
@@ -186,6 +194,10 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
         </div>
       </div>
 
+      <div className="sm:max-w-xs">
+        <DateField label="Entries close (blank → first R32 kick-off)" value={closesAt} onChange={setClosesAt} />
+      </div>
+
       {/* Sponsor campaign — attached in the same step */}
       <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <p className="text-xs font-semibold text-gray-500">Sponsor campaign <span className="font-normal text-gray-400">(optional)</span></p>
@@ -230,11 +242,12 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
 }) {
   const [name, setName] = useState(ch.name)
   const [slug, setSlug] = useState(ch.slug)
+  const [closesAt, setClosesAt] = useState<string | null>(ch.closes_at)
   const [saving, setSaving] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [loadingCamps, setLoadingCamps] = useState(false)
 
-  useEffect(() => { setName(ch.name); setSlug(ch.slug) }, [ch.name, ch.slug])
+  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at) }, [ch.name, ch.slug, ch.closes_at])
 
   const loadCampaigns = useCallback(() => {
     setLoadingCamps(true)
@@ -298,10 +311,11 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
                 <Link href={leaderboardPathFor(ch.type, ch.slug)} target="_blank" className="text-emerald-600 hover:underline">{leaderboardPathFor(ch.type, ch.slug)} ↗</Link>
               </p>
             </div>
+            <DateField label="Entries close (blank → first R32 kick-off)" value={closesAt} onChange={setClosesAt} />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button disabled={saving}
-              onClick={() => patch({ name: name.trim(), slug: slug.trim() }, 'Saved')}
+              onClick={() => patch({ name: name.trim(), slug: slug.trim(), closes_at: closesAt }, 'Saved')}
               className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save details'}
             </button>

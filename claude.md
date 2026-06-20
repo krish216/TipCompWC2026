@@ -75,3 +75,11 @@ Main API endpoints located in `src/app/api/`:
 - Environment variables needed for Supabase connection
 - RLS policies enforce data access control
 - Competitions/Organizations referred to as "Comps" in codebase
+
+## Supabase — explicit PostgREST grants required (enforced Oct 30 2026)
+Every migration that creates a new table **must** include explicit grants, otherwise the table will be invisible to PostgREST / supabase-js after October 30 2026. Migration 110 retroactively covers all existing tables. Template for new tables:
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.my_table TO anon, authenticated;
+GRANT ALL ON TABLE public.my_table TO service_role;
+```

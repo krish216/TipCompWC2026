@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(git commit -m ' *)",
+      "Bash(open \"/Users/krishmootoosamy/Documents/Personal Data/Projects/TipComp/wc2026/mockup-manage-comp-drawer.html\")",
+      "Bash(python3 -c \" import sys, json lines = sys.stdin.readlines\\(\\) for line in lines[-30:]: try: obj = json.loads\\(line\\) role = obj.get\\('role', ''\\) content = obj.get\\('content', ''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\('type'\\) == 'text': print\\(f'[{role}]: {c[\\\\\"text\\\\\"][:500]}'\\) print\\('---'\\) elif isinstance\\(content, str\\): print\\(f'[{role}]: {content[:500]}'\\) print\\('---'\\) except: pass \")",
+      "Bash(python3)",
+      "Bash(vercel --version)"
+    ]
+  }
+}

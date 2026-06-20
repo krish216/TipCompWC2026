@@ -65,9 +65,12 @@ export async function GET(request: NextRequest) {
 
   const { data: liveRow } = await (admin.from('app_settings') as any).select('value').eq('key', 'nps_pulse_live').maybeSingle()
 
+  // Email responses only — the response *rate* is measured against email invites.
+  const emailResponses = rows.filter(r => r.source === 'email').length
+
   return NextResponse.json({
     live: (liveRow as any)?.value === 'on',
-    summary: { total, promoters, passives, detractors, nps, avg: total ? +(sum / total).toFixed(1) : null, invited: invited ?? 0 },
+    summary: { total, promoters, passives, detractors, nps, avg: total ? +(sum / total).toFixed(1) : null, invited: invited ?? 0, email: emailResponses },
     responses: rows.map(r => ({
       score: r.score, comment: r.comment, source: r.source, created_at: r.created_at,
       display_name: r.users?.display_name ?? 'Member',

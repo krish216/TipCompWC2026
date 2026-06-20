@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Join Comp Card — Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6 gap-8 flex-wrap">
+
+  <!-- Label -->
+  <div class="w-full text-center text-xs text-gray-400 font-mono mb-2">Join Comp Card — proposed layout</div>
+
+  <!-- Phone frame: no comp, open comps exist -->
+  <div>
+    <p class="text-xs text-gray-400 text-center mb-2 font-mono">No comp · open comps exist</p>
+    <div class="w-80 bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+      <!-- Navbar stub -->
+      <div class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+        <span class="text-sm font-black text-gray-900">TribePicks</span>
+        <div class="w-7 h-7 rounded-full bg-gray-200"></div>
+      </div>
+
+      <div class="px-4 py-4 space-y-3">
+
+        <!-- Warm-up challenge card (context) -->
+        <div class="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+          <p class="text-xs font-bold text-purple-900">🏆 Warm-Up Challenge</p>
+          <p class="text-xs text-purple-700 mt-0.5">Pick your WC 2026 bracket and see how you compare</p>
+          <div class="mt-2 bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-block">Try the bracket →</div>
+        </div>
+
+        <!-- JOIN COMP CARD — PROPOSED -->
+        <div class="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+          <p class="text-xs font-bold text-gray-900 mb-2.5">🎯 Join a comp</p>
+
+          <div class="grid grid-cols-2 gap-2">
+
+            <!-- Option 1: Enter code -->
+            <button class="flex flex-col items-center gap-1.5 border-2 border-gray-200 hover:border-gray-400 rounded-xl py-3 px-2 transition-colors bg-white group">
+              <span class="text-xl leading-none">🔑</span>
+              <p class="text-xs font-bold text-gray-800 leading-tight">Enter code</p>
+              <p class="text-[10px] text-gray-400 leading-tight text-center">You have an invite</p>
+            </button>
+
+            <!-- Option 2: Browse open comps -->
+            <button class="flex flex-col items-center gap-1.5 border-2 border-emerald-200 hover:border-emerald-400 rounded-xl py-3 px-2 transition-colors bg-emerald-50 group">
+              <span class="text-xl leading-none">🌐</span>
+              <p class="text-xs font-bold text-gray-800 leading-tight">Browse comps</p>
+              <p class="text-[10px] text-gray-400 leading-tight text-center">Find an open one</p>
+            </button>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Phone frame: no comp, NO open comps -->
+  <div>
+    <p class="text-xs text-gray-400 text-center mb-2 font-mono">No comp · no open comps</p>
+    <div class="w-80 bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+      <div class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+        <span class="text-sm font-black text-gray-900">TribePicks</span>
+        <div class="w-7 h-7 rounded-full bg-gray-200"></div>
+      </div>
+
+      <div class="px-4 py-4 space-y-3">
+
+        <div class="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+          <p class="text-xs font-bold text-purple-900">🏆 Warm-Up Challenge</p>
+          <p class="text-xs text-purple-700 mt-0.5">Pick your WC 2026 bracket and see how you compare</p>
+          <div class="mt-2 bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-block">Try the bracket →</div>
+        </div>
+
+        <!-- JOIN COMP CARD — code only (no open comps) -->
+        <div class="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+          <p class="text-xs font-bold text-gray-900 mb-2.5">🎯 Join a comp</p>
+
+          <!-- Single option: full width -->
+          <button class="w-full flex items-center gap-3 border-2 border-gray-200 hover:border-gray-400 rounded-xl py-3 px-3 transition-colors bg-white">
+            <span class="text-xl leading-none">🔑</span>
+            <div class="text-left">
+              <p class="text-xs font-bold text-gray-800">Enter invite code</p>
+              <p class="text-[10px] text-gray-400">You've been invited to a comp</p>
+            </div>
+            <span class="ml-auto text-gray-300 text-sm">›</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Phone frame: code entry expanded -->
+  <div>
+    <p class="text-xs text-gray-400 text-center mb-2 font-mono">After tapping "Enter code"</p>
+    <div class="w-80 bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+      <div class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+        <span class="text-sm font-black text-gray-900">TribePicks</span>
+        <div class="w-7 h-7 rounded-full bg-gray-200"></div>
+      </div>
+
+      <div class="px-4 py-4 space-y-3">
+
+        <div class="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+          <p class="text-xs font-bold text-purple-900">🏆 Warm-Up Challenge</p>
+          <p class="text-xs text-purple-700 mt-0.5">Pick your WC 2026 bracket and see how you compare</p>
+          <div class="mt-2 bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg inline-block">Try the bracket →</div>
+        </div>
+
+        <!-- Code entry expanded inline -->
+        <div class="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+          <div class="flex items-center gap-2 mb-3">
+            <button class="text-gray-400 hover:text-gray-600 text-sm">‹</button>
+            <p class="text-xs font-bold text-gray-900">Enter invite code</p>
+          </div>
+          <input class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl text-center font-mono tracking-widest placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 bg-gray-50" placeholder="e.g. ABC123" value="WC2026" readonly />
+          <button class="mt-2 w-full bg-gray-900 text-white text-xs font-bold py-2.5 rounded-xl">Find comp →</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

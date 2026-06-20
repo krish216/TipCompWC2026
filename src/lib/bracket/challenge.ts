@@ -11,9 +11,24 @@ export interface BracketChallenge {
   slug:          string
   name:          string
   tournament_id: string
+  closes_at:     string | null   // challenge's own end date; null → first R32 kick-off
 }
 
-const COLS = 'id, slug, name, tournament_id, type, enabled, created_at'
+const COLS = 'id, slug, name, tournament_id, type, enabled, created_at, closes_at'
+
+// First R32 kick-off for a tournament — the default bracket lock.
+async function firstR32Kickoff(admin: any, tournamentId: string): Promise<string | null> {
+  const { data } = await admin.from('fixtures')
+    .select('kickoff_utc').eq('tournament_id', tournamentId).eq('round', 'r32')
+    .order('kickoff_utc', { ascending: true }).limit(1)
+  return (data as any)?.[0]?.kickoff_utc ?? null
+}
+
+// When a challenge closes for entries: its own end date, else the R32 lock.
+export async function challengeClosesAt(admin: any, challenge: { tournament_id: string; closes_at?: string | null }): Promise<string | null> {
+  if (challenge.closes_at) return challenge.closes_at
+  return firstR32Kickoff(admin, challenge.tournament_id)
+}
 
 async function activeTournamentId(admin: any): Promise<string | null> {
   const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
@@ -30,7 +45,7 @@ export async function resolveBracketChallenge(
   opts: { slug?: string | null; tournamentId?: string | null } = {},
 ): Promise<BracketChallenge | null> {
   const shape = (r: any): BracketChallenge =>
-    ({ id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id })
+    ({ id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id, closes_at: r.closes_at ?? null })
 
   if (opts.slug) {
     const { data } = await (admin.from('challenges') as any).select(COLS).eq('slug', opts.slug).maybeSingle()
@@ -74,5 +89,5 @@ export async function listBracketChallenges(
     .select(COLS)
     .eq('tournament_id', tid).eq('type', 'bracket').eq('enabled', true).eq('access', 'open')
     .order('created_at', { ascending: true })
-  return ((data ?? []) as any[]).map(r => ({ id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id }))
+  return ((data ?? []) as any[]).map(r => ({ id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id, closes_at: r.closes_at ?? null }))
 }

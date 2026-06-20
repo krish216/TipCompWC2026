@@ -285,8 +285,7 @@ export default function BracketPage() {
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
   // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
-  const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean }[]>([])
-  const [challengeMeta, setChallengeMeta] = useState<{ closes_at: string | null; locked: boolean }>({ closes_at: null, locked: false })
+  const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean; locked?: boolean }[]>([])
   const [isAdmin, setIsAdmin] = useState(false)               // gate the challenges hub (admin-only rollout)
   const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
   const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
@@ -319,10 +318,7 @@ export default function BracketPage() {
     if (!selectedTournId) return
     fetch(`/api/bracket/challenges?tournament_id=${selectedTournId}`)
       .then(r => r.json())
-      .then(d => {
-        setChallenges(Array.isArray(d?.challenges) ? d.challenges : [])
-        setChallengeMeta({ closes_at: d?.closes_at ?? null, locked: !!d?.locked })
-      })
+      .then(d => setChallenges(Array.isArray(d?.challenges) ? d.challenges : []))
       .catch(() => {})
   }, [selectedTournId])
   useEffect(() => { loadChallenges() }, [loadChallenges])
@@ -842,7 +838,7 @@ export default function BracketPage() {
                 <div className="flex-shrink-0">
                   {c.entered ? (
                     <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
-                  ) : challengeMeta.locked ? (
+                  ) : c.locked ? (
                     <span className="text-xs text-gray-400">Closed</span>
                   ) : !champion ? (
                     <span className="text-[11px] text-amber-600 whitespace-nowrap">Finish bracket to enter</span>

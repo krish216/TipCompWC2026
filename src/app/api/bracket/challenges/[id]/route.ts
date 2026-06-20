@@ -16,6 +16,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (typeof b.name === 'string' && b.name.trim()) patch.name = b.name.trim()
   if ('enabled' in b) patch.enabled = b.enabled !== false
   if (b.access === 'open' || b.access === 'invite') patch.access = b.access
+  if ('closes_at' in b) patch.closes_at = b.closes_at || null
 
   if (typeof b.slug === 'string' && b.slug.trim()) {
     const slug = toSlug(b.slug)
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!Object.keys(patch).length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const { data, error } = await (admin.from('challenges') as any)
-    .update(patch).eq('id', params.id).select('id, slug, name, enabled, access').single()
+    .update(patch).eq('id', params.id).select('id, slug, name, enabled, access, closes_at').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ challenge: data })
 }

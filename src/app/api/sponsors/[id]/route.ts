@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!sponsor) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: campaigns } = await (admin.from('sponsor_campaigns') as any)
-    .select('*, challenges(type, name, tournament_id)').eq('sponsor_id', params.id)
+    .select('*, challenges(type, name, slug, tournament_id)').eq('sponsor_id', params.id)
     .order('starts_at', { ascending: false })
 
   return NextResponse.json({ sponsor, campaigns: campaigns ?? [] })

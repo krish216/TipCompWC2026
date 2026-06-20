@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
-interface Summary { total: number; promoters: number; passives: number; detractors: number; nps: number | null; avg: number | null; invited: number }
+interface Summary { total: number; promoters: number; passives: number; detractors: number; nps: number | null; avg: number | null; invited: number; email: number }
 interface Resp { score: number; comment: string | null; source: string | null; created_at: string; display_name: string }
 
 const scoreColor = (s: number) => s <= 6 ? 'bg-red-500' : s <= 8 ? 'bg-amber-500' : 'bg-emerald-600'
@@ -112,7 +112,7 @@ export default function PulseAdminPage() {
               </div>
               <div className="text-right text-xs text-gray-500">
                 <p><strong className="text-gray-900">{summary.total}</strong> responses · avg <strong className="text-gray-900">{summary.avg}</strong></p>
-                <p>{summary.invited} invited · {summary.invited ? Math.round((summary.total / summary.invited) * 100) : 0}% response rate</p>
+                <p>{summary.invited} emailed · {summary.invited ? Math.round((summary.email / summary.invited) * 100) : 0}% response rate <span className="text-gray-300">(email)</span></p>
               </div>
             </div>
             <div className="flex h-4 rounded-md overflow-hidden text-[9px] font-bold text-white">

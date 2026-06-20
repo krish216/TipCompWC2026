@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Challenge Banner — Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f3f4f6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 32px 16px;
+    gap: 32px;
+  }
+
+  h2 {
+    font-size: 13px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    margin-bottom: -20px;
+  }
+
+  /* ── Phone frame ── */
+  .phone {
+    width: 375px;
+    background: white;
+    border-radius: 32px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.22);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Fake page header */
+  .fake-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  .fake-header img { width: 36px; height: 36px; border-radius: 9px; }
+  .fake-header span { font-size: 22px; font-weight: 900; color: #111827; }
+  .fake-subtitle { text-align: center; font-size: 11px; color: #9ca3af; margin-top: -8px; }
+
+  /* ── Banner ── */
+  .banner {
+    border-radius: 18px;
+    overflow: visible;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.40);
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+  }
+
+  /* stadium gradient bg */
+  .banner-bg {
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(170deg, #091932 0%, #0c2548 38%, #0b3b18 70%, #0d4e1f 100%);
+    position: relative;
+  }
+
+  /* stadium light glows */
+  .glow-l {
+    position: absolute; top: -20px; left: -20px;
+    width: 110px; height: 110px;
+    background: radial-gradient(circle, rgba(255,220,100,0.22) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .glow-r {
+    position: absolute; top: -20px; right: -20px;
+    width: 110px; height: 110px;
+    background: radial-gradient(circle, rgba(255,220,100,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  /* pitch glow from below */
+  .glow-b {
+    position: absolute; bottom: -10px; left: 0; right: 0; height: 60px;
+    background: radial-gradient(ellipse at 50% 100%, rgba(34,197,94,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* confetti pieces */
+  .confetti-piece {
+    position: absolute;
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0.75;
+  }
+
+  /* ── Inner layout ── */
+  .banner-inner {
+    display: flex;
+    align-items: flex-end;
+    position: relative;
+    min-height: 160px;
+    padding: 0 12px 14px 0;
+  }
+
+  /* Avatar column */
+  .avatar-col {
+    width: 110px;
+    flex-shrink: 0;
+    position: relative;
+    /* let avatar overflow upward */
+    margin-bottom: -14px;
+  }
+  .avatar-col img {
+    width: 110px;
+    height: 145px;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+    /* remove stadium bg from the image — keep only character */
+    border-radius: 0;
+  }
+
+  /* Right content */
+  .banner-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding-bottom: 0;
+    margin-top: 14px;
+  }
+
+  /* Speech bubble */
+  .bubble {
+    background: rgba(255,255,255,0.97);
+    border-radius: 16px 16px 16px 6px;
+    padding: 10px 13px;
+    position: relative;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+  }
+  /* left-pointing tail */
+  .bubble::before {
+    content: '';
+    position: absolute;
+    left: -9px;
+    bottom: 16px;
+    width: 0; height: 0;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+    border-right: 9px solid rgba(255,255,255,0.97);
+  }
+  .bubble p.sub {
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+    margin-bottom: 2px;
+  }
+  .bubble p.main {
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+  .bubble .gold { color: #d97706; }
+  .bubble .dark { color: #111827; }
+
+  /* CTA button */
+  .cta-btn {
+    background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+    border-radius: 13px;
+    padding: 11px 0;
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(22,163,74,0.50), inset 0 1px 0 rgba(255,255,255,0.22);
+    border: 1px solid #15803d;
+    letter-spacing: 0.1px;
+  }
+
+  /* ── Variant 2: avatar bigger, bleeds fully ── */
+  .variant-label {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* other page cards (greyed out to show context) */
+  .fake-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .fake-card-icon { font-size: 22px; }
+  .fake-card-lines { display: flex; flex-direction: column; gap: 5px; }
+  .fake-card-line  { height: 10px; border-radius: 5px; background: #e5e7eb; }
+
+  /* note box */
+  .note {
+    max-width: 375px;
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #78350f;
+    line-height: 1.6;
+  }
+  .note strong { color: #92400e; }
+</style>
+</head>
+<body>
+
+<h2>Mockup — Avatar Challenge Banner</h2>
+
+<!-- ═══════════════════════════════════════════ -->
+<!--  OPTION A — avatar cropped to character      -->
+<!-- ═══════════════════════════════════════════ -->
+<p class="variant-label">Option A — character cropped, bleeds out of banner top</p>
+
+<div class="phone">
+
+  <!-- fake page header -->
+  <div class="fake-header">
+    <img src="public/logo.png" alt="logo">
+    <span>TribePicks</span>
+  </div>
+  <p class="fake-subtitle">World Cup 2026 Tipping Competition</p>
+
+  <!-- ── THE BANNER ── -->
+  <a class="banner" href="#">
+    <div class="banner-bg">
+      <div class="glow-l"></div>
+      <div class="glow-r"></div>
+      <div class="glow-b"></div>
+
+      <!-- confetti -->
+      <div class="confetti-piece" style="width:7px;height:14px;background:#fbbf24;top:18px;left:98px;transform:rotate(20deg)"></div>
+      <div class="confetti-piece" style="width:6px;height:11px;background:#34d399;top:10px;left:142px;transform:rotate(-14deg)"></div>
+      <div class="confetti-piece" style="width:5px;height:10px;background:#f87171;top:24px;right:28px;transform:rotate(35deg)"></div>
+      <div class="confetti-piece" style="width:6px;height:12px;background:#a78bfa;top:8px;right:60px;transform:rotate(-22deg)"></div>
+      <div class="confetti-piece" style="width:5px;height:9px;background:#fbbf24;bottom:38px;right:44px;transform:rotate(10deg)"></div>
+      <div class="confetti-piece" style="width:7px;height:13px;background:#34d399;bottom:50px;left:118px;transform:rotate(-30deg)"></div>
+
+      <div class="banner-inner">
+
+        <!-- Avatar — replace src with /avatar.png once saved to public/ -->
+        <div class="avatar-col">
+          <img
+            src="public/avatar.png"
+            alt="TribePicks mascot"
+            onerror="this.style.cssText='width:110px;height:145px;background:linear-gradient(160deg,#1e3a5f,#1a4731);border-radius:8px;display:flex;'; this.alt='[avatar.png]'"
+          >
+          <!-- fallback placeholder if image not yet saved -->
+          <div id="placeholder" style="
+            display:none;
+            width:110px; height:145px;
+            background: linear-gradient(160deg,#1e3a5f,#1a4731);
+            border-radius:8px 8px 0 0;
+            align-items:center;justify-content:center;
+            font-size:11px;color:rgba(255,255,255,0.5);text-align:center;
+            padding:10px;line-height:1.4;
+          ">save image as<br>public/avatar.png</div>
+        </div>
+
+        <!-- Right content -->
+        <div class="banner-right">
+          <div class="bubble">
+            <p class="sub">Ready for a</p>
+            <p class="main">
+              <span class="gold">World Cup </span>
+              <span class="dark">4-Pick<br>Challenge?</span>
+            </p>
+          </div>
+          <div class="cta-btn">Take the Challenge! ⚽</div>
+        </div>
+
+      </div>
+    </div>
+  </a>
+
+  <!-- fake surrounding cards for context -->
+  <div class="fake-card">
+    <div class="fake-card-icon">🏆</div>
+    <div class="fake-card-lines">
+      <div class="fake-card-line" style="width:120px"></div>
+      <div class="fake-card-line" style="width:80px"></div>
+    </div>
+  </div>
+  <div class="fake-card">
+    <div class="fake-card-icon">📊</div>
+    <div class="fake-card-lines">
+      <div class="fake-card-line" style="width:140px"></div>
+      <div class="fake-card-line" style="width:60px"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Note -->
+<div class="note">
+  <strong>To preview with the real avatar:</strong><br>
+  Save the image you shared as <code>public/avatar.png</code> in the project root, then open this file.<br><br>
+  <strong>What changes vs. current:</strong><br>
+  • SVG mascot replaced with <code>&lt;img src=&quot;/avatar.png&quot;&gt;</code><br>
+  • Avatar cropped to top of character, bleeds slightly above banner edge<br>
+  • Speech bubble + stadium bg + CTA button remain unchanged<br>
+  • Entire banner stays one tappable link
+</div>
+
+<script>
+  // show placeholder div if image fails to load
+  document.querySelector('.avatar-col img').addEventListener('error', function() {
+    this.style.display = 'none';
+    document.getElementById('placeholder').style.display = 'flex';
+  });
+</script>
+
+</body>
+</html>

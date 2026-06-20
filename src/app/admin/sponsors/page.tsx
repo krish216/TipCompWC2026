@@ -10,7 +10,7 @@ import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
 import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, deriveChallengeSlug, leaderboardPathFor } from '@/lib/challenges/registry'
 import type { Sponsor, SponsorCampaign, CampaignStatus, LogoTone, SponsorStatus } from '@/lib/sponsors/types'
 
-type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; tournament_id: string } }
+type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; slug: string; tournament_id: string } }
 
 // ── datetime-local <-> ISO helpers ──────────────────────────────────────────
 function toLocalInput(iso: string | null | undefined): string {
@@ -314,6 +314,7 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-gray-900 truncate">{g.name}</span>
                       <span className="text-[10px] uppercase font-semibold text-gray-400">{challengeTypeLabel(g.type)}</span>
+                      {g.slug && <a href={leaderboardPathFor(g.type, g.slug)} target="_blank" rel="noopener noreferrer" className="ml-auto text-[11px] font-semibold text-emerald-600 hover:underline whitespace-nowrap">Leaderboard ↗</a>}
                     </div>
                     {g.campaigns.map(c => (
                       <CampaignCard key={c.id} campaign={c} hideLabel onChanged={() => { loadCampaigns(); onChanged() }} />
@@ -336,12 +337,12 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
 }
 
 // Group a sponsor's campaigns by their challenge (one group per challenge).
-function groupByChallenge(campaigns: CampaignRow[]): { challengeId: string; name: string; type: string; campaigns: CampaignRow[] }[] {
-  const m = new Map<string, { challengeId: string; name: string; type: string; campaigns: CampaignRow[] }>()
+function groupByChallenge(campaigns: CampaignRow[]): { challengeId: string; name: string; type: string; slug: string; campaigns: CampaignRow[] }[] {
+  const m = new Map<string, { challengeId: string; name: string; type: string; slug: string; campaigns: CampaignRow[] }>()
   for (const c of campaigns) {
     const cid = (c as any).challenge_id as string
     if (!cid) continue
-    if (!m.has(cid)) m.set(cid, { challengeId: cid, name: c.challenges?.name ?? 'Challenge', type: c.challenges?.type ?? 'bracket', campaigns: [] })
+    if (!m.has(cid)) m.set(cid, { challengeId: cid, name: c.challenges?.name ?? 'Challenge', type: c.challenges?.type ?? 'bracket', slug: c.challenges?.slug ?? '', campaigns: [] })
     m.get(cid)!.campaigns.push(c)
   }
   return Array.from(m.values())
@@ -489,8 +490,13 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
         body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: cd.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
       })
       const campd = await camp.json().catch(() => ({}))
-      if (!camp.ok) toast.error(`Challenge made, but sponsor not attached: ${campd.error ?? 'failed'}`)
-      else toast.success('Challenge created for this sponsor')
+      if (!camp.ok) {
+        // Roll back the challenge so a rejected sponsor doesn't leave an orphan.
+        toast.error(`Couldn’t attach sponsor: ${campd.error ?? 'failed'}. No challenge created.`)
+        await fetch(`/api/bracket/challenges/${cd.challenge.id}`, { method: 'DELETE' }).catch(() => {})
+        return
+      }
+      toast.success('Challenge created for this sponsor')
       setOpen(false)
       onCreated()
     } catch {

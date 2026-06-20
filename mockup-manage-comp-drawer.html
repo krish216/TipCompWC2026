@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup — Manage Comp Drawer (Option 5)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; color: #111; }
+
+  /* ── Navbar ── */
+  .navbar {
+    position: sticky; top: 0; z-index: 10;
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    padding: 0 16px; height: 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 768px; margin: 0 auto;
+  }
+  .navbar-logo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: #111; text-decoration: none; }
+  .navbar-links { display: flex; align-items: center; gap: 2px; }
+  .nav-link {
+    padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    color: #6b7280; text-decoration: none; white-space: nowrap; cursor: pointer; border: none; background: none;
+  }
+  .nav-link:hover { background: #f9fafb; color: #374151; }
+  .nav-link.active { background: #f0fdf4; color: #15803d; }
+  .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    border: 2px solid transparent; transition: border-color .15s;
+    position: relative;
+  }
+  .avatar:hover { border-color: #86efac; }
+  .avatar-badge {
+    position: absolute; top: -3px; right: -3px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #3b82f6; border: 1.5px solid #fff;
+  }
+  .navbar-right { display: flex; align-items: center; gap: 8px; }
+  .sign-out { font-size: 11px; color: #9ca3af; cursor: pointer; border: none; background: none; }
+
+  /* ── Page body ── */
+  .page { max-width: 768px; margin: 0 auto; padding: 20px 16px; }
+  .callout {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 20px; font-size: 13px; color: #1e40af;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout strong { display: block; margin-bottom: 2px; }
+  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .ba-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+  .ba-label { padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid #f3f4f6; }
+  .ba-label.before { background: #fef9ec; color: #92400e; }
+  .ba-label.after  { background: #f0fdf4; color: #166534; }
+  .ba-content { padding: 12px 14px; font-size: 12px; color: #374151; line-height: 1.6; }
+
+  /* ── Demo area ── */
+  .demo-wrapper {
+    display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .demo-phone {
+    flex: 1; min-width: 280px; max-width: 380px;
+    background: #fff; border-radius: 20px; overflow: hidden;
+    box-shadow: 0 4px 32px rgba(0,0,0,.12); border: 1px solid #e5e7eb;
+  }
+  .demo-desc { flex: 1; min-width: 240px; }
+  .demo-desc h3 { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 8px; }
+  .demo-desc ul { font-size: 12px; color: #374151; line-height: 1.9; list-style: none; }
+  .demo-desc ul li::before { content: "→ "; color: #6b7280; }
+
+  /* ── Drawer ── */
+  .drawer-container {
+    display: flex; overflow: hidden; border-radius: 0 0 20px 20px;
+    position: relative; min-height: 580px;
+  }
+  .page-bg {
+    flex: 1; background: #f3f4f6; padding: 16px;
+    font-size: 12px; color: #9ca3af; display: flex; flex-direction: column; gap: 10px;
+    filter: brightness(.97);
+  }
+  .page-bg-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+  .page-bg-title { font-weight: 700; font-size: 13px; color: #374151; margin-bottom: 6px; }
+  .stat-row { display: flex; gap: 6px; }
+  .stat-mini { flex: 1; background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px; padding: 8px; text-align: center; }
+  .stat-mini-val { font-size: 18px; font-weight: 800; color: #374151; }
+  .stat-mini-lbl { font-size: 9px; color: #9ca3af; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+
+  /* ── Drawer panel ── */
+  .drawer {
+    width: 300px; flex-shrink: 0;
+    background: #fff;
+    box-shadow: -4px 0 24px rgba(0,0,0,.12);
+    display: flex; flex-direction: column;
+    height: 580px; overflow: hidden;
+  }
+  .drawer-header {
+    padding: 14px 16px; border-bottom: 1px solid #f3f4f6;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .drawer-header-left { display: flex; align-items: center; gap: 10px; }
+  .comp-logo {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: #111; color: #fff; font-size: 14px; font-weight: 900;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .comp-name { font-size: 13px; font-weight: 600; color: #111; }
+  .comp-sub { font-size: 10px; color: #9ca3af; margin-top: 1px; }
+  .close-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 16px; color: #9ca3af; padding: 4px 6px; border-radius: 6px;
+    line-height: 1;
+  }
+  .close-btn:hover { background: #f3f4f6; color: #374151; }
+
+  /* ── Tab bar in drawer ── */
+  .drawer-tabs {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    gap: 3px; padding: 8px 10px; background: #f9fafb;
+    border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
+  }
+  .dtab {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 7px 2px; border-radius: 8px; cursor: pointer;
+    border: none; background: none; position: relative;
+  }
+  .dtab:hover { background: #f3f4f6; }
+  .dtab.active { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  .dtab-icon { font-size: 14px; line-height: 1; }
+  .dtab-label { font-size: 8px; font-weight: 700; color: #9ca3af; }
+  .dtab.active .dtab-label { color: #111; }
+  .dtab-badge {
+    position: absolute; top: 2px; right: 2px;
+    min-width: 14px; height: 14px; padding: 0 3px;
+    background: #374151; color: #fff; border-radius: 99px;
+    font-size: 8px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Drawer tab content ── */
+  .drawer-content { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* Stats row */
+  .stats-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
+  .s4 { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 7px 4px; text-align: center; }
+  .s4-val { font-size: 16px; font-weight: 900; }
+  .s4-lbl { font-size: 8px; color: #9ca3af; font-weight: 700; text-transform: uppercase; margin-top: 1px; }
+  .s4-val.green  { color: #16a34a; }
+  .s4-val.sky    { color: #0284c7; }
+  .s4-val.amber  { color: #d97706; }
+  .s4-val.gray   { color: #374151; }
+
+  /* Join code card */
+  .code-card {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .code-label { font-size: 9px; color: #9ca3af; font-weight: 600; text-transform: uppercase; margin-bottom: 3px; }
+  .code-value { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 17px; font-weight: 700; letter-spacing: .2em; color: #111; }
+  .copy-btn {
+    padding: 5px 10px; background: #111; color: #fff;
+    font-size: 10px; font-weight: 700; border-radius: 7px; border: none; cursor: pointer;
+  }
+
+  /* Invite input */
+  .invite-row { display: flex; gap: 5px; margin-bottom: 10px; }
+  .invite-input {
+    flex: 1; padding: 7px 10px; font-size: 11px;
+    border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
+    color: #374151;
+  }
+  .invite-btn {
+    padding: 7px 10px; background: #111; color: #fff;
+    font-size: 10px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;
+  }
+
+  /* Section header */
+  .section-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 0 5px; margin-bottom: 4px;
+  }
+  .section-hdr-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; }
+  .filter-pills { display: flex; gap: 3px; }
+  .fpill {
+    padding: 2px 7px; border-radius: 99px; font-size: 9px; font-weight: 700;
+    cursor: pointer; border: none;
+  }
+  .fpill.active { background: #111; color: #fff; }
+  .fpill.inactive { background: #f3f4f6; color: #9ca3af; }
+
+  /* Tipster rows */
+  .tipster-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid #f9fafb;
+  }
+  .tipster-row:last-child { border-bottom: none; }
+  .tipster-avi {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; flex-shrink: 0;
+  }
+  .avi-v { background: #ede9fe; color: #7c3aed; }
+  .avi-e { background: #d1fae5; color: #065f46; }
+  .avi-s { background: #dbeafe; color: #1d4ed8; }
+  .avi-a { background: #fef3c7; color: #92400e; }
+  .avi-r { background: #ffe4e6; color: #9f1239; }
+  .tipster-info { flex: 1; min-width: 0; }
+  .tipster-name { font-size: 11px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tipster-email { font-size: 9px; color: #9ca3af; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill {
+    flex-shrink: 0; padding: 2px 7px; border-radius: 99px;
+    font-size: 9px; font-weight: 700;
+  }
+  .pill.joined     { background: #dcfce7; color: #166534; }
+  .pill.registered { background: #dbeafe; color: #1e40af; }
+  .pill.invited    { background: #fef3c7; color: #92400e; }
+
+  /* Overlay tint on page */
+  .overlay-tint {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.28);
+    border-radius: 0 0 20px 0;
+    pointer-events: none;
+  }
+
+  /* ── Trigger annotation ── */
+  .annotation {
+    position: absolute;
+    font-size: 10px; font-weight: 600; color: #3b82f6;
+    background: #eff6ff; border: 1px solid #93c5fd;
+    padding: 3px 8px; border-radius: 99px;
+    white-space: nowrap;
+  }
+  .arrow-line {
+    position: absolute; border-top: 1.5px dashed #93c5fd;
+    pointer-events: none;
+  }
+
+  /* ── Navbar trigger demo ── */
+  .navbar-demo { position: relative; }
+  .nav-demo-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 48px; padding: 0 14px;
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* ── Entry points section ── */
+  .entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .entry-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; }
+  .entry-card h4 { font-size: 12px; font-weight: 700; color: #111; margin-bottom: 6px; }
+  .entry-card p { font-size: 11px; color: #6b7280; line-height: 1.5; }
+  .entry-card .badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #f0fdf4; color: #166534; margin-bottom: 6px; }
+
+  h2 { font-size: 14px; font-weight: 800; color: #111; margin-bottom: 10px; }
+  .section-divider { margin: 24px 0 16px; border: none; border-top: 1px solid #e5e7eb; }
+  .note { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Fixed navbar demo at top of page -->
+<div style="max-width:768px;margin:0 auto;padding:12px 16px 0;">
+  <div class="callout">
+    <span class="callout-icon">ℹ️</span>
+    <div>
+      <strong>Option 5 mockup — "Manage Comp" as an in-context drawer</strong>
+      The full comp-admin experience slides in from the right without leaving the current page.
+      Click the avatar below to open the drawer demo.
+    </div>
+  </div>
+</div>
+
+<!-- ── Before / After ───────────────────────────────────────── -->
+<div style="max-width:768px;margin:0 auto;padding:0 16px;">
+  <div class="before-after">
+    <div class="ba-card">
+      <div class="ba-label before">Before — Current</div>
+      <div class="ba-content">
+        <b>Navbar:</b> My Comps · Predict · ScoreBoard · My Tribe · Rules · <u>Comp Admin</u> · Tournament<br><br>
+        Clicking <b>Comp Admin</b> navigates to <code>/comp-admin</code> — a separate full page. Admin leaves their current context entirely.
+      </div>
+    </div>
+    <div class="ba-card">
+      <div class="ba-label after">After — Option 5</div>
+      <div class="ba-content">
+        <b>Navbar:</b> Predict · ScoreBoard · My Tribe — plus <b>avatar</b> in top right<br><br>
+        Clicking the avatar shows a dropdown with <b>⚙ Manage Comp</b>. Selecting it slides the drawer in from the right over the current page.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Entry points ── -->
+<div style="max-width:768px;margin:0 auto;padding:0 16px;">
+  <h2>Two natural entry points</h2>
+  <div class="entry-grid">
+    <div class="entry-card">
+      <span class="badge">Primary</span>
+      <h4>Avatar dropdown → Manage Comp</h4>
+      <p>Available from any page. One tap opens a small dropdown: Settings · Manage Comp · Sign out. Keeps admin tools in the "me" zone.</p>
+    </div>
+    <div class="entry-card">
+      <span class="badge">Contextual</span>
+      <h4>⚙ button on comp card</h4>
+      <p>On the My Comps home page, a subtle manage icon appears on the comp card header — discoverable exactly when you're thinking about your comp.</p>
+    </div>
+  </div>
+</div>
+
+<hr class="section-divider" style="max-width:736px;margin:0 auto 20px;">
+
+<!-- ── Live mockup ── -->
+<div style="max-width:768px;margin:0 auto;padding:0 16px 32px;">
+  <h2>Interactive demo — click the avatar ↗ to open the drawer</h2>
+
+  <div class="demo-wrapper">
+    <!-- Phone mockup -->
+    <div class="demo-phone">
+
+      <!-- Nav bar inside phone -->
+      <div class="nav-demo-inner" id="navbar-demo">
+        <span style="font-size:18px;">⚽</span>
+        <div style="display:flex;gap:2px;">
+          <span class="nav-link active">Predict</span>
+          <span class="nav-link">ScoreBoard</span>
+          <span class="nav-link">My Tribe</span>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+          <div class="avatar" id="avatar-btn" onclick="toggleDrawer()" title="Click to open Manage Comp">
+            KM
+            <div class="avatar-badge" title="You have admin access"></div>
+          </div>
+          <button class="sign-out">Sign out</button>
+
+          <!-- Avatar dropdown -->
+          <div id="avatar-dropdown" style="
+            display:none; position:absolute; top:36px; right:0;
+            background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width:160px; z-index:100;
+            overflow:hidden;
+          ">
+            <div style="padding:10px 14px; border-bottom:1px solid #f3f4f6;">
+              <div style="font-size:11px;font-weight:700;color:#111;">Krish M.</div>
+              <div style="font-size:10px;color:#9ca3af;">krish@example.com</div>
+            </div>
+            <button onclick="openDrawer()" style="
+              width:100%;text-align:left;padding:9px 14px;background:none;border:none;
+              font-size:12px;font-weight:600;color:#2563eb;cursor:pointer;
+              display:flex;align-items:center;gap:8px;border-bottom:1px solid #f9fafb;
+            " onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='none'">
+              ⚙ Manage Comp
+            </button>
+            <button style="
+              width:100%;text-align:left;padding:9px 14px;background:none;border:none;
+              font-size:12px;color:#374151;cursor:pointer;
+              display:flex;align-items:center;gap:8px;border-bottom:1px solid #f9fafb;
+            " onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='none'">
+              ⚙ Settings
+            </button>
+            <button onclick="closeDropdown()" style="
+              width:100%;text-align:left;padding:9px 14px;background:none;border:none;
+              font-size:12px;color:#9ca3af;cursor:pointer;
+            " onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='none'">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page behind the drawer -->
+      <div class="drawer-container" id="drawer-container">
+        <div class="page-bg">
+          <div class="page-bg-card">
+            <div class="page-bg-title">Group Stage predictions</div>
+            <div class="stat-row">
+              <div class="stat-mini"><div class="stat-mini-val">142</div><div class="stat-mini-lbl">Total pts</div></div>
+              <div class="stat-mini"><div class="stat-mini-val">4</div><div class="stat-mini-lbl">Exact</div></div>
+              <div class="stat-mini"><div class="stat-mini-val">12</div><div class="stat-mini-lbl">Correct</div></div>
+              <div class="stat-mini"><div class="stat-mini-val">6</div><div class="stat-mini-lbl">To predict</div></div>
+            </div>
+          </div>
+          <div style="height:6px;"></div>
+          <div class="page-bg-card" style="opacity:.6;">
+            <div style="height:8px;background:#f3f4f6;border-radius:4px;margin-bottom:8px;width:60%;"></div>
+            <div style="height:8px;background:#f3f4f6;border-radius:4px;width:90%;"></div>
+          </div>
+          <div class="page-bg-card" style="opacity:.4;">
+            <div style="height:8px;background:#f3f4f6;border-radius:4px;margin-bottom:8px;width:45%;"></div>
+            <div style="height:8px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
+          </div>
+        </div>
+
+        <!-- Overlay tint (only shown when drawer open) -->
+        <div class="overlay-tint" id="overlay-tint" style="display:none;" onclick="closeDrawer()"></div>
+
+        <!-- Drawer panel -->
+        <div class="drawer" id="drawer" style="display:none;">
+          <div class="drawer-header">
+            <div class="drawer-header-left">
+              <div class="comp-logo">W</div>
+              <div>
+                <div class="comp-name">World Cup 2026 Office</div>
+                <div class="comp-sub">18 tipsters · 4 tribes</div>
+              </div>
+            </div>
+            <button class="close-btn" onclick="closeDrawer()">✕</button>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="drawer-tabs">
+            <button class="dtab active" onclick="switchTab(this,'tipsters')">
+              <span class="dtab-icon">👥</span>
+              <span class="dtab-label">Tipsters</span>
+              <span class="dtab-badge">18</span>
+            </button>
+            <button class="dtab" onclick="switchTab(this,'payments')">
+              <span class="dtab-icon">💳</span>
+              <span class="dtab-label">Payments</span>
+            </button>
+            <button class="dtab" onclick="switchTab(this,'email')">
+              <span class="dtab-icon">✉️</span>
+              <span class="dtab-label">Email</span>
+            </button>
+            <button class="dtab" onclick="switchTab(this,'settings')">
+              <span class="dtab-icon">⚙️</span>
+              <span class="dtab-label">Settings</span>
+            </button>
+            <button class="dtab" onclick="switchTab(this,'tribes')">
+              <span class="dtab-icon">🏕️</span>
+              <span class="dtab-label">Tribes</span>
+              <span class="dtab-badge">4</span>
+            </button>
+            <button class="dtab" onclick="switchTab(this,'challenges')">
+              <span class="dtab-icon">⚡</span>
+              <span class="dtab-label">Challenges</span>
+            </button>
+          </div>
+
+          <!-- Content panels -->
+          <div class="drawer-content" id="panel-tipsters">
+            <div class="stats-4">
+              <div class="s4"><div class="s4-val gray">22</div><div class="s4-lbl">Total</div></div>
+              <div class="s4"><div class="s4-val green">18</div><div class="s4-lbl">Joined</div></div>
+              <div class="s4"><div class="s4-val sky">2</div><div class="s4-lbl">Reg'd</div></div>
+              <div class="s4"><div class="s4-val amber">2</div><div class="s4-lbl">Invited</div></div>
+            </div>
+
+            <div class="code-card">
+              <div>
+                <div class="code-label">Join code</div>
+                <div class="code-value">WC26F</div>
+              </div>
+              <button class="copy-btn">Copy</button>
+            </div>
+
+            <div class="invite-row">
+              <input class="invite-input" placeholder="tipster@example.com" type="email" />
+              <button class="invite-btn">Send invite</button>
+            </div>
+
+            <div class="section-hdr">
+              <span class="section-hdr-title">All tipsters</span>
+              <div class="filter-pills">
+                <button class="fpill active">All</button>
+                <button class="fpill inactive">Joined</button>
+                <button class="fpill inactive">Pending</button>
+              </div>
+            </div>
+
+            <div>
+              <div class="tipster-row">
+                <div class="tipster-avi avi-v">JD</div>
+                <div class="tipster-info">
+                  <div class="tipster-name">Jake Dawson</div>
+                  <div class="tipster-email">jake@example.com</div>
+                </div>
+                <span class="pill joined">✓ Joined</span>
+              </div>
+              <div class="tipster-row">
+                <div class="tipster-avi avi-e">SR</div>
+                <div class="tipster-info">
+                  <div class="tipster-name">Sophie R.</div>
+                  <div class="tipster-email">sophie@example.com</div>
+                </div>
+                <span class="pill joined">✓ Joined</span>
+              </div>
+              <div class="tipster-row">
+                <div class="tipster-avi avi-s">MT</div>
+                <div class="tipster-info">
+                  <div class="tipster-name">Marcus T.</div>
+                  <div class="tipster-email">marcus@example.com</div>
+                </div>
+                <span class="pill joined">✓ Joined</span>
+              </div>
+              <div class="tipster-row">
+                <div class="tipster-avi avi-a">AL</div>
+                <div class="tipster-info">
+                  <div class="tipster-name">Amy Lee</div>
+                  <div class="tipster-email">amy@example.com</div>
+                </div>
+                <span class="pill registered">Registered</span>
+              </div>
+              <div class="tipster-row">
+                <div class="tipster-avi avi-r">—</div>
+                <div class="tipster-info">
+                  <div class="tipster-name" style="color:#9ca3af;font-style:italic;font-weight:400;">Not registered yet</div>
+                  <div class="tipster-email">ben@example.com</div>
+                </div>
+                <span class="pill invited">Invited</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="drawer-content" id="panel-payments" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#16a34a;letter-spacing:.07em;margin-bottom:4px;">Collected</div>
+                <div style="font-size:22px;font-weight:900;color:#15803d;">$270</div>
+                <div style="font-size:9px;color:#16a34a;margin-top:2px;">14 of 18 paid</div>
+              </div>
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#d97706;letter-spacing:.07em;margin-bottom:4px;">Outstanding</div>
+                <div style="font-size:22px;font-weight:900;color:#b45309;">$80</div>
+                <div style="font-size:9px;color:#d97706;margin-top:2px;">4 still unpaid</div>
+              </div>
+            </div>
+            <div style="font-size:10px;color:#9ca3af;text-align:center;padding:12px 0;">↑ Track and mark payments per tipster</div>
+          </div>
+
+          <div class="drawer-content" id="panel-email" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px;">
+                <div style="font-size:11px;font-weight:700;">👋 Welcome</div>
+                <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Welcome to WC26 Off…</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px;">
+                <div style="font-size:11px;font-weight:700;">⏰ Reminder</div>
+                <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Don't forget your tips!</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px;">
+                <div style="font-size:11px;font-weight:700;">🏆 Results</div>
+                <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Round results are in!</div>
+              </div>
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px;">
+                <div style="font-size:11px;font-weight:700;">💰 Pay up</div>
+                <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Entry fee reminder…</div>
+              </div>
+            </div>
+            <input class="invite-input" placeholder="Subject…" style="width:100%;margin-bottom:6px;" />
+            <textarea style="width:100%;padding:8px 10px;font-size:11px;border:1px solid #e5e7eb;border-radius:8px;height:70px;resize:none;color:#374151;" placeholder="Hi {name}, your message here…"></textarea>
+            <button class="invite-btn" style="width:100%;margin-top:6px;padding:9px;">✉️ Send to 18 tipsters</button>
+          </div>
+
+          <div class="drawer-content" id="panel-settings" style="display:none;">
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:8px;">
+              <div style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;">Comp name</div>
+              <div style="padding:10px 12px;display:flex;gap:6px;">
+                <input value="World Cup 2026 Office" style="flex:1;padding:6px 10px;font-size:11px;border:1px solid #e5e7eb;border-radius:7px;" />
+                <button style="padding:6px 10px;background:#111;color:#fff;font-size:10px;font-weight:700;border:none;border-radius:7px;cursor:pointer;">Save</button>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:8px;">
+              <div style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;">Participation fee</div>
+              <div style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;color:#374151;">Require entry fee</span>
+                <div style="width:36px;height:20px;border-radius:10px;background:#111;padding:2px;display:flex;align-items:center;justify-content:flex-end;cursor:pointer;">
+                  <div style="width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:10px;color:#9ca3af;text-align:center;padding:8px 0;">+ more settings below…</div>
+          </div>
+
+          <div class="drawer-content" id="panel-tribes" style="display:none;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;">
+              <div class="s4"><div class="s4-val gray">4</div><div class="s4-lbl">Tribes</div></div>
+              <div class="s4"><div class="s4-val gray">18</div><div class="s4-lbl">Tipsters</div></div>
+              <div class="s4"><div class="s4-val gray">4</div><div class="s4-lbl">Avg size</div></div>
+            </div>
+            <button style="width:100%;margin-bottom:12px;padding:10px;border:2px dashed #d1d5db;border-radius:10px;background:none;font-size:12px;font-weight:600;color:#6b7280;cursor:pointer;">+ Create new tribe</button>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:11px;font-weight:700;">⚽ The Pundits</div>
+                <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:99px;font-weight:700;">5 members</span>
+              </div>
+              <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:11px;font-weight:700;">🔥 Top Floor</div>
+                <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:99px;font-weight:700;">6 members</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="drawer-content" id="panel-challenges" style="display:none;">
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px;">⚡ Match challenges</div>
+              <div style="font-size:10px;color:#b45309;line-height:1.5;">Attach a special prize to any match. The tipster who correctly predicts that match wins.</div>
+            </div>
+            <button style="width:100%;margin-bottom:12px;padding:10px;border:2px dashed #d1d5db;border-radius:10px;background:none;font-size:12px;font-weight:600;color:#6b7280;cursor:pointer;">+ Add challenge</button>
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;">
+              <div style="width:32px;height:32px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">⚡</div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#111;">Argentina vs France</div>
+                <div style="font-size:10px;color:#16a34a;font-weight:600;margin-top:2px;">🏆 $100 voucher</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /drawer -->
+      </div><!-- /drawer-container -->
+    </div><!-- /demo-phone -->
+
+    <!-- Description -->
+    <div class="demo-desc">
+      <h3>What changes</h3>
+      <ul>
+        <li>Navbar shrinks to 3 links + avatar</li>
+        <li>Admin tools live inside the drawer, not a separate page</li>
+        <li>All 6 tabs remain — nothing is lost</li>
+        <li>Drawer overlays current page — no context switch</li>
+        <li>Close drawer → instantly back to predictions/leaderboard</li>
+        <li>Blue dot on avatar signals admin access</li>
+        <li><code>/comp-admin</code> route can be retired</li>
+      </ul>
+      <br>
+      <h3 style="margin-bottom:6px;">Trade-offs</h3>
+      <div style="font-size:11px;color:#6b7280;line-height:1.8;">
+        <span style="color:#16a34a;">✓</span> No page navigation for admin tasks<br>
+        <span style="color:#16a34a;">✓</span> Cleaner navbar<br>
+        <span style="color:#16a34a;">✓</span> Content-rich tabs still work at 300px width<br>
+        <span style="color:#f59e0b;">⚠</span> Drawer width (300px) is tighter than the current full page (672px) — some content like payment tables needs slight rework<br>
+        <span style="color:#f59e0b;">⚠</span> Deep-linking to specific tabs (<code>/comp-admin?tab=payments</code>) is lost unless we add URL params
+      </div>
+    </div>
+  </div><!-- /demo-wrapper -->
+</div>
+
+<script>
+  let drawerOpen = false
+
+  function toggleDrawer() {
+    const dd = document.getElementById('avatar-dropdown')
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none'
+  }
+
+  function openDrawer() {
+    closeDropdown()
+    document.getElementById('drawer').style.display = 'flex'
+    document.getElementById('overlay-tint').style.display = 'block'
+    drawerOpen = true
+  }
+
+  function closeDrawer() {
+    document.getElementById('drawer').style.display = 'none'
+    document.getElementById('overlay-tint').style.display = 'none'
+    drawerOpen = false
+  }
+
+  function closeDropdown() {
+    document.getElementById('avatar-dropdown').style.display = 'none'
+  }
+
+  function switchTab(btn, panelId) {
+    // Update tabs
+    document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'))
+    btn.classList.add('active')
+    // Show correct panel
+    const panels = ['tipsters','payments','email','settings','tribes','challenges']
+    panels.forEach(id => {
+      document.getElementById('panel-' + id).style.display = id === panelId ? 'block' : 'none'
+    })
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    const dd = document.getElementById('avatar-dropdown')
+    const avatar = document.getElementById('avatar-btn')
+    if (!avatar.contains(e.target) && !dd.contains(e.target)) {
+      dd.style.display = 'none'
+    }
+  })
+</script>
+</body>
+</html>

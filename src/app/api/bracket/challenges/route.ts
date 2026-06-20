@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!tid) return NextResponse.json({ challenges: [] })
 
     const { data: rows } = await (admin.from('challenges') as any)
-      .select('id, slug, name, enabled, type, access, created_at')
+      .select('id, slug, name, enabled, type, access, closes_at, created_at')
       .eq('tournament_id', tid).eq('type', 'bracket')
       .order('created_at', { ascending: true })
 
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         entrantCount(admin, ch.id),
         sponsorState(admin, ch.id),
       ])
-      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
+      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, closes_at: ch.closes_at ?? null, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
     }))
     return NextResponse.json({ challenges, tournament_id: tid })
   }
@@ -108,16 +108,18 @@ export async function GET(request: NextRequest) {
     ;((ents ?? []) as any[]).forEach(e => entered.add(e.challenge_id))
     has_bracket = !!champ
   }
-  const locked = closes_at ? Date.now() >= new Date(closes_at).getTime() : false
+  const r32 = closes_at   // tournament-wide fallback (first R32 kick-off)
+  const lockedAt = (iso: string | null) => !!iso && Date.now() >= new Date(iso).getTime()
 
   const challenges = await Promise.all(list.map(async ch => {
     const [entrants, cfg] = await Promise.all([
       entrantCount(admin, ch.id),
       resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: ch.id }),
     ])
-    return { slug: ch.slug, name: ch.name, entrants, sponsor: sponsorSummary(cfg), entered: entered.has(ch.id) }
+    const chCloses = ch.closes_at ?? r32   // the challenge's own end date, else R32
+    return { slug: ch.slug, name: ch.name, entrants, sponsor: sponsorSummary(cfg), entered: entered.has(ch.id), closes_at: chCloses, locked: lockedAt(chCloses) }
   }))
-  return NextResponse.json({ challenges, logged_in: !!user, has_bracket, closes_at, locked })
+  return NextResponse.json({ challenges, logged_in: !!user, has_bracket, closes_at: r32, locked: lockedAt(r32) })
 }
 
 // POST /api/bracket/challenges — admin: create a bracket challenge.
@@ -152,7 +154,8 @@ export async function POST(request: NextRequest) {
     slug,
     enabled:       b.enabled !== false,
     access:        b.access === 'invite' ? 'invite' : 'open',
-  }).select('id, slug, name, enabled, type, access').single()
+    closes_at:     b.closes_at || null,
+  }).select('id, slug, name, enabled, type, access, closes_at').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ challenge: data })

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TribePicks × Ray White — Branded Comp Proposal</title>
+<style>
+  :root{
+    --green:#16a34a; --green-d:#14532d; --ink:#111827; --muted:#6b7280; --line:#eef0f2; --bg:#f3f4f6;
+    --rw-yellow:#FFE600; --rw-navy:#0f1f3d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 16px 64px}
+  h1{font-size:21px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 24px;max-width:720px;line-height:1.5}
+  .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:22px;align-items:start}
+  @media (max-width:840px){.hero{grid-template-columns:1fr}}
+
+  .phone{background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .topbar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .logo{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#34d399,#16a34a)}
+  .brand{font-weight:800;font-size:14px}.brand span{color:var(--green)}
+
+  /* Branded comp header */
+  .comphead{background:var(--rw-yellow);padding:14px 16px;display:flex;align-items:center;gap:12px}
+  .rwmark .rw{font-weight:800;font-size:18px;letter-spacing:.5px;color:var(--rw-navy);line-height:1}
+  .rwmark .office{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--rw-navy);opacity:.8;margin-top:2px}
+  .compname{margin-left:auto;text-align:right}
+  .compname .t{font-weight:800;font-size:13px;color:var(--rw-navy);line-height:1.15}
+  .compname .s{font-size:10px;color:var(--rw-navy);opacity:.75}
+
+  .colhead{display:grid;grid-template-columns:28px 1fr 50px;gap:8px;padding:8px 14px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#fafafa}
+  .row{display:grid;grid-template-columns:28px 1fr 50px;gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px}
+  .row.me{background:#ecfdf5}
+  .rank{font-weight:800;color:#9ca3af;text-align:center}.rank.g{color:#d4a017}.rank.s{color:#9aa3af}.rank.b{color:#b06a2c}
+  .who{display:flex;align-items:center;gap:8px;min-width:0}
+  .av{width:24px;height:24px;border-radius:50%;background:#fff7cc;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--rw-navy);flex-shrink:0}
+  .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pts{text-align:right;font-weight:800}
+
+  /* Invite card (what RW shares with their local audience) */
+  .invite{border-radius:20px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 30px rgba(0,0,0,.06);background:#fff}
+  .inv-top{background:var(--rw-navy);color:#fff;padding:18px 18px 16px;text-align:center}
+  .inv-top .rwb{display:inline-block;background:var(--rw-yellow);color:var(--rw-navy);font-weight:800;font-size:13px;padding:5px 10px;border-radius:7px;letter-spacing:.5px}
+  .inv-top h2{font-size:18px;margin:12px 0 4px;line-height:1.2}
+  .inv-top p{font-size:12px;opacity:.85;margin:0}
+  .inv-body{padding:16px 18px;text-align:center}
+  .inv-prize{display:inline-flex;align-items:center;gap:8px;background:var(--rw-yellow);color:var(--rw-navy);font-weight:800;font-size:13px;padding:8px 14px;border-radius:999px;margin-bottom:14px}
+  .inv-cta{display:block;background:var(--green);color:#fff;font-weight:800;font-size:14px;padding:12px;border-radius:12px;text-decoration:none}
+  .inv-code{font-size:11px;color:var(--muted);margin-top:10px}
+  .inv-code b{color:var(--ink);letter-spacing:1px}
+  .inv-foot{font-size:10px;color:#9ca3af;border-top:1px solid var(--line);padding:8px;text-align:center}
+
+  /* Included extras */
+  .extras{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:30px}
+  @media (max-width:840px){.extras{grid-template-columns:1fr}}
+  .rw-banner{display:block;text-decoration:none;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb}
+  .rw-body{display:flex;align-items:center;gap:14px;background:var(--rw-yellow);padding:12px 14px}
+  .rw-msg{flex:1;min-width:0}.rw-msg .h{font-weight:800;font-size:13px;color:var(--rw-navy);line-height:1.2}.rw-msg .p{font-size:11px;color:var(--rw-navy);opacity:.85;margin-top:1px}
+  .rw-cta{flex-shrink:0;background:var(--rw-navy);color:#fff;font-weight:700;font-size:11px;padding:7px 11px;border-radius:8px;white-space:nowrap}
+  .sponsored{display:block;text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.18em;color:#9ca3af;padding:4px;background:#fff}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--rw-yellow);color:var(--rw-navy);font-weight:700;font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid #e6cf00}
+  .fx{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:10px 0 0;font-size:13px}
+  .fxtop{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:6px}
+  .fxteams{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700}
+  .score{width:28px;height:28px;border:2px solid #d1d5db;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:#9ca3af}
+
+  /* Panels */
+  .panel{margin-top:30px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 30px rgba(0,0,0,.05)}
+  .price{font-size:30px;font-weight:800;color:var(--rw-navy);line-height:1}
+  .price small{font-size:14px;font-weight:700;color:var(--muted)}
+  .found{display:inline-block;background:#ecfdf5;color:var(--green-d);font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;margin-left:8px;vertical-align:middle}
+  ul.inc{margin:14px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  @media (max-width:640px){ul.inc{grid-template-columns:1fr}}
+  ul.inc li{font-size:13px;color:#374151;padding-left:22px;position:relative;line-height:1.4}
+  ul.inc li:before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:800}
+  .alts{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .alt{flex:1;min-width:200px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px}
+  .alt b{display:block;color:var(--ink);margin-bottom:2px}
+  .alt .ap{font-weight:800;color:var(--rw-navy);float:right}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
+  .expect{margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:11px 14px;font-size:12px;color:#92400e;line-height:1.45}
+
+  .projgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media (max-width:640px){.projgrid{grid-template-columns:1fr}}
+  .stream{background:#f9fafb;border:1px solid var(--line);border-radius:14px;padding:16px}
+  .stream h3{font-size:13px;margin:0 0 8px;color:var(--rw-navy)}
+  .stream .big{font-size:22px;font-weight:800;color:var(--rw-navy);line-height:1.05}
+  .stream .sm{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .stream p{font-size:12px;color:#374151;line-height:1.45;margin:0}
+  .fine{font-size:11px;color:#9ca3af;margin:16px 0 0;line-height:1.5}
+
+  /* Print / PDF: keep brand colours, drop the page bg & shadows, avoid splitting cards */
+  @page{size:A4;margin:11mm}
+  @media print{
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{background:#fff}
+    .wrap{max-width:none;padding:0}
+    .phone,.invite,.panel{box-shadow:none}
+    .hero,.extras,.panel,.invite{break-inside:avoid;page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ray White Earlwood | Wolli Creek — World Cup Comp 🏆</h1>
+  <p class="sub">A branded prediction comp on TribePicks, presented by Ray White Earlwood/Wolli Creek. You promote it to your local audience; we build &amp; run it. You get a comp full of local residents — plus brand exposure across the wider platform. Representative styling — final uses Ray White's official logo.</p>
+
+  <!-- HERO: the branded comp -->
+  <p class="label">The branded comp — your local World Cup competition</p>
+  <div class="hero">
+    <!-- comp leaderboard -->
+    <div class="phone">
+      <div class="comphead">
+        <div class="rwmark"><div class="rw">RAY&nbsp;WHITE</div><div class="office">Earlwood · Wolli Creek</div></div>
+        <div class="compname"><div class="t">World Cup Comp 2026</div><div class="s">presented by Ray White</div></div>
+      </div>
+      <div class="colhead"><span>#</span><span>Player</span><span style="text-align:right">Pts</span></div>
+      <div class="row"><div class="rank g">1</div><div class="who"><div class="av">SM</div><div class="nm">Sam (Earlwood)</div></div><div class="pts">142</div></div>
+      <div class="row"><div class="rank s">2</div><div class="who"><div class="av">PK</div><div class="nm">Priya (Wolli Ck)</div></div><div class="pts">139</div></div>
+      <div class="row"><div class="rank b">3</div><div class="who"><div class="av">JL</div><div class="nm">Jo (Marrickville)</div></div><div class="pts">133</div></div>
+      <div class="row"><div class="rank">4</div><div class="who"><div class="av">DT</div><div class="nm">Dimitri (Earlwood)</div></div><div class="pts">128</div></div>
+      <div class="row me"><div class="rank">5</div><div class="who"><div class="av" style="background:#bbf7d0;color:#166534">YOU</div><div class="nm" style="color:#166534">You</div></div><div class="pts">121</div></div>
+      <div class="row"><div class="rank">6</div><div class="who"><div class="av">AN</div><div class="nm">Ava (Bardwell Pk)</div></div><div class="pts">118</div></div>
+    </div>
+
+    <!-- invite card RW shares -->
+    <div class="invite">
+      <div class="inv-top">
+        <span class="rwb">RAY WHITE</span>
+        <h2>Earlwood World Cup Comp</h2>
+        <p>Presented by Ray White Earlwood | Wolli Creek</p>
+      </div>
+      <div class="inv-body">
+        <div class="inv-prize">🎯 Win a $500 Ray White voucher</div>
+        <p class="note" style="margin-bottom:14px">Predict every match, climb the local ladder, win prizes. Free to play.</p>
+        <a class="inv-cta" href="#">Join the comp →</a>
+        <p class="inv-code">Code: <b>EARLWOOD</b> · or scan the QR on our window</p>
+      </div>
+      <div class="inv-foot">Powered by TribePicks · the share card RW posts to socials / database / shopfront</div>
+    </div>
+  </div>
+
+  <!-- Included extras -->
+  <p class="label" style="margin-top:30px">Also included — brand exposure across the whole platform</p>
+  <div class="extras">
+    <div>
+      <a class="rw-banner" href="#">
+        <div class="rw-body">
+          <div class="rwmark"><div class="rw">RAY&nbsp;WHITE</div><div class="office">Earlwood · Wolli Creek</div></div>
+          <div class="rw-msg"><div class="h">Thinking of selling?</div><div class="p">Free, no-obligation appraisal from your local team.</div></div>
+          <div class="rw-cta">Book →</div>
+        </div>
+        <span class="sponsored">Sponsored · shown on Leaderboard &amp; Predict</span>
+      </a>
+      <div class="fx">
+        <div class="fxtop"><span>Sun 1:00am · SoFi Stadium</span><span class="chip">🎯 $500 Ray White voucher</span></div>
+        <div class="fxteams"><span>🇫🇷 FRA</span><span class="score"></span>–<span class="score"></span><span>BRA 🇧🇷</span></div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:#374151;line-height:1.55">
+      <p style="margin:0 0 10px"><b>In-feed banner</b> on the two busiest pages (Leaderboard &amp; Predict) — reaching the <b>wider</b> TribePicks audience, not just your comp.</p>
+      <p style="margin:0 0 10px"><b>Sponsored challenge</b> — your "$500 voucher" prize is named on knockout fixtures, with a thank-you in tribe chat &amp; the weekly report.</p>
+      <p style="margin:0"><b>Logo placement</b> on the weekly Intelligence Report email/page.</p>
+    </div>
+  </div>
+
+  <!-- PACKAGE / QUOTE -->
+  <div class="panel">
+    <p class="label" style="margin:0">The package</p>
+    <div style="margin:6px 0 2px"><span class="price">$1,500 <small>· knockouts → Final (~4 weeks)</small></span><span class="found">Foundation Sponsor rate</span></div>
+    <p class="note" style="margin:6px 0 0">Sponsorship fee. The <b>$500 prize is a Ray White voucher you supply</b> (separate from the fee) — it doubles as a lead magnet, since the winner comes to you. Prefer we source the prize instead? <b>$1,900 all-in.</b></p>
+    <ul class="inc">
+      <li>Your branded "Ray White Earlwood" comp — built &amp; run by us</li>
+      <li>Shareable invite + QR for your database, socials &amp; shopfront</li>
+      <li>In-feed banner on Leaderboard &amp; Predict (whole platform)</li>
+      <li>Sponsored challenge — your $500 voucher named on fixtures</li>
+      <li>Logo on the weekly Intelligence Report</li>
+      <li>Category-exclusive — no competing agency</li>
+    </ul>
+    <div class="expect">⚠️ The comp's local size depends on Ray White promoting it (database, socials, window/QR). We build, run &amp; support it — you bring the locals. The platform banners reach the wider audience regardless.</div>
+
+    <p class="label" style="margin:18px 0 8px">Lighter options</p>
+    <div class="alts">
+      <div class="alt"><span class="ap">$450</span><b>Banner only</b>In-feed banner on Leaderboard &amp; Predict (no comp).</div>
+      <div class="alt"><span class="ap">$750</span><b>Banner + challenge</b>Adds the "$500 voucher" sponsored challenge.</div>
+    </div>
+  </div>
+
+  <!-- PROJECTED REACH (reworked: two streams) -->
+  <div class="panel">
+    <p class="label" style="margin:0 0 4px">📈 Projected reach</p>
+    <div class="projgrid">
+      <div class="stream">
+        <h3>① Your branded comp — local, you recruit</h3>
+        <div class="big">50–300 locals</div>
+        <div class="sm">playing daily for a month</div>
+        <p>Every player Ray White brings in is an <b>actual Earlwood / Wolli Creek resident</b> — your real sellers &amp; buyers — predicting daily and seeing your brand on every screen, with a $500 voucher as the hook. Scale is in your hands (database + socials + window QR).</p>
+      </div>
+      <div class="stream">
+        <h3>② Platform banners — wider AU audience</h3>
+        <div class="big">~19k–34k</div>
+        <div class="sm">brand impressions (4 weeks)</div>
+        <p>Across ~470 engaged players/week (Sydney-skewed). Each sees Ray White <b>20–70×</b> over the month — strong recall. Modeled from live data: 472 active users last 7 days, 50,000+ predictions.</p>
+      </div>
+    </div>
+    <p class="fine">Projections, not guarantees. Comp size depends on Ray White's promotion; banner reach scales with platform traffic, which peaks on matchdays through the Final (19 Jul).</p>
+  </div>
+
+</div>
+</body>
+</html>
