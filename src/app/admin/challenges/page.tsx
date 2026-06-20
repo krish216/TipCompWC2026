@@ -12,7 +12,7 @@ import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
   id: string; slug: string; name: string; type: string; access: string; closes_at: string | null; enabled: boolean; entrants: number
-  sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
+  sponsor: { id?: string; name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
 }
 interface SponsorOpt { id: string; name: string; logo_url: string | null }
@@ -333,7 +333,10 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
 
           {/* Sponsor campaigns on THIS challenge */}
           <div className="pt-4 border-t border-gray-100">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">Sponsor</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-gray-900">Sponsor</h3>
+              {ch.sponsor?.id && <Link href={`/admin/sponsors?sponsor=${ch.sponsor.id}`} className="text-[11px] font-semibold text-emerald-600 hover:underline">Manage {ch.sponsor.name} ↗</Link>}
+            </div>
             {loadingCamps ? (
               <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
             ) : (

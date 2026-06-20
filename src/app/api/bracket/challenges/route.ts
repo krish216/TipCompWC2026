@@ -32,7 +32,7 @@ function sponsorSummary(cfg: any) {
 // genuinely is none — not when it's merely scheduled.
 async function sponsorState(admin: any, challengeId: string): Promise<{ state: 'live' | 'scheduled' | 'ended' | 'none'; sponsor: any }> {
   const { data } = await (admin.from('sponsor_campaigns') as any)
-    .select('prize, click_url, logo_tone, starts_at, ends_at, sponsors(name, logo_url, logo_tone, website_url)')
+    .select('prize, click_url, logo_tone, starts_at, ends_at, sponsors(id, name, logo_url, logo_tone, website_url)')
     .eq('challenge_id', challengeId).eq('enabled', true)
   const camps = ((data ?? []) as any[]).filter(c => c.sponsors)
   if (!camps.length) return { state: 'none', sponsor: null }
@@ -44,7 +44,7 @@ async function sponsorState(admin: any, challengeId: string): Promise<{ state: '
   const chosen = live || upcoming || ended
   const state: 'live' | 'scheduled' | 'ended' | 'none' = live ? 'live' : upcoming ? 'scheduled' : ended ? 'ended' : 'none'
   const sponsor = chosen ? {
-    name: chosen.sponsors.name, logo: chosen.sponsors.logo_url, prize: chosen.prize,
+    id: chosen.sponsors.id, name: chosen.sponsors.name, logo: chosen.sponsors.logo_url, prize: chosen.prize,
     url: chosen.click_url || chosen.sponsors.website_url || '',
     logo_tone: chosen.logo_tone || chosen.sponsors.logo_tone || 'dark',
     starts_at: chosen.starts_at, ends_at: chosen.ends_at,

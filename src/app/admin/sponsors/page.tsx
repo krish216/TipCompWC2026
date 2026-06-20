@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
@@ -48,6 +49,10 @@ export default function SponsorsAdminPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | SponsorStatus>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Deep-link from a challenge's "Manage sponsor" backlink → auto-expand it.
+  const searchParams = useSearchParams()
+  useEffect(() => { const s = searchParams.get('sponsor'); if (s) setSelectedId(s) }, [searchParams])
 
   // Admin gate (same pattern as /admin).
   useEffect(() => {
