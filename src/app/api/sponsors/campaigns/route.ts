@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/sponsors/auth'
-import { defaultWindow } from '@/lib/sponsors/campaigns'
+import { defaultWindow, overlappingCampaign } from '@/lib/sponsors/campaigns'
 import { ChallengeType } from '@/lib/sponsors/types'
 
 export const dynamic = 'force-dynamic'
@@ -71,6 +71,13 @@ export async function POST(request: NextRequest) {
     starts_at = starts_at ?? w.starts_at
     ends_at   = ends_at   ?? w.ends_at
   }
+  if (!starts_at || !ends_at)
+    return NextResponse.json({ error: 'Set a start and end date for the campaign.' }, { status: 422 })
+
+  // One live sponsor at a time: reject a window that overlaps another campaign
+  // on this challenge.
+  const clash = await overlappingCampaign(admin, challengeId, starts_at, ends_at)
+  if (clash) return NextResponse.json({ error: `This challenge already has a campaign (${clash.name}) overlapping that window. Campaigns can’t overlap.` }, { status: 409 })
 
   const now = new Date().toISOString()
   const { data, error } = await (admin.from('sponsor_campaigns') as any).insert({

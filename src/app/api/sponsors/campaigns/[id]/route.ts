@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/sponsors/auth'
+import { overlappingCampaign } from '@/lib/sponsors/campaigns'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -19,6 +20,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     else if (k === 'enabled') patch[k] = b[k] !== false
     else if (k === 'starts_at' || k === 'ends_at') patch[k] = b[k] || null
     else patch[k] = typeof b[k] === 'string' ? (b[k].trim() || null) : b[k]
+  }
+
+  // If the window or enabled flag is changing, re-check it doesn't overlap
+  // another live campaign on the same challenge.
+  if ('starts_at' in patch || 'ends_at' in patch || patch.enabled === true) {
+    const { data: cur } = await (admin.from('sponsor_campaigns') as any)
+      .select('challenge_id, starts_at, ends_at').eq('id', params.id).maybeSingle()
+    if (cur) {
+      const starts = ('starts_at' in patch ? patch.starts_at : (cur as any).starts_at)
+      const ends   = ('ends_at'   in patch ? patch.ends_at   : (cur as any).ends_at)
+      const clash = await overlappingCampaign(admin, (cur as any).challenge_id, starts, ends, params.id)
+      if (clash) return NextResponse.json({ error: `That window overlaps another campaign (${clash.name}) on this challenge. Campaigns can’t overlap.` }, { status: 409 })
+    }
   }
 
   const { data, error } = await (admin.from('sponsor_campaigns') as any)

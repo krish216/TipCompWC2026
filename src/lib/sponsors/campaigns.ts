@@ -25,6 +25,33 @@ export function campaignStatus(
   return 'live'
 }
 
+// Returns an existing enabled campaign on the same challenge whose window
+// overlaps [starts_at, ends_at] (excluding `excludeId`), or null. Enforces
+// "at most one live sponsor at a time" per challenge — campaigns may queue back
+// to back but never overlap. Both dates are required for a real check.
+export async function overlappingCampaign(
+  admin: any,
+  challengeId: string,
+  starts_at: string | null,
+  ends_at: string | null,
+  excludeId?: string,
+): Promise<{ id: string; name: string } | null> {
+  if (!starts_at || !ends_at) return null
+  const s = new Date(starts_at).getTime()
+  const e = new Date(ends_at).getTime()
+  const { data } = await (admin.from('sponsor_campaigns') as any)
+    .select('id, starts_at, ends_at, sponsors(name)')
+    .eq('challenge_id', challengeId).eq('enabled', true)
+  for (const c of ((data ?? []) as any[])) {
+    if (excludeId && c.id === excludeId) continue
+    if (!c.starts_at || !c.ends_at) continue
+    const cs = new Date(c.starts_at).getTime()
+    const ce = new Date(c.ends_at).getTime()
+    if (s < ce && cs < e) return { id: c.id, name: c.sponsors?.name ?? 'another sponsor' }  // half-open overlap
+  }
+  return null
+}
+
 // Default campaign window for a challenge. The window ends at the moment the
 // challenge "locks" and runs for the preceding 5 days (peak completion window).
 //   bracket: lock = first R32 kick-off (when bracket entries lock).

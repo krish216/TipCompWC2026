@@ -11,7 +11,8 @@ import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
   id: string; slug: string; name: string; enabled: boolean; entrants: number
-  sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string } | null
+  sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
+  sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
 }
 interface SponsorOpt { id: string; name: string; logo_url: string | null }
 
@@ -65,7 +66,7 @@ export default function ChallengesAdminPage() {
         <Link href="/admin/sponsors" className="text-sm font-semibold text-emerald-600 hover:underline mt-1">Manage sponsors →</Link>
       </div>
 
-      <NewChallengeForm onCreated={(c) => { load(); setOpenId(c.id) }} />
+      <NewChallengeForm sponsors={sponsors} onCreated={(c) => { load(); setOpenId(c.id) }} />
 
       {loading ? (
         <div className="flex justify-center py-12"><Spinner className="w-7 h-7" /></div>
@@ -85,29 +86,58 @@ export default function ChallengesAdminPage() {
   )
 }
 
-// ── New challenge ─────────────────────────────────────────────────────────────
-function NewChallengeForm({ onCreated }: { onCreated: (c: { id: string }) => void }) {
+// ── New challenge (with its sponsor campaign) ────────────────────────────────
+function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onCreated: (c: { id: string }) => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')          // blank → auto from name
   const [touchedSlug, setTouchedSlug] = useState(false)
+  // The sponsor campaign attached at creation (optional). Starts now → live now.
+  const [sponsorId, setSponsorId] = useState('')
+  const [prize, setPrize]       = useState('')
+  const [clickUrl, setClickUrl] = useState('')
+  const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
+  const [endsAt, setEndsAt]     = useState<string | null>(null)   // blank → backend default (R32 lock)
 
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(name)) || '—'
+
+  const reset = () => {
+    setName(''); setSlug(''); setTouchedSlug(false)
+    setSponsorId(''); setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null)
+    setOpen(false)
+  }
 
   const create = async () => {
     if (!name.trim()) { toast.error('Name required'); return }
     setBusy(true)
-    const res = await fetch('/api/bracket/challenges', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), slug: touchedSlug ? slug.trim() : undefined }),
-    })
-    const d = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
-    toast.success('Challenge created')
-    setName(''); setSlug(''); setTouchedSlug(false); setOpen(false)
-    onCreated(d.challenge)
+    try {
+      const res = await fetch('/api/bracket/challenges', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), slug: touchedSlug ? slug.trim() : undefined }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
+
+      // Attach the sponsor campaign in the same step (if chosen).
+      if (sponsorId) {
+        const cr = await fetch('/api/sponsors/campaigns', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: d.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
+        })
+        const cd = await cr.json().catch(() => ({}))
+        if (!cr.ok) toast.error(`Challenge created, but sponsor not attached: ${cd.error ?? 'failed'}`)
+        else toast.success('Challenge + sponsor created')
+      } else {
+        toast.success('Challenge created')
+      }
+      reset()
+      onCreated(d.challenge)
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!open) return (
@@ -126,6 +156,35 @@ function NewChallengeForm({ onCreated }: { onCreated: (c: { id: string }) => voi
           <p className="text-[11px] text-gray-400 mt-1">/bracket/leaderboard/<b className="text-gray-600">{effectiveSlug}</b></p>
         </div>
       </div>
+
+      {/* Sponsor campaign — attached in the same step */}
+      <div className="border-t border-gray-100 pt-3 space-y-2.5">
+        <p className="text-xs font-semibold text-gray-500">Sponsor campaign <span className="font-normal text-gray-400">(optional)</span></p>
+        {sponsors.length === 0 ? (
+          <p className="text-[11px] text-gray-400">No sponsors yet — <Link href="/admin/sponsors" className="text-emerald-600 hover:underline">create one</Link> to attach.</p>
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Sponsor</label>
+                <select value={sponsorId} onChange={e => setSponsorId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+                  <option value="">No sponsor</option>
+                  {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <Field label="Prize" value={prize} onChange={setPrize} placeholder="e.g. $250 Fuel Voucher" />
+              <Field label="Click-through URL" value={clickUrl} onChange={setClickUrl} placeholder="defaults to sponsor website" />
+              <div className="grid grid-cols-2 gap-2.5">
+                <DateField label="Starts" value={startsAt} onChange={setStartsAt} />
+                <DateField label="Ends (lock)" value={endsAt} onChange={setEndsAt} />
+              </div>
+            </div>
+            {sponsorId && <p className="text-[11px] text-gray-400">Starts now → goes live immediately. Leave Ends blank for the default (first R32 kick-off).</p>}
+          </>
+        )}
+      </div>
+
       <div className="flex gap-2">
         <button disabled={busy} onClick={create} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
           {busy ? 'Creating…' : 'Create challenge'}
@@ -189,7 +248,10 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
           </div>
           <p className="text-xs text-gray-400 truncate">
             <span className="font-mono">/{ch.slug}</span> · {ch.entrants} entr{ch.entrants === 1 ? 'y' : 'ies'}
-            {ch.sponsor ? <> · {ch.sponsor.name}</> : <> · <span className="text-amber-600">no sponsor</span></>}
+            {ch.sponsor_state === 'live' && ch.sponsor ? <> · <span className="text-emerald-600">{ch.sponsor.name} · live</span></>
+              : ch.sponsor_state === 'scheduled' && ch.sponsor ? <> · <span className="text-amber-600">{ch.sponsor.name} · live {ch.sponsor.starts_at ? new Date(ch.sponsor.starts_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : 'soon'}</span></>
+              : ch.sponsor_state === 'ended' && ch.sponsor ? <> · <span className="text-gray-400">{ch.sponsor.name} · ended</span></>
+              : <> · <span className="text-amber-600">no sponsor</span></>}
           </p>
         </div>
         <span className="text-gray-300">{expanded ? '▾' : '▸'}</span>

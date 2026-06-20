@@ -26,6 +26,31 @@ function sponsorSummary(cfg: any) {
     : null
 }
 
+// For the admin list: the challenge's most relevant enabled campaign + its
+// state (live now / scheduled / ended), so "no sponsor" only shows when there
+// genuinely is none — not when it's merely scheduled.
+async function sponsorState(admin: any, challengeId: string): Promise<{ state: 'live' | 'scheduled' | 'ended' | 'none'; sponsor: any }> {
+  const { data } = await (admin.from('sponsor_campaigns') as any)
+    .select('prize, click_url, logo_tone, starts_at, ends_at, sponsors(name, logo_url, logo_tone, website_url)')
+    .eq('challenge_id', challengeId).eq('enabled', true)
+  const camps = ((data ?? []) as any[]).filter(c => c.sponsors)
+  if (!camps.length) return { state: 'none', sponsor: null }
+  const now = Date.now()
+  const ms = (s: string | null) => (s ? new Date(s).getTime() : null)
+  const live     = camps.find(c => ms(c.starts_at) != null && ms(c.ends_at) != null && ms(c.starts_at)! <= now && now <= ms(c.ends_at)!)
+  const upcoming = camps.filter(c => ms(c.starts_at) != null && ms(c.starts_at)! > now).sort((a, b) => ms(a.starts_at)! - ms(b.starts_at)!)[0]
+  const ended    = camps.filter(c => ms(c.ends_at)   != null && ms(c.ends_at)!   < now).sort((a, b) => ms(b.ends_at)!   - ms(a.ends_at)!)[0]
+  const chosen = live || upcoming || ended
+  const state: 'live' | 'scheduled' | 'ended' | 'none' = live ? 'live' : upcoming ? 'scheduled' : ended ? 'ended' : 'none'
+  const sponsor = chosen ? {
+    name: chosen.sponsors.name, logo: chosen.sponsors.logo_url, prize: chosen.prize,
+    url: chosen.click_url || chosen.sponsors.website_url || '',
+    logo_tone: chosen.logo_tone || chosen.sponsors.logo_tone || 'dark',
+    starts_at: chosen.starts_at, ends_at: chosen.ends_at,
+  } : null
+  return { state, sponsor }
+}
+
 // GET /api/bracket/challenges
 //   default (public)  — enabled bracket challenges for the tournament, each with
 //                       its active sponsor + entrant count (powers choosers).
@@ -48,11 +73,11 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true })
 
     const challenges = await Promise.all(((rows ?? []) as any[]).map(async ch => {
-      const [entrants, cfg] = await Promise.all([
+      const [entrants, ss] = await Promise.all([
         entrantCount(admin, ch.id),
-        resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: ch.id }),
+        sponsorState(admin, ch.id),
       ])
-      return { id: ch.id, slug: ch.slug, name: ch.name, enabled: ch.enabled, entrants, sponsor: sponsorSummary(cfg) }
+      return { id: ch.id, slug: ch.slug, name: ch.name, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
     }))
     return NextResponse.json({ challenges, tournament_id: tid })
   }
