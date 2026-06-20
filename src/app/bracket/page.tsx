@@ -784,7 +784,8 @@ export default function BracketPage() {
               return entered ? (
                 <div key={c.slug} className="rounded-xl border border-emerald-300 bg-white px-4 py-3 text-left">
                   <p className="text-sm font-bold text-emerald-900">✓ {c.sponsor?.prize ? 'You&apos;re in the draw' : 'Bracket entered'}{c.sponsor?.name ? ` · ${c.sponsor.name}` : ''} 🎉</p>
-                  <p className="text-[11px] text-emerald-700 mt-0.5">Tie-breakers — Final <strong>{entered.final_goals}</strong> goal{entered.final_goals === 1 ? '' : 's'} · 3rd place <strong>{entered.tp_goals}</strong> goal{entered.tp_goals === 1 ? '' : 's'}. Check your email for a link to track it.</p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">Tie-breakers — Final <strong>{entered.final_goals}</strong> goal{entered.final_goals === 1 ? '' : 's'} · 3rd place <strong>{entered.tp_goals}</strong> goal{entered.tp_goals === 1 ? '' : 's'}.</p>
+                  <a href="/login?redirect=/bracket/leaderboard" className="text-[11px] font-semibold text-emerald-700 underline mt-1.5 inline-block">Sign in to track, change or withdraw your entry →</a>
                 </div>
               ) : (
                 <button key={c.slug} onClick={() => { setGuestChallenge(c.slug); setShowGuestEnter(true) }}
