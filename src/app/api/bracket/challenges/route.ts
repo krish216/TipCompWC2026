@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!tid) return NextResponse.json({ challenges: [] })
 
     const { data: rows } = await (admin.from('challenges') as any)
-      .select('id, slug, name, enabled, type, created_at')
+      .select('id, slug, name, enabled, type, access, created_at')
       .eq('tournament_id', tid).eq('type', 'bracket')
       .order('created_at', { ascending: true })
 
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         entrantCount(admin, ch.id),
         sponsorState(admin, ch.id),
       ])
-      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
+      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
     }))
     return NextResponse.json({ challenges, tournament_id: tid })
   }
@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
     name,
     slug,
     enabled:       b.enabled !== false,
-  }).select('id, slug, name, enabled, type').single()
+    access:        b.access === 'invite' ? 'invite' : 'open',
+  }).select('id, slug, name, enabled, type, access').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ challenge: data })

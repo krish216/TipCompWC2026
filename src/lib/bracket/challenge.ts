@@ -40,9 +40,10 @@ export async function resolveBracketChallenge(
   const tid = opts.tournamentId ?? (await activeTournamentId(admin))
   if (!tid) return null
 
+  // Default (no slug) → only an OPEN challenge can be the tournament default.
   const { data: rows } = await (admin.from('challenges') as any)
     .select(COLS)
-    .eq('tournament_id', tid).eq('type', 'bracket').eq('enabled', true)
+    .eq('tournament_id', tid).eq('type', 'bracket').eq('enabled', true).eq('access', 'open')
     .order('created_at', { ascending: true })
   const list = ((rows ?? []) as any[])
   if (!list.length) return null
@@ -67,9 +68,11 @@ export async function listBracketChallenges(
 ): Promise<BracketChallenge[]> {
   const tid = opts.tournamentId ?? (await activeTournamentId(admin))
   if (!tid) return []
+  // Public list (hub + choosers) — open challenges only. Invite-only ones are
+  // reachable solely via their leaderboard link.
   const { data } = await (admin.from('challenges') as any)
     .select(COLS)
-    .eq('tournament_id', tid).eq('type', 'bracket').eq('enabled', true)
+    .eq('tournament_id', tid).eq('type', 'bracket').eq('enabled', true).eq('access', 'open')
     .order('created_at', { ascending: true })
   return ((data ?? []) as any[]).map(r => ({ id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id }))
 }

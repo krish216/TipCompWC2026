@@ -462,6 +462,7 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [type, setType] = useState<string>(available[0] ?? 'bracket')
+  const [access, setAccess] = useState<'open' | 'invite'>('open')
   const [slug, setSlug] = useState('')
   const [touchedSlug, setTouchedSlug] = useState(false)
   const [prize, setPrize] = useState('')
@@ -477,7 +478,7 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
     try {
       const cr = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name, type, access, slug: touchedSlug ? slug.trim() : undefined }),
       })
       const cd = await cr.json().catch(() => ({}))
       if (!cr.ok) { toast.error(cd.error ?? 'Failed to create challenge'); return }
@@ -527,6 +528,17 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
         <Field label="Click-through URL" value={clickUrl} onChange={setClickUrl} placeholder="defaults to sponsor website" />
         <DateField label="Starts" value={startsAt} onChange={setStartsAt} />
         <DateField label="Ends (lock)" value={endsAt} onChange={setEndsAt} />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs font-medium text-gray-500">Access</label>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+          {(['open', 'invite'] as const).map(a => (
+            <button key={a} type="button" onClick={() => setAccess(a)}
+              className={clsx('px-2.5 py-1 font-medium', access === a ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}>
+              {a === 'open' ? 'Open · anyone' : 'Invite-only · link'}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex gap-2">
         <button disabled={busy} onClick={create} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50">

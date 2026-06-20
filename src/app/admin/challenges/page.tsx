@@ -11,7 +11,7 @@ import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, lea
 import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
-  id: string; slug: string; name: string; type: string; enabled: boolean; entrants: number
+  id: string; slug: string; name: string; type: string; access: string; enabled: boolean; entrants: number
   sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
 }
@@ -94,6 +94,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [name, setName] = useState('')
   const [touchedName, setTouchedName] = useState(false)
   const [type, setType] = useState<string>(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket')
+  const [access, setAccess] = useState<'open' | 'invite'>('open')
   const [slug, setSlug] = useState('')          // blank → auto from name
   const [touchedSlug, setTouchedSlug] = useState(false)
   // The sponsor campaign attached at creation (optional). Starts now → live now.
@@ -110,7 +111,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(effName)) || '—'
 
   const reset = () => {
-    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setSlug(''); setTouchedSlug(false)
+    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setAccess('open'); setSlug(''); setTouchedSlug(false)
     setSponsorId(''); setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null)
     setOpen(false)
   }
@@ -121,7 +122,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
     try {
       const res = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: effName.trim(), type, slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name: effName.trim(), type, access, slug: touchedSlug ? slug.trim() : undefined }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
@@ -170,6 +171,18 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
             </select>
           </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs font-medium text-gray-500">Access</label>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+          {(['open', 'invite'] as const).map(a => (
+            <button key={a} type="button" onClick={() => setAccess(a)}
+              className={clsx('px-3 py-1.5 font-medium', access === a ? 'bg-emerald-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}>
+              {a === 'open' ? 'Open · anyone can join' : 'Invite-only · link only'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Sponsor campaign — attached in the same step */}
@@ -259,6 +272,7 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-900 truncate">{ch.name}</span>
+            {ch.access === 'invite' && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">invite</span>}
             {!ch.enabled && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">disabled</span>}
           </div>
           <p className="text-xs text-gray-400 truncate">
@@ -293,6 +307,11 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
             <button disabled={saving} onClick={() => patch({ enabled: !ch.enabled }, ch.enabled ? 'Disabled' : 'Enabled')}
               className={clsx('px-3 py-2 rounded-lg text-sm font-medium', ch.enabled ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
               {ch.enabled ? 'Enabled' : 'Disabled'}
+            </button>
+            <button disabled={saving} onClick={() => patch({ access: ch.access === 'invite' ? 'open' : 'invite' }, ch.access === 'invite' ? 'Now open to all' : 'Now invite-only')}
+              className={clsx('px-3 py-2 rounded-lg text-sm font-medium', ch.access === 'invite' ? 'bg-purple-50 text-purple-700 hover:bg-purple-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+              title={ch.access === 'invite' ? 'Invite-only — hidden from the hub, join via link' : 'Open — listed in the hub'}>
+              {ch.access === 'invite' ? 'Invite-only' : 'Open'}
             </button>
             <button onClick={remove} className="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 ml-auto">Delete challenge</button>
           </div>
