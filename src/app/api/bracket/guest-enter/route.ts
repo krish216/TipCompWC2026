@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase'
 import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
-import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
+import { sendBracketClaimEmail } from '@/lib/bracket/guest-claim-email'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 
 export const dynamic = 'force-dynamic'
@@ -29,23 +28,6 @@ async function activeTournamentId(admin: any): Promise<string | null> {
   return (data as any)?.id ?? null
 }
 
-
-// Anon client used purely to dispatch the passwordless login email (service-role
-// can't send auth emails). shouldCreateUser:false — the account already exists
-// (we just made it, or the collision case already had one).
-function sendLoginLink(email: string, origin: string, next: string) {
-  const anon = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
-  // Land directly on the destination — mirrors the app's existing magic-login
-  // (login page), where the browser client detects the session from the URL.
-  return anon.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, emailRedirectTo: `${origin}${next}` },
-  })
-}
 
 export async function POST(request: NextRequest) {
   const origin = new URL(request.url).origin
@@ -115,10 +97,13 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
   if (existing) {
     // → /bracket so the page migrates their localStorage bracket and replays the entry.
-    await sendLoginLink(email, origin, '/bracket').catch(() => {})
+    await sendBracketClaimEmail(admin, {
+      email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+      closesAt: closes_at, origin, next: '/bracket', existing: true,
+    }).catch(() => {})
     return NextResponse.json({
       status: 'existing',
-      message: 'You already have a TribePicks account — we’ve emailed you a link to log in and finish entering.',
+      message: `You already have a TribePicks account — we’ve emailed you a link to sign in and finish entering the ${challenge.name}.`,
     })
   }
 
@@ -131,10 +116,13 @@ export async function POST(request: NextRequest) {
   if (createErr || !created?.user?.id) {
     // Treat a duplicate (race with the lookup above) as the existing-email path.
     if ((createErr?.message ?? '').toLowerCase().includes('already')) {
-      await sendLoginLink(email, origin, '/bracket').catch(() => {})
+      await sendBracketClaimEmail(admin, {
+        email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+        closesAt: closes_at, origin, next: '/bracket', existing: true,
+      }).catch(() => {})
       return NextResponse.json({
         status: 'existing',
-        message: 'You already have a TribePicks account — we’ve emailed you a link to log in and finish entering.',
+        message: `You already have a TribePicks account — we’ve emailed you a link to sign in and finish entering the ${challenge.name}.`,
       })
     }
     return NextResponse.json({ error: 'Could not create your account — please try again.' }, { status: 500 })
@@ -179,13 +167,6 @@ export async function POST(request: NextRequest) {
   }, { onConflict: 'user_id,challenge_id' })
   if (entryErr) return NextResponse.json({ error: entryErr.message }, { status: 500 })
 
-  // Branded "you're entered" confirmation (new account → always a first entry).
-  sendEntryConfirmation(admin, {
-    email, name: displayName,
-    challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-    closesAt: closes_at, origin,
-  }).catch(() => {})
-
   // Funnel analytics row (best-effort) — attribute the champion/runner-up capture.
   if (typeof body.session_id === 'string' && body.session_id) {
     await (admin.from('bracket_predictions') as any).upsert({
@@ -206,14 +187,16 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({ user_id: userId, tournament_id: tid }),
   }).catch(() => {})
 
-  // Send the claim/login link. → leaderboard: their bracket + entry are already saved.
-  const { error: mailErr } = await sendLoginLink(email, origin, '/bracket/leaderboard')
+  // One branded email that confirms the entry AND carries the account-claim link.
+  // → leaderboard: their bracket + entry are already saved.
+  await sendBracketClaimEmail(admin, {
+    email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+    closesAt: closes_at, origin, next: '/bracket/leaderboard', existing: false,
+  }).catch(() => {})
 
   return NextResponse.json({
     status: 'created',
-    email_sent: !mailErr,
-    message: mailErr
-      ? `${inLine} We couldn’t send your login email just now — use “Log in” with this address to access your account.`
-      : `${inLine} Check your email for a link to claim your account and track your bracket.`,
+    email_sent: true,
+    message: `${inLine} Check your email — we’ve sent a link to claim your account and track your bracket.`,
   })
 }

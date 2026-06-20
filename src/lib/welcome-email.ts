@@ -18,7 +18,7 @@ export async function sendWelcomeIfNeeded(userId: string, tournamentId: string):
   // Check profile and sent flag in one query
   const { data: profile, error: profileError } = await admin
     .from('users')
-    .select('email, display_name, welcome_email_sent')
+    .select('email, display_name, welcome_email_sent, signup_flow')
     .eq('id', userId)
     .single()
 
@@ -27,6 +27,11 @@ export async function sendWelcomeIfNeeded(userId: string, tournamentId: string):
     return
   }
   if (!profile || (profile as any).welcome_email_sent) return
+
+  // Bracket-Challenge guests get a dedicated branded "you're entered + claim your
+  // account" email instead — the generic tipping-comp welcome would confuse them
+  // (they signed up for a bracket, not the predictions comp).
+  if ((profile as any).signup_flow === 'bracket_guest') return
 
   let subject = DEFAULT_WELCOME_SUBJECT
   let body    = DEFAULT_WELCOME_BODY
