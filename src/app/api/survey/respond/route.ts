@@ -7,6 +7,10 @@ export const fetchCache = 'force-no-store'
 
 const DEFAULT_SURVEY = 'wc2026_pulse'
 
+// Don't survey brand-new users — their score is noisy and it sours first-run UX.
+// They're eligible for the in-app pulse once their account is this many days old.
+const MIN_TENURE_DAYS = 7
+
 // Resolve the responding user: an email invite token (→ user, opaque) or the
 // signed-in session user (in-app pulse). Returns { userId, source } or null.
 async function resolveResponder(admin: any, token: string | null): Promise<{ userId: string; survey: string; source: 'email' | 'in_app'; token?: string } | null> {
@@ -30,11 +34,18 @@ export async function GET(request: NextRequest) {
   const { data: liveRow } = await (admin.from('app_settings') as any).select('value').eq('key', 'nps_pulse_live').maybeSingle()
   const live = (liveRow as any)?.value === 'on'
 
-  if (!user) return NextResponse.json({ responded: false, logged_in: false, live })
+  if (!user) return NextResponse.json({ responded: false, logged_in: false, live, eligible: false })
   const survey = new URL(request.url).searchParams.get('survey') || DEFAULT_SURVEY
   const { data } = await (admin.from('nps_responses') as any)
     .select('score').eq('user_id', user.id).eq('survey_key', survey).maybeSingle()
-  return NextResponse.json({ responded: !!data, logged_in: true, live })
+
+  // Account-age gate — only users at least MIN_TENURE_DAYS old see the pulse.
+  const { data: profile } = await (admin.from('users') as any).select('created_at').eq('id', user.id).maybeSingle()
+  const createdAt = (profile as any)?.created_at ? new Date((profile as any).created_at).getTime() : Date.now()
+  const tenureDays = (Date.now() - createdAt) / 86_400_000
+  const eligible = tenureDays >= MIN_TENURE_DAYS
+
+  return NextResponse.json({ responded: !!data, logged_in: true, live, eligible })
 }
 
 // POST /api/survey/respond — record a score and/or comment.

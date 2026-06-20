@@ -25,13 +25,14 @@ export function NpsPulse() {
   useEffect(() => {
     if (hidden) return
     try { if (localStorage.getItem(DISMISS_KEY) === '1') return } catch {}
-    // Show when live for everyone, or always to admins (preview) — and only to
-    // signed-in users who haven't responded.
+    // Show when live for everyone (and the account is old enough — see `eligible`),
+    // or always to admins (preview) — and only to signed-in users who haven't
+    // responded yet.
     Promise.all([
       fetch('/api/admin').then(r => r.json()).catch(() => ({})),
       fetch('/api/survey/respond').then(r => r.json()).catch(() => ({})),
     ]).then(([a, s]) => {
-      if ((s?.live || a?.is_admin) && s?.logged_in && !s?.responded) setShow(true)
+      if (((s?.live && s?.eligible) || a?.is_admin) && s?.logged_in && !s?.responded) setShow(true)
     })
   }, [hidden])
 
