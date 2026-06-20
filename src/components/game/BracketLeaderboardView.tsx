@@ -314,7 +314,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">{challengeName} leaderboard · max {data?.max ?? 80} pts</p>
-            <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Your bracket →</Link>
+            <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Edit bracket →</Link>
           </div>
         </div>
       ) : (
@@ -323,7 +323,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <h1 className="text-lg font-bold text-gray-900">🏆 {challengeName}</h1>
             <p className="text-xs text-gray-500 mt-0.5">Leaderboard · max {data?.max ?? 80} pts</p>
           </div>
-          <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Your bracket →</Link>
+          <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Edit bracket →</Link>
         </div>
       )}
 
@@ -410,7 +410,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           {data.me ? (
             <>
               <div className="mb-4 grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100">
-                {([['leaderboard', 'Leaderboard'], ['mine', 'My bracket']] as const).map(([key, label]) => (
+                {([['leaderboard', 'Leaderboard'], ['mine', 'My scorecard']] as const).map(([key, label]) => (
                   <button key={key} onClick={() => setTab(key)}
                     className={clsx('py-2 rounded-lg text-sm font-bold transition-colors',
                       tab === key ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>

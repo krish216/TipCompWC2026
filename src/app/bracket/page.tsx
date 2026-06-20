@@ -281,6 +281,7 @@ export default function BracketPage() {
   const [picks,   setPicks]   = useState<Picks>({})
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
+  const didInitSection = useRef(false)
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
@@ -348,6 +349,15 @@ export default function BracketPage() {
     const qp = challengeParam ? `?challenge=${encodeURIComponent(challengeParam)}` : ''
     fetch(`/api/bracket/config${qp}`).then(r => r.json()).then(setSponsorCfg).catch(() => {})
   }, [challengeParam])
+
+  // Land on the furthest-complete view: if the bracket already has a champion
+  // (e.g. arriving from the leaderboard's "Edit bracket →"), open the Bracket
+  // tab rather than starting cold at Groups. Runs once, after picks load.
+  useEffect(() => {
+    if (didInitSection.current || loading) return
+    didInitSection.current = true
+    if (picksRef.current['final']) setSection('bracket')
+  }, [loading])
 
   // Which open challenges this (logged-out) guest has already entered on this device.
   const refreshEntered = useCallback(() => {
@@ -758,12 +768,15 @@ export default function BracketPage() {
           </div>
         ) : (
           // Plain header (no sponsor configured).
-          <div className="mb-5 flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
-              <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
+          <div className="mb-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-black text-gray-900">My Bracket</h1>
+                <p className="text-xs text-gray-500 mt-0.5">WC 2026 · Pick qualifiers and your path to the final</p>
+              </div>
+              {resetBtn('flex-shrink-0 mt-0.5')}
             </div>
-            {resetBtn('flex-shrink-0 mt-0.5')}
+            <a href={leaderboardHref} className="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700">← Leaderboard</a>
           </div>
         )
       })()}
