@@ -6,7 +6,7 @@ import { clsx } from 'clsx'
 import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
-import { campaignStatus } from '@/lib/sponsors/campaigns'
+import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
 import type { Sponsor, SponsorCampaign, CampaignStatus, LogoTone, SponsorStatus } from '@/lib/sponsors/types'
 
 type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; tournament_id: string } }
@@ -301,9 +301,9 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
             <button onClick={remove} className="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 ml-auto">Delete</button>
           </div>
 
-          {/* Campaigns */}
+          {/* Challenges this sponsor backs */}
           <div className="pt-4 border-t border-gray-100">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">Campaigns</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-2">Challenges</h3>
             {loadingCamps ? (
               <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
             ) : (
@@ -311,7 +311,9 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
                 {campaigns.map(c => (
                   <CampaignCard key={c.id} campaign={c} onChanged={() => { loadCampaigns(); onChanged() }} />
                 ))}
-                <NewCampaignForm sponsorId={sponsor.id} onCreated={() => { loadCampaigns(); onChanged() }} />
+                {sponsor.status === 'active'
+                  ? <NewChallengeForSponsor sponsorId={sponsor.id} sponsorName={sponsor.name} onCreated={() => { loadCampaigns(); onChanged() }} />
+                  : <p className="text-[11px] text-gray-400 text-center py-1">Set this sponsor to <b>Active</b> to add a challenge.</p>}
               </div>
             )}
           </div>
@@ -371,46 +373,71 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
   )
 }
 
-// ── New campaign ─────────────────────────────────────────────────────────────
-function NewCampaignForm({ sponsorId, onCreated }: { sponsorId: string; onCreated: () => void }) {
+// ── New challenge for this sponsor ───────────────────────────────────────────
+// Creates a bracket challenge AND its campaign for this sponsor in one step
+// (the inverse of the /admin/challenges create-with-sponsor flow).
+function NewChallengeForSponsor({ sponsorId, sponsorName, onCreated }: { sponsorId: string; sponsorName: string; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState<{ prize: string; click_url: string; starts_at: string | null; ends_at: string | null }>(
-    { prize: '', click_url: '', starts_at: null, ends_at: null })
+  const [name, setName] = useState(`${sponsorName} Bracket Challenge`)
+  const [slug, setSlug] = useState('')
+  const [touchedSlug, setTouchedSlug] = useState(false)
+  const [prize, setPrize] = useState('')
+  const [clickUrl, setClickUrl] = useState('')
+  const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
+  const [endsAt, setEndsAt] = useState<string | null>(null)
+
+  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(name)) || '—'
 
   const create = async () => {
+    if (!name.trim()) { toast.error('Challenge name required'); return }
     setBusy(true)
-    const res = await fetch('/api/sponsors/campaigns', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sponsor_id: sponsorId, challenge_type: 'bracket', ...form }),
-    })
-    setBusy(false)
-    const d = await res.json()
-    if (!res.ok) { toast.error(d.error ?? 'Failed'); return }
-    toast.success('Campaign scheduled')
-    setForm({ prize: '', click_url: '', starts_at: null, ends_at: null })
-    setOpen(false)
-    onCreated()
+    try {
+      const cr = await fetch('/api/bracket/challenges', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), slug: touchedSlug ? slug.trim() : undefined }),
+      })
+      const cd = await cr.json().catch(() => ({}))
+      if (!cr.ok) { toast.error(cd.error ?? 'Failed to create challenge'); return }
+      const camp = await fetch('/api/sponsors/campaigns', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: cd.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
+      })
+      const campd = await camp.json().catch(() => ({}))
+      if (!camp.ok) toast.error(`Challenge made, but sponsor not attached: ${campd.error ?? 'failed'}`)
+      else toast.success('Challenge created for this sponsor')
+      setOpen(false)
+      onCreated()
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!open) return (
     <button onClick={() => setOpen(true)} className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-emerald-400 hover:text-emerald-600">
-      + Schedule campaign on the Bracket Challenge
+      + Add a challenge for {sponsorName}
     </button>
   )
 
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
-      <p className="text-xs text-gray-500">Targets the <b>Bracket Challenge</b> of the active tournament. Leave dates blank to use the default 5-day window ending at the first R32 kick-off.</p>
+      <p className="text-xs text-gray-500">Creates a new bracket challenge sponsored by <b>{sponsorName}</b>. Starts now → live immediately; leave Ends blank for the default (first R32 kick-off).</p>
       <div className="grid sm:grid-cols-2 gap-2.5">
-        <Field label="Prize" value={form.prize} onChange={v => setForm(f => ({ ...f, prize: v }))} placeholder="e.g. $500 voucher" />
-        <Field label="Click-through URL" value={form.click_url} onChange={v => setForm(f => ({ ...f, click_url: v }))} placeholder="defaults to sponsor website" />
-        <DateField label="Starts" value={form.starts_at} onChange={v => setForm(f => ({ ...f, starts_at: v }))} />
-        <DateField label="Ends (lock)" value={form.ends_at} onChange={v => setForm(f => ({ ...f, ends_at: v }))} />
+        <Field label="Challenge name" value={name} onChange={setName} />
+        <div>
+          <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from name" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
+          <p className="text-[11px] text-gray-400 mt-1">/bracket/leaderboard/<b className="text-gray-600">{effectiveSlug}</b></p>
+        </div>
+        <Field label="Prize" value={prize} onChange={setPrize} placeholder="e.g. $250 Fuel Voucher" />
+        <Field label="Click-through URL" value={clickUrl} onChange={setClickUrl} placeholder="defaults to sponsor website" />
+        <DateField label="Starts" value={startsAt} onChange={setStartsAt} />
+        <DateField label="Ends (lock)" value={endsAt} onChange={setEndsAt} />
       </div>
       <div className="flex gap-2">
         <button disabled={busy} onClick={create} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50">
-          {busy ? 'Scheduling…' : 'Schedule'}
+          {busy ? 'Creating…' : 'Create challenge'}
         </button>
         <button onClick={() => setOpen(false)} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium">Cancel</button>
       </div>
