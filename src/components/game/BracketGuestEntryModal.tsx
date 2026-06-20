@@ -35,10 +35,33 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
   const [done,       setDone]       = useState<{ message: string } | null>(null)
+  // Email verification
+  const [code,        setCode]       = useState('')
+  const [codeSent,    setCodeSent]   = useState(false)
+  const [sendingCode, setSendingCode] = useState(false)
 
   const numOk    = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
   const emailOk  = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
-  const canSubmit = name.trim().length >= 2 && emailOk && terms && marketing && numOk(finalGoals) && numOk(tpGoals) && !submitting
+  const codeOk   = /^\d{6}$/.test(code.trim())
+  const canSubmit = name.trim().length >= 2 && emailOk && codeSent && codeOk && terms && marketing && numOk(finalGoals) && numOk(tpGoals) && !submitting
+
+  const sendCode = async () => {
+    if (!emailOk) { setError('Enter a valid email first.'); return }
+    setSendingCode(true); setError(null)
+    try {
+      const res = await fetch('/api/bracket/send-code', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) setCodeSent(true)
+      else setError(d.error ?? 'Could not send the code.')
+    } catch {
+      setError('Network error — please try again.')
+    } finally {
+      setSendingCode(false)
+    }
+  }
 
   const submit = async () => {
     setSubmitting(true); setError(null)
@@ -50,6 +73,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
           challenge:     challenge || undefined,
           name:          name.trim(),
           email:         email.trim(),
+          code:          code.trim(),
           final_goals:   +finalGoals,
           tp_goals:      +tpGoals,
           phone:         phone.trim() || undefined,
@@ -116,9 +140,26 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Your name"
               className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="email"
-              placeholder="Email address"
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+            {/* Email + verification code */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input type="email" value={email} onChange={e => { setEmail(e.target.value); setCodeSent(false); setCode('') }} inputMode="email" autoComplete="email"
+                  placeholder="Email address"
+                  className="flex-1 min-w-0 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                <button onClick={sendCode} disabled={!emailOk || sendingCode}
+                  className="flex-shrink-0 px-3 py-2.5 rounded-xl text-xs font-bold bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-50 whitespace-nowrap">
+                  {sendingCode ? 'Sending…' : codeSent ? 'Resend' : 'Send code'}
+                </button>
+              </div>
+              {codeSent && (
+                <>
+                  <input type="text" value={code} onChange={e => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                    inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code from your email"
+                    className="w-full text-sm tracking-[0.3em] font-bold text-center border-2 border-emerald-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  <p className="text-[11px] text-emerald-700">📩 We emailed a code to <strong>{email.trim()}</strong> — enter it to verify and lock in your entry.</p>
+                </>
+              )}
+            </div>
 
             <div className="border-t border-gray-100 pt-3 space-y-3">
               <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Tie-breakers</p>

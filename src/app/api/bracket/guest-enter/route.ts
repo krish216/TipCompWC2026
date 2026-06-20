@@ -76,6 +76,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })
 
   const admin = createAdminClient()
+
+  // ── Verify the emailed code before doing anything (only verified emails enter) ─
+  const code = typeof body.code === 'string' ? body.code.trim() : ''
+  const { data: codeRow } = await (admin.from('email_codes') as any).select('code, expires_at, attempts').eq('email', email).maybeSingle()
+  if (!codeRow) return NextResponse.json({ error: 'Request a verification code first.' }, { status: 400 })
+  if (new Date((codeRow as any).expires_at).getTime() < Date.now())
+    return NextResponse.json({ error: 'Your code expired — request a new one.' }, { status: 400 })
+  if ((codeRow as any).attempts >= 5)
+    return NextResponse.json({ error: 'Too many tries — request a new code.' }, { status: 429 })
+  if (!code || code !== (codeRow as any).code) {
+    await (admin.from('email_codes') as any).update({ attempts: ((codeRow as any).attempts ?? 0) + 1 }).eq('email', email)
+    return NextResponse.json({ error: 'That code isn’t right — check your email and try again.' }, { status: 401 })
+  }
+  // Verified — consume the code so it can't be reused.
+  await (admin.from('email_codes') as any).delete().eq('email', email)
+
   // The challenge being entered: a slug (current UI) or the default bracket
   // challenge for the (hinted) tournament. The challenge carries the tournament.
   const tournamentHint = typeof body.tournament_id === 'string' && body.tournament_id ? body.tournament_id : null
