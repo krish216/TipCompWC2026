@@ -288,6 +288,18 @@ export default function BracketPage() {
   const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean; locked?: boolean }[]>([])
   const [isAdmin, setIsAdmin] = useState(false)               // gate the challenges hub (admin-only rollout)
   const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
+  const [manageSlug, setManageSlug] = useState<string | null>(null)
+  const [manageInitial, setManageInitial] = useState<{ final_goals?: number | null; tp_goals?: number | null; phone?: string | null } | null>(null)
+
+  // Open the entry modal in "edit" mode (amend tie-breakers or withdraw) for an
+  // already-entered challenge. Pull the current entry so the form is pre-filled.
+  const openManage = useCallback(async (slug: string) => {
+    try {
+      const es = await fetch(`/api/bracket/enter?challenge=${encodeURIComponent(slug)}`).then(r => r.json())
+      setManageInitial(es?.entry ?? null)
+    } catch { setManageInitial(null) }
+    setManageSlug(slug)
+  }, [])
   const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
   // Guest (not logged in) entries we've made this device, slug → tie-breakers.
   const [enteredMap, setEnteredMap] = useState<Record<string, { final_goals: number; tp_goals: number }>>({})
@@ -855,7 +867,10 @@ export default function BracketPage() {
                 </div>
                 <div className="flex-shrink-0">
                   {c.entered ? (
-                    <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => openManage(c.slug)} className="text-xs font-semibold text-gray-500 hover:text-gray-700 whitespace-nowrap">Manage</button>
+                      <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
+                    </div>
                   ) : c.locked ? (
                     <span className="text-xs text-gray-400">Closed</span>
                   ) : !champion ? (
@@ -869,6 +884,17 @@ export default function BracketPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {manageSlug && (
+        <BracketEntryModal
+          challenge={manageSlug}
+          challengeName={challenges.find(c => c.slug === manageSlug)?.name}
+          editing
+          initial={manageInitial ?? undefined}
+          onClose={() => setManageSlug(null)}
+          onEntered={() => { setManageSlug(null); loadChallenges() }}
+        />
       )}
 
       {memberEnterSlug && (
