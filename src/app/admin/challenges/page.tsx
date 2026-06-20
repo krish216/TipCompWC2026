@@ -60,11 +60,11 @@ export default function ChallengesAdminPage() {
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <Link href="/admin" className="text-sm text-emerald-600 hover:underline">← Admin</Link>
+          <Link href="/admin/sponsors" className="text-sm text-emerald-600 hover:underline">← Sponsors</Link>
           <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Bracket Challenges</h1>
           <p className="text-sm text-gray-500">Create challenges (each with its own leaderboard) and attach a sponsor to each.</p>
         </div>
-        <Link href="/admin/sponsors" className="text-sm font-semibold text-emerald-600 hover:underline mt-1">Manage sponsors →</Link>
+        <Link href="/admin" className="text-sm font-semibold text-emerald-600 hover:underline mt-1">Admin home →</Link>
       </div>
 
       <NewChallengeForm sponsors={sponsors} onCreated={(c) => { load(); setOpenId(c.id) }} />
