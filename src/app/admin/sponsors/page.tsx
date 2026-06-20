@@ -471,14 +471,16 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
   const [endsAt, setEndsAt] = useState<string | null>(null)
 
   const name = deriveChallengeName(sponsorName, type)
-  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(name)) || '—'
+  // Slug defaults to just the sponsor — the type is already in the route (/bracket/…).
+  const defaultSlug = toSlug(sponsorName)
+  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const create = async () => {
     setBusy(true)
     try {
       const cr = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, access, slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name, type, access, slug: touchedSlug ? slug.trim() : defaultSlug }),
       })
       const cd = await cr.json().catch(() => ({}))
       if (!cr.ok) { toast.error(cd.error ?? 'Failed to create challenge'); return }
@@ -519,7 +521,7 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
           </select>
         </div>
         <div>
-          <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from name" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
+          <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from sponsor" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
           <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>
         </div>
         <Field label="Prize" value={prize} onChange={setPrize} placeholder="e.g. $250 Fuel Voucher" />

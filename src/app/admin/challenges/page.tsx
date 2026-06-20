@@ -108,7 +108,10 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const sponsorName = sponsors.find(s => s.id === sponsorId)?.name ?? null
   const derivedName = deriveChallengeName(sponsorName, type)
   const effName = touchedName && name.trim() ? name : derivedName
-  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(effName)) || '—'
+  // Slug defaults to the sponsor (type is already in the route); falls back to the
+  // name for a house challenge with no sponsor.
+  const defaultSlug = toSlug(sponsorName || effName)
+  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const reset = () => {
     setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setAccess('open'); setSlug(''); setTouchedSlug(false)
@@ -122,7 +125,7 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
     try {
       const res = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: effName.trim(), type, access, slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name: effName.trim(), type, access, slug: touchedSlug ? slug.trim() : defaultSlug }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
