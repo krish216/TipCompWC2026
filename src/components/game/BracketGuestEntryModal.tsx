@@ -90,22 +90,20 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error ?? 'Could not submit your entry.'); return }
 
-      // Existing-email path: account untouched, login link sent. Stash the entry
-      // so it can be replayed once they're authenticated.
-      if (data.status === 'existing') {
-        try {
-          localStorage.setItem(PENDING_ENTRY_KEY, JSON.stringify({
-            tournament_id: tournamentId, challenge: challenge || undefined,
-            final_goals: +finalGoals, tp_goals: +tpGoals,
-            phone: phone.trim() || null, consent_terms: true, consent_marketing: true,
-          }))
-        } catch {}
-      } else {
-        // New email → actually entered now. Remember it so the bracket page can
-        // show an "entered" summary instead of the Enter CTA (guest, not logged in).
-        try { localStorage.setItem(ENTERED_KEY(challenge), JSON.stringify({ final_goals: +finalGoals, tp_goals: +tpGoals })) } catch {}
+      // Their entry is saved either way. Mark this device as entered so the
+      // bracket page shows an "entered" summary rather than the Enter CTA.
+      try { localStorage.setItem(ENTERED_KEY(challenge), JSON.stringify({ final_goals: +finalGoals, tp_goals: +tpGoals })) } catch {}
+
+      // Primary path: the code verified the email, so we signed them straight in.
+      // Hard-navigate (not router.push) so the freshly-set session cookies are
+      // picked up and they land on the leaderboard as a real logged-in user.
+      if (data.status === 'signed_in') {
+        window.location.href = data.redirect || '/bracket/leaderboard'
+        return
       }
-      setDone({ message: data.message ?? 'You’re in the draw!' })
+
+      // Fallback (session couldn't be established) → a sign-in link was emailed.
+      setDone({ message: data.message ?? 'You’re entered! Check your email to sign in.' })
     } catch {
       setError('Network error — please try again.')
     } finally {

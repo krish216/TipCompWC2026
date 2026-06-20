@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
 import { sendBracketClaimEmail } from '@/lib/bracket/guest-claim-email'
+import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
+import { establishSessionFor } from '@/lib/bracket/establish-session'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 
 export const dynamic = 'force-dynamic'
@@ -9,17 +11,18 @@ export const fetchCache = 'force-no-store'
 
 // Phase 3 — guest → account conversion funnel for the Bracket Challenge.
 //
-// A guest fills a bracket (held in this browser's localStorage), then enters the
-// prize draw with email + name + consent. The flow is secure-by-construction on
-// the email-collision case:
-//   • New email      → create a passwordless account, persist their bracket +
-//                       entry immediately (they're in the draw), email a login
-//                       link to claim the account.
-//   • Existing email → create/write NOTHING (an unauthenticated form must never
-//                       touch an existing account). Email a magic login link;
-//                       once they prove ownership and land back logged-in, their
-//                       localStorage bracket migrates and the stashed entry
-//                       replays — so they still get entered, just verified.
+// A guest fills a bracket (held in this browser's localStorage), verifies their
+// email with a 6-digit code, then enters with name + consent. Because the code
+// proves email ownership, we can finish the whole thing in one request — no
+// "claim your account" round-trip:
+//   1. Find-or-create the account (new accounts are created email-verified).
+//      Existing accounts: we never touch their password or profile, and we keep
+//      their existing bracket if they already have one.
+//   2. Persist the bracket + the prize entry.
+//   3. Sign them into THIS browser (mint+redeem a magic-link token server-side)
+//      so they finish as a real logged-in user, and email a plain confirmation.
+//   If the session can't be established for any reason, we fall back to emailing
+//   a branded sign-in link so the user is never locked out.
 
 const SLOT_RE = /^(grp:[A-L]:[123]|third:[A-L]|r32:(1[0-6]|[1-9])|r16:[1-8]|qf:[1-4]|sf:[12]|final|tp)$/
 
@@ -93,68 +96,72 @@ export async function POST(request: NextRequest) {
   const hasPrize = !!(sponsorCfg.enabled && sponsorCfg.prize)
   const inLine = hasPrize ? 'You’re in the draw!' : 'You’re entered!'
 
-  // ── Email collision: existing account → don't touch it, bounce to a login link ─
-  const { data: existing } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
-  if (existing) {
-    // → /bracket so the page migrates their localStorage bracket and replays the entry.
-    await sendBracketClaimEmail(admin, {
-      email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-      closesAt: closes_at, origin, next: '/bracket', existing: true,
-    }).catch(() => {})
-    return NextResponse.json({
-      status: 'existing',
-      message: `You already have a TribePicks account — we’ve emailed you a link to sign in and finish entering the ${challenge.name}.`,
-    })
-  }
-
-  // ── New email: create a passwordless account, then persist bracket + entry ──
-  const { data: created, error: createErr } = await (admin.auth.admin as any).createUser({
-    email,
-    email_confirm: false,                        // unverified until they click the login link
-    user_metadata: { display_name: displayName, signup_flow: 'bracket_guest' },
-  })
-  if (createErr || !created?.user?.id) {
-    // Treat a duplicate (race with the lookup above) as the existing-email path.
-    if ((createErr?.message ?? '').toLowerCase().includes('already')) {
-      await sendBracketClaimEmail(admin, {
-        email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-        closesAt: closes_at, origin, next: '/bracket', existing: true,
-      }).catch(() => {})
-      return NextResponse.json({
-        status: 'existing',
-        message: `You already have a TribePicks account — we’ve emailed you a link to sign in and finish entering the ${challenge.name}.`,
-      })
-    }
-    return NextResponse.json({ error: 'Could not create your account — please try again.' }, { status: 500 })
-  }
-  const userId = created.user.id as string
   const now = new Date().toISOString()
 
-  // users row — mirrors the signup page's fields; email_verified flips true when
-  // they click the login link (/auth/callback marks it).
-  await (admin.from('users') as any).upsert({
-    id:                  userId,
-    email,
-    display_name:        displayName,
-    first_name:          typeof body.first_name === 'string' && body.first_name.trim() ? body.first_name.trim() : null,
-    timezone:            typeof body.timezone === 'string' && body.timezone ? body.timezone : 'UTC',
-    onboarding_complete: false,
-    email_verified:      false,
-    role:                'tipster',
-    signup_flow:         'bracket_guest',
-    ...(typeof body.source === 'string' && body.source ? { ref_source: body.source } : {}),
-  }, { onConflict: 'id', ignoreDuplicates: false })
+  // ── Resolve the account ─────────────────────────────────────────────────────
+  // The 6-digit code already proved the user owns this email, so we're authorised
+  // to act on the account whether it's new or existing (email ownership = a valid
+  // passwordless login). Existing accounts: we NEVER touch their password or
+  // profile — only add their entry.
+  const { data: existing } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
+  const isExisting = !!existing
+  let userId = (existing as any)?.id as string | undefined
 
-  // Persist the bracket under the new user_id (validated slot keys only).
-  const pickRows = Object.entries(rawPicks)
-    .filter(([slot, team]) => SLOT_RE.test(slot) && typeof team === 'string' && team)
-    .map(([slot_key, team_name]) => ({ user_id: userId, tournament_id: tid, slot_key, team_name, updated_at: now }))
-  if (pickRows.length)
-    await (admin.from('bracket_picks') as any).upsert(pickRows, { onConflict: 'user_id,tournament_id,slot_key' })
+  if (!userId) {
+    // New account — created already email-verified (the code is the proof).
+    const { data: created, error: createErr } = await (admin.auth.admin as any).createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { display_name: displayName, signup_flow: 'bracket_guest' },
+    })
+    if (createErr || !created?.user?.id) {
+      // Race: someone created the account between our lookup and now → treat as existing.
+      if ((createErr?.message ?? '').toLowerCase().includes('already')) {
+        const { data: raced } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
+        userId = (raced as any)?.id
+      }
+      if (!userId)
+        return NextResponse.json({ error: 'Could not create your account — please try again.' }, { status: 500 })
+    } else {
+      userId = created.user.id as string
+      // Profile row — only on creation, so we never overwrite a returning user's data.
+      await (admin.from('users') as any).upsert({
+        id:                  userId,
+        email,
+        display_name:        displayName,
+        first_name:          typeof body.first_name === 'string' && body.first_name.trim() ? body.first_name.trim() : null,
+        timezone:            typeof body.timezone === 'string' && body.timezone ? body.timezone : 'UTC',
+        onboarding_complete: false,
+        email_verified:      true,
+        role:                'tipster',
+        signup_flow:         'bracket_guest',
+        ...(typeof body.source === 'string' && body.source ? { ref_source: body.source } : {}),
+      }, { onConflict: 'id', ignoreDuplicates: false })
+    }
+  }
 
-  // The prize entry.
+  // ── Persist the bracket ─────────────────────────────────────────────────────
+  // For a returning user who already has a bracket for this tournament, keep
+  // theirs (don't clobber a carefully-built bracket with this device's guest one).
+  // Otherwise save the bracket they just built.
+  let hasExistingBracket = false
+  if (isExisting) {
+    const { count } = await admin.from('bracket_picks')
+      .select('slot_key', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('tournament_id', tid)
+    hasExistingBracket = (count ?? 0) > 0
+  }
+  if (!hasExistingBracket) {
+    const pickRows = Object.entries(rawPicks)
+      .filter(([slot, team]) => SLOT_RE.test(slot) && typeof team === 'string' && team)
+      .map(([slot_key, team_name]) => ({ user_id: userId!, tournament_id: tid, slot_key, team_name, updated_at: now }))
+    if (pickRows.length)
+      await (admin.from('bracket_picks') as any).upsert(pickRows, { onConflict: 'user_id,tournament_id,slot_key' })
+  }
+
+  // ── The prize entry ─────────────────────────────────────────────────────────
   const { error: entryErr } = await (admin.from('bracket_entries') as any).upsert({
-    user_id:           userId,
+    user_id:           userId!,
     tournament_id:     tid,
     challenge_id:      challenge.id,
     final_goals:       finalGoals,
@@ -170,7 +177,7 @@ export async function POST(request: NextRequest) {
   // Funnel analytics row (best-effort) — attribute the champion/runner-up capture.
   if (typeof body.session_id === 'string' && body.session_id) {
     await (admin.from('bracket_predictions') as any).upsert({
-      user_id:       userId,
+      user_id:       userId!,
       session_id:    body.session_id,
       tournament_id: tid,
       champion,
@@ -187,16 +194,32 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({ user_id: userId, tournament_id: tid }),
   }).catch(() => {})
 
-  // One branded email that confirms the entry AND carries the account-claim link.
-  // → leaderboard: their bracket + entry are already saved.
+  // ── Sign them straight in (the code already verified the email) ──────────────
+  const signedIn = await establishSessionFor(admin, email)
+
+  if (signedIn) {
+    // They're now a real session on this device → just confirm the entry by email
+    // (no claim link needed). Land them on the leaderboard.
+    sendEntryConfirmation(admin, {
+      email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+      closesAt: closes_at, origin,
+    }).catch(() => {})
+    return NextResponse.json({
+      status: 'signed_in',
+      redirect: `/bracket/leaderboard/${challenge.slug}`,
+      message: `${inLine} You’re signed in — taking you to the leaderboard.`,
+    })
+  }
+
+  // Session couldn't be established — fall back to the branded claim/sign-in email
+  // so the user is never locked out.
   await sendBracketClaimEmail(admin, {
     email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-    closesAt: closes_at, origin, next: '/bracket/leaderboard', existing: false,
+    closesAt: closes_at, origin, next: '/bracket/leaderboard', existing: isExisting,
   }).catch(() => {})
-
   return NextResponse.json({
-    status: 'created',
+    status: isExisting ? 'existing' : 'created',
     email_sent: true,
-    message: `${inLine} Check your email — we’ve sent a link to claim your account and track your bracket.`,
+    message: `${inLine} Check your email — we’ve sent a link to sign in and track your bracket.`,
   })
 }
