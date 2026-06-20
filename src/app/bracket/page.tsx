@@ -591,6 +591,9 @@ export default function BracketPage() {
   const targetedChallenge = challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
   const allCtaEntered = ctaChallenges.length > 0 && ctaChallenges.every(c => !!enteredMap[c.slug])
+  // Only talk about prizes / a "draw" when a sponsor with a prize is actually live;
+  // an unsponsored challenge is just "save & track your bracket".
+  const ctaHasPrize = ctaChallenges.some(c => !!c.sponsor?.prize)
   const branded = !!(sponsorCfg?.enabled && (sponsorCfg.sponsor_logo || sponsorCfg.sponsor_name))
   // Leaderboard the header links to: the targeted board, else the generic one.
   const leaderboardHref = targetedChallenge ? `/bracket/leaderboard/${targetedChallenge.slug}` : '/bracket/leaderboard'
@@ -761,14 +764,14 @@ export default function BracketPage() {
             <span className="text-sm font-bold text-emerald-900">{champion}</span>
             <span className="text-2xl leading-none">🏆</span>
           </div>
-          <p className="text-sm font-bold text-emerald-900 mb-0.5">{allCtaEntered ? 'You’re in the draw! 🎉' : 'Your bracket is done — enter to win 🏆'}</p>
-          <p className="text-xs text-emerald-700 mb-3">{allCtaEntered ? 'We’ve saved your bracket and emailed your login link — click it to track your score all tournament long.' : 'Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.'}</p>
+          <p className="text-sm font-bold text-emerald-900 mb-0.5">{allCtaEntered ? (ctaHasPrize ? 'You’re in the draw! 🎉' : 'You’re all set! 🎉') : (ctaHasPrize ? 'Your bracket is done — enter to win 🏆' : 'Your bracket is done! 🎯')}</p>
+          <p className="text-xs text-emerald-700 mb-3">{allCtaEntered ? 'We’ve saved your bracket and emailed your login link — click it to track your score all tournament long.' : (ctaHasPrize ? 'Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.' : 'Drop your name and email to save your bracket and follow your score all tournament long — no password needed.')}</p>
           <div className="space-y-2">
             {ctaChallenges.map(c => {
               const entered = enteredMap[c.slug]
               return entered ? (
                 <div key={c.slug} className="rounded-xl border border-emerald-300 bg-white px-4 py-3 text-left">
-                  <p className="text-sm font-bold text-emerald-900">✓ You&apos;re in the draw{c.sponsor?.name ? ` · ${c.sponsor.name}` : ''} 🎉</p>
+                  <p className="text-sm font-bold text-emerald-900">✓ {c.sponsor?.prize ? 'You&apos;re in the draw' : 'Bracket entered'}{c.sponsor?.name ? ` · ${c.sponsor.name}` : ''} 🎉</p>
                   <p className="text-[11px] text-emerald-700 mt-0.5">Tie-breakers — Final <strong>{entered.final_goals}</strong> goal{entered.final_goals === 1 ? '' : 's'} · 3rd place <strong>{entered.tp_goals}</strong> goal{entered.tp_goals === 1 ? '' : 's'}. Check your email for a link to track it.</p>
                 </div>
               ) : (
@@ -790,6 +793,7 @@ export default function BracketPage() {
         <BracketGuestEntryModal
           tournamentId={selectedTournId}
           challenge={guestChallenge}
+          hasPrize={!!challenges.find(c => c.slug === guestChallenge)?.sponsor?.prize}
           picks={picks}
           sessionId={getOrCreateSessionId()}
           source={sourceRef.current}

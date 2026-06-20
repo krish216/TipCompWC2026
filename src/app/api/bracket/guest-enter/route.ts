@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase'
 import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
 import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
+import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -104,6 +105,11 @@ export async function POST(request: NextRequest) {
   const closes_at = challenge ? await challengeClosesAt(admin, challenge) : null
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
     return NextResponse.json({ error: 'Entries are closed — the knockouts have started.' }, { status: 409 })
+
+  // Only call it a "prize draw" when a sponsor with a live prize is attached.
+  const sponsorCfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })
+  const hasPrize = !!(sponsorCfg.enabled && sponsorCfg.prize)
+  const inLine = hasPrize ? 'You’re in the draw!' : 'You’re entered!'
 
   // ── Email collision: existing account → don't touch it, bounce to a login link ─
   const { data: existing } = await admin.from('users').select('id').ilike('email', email).maybeSingle()
@@ -207,7 +213,7 @@ export async function POST(request: NextRequest) {
     status: 'created',
     email_sent: !mailErr,
     message: mailErr
-      ? 'You’re in the draw! We couldn’t send your login email just now — use “Log in” with this address to access your account.'
-      : 'You’re in the draw! Check your email for a link to claim your account and track your bracket.',
+      ? `${inLine} We couldn’t send your login email just now — use “Log in” with this address to access your account.`
+      : `${inLine} Check your email for a link to claim your account and track your bracket.`,
   })
 }

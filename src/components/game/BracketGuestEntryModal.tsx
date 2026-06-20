@@ -21,10 +21,11 @@ interface Props {
   source?: string | null
   device?: string
   challenge?: string           // challenge slug being entered (omitted → default)
+  hasPrize?: boolean           // sponsor with a live prize → use prize-draw copy
   onClose: () => void
 }
 
-export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, onClose }: Props) {
+export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, hasPrize, onClose }: Props) {
   const [name,       setName]       = useState('')
   const [email,      setEmail]      = useState('')
   const [finalGoals, setFinalGoals] = useState('')
@@ -122,7 +123,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">🏆 Enter the Bracket Challenge</h3>
+          <h3 className="text-base font-bold text-gray-900">{hasPrize ? '🏆 Enter the Bracket Challenge' : '🎯 Enter your bracket'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1" aria-label="Close">✕</button>
         </div>
 
@@ -135,7 +136,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
           </div>
         ) : (
           <div className="px-5 py-4 space-y-4">
-            <p className="text-xs text-gray-500">Enter your details to join the prize draw. We’ll create your free TribePicks account so your bracket is saved and scored all tournament.</p>
+            <p className="text-xs text-gray-500">{hasPrize ? 'Enter your details to join the prize draw. We’ll create your free TribePicks account so your bracket is saved and scored all tournament.' : 'Enter your details to save your bracket. We’ll create your free TribePicks account so it’s scored all tournament long.'}</p>
 
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Your name"
