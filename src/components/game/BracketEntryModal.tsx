@@ -7,8 +7,9 @@ import { useState } from 'react'
 // `challenge` is the challenge slug being entered (omitted → the default one).
 // `editing` + `initial` re-open the form to amend an existing entry (the POST
 // upserts on user+challenge, so re-submitting overwrites the tie-breakers).
-export function BracketEntryModal({ challenge, editing, initial, onClose, onEntered }: {
+export function BracketEntryModal({ challenge, challengeName, editing, initial, onClose, onEntered }: {
   challenge?: string
+  challengeName?: string
   editing?: boolean
   initial?: { final_goals?: number | null; tp_goals?: number | null; phone?: string | null }
   onClose: () => void
@@ -72,7 +73,7 @@ export function BracketEntryModal({ challenge, editing, initial, onClose, onEnte
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">{editing ? '✏️ Update your entry' : '🏆 Enter the Bracket Challenge'}</h3>
+          <h3 className="text-base font-bold text-gray-900">{editing ? `✏️ Update your entry${challengeName ? ` · ${challengeName}` : ''}` : `🏆 Enter the ${challengeName ?? 'Bracket Challenge'}`}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1" aria-label="Close">✕</button>
         </div>
 

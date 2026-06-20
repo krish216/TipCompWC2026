@@ -827,18 +827,21 @@ export default function BracketPage() {
           </div>
           <div className="divide-y divide-gray-100">
             {challenges.map(c => (
-              <div key={c.slug} className="flex items-center gap-3 px-4 py-3">
+              <div key={c.slug} className={clsx('flex items-center gap-3 px-4 py-3', c.entered && 'bg-emerald-50/60')}>
                 <div className="w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {c.sponsor?.logo ? <img src={c.sponsor.logo} alt="" className="max-w-full max-h-full object-contain p-0.5" /> : <span className="text-gray-300">🏆</span>}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</p>
+                    {c.entered && <span className="flex-shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">✓ ENTERED</span>}
+                  </div>
                   <p className="text-[11px] text-gray-500 truncate">{c.sponsor?.prize ? `🎁 ${c.sponsor.prize} · ` : ''}{c.entrants} entered</p>
                 </div>
                 <div className="flex-shrink-0">
                   {c.entered ? (
-                    <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">✓ Entered →</a>
+                    <a href={`/bracket/leaderboard/${c.slug}`} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
                   ) : challengeMeta.locked ? (
                     <span className="text-xs text-gray-400">Closed</span>
                   ) : !champion ? (
@@ -857,6 +860,7 @@ export default function BracketPage() {
       {memberEnterSlug && (
         <BracketEntryModal
           challenge={memberEnterSlug}
+          challengeName={challenges.find(c => c.slug === memberEnterSlug)?.name}
           onClose={() => setMemberEnterSlug(null)}
           onEntered={() => { setMemberEnterSlug(null); loadChallenges() }}
         />

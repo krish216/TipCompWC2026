@@ -443,6 +443,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
       {showEnter && (
         <BracketEntryModal
           challenge={resolvedSlug}
+          challengeName={data?.challenge?.name}
           editing={editingEntry}
           initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone } : undefined}
           onClose={() => { setShowEnter(false); setEditingEntry(false) }}
