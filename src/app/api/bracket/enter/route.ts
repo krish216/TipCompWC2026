@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
+import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -74,6 +75,11 @@ export async function POST(request: NextRequest) {
   if (!(await hasChampion(admin, user.id, tid)))
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })
 
+  // First entry vs edit — drives the one-time confirmation email below.
+  const { data: prior } = await admin.from('bracket_entries')
+    .select('user_id').eq('user_id', user.id).eq('challenge_id', challenge.id).maybeSingle()
+  const isNewEntry = !prior
+
   const { error } = await (admin.from('bracket_entries') as any).upsert({
     user_id:           user.id,
     tournament_id:     tid,
@@ -88,6 +94,21 @@ export async function POST(request: NextRequest) {
   }, { onConflict: 'user_id,challenge_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Branded "you're entered" confirmation — first entry only, fire-and-forget.
+  if (isNewEntry) {
+    const origin = new URL(request.url).origin
+    const { data: profile } = await admin.from('users').select('email, display_name').eq('id', user.id).maybeSingle()
+    const email = (profile as any)?.email
+    if (email) {
+      sendEntryConfirmation(admin, {
+        email, name: (profile as any)?.display_name ?? null,
+        challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+        closesAt: closes_at, origin,
+      }).catch(() => {})
+    }
+  }
+
   return NextResponse.json({ ok: true, challenge: { slug: challenge.slug, name: challenge.name } })
 }
 

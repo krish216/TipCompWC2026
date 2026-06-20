@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase'
 import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
+import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -171,6 +172,13 @@ export async function POST(request: NextRequest) {
     updated_at:        now,
   }, { onConflict: 'user_id,challenge_id' })
   if (entryErr) return NextResponse.json({ error: entryErr.message }, { status: 500 })
+
+  // Branded "you're entered" confirmation (new account → always a first entry).
+  sendEntryConfirmation(admin, {
+    email, name: displayName,
+    challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+    closesAt: closes_at, origin,
+  }).catch(() => {})
 
   // Funnel analytics row (best-effort) — attribute the champion/runner-up capture.
   if (typeof body.session_id === 'string' && body.session_id) {
