@@ -10,6 +10,9 @@ import { useState } from 'react'
 // entry so it replays once they're logged in (see PENDING_ENTRY_KEY below).
 
 export const PENDING_ENTRY_KEY = 'tribepicks_pending_bracket_entry'
+// Per-challenge "this guest has entered" marker (they're not logged in, so we
+// can't ask the server). Lets the bracket page show an entry summary.
+export const ENTERED_KEY = (challenge?: string) => `tribepicks_bracket_entered_${challenge || 'default'}`
 
 interface Props {
   tournamentId: string
@@ -72,6 +75,10 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
             phone: phone.trim() || null, consent_terms: true, consent_marketing: true,
           }))
         } catch {}
+      } else {
+        // New email → actually entered now. Remember it so the bracket page can
+        // show an "entered" summary instead of the Enter CTA (guest, not logged in).
+        try { localStorage.setItem(ENTERED_KEY(challenge), JSON.stringify({ final_goals: +finalGoals, tp_goals: +tpGoals })) } catch {}
       }
       setDone({ message: data.message ?? 'You’re in the draw!' })
     } catch {

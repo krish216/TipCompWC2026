@@ -302,6 +302,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
               {cfg.sponsor_url
                 ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" /></a>
                 : <CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
+              {cfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{cfg.sponsor_name}</span>}
             </div>
 
             {/* Prize — right, balances the title and keeps the logo centred */}

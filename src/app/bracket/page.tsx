@@ -6,7 +6,7 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner, Flag } from '@/components/ui'
-import { BracketGuestEntryModal, PENDING_ENTRY_KEY } from '@/components/game/BracketGuestEntryModal'
+import { BracketGuestEntryModal, PENDING_ENTRY_KEY, ENTERED_KEY } from '@/components/game/BracketGuestEntryModal'
 import { BracketEntryModal } from '@/components/game/BracketEntryModal'
 import { SponsorLogoMark } from '@/components/game/SponsorLogoMark'
 
@@ -289,6 +289,8 @@ export default function BracketPage() {
   const [isAdmin, setIsAdmin] = useState(false)               // gate the challenges hub (admin-only rollout)
   const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
   const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
+  // Guest (not logged in) entries we've made this device, slug → tie-breakers.
+  const [enteredMap, setEnteredMap] = useState<Record<string, { final_goals: number; tp_goals: number }>>({})
   // Sponsor co-branding for the builder: the URL's challenge sponsor, else the
   // default bracket challenge's sponsor (resolver falls back to legacy app_settings).
   const [sponsorCfg, setSponsorCfg] = useState<any | null>(null)
@@ -334,6 +336,16 @@ export default function BracketPage() {
     const qp = challengeParam ? `?challenge=${encodeURIComponent(challengeParam)}` : ''
     fetch(`/api/bracket/config${qp}`).then(r => r.json()).then(setSponsorCfg).catch(() => {})
   }, [challengeParam])
+
+  // Which open challenges this (logged-out) guest has already entered on this device.
+  const refreshEntered = useCallback(() => {
+    const map: Record<string, { final_goals: number; tp_goals: number }> = {}
+    for (const c of challenges) {
+      try { const raw = localStorage.getItem(ENTERED_KEY(c.slug)); if (raw) map[c.slug] = JSON.parse(raw) } catch {}
+    }
+    setEnteredMap(map)
+  }, [challenges])
+  useEffect(() => { refreshEntered() }, [refreshEntered])
 
   // Load picks — localStorage for guests, DB for signed-in users (with migration)
   useEffect(() => {
@@ -578,6 +590,7 @@ export default function BracketPage() {
   // Then focus the entry on that challenge and offer a link back to its board.
   const targetedChallenge = challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
+  const allCtaEntered = ctaChallenges.length > 0 && ctaChallenges.every(c => !!enteredMap[c.slug])
   const branded = !!(sponsorCfg?.enabled && (sponsorCfg.sponsor_logo || sponsorCfg.sponsor_name))
   // Leaderboard the header links to: the targeted board, else the generic one.
   const leaderboardHref = targetedChallenge ? `/bracket/leaderboard/${targetedChallenge.slug}` : '/bracket/leaderboard'
@@ -715,6 +728,7 @@ export default function BracketPage() {
                 {sponsorCfg.sponsor_url
                   ? <a href={sponsorCfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" /></a>
                   : <SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" />}
+                {sponsorCfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{sponsorCfg.sponsor_name}</span>}
               </div>
               <div className="text-center sm:text-right min-w-0">
                 {sponsorCfg.prize
@@ -747,25 +761,25 @@ export default function BracketPage() {
             <span className="text-sm font-bold text-emerald-900">{champion}</span>
             <span className="text-2xl leading-none">🏆</span>
           </div>
-          <p className="text-sm font-bold text-emerald-900 mb-0.5">Your bracket is done — enter to win 🏆</p>
-          <p className="text-xs text-emerald-700 mb-3">Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.</p>
-          {ctaChallenges.length > 1 ? (
-            // Several concurrent challenges → let the guest pick which to enter.
-            <div className="space-y-2">
-              {ctaChallenges.map(c => (
+          <p className="text-sm font-bold text-emerald-900 mb-0.5">{allCtaEntered ? 'You’re in the draw! 🎉' : 'Your bracket is done — enter to win 🏆'}</p>
+          <p className="text-xs text-emerald-700 mb-3">{allCtaEntered ? 'We’ve saved your bracket and emailed your login link — click it to track your score all tournament long.' : 'Drop your name and email to join the prize draw. We’ll save your bracket and score it all tournament long — no password needed.'}</p>
+          <div className="space-y-2">
+            {ctaChallenges.map(c => {
+              const entered = enteredMap[c.slug]
+              return entered ? (
+                <div key={c.slug} className="rounded-xl border border-emerald-300 bg-white px-4 py-3 text-left">
+                  <p className="text-sm font-bold text-emerald-900">✓ You&apos;re in the draw{c.sponsor?.name ? ` · ${c.sponsor.name}` : ''} 🎉</p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">Tie-breakers — Final <strong>{entered.final_goals}</strong> goal{entered.final_goals === 1 ? '' : 's'} · 3rd place <strong>{entered.tp_goals}</strong> goal{entered.tp_goals === 1 ? '' : 's'}. Check your email for a link to track it.</p>
+                </div>
+              ) : (
                 <button key={c.slug} onClick={() => { setGuestChallenge(c.slug); setShowGuestEnter(true) }}
                   className="w-full flex items-center justify-between gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all">
                   <span className="truncate">Enter {c.sponsor?.name ? `${c.sponsor.name} · ` : ''}{c.name}</span>
                   <span aria-hidden>→</span>
                 </button>
-              ))}
-            </div>
-          ) : (
-            <button onClick={() => { setGuestChallenge(ctaChallenges[0]?.slug ?? challengeParam ?? undefined); setShowGuestEnter(true) }}
-              className="w-full text-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold py-3 rounded-xl transition-all">
-              Enter the {ctaChallenges[0]?.name ?? 'Bracket Challenge'} →
-            </button>
-          )}
+              )
+            })}
+          </div>
           <p className="text-center text-[11px] text-emerald-600 mt-2.5">
             Want a full comp with your crew? <a href="/login?tab=register&bracket=1" className="underline font-semibold">Sign up here</a>.
           </p>
@@ -780,7 +794,7 @@ export default function BracketPage() {
           sessionId={getOrCreateSessionId()}
           source={sourceRef.current}
           device={deviceRef.current}
-          onClose={() => setShowGuestEnter(false)}
+          onClose={() => { setShowGuestEnter(false); refreshEntered() }}
         />
       )}
 
