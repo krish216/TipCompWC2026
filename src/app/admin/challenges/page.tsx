@@ -7,10 +7,11 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
+import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, leaderboardPathFor } from '@/lib/challenges/registry'
 import type { CampaignStatus } from '@/lib/sponsors/types'
 
 interface ManagedChallenge {
-  id: string; slug: string; name: string; enabled: boolean; entrants: number
+  id: string; slug: string; name: string; type: string; enabled: boolean; entrants: number
   sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
 }
@@ -91,6 +92,8 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState('')
+  const [touchedName, setTouchedName] = useState(false)
+  const [type, setType] = useState<string>(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket')
   const [slug, setSlug] = useState('')          // blank → auto from name
   const [touchedSlug, setTouchedSlug] = useState(false)
   // The sponsor campaign attached at creation (optional). Starts now → live now.
@@ -100,21 +103,25 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
   const [endsAt, setEndsAt]     = useState<string | null>(null)   // blank → backend default (R32 lock)
 
-  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(name)) || '—'
+  // Name derives from sponsor + type unless the admin overrides it.
+  const sponsorName = sponsors.find(s => s.id === sponsorId)?.name ?? null
+  const derivedName = deriveChallengeName(sponsorName, type)
+  const effName = touchedName && name.trim() ? name : derivedName
+  const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(effName)) || '—'
 
   const reset = () => {
-    setName(''); setSlug(''); setTouchedSlug(false)
+    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setSlug(''); setTouchedSlug(false)
     setSponsorId(''); setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null)
     setOpen(false)
   }
 
   const create = async () => {
-    if (!name.trim()) { toast.error('Name required'); return }
+    if (!effName.trim()) { toast.error('Name required'); return }
     setBusy(true)
     try {
       const res = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name: effName.trim(), type, slug: touchedSlug ? slug.trim() : undefined }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
@@ -149,12 +156,20 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   return (
     <Card className="space-y-3">
       <div className="grid sm:grid-cols-2 gap-3">
-        <Field label="Challenge name *" value={name} onChange={setName} placeholder="e.g. GatedFlow Bracket Challenge" />
+        <Field label="Challenge name *" value={effName} onChange={v => { setName(v); setTouchedName(true) }} placeholder="auto from sponsor + type" />
         <div>
           <Field label="Slug (leaderboard URL)" value={touchedSlug ? slug : ''} placeholder="auto from name"
             onChange={v => { setSlug(v); setTouchedSlug(true) }} />
-          <p className="text-[11px] text-gray-400 mt-1">/bracket/leaderboard/<b className="text-gray-600">{effectiveSlug}</b></p>
+          <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>
         </div>
+        {AVAILABLE_CHALLENGE_TYPES.length > 1 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+              {AVAILABLE_CHALLENGE_TYPES.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Sponsor campaign — attached in the same step */}
@@ -265,7 +280,7 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
             <div>
               <Field label="Slug (leaderboard URL)" value={slug} onChange={setSlug} />
               <p className="text-[11px] text-gray-400 mt-1">
-                <Link href={`/bracket/leaderboard/${ch.slug}`} target="_blank" className="text-emerald-600 hover:underline">/bracket/leaderboard/{ch.slug} ↗</Link>
+                <Link href={leaderboardPathFor(ch.type, ch.slug)} target="_blank" className="text-emerald-600 hover:underline">{leaderboardPathFor(ch.type, ch.slug)} ↗</Link>
               </p>
             </div>
           </div>

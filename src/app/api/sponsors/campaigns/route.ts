@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/sponsors/auth'
 import { defaultWindow, overlappingCampaign } from '@/lib/sponsors/campaigns'
+import { challengeTypeLabel } from '@/lib/challenges/registry'
 import { ChallengeType } from '@/lib/sponsors/types'
 
 export const dynamic = 'force-dynamic'
@@ -62,6 +63,25 @@ export async function POST(request: NextRequest) {
     tournamentId = (ch as any)?.tournament_id ?? null
   }
   if (!challengeId) return NextResponse.json({ error: 'Could not resolve challenge' }, { status: 400 })
+
+  // ── Sponsor ↔ challenge model guards ────────────────────────────────────────
+  const { data: chRow } = await (admin.from('challenges') as any).select('type').eq('id', challengeId).maybeSingle()
+  const chType = (chRow as any)?.type ?? challengeType
+
+  // (a) One challenge has one sponsor — existing campaigns on it must match.
+  const { data: onChallenge } = await (admin.from('sponsor_campaigns') as any)
+    .select('sponsor_id, sponsors(name)').eq('challenge_id', challengeId)
+  const otherSponsor = ((onChallenge ?? []) as any[]).find(c => c.sponsor_id !== b.sponsor_id)
+  if (otherSponsor)
+    return NextResponse.json({ error: `This challenge already belongs to ${otherSponsor.sponsors?.name ?? 'another sponsor'} — a challenge has one sponsor.` }, { status: 409 })
+
+  // (b) A sponsor runs one challenge per type — extra promotions are campaigns on
+  //     the existing one, not a second same-type challenge.
+  const { data: sponsorCamps } = await (admin.from('sponsor_campaigns') as any)
+    .select('challenge_id, challenges(type)').eq('sponsor_id', b.sponsor_id)
+  const typeClash = ((sponsorCamps ?? []) as any[]).find(c => c.challenges?.type === chType && c.challenge_id !== challengeId)
+  if (typeClash)
+    return NextResponse.json({ error: `This sponsor already runs a ${challengeTypeLabel(chType)} challenge — add a campaign to that one instead.` }, { status: 409 })
 
   // Default the window when not supplied.
   let starts_at: string | null = b.starts_at ?? null

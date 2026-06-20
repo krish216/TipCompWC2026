@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/sponsors/auth'
 import { toSlug } from '@/lib/sponsors/campaigns'
 import { listBracketChallenges } from '@/lib/bracket/challenge'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
+import { isAvailableType } from '@/lib/challenges/registry'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
         entrantCount(admin, ch.id),
         sponsorState(admin, ch.id),
       ])
-      return { id: ch.id, slug: ch.slug, name: ch.name, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
+      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
     }))
     return NextResponse.json({ challenges, tournament_id: tid })
   }
@@ -129,6 +130,9 @@ export async function POST(request: NextRequest) {
   const name = typeof b.name === 'string' ? b.name.trim() : ''
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
+  const type = typeof b.type === 'string' && b.type ? b.type : 'bracket'
+  if (!isAvailableType(type)) return NextResponse.json({ error: `Challenge type “${type}” isn’t available yet.` }, { status: 422 })
+
   const tid = (typeof b.tournament_id === 'string' && b.tournament_id) || await activeTournamentId(admin)
   if (!tid) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
 
@@ -143,11 +147,11 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await (admin.from('challenges') as any).insert({
     tournament_id: tid,
-    type:          'bracket',
+    type,
     name,
     slug,
     enabled:       b.enabled !== false,
-  }).select('id, slug, name, enabled').single()
+  }).select('id, slug, name, enabled, type').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ challenge: data })

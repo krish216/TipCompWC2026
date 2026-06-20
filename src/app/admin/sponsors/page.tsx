@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { Spinner, Card } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { campaignStatus, toSlug } from '@/lib/sponsors/campaigns'
+import { AVAILABLE_CHALLENGE_TYPES, challengeTypeLabel, deriveChallengeName, leaderboardPathFor } from '@/lib/challenges/registry'
 import type { Sponsor, SponsorCampaign, CampaignStatus, LogoTone, SponsorStatus } from '@/lib/sponsors/types'
 
 type CampaignRow = SponsorCampaign & { challenges?: { type: string; name: string; tournament_id: string } }
@@ -301,18 +302,29 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
             <button onClick={remove} className="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 ml-auto">Delete</button>
           </div>
 
-          {/* Challenges this sponsor backs */}
+          {/* Challenges this sponsor backs — grouped by challenge, campaigns nested */}
           <div className="pt-4 border-t border-gray-100">
             <h3 className="text-sm font-bold text-gray-900 mb-2">Challenges</h3>
             {loadingCamps ? (
               <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
             ) : (
-              <div className="space-y-2">
-                {campaigns.map(c => (
-                  <CampaignCard key={c.id} campaign={c} onChanged={() => { loadCampaigns(); onChanged() }} />
+              <div className="space-y-3">
+                {groupByChallenge(campaigns).map(g => (
+                  <div key={g.challengeId} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-900 truncate">{g.name}</span>
+                      <span className="text-[10px] uppercase font-semibold text-gray-400">{challengeTypeLabel(g.type)}</span>
+                    </div>
+                    {g.campaigns.map(c => (
+                      <CampaignCard key={c.id} campaign={c} hideLabel onChanged={() => { loadCampaigns(); onChanged() }} />
+                    ))}
+                    {sponsor.status === 'active' && (
+                      <AddCampaignToChallenge sponsorId={sponsor.id} challengeId={g.challengeId} onCreated={() => { loadCampaigns(); onChanged() }} />
+                    )}
+                  </div>
                 ))}
                 {sponsor.status === 'active'
-                  ? <NewChallengeForSponsor sponsorId={sponsor.id} sponsorName={sponsor.name} onCreated={() => { loadCampaigns(); onChanged() }} />
+                  ? <NewChallengeForSponsor sponsorId={sponsor.id} sponsorName={sponsor.name} usedTypes={usedTypesOf(campaigns)} onCreated={() => { loadCampaigns(); onChanged() }} />
                   : <p className="text-[11px] text-gray-400 text-center py-1">Set this sponsor to <b>Active</b> to add a challenge.</p>}
               </div>
             )}
@@ -323,8 +335,24 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
   )
 }
 
+// Group a sponsor's campaigns by their challenge (one group per challenge).
+function groupByChallenge(campaigns: CampaignRow[]): { challengeId: string; name: string; type: string; campaigns: CampaignRow[] }[] {
+  const m = new Map<string, { challengeId: string; name: string; type: string; campaigns: CampaignRow[] }>()
+  for (const c of campaigns) {
+    const cid = (c as any).challenge_id as string
+    if (!cid) continue
+    if (!m.has(cid)) m.set(cid, { challengeId: cid, name: c.challenges?.name ?? 'Challenge', type: c.challenges?.type ?? 'bracket', campaigns: [] })
+    m.get(cid)!.campaigns.push(c)
+  }
+  return Array.from(m.values())
+}
+// Challenge types this sponsor already runs (one challenge per type).
+function usedTypesOf(campaigns: CampaignRow[]): Set<string> {
+  return new Set(campaigns.map(c => c.challenges?.type).filter(Boolean) as string[])
+}
+
 // ── Campaign card (edit/toggle/delete) ───────────────────────────────────────
-function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChanged: () => void }) {
+function CampaignCard({ campaign, hideLabel, onChanged }: { campaign: CampaignRow; hideLabel?: boolean; onChanged: () => void }) {
   const [c, setC] = useState(campaign)
   const [busy, setBusy] = useState(false)
   useEffect(() => { setC(campaign) }, [campaign])
@@ -350,7 +378,7 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
   return (
     <div className="rounded-lg border border-gray-200 p-3 space-y-2.5">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-800">{challengeLabel}</span>
+        {!hideLabel && <span className="text-sm font-semibold text-gray-800">{challengeLabel}</span>}
         <span className={clsx('text-[10px] uppercase font-bold px-1.5 py-0.5 rounded', STATUS_BADGE[status])}>{status}</span>
         <button onClick={() => patch({ enabled: !c.enabled }, c.enabled ? 'Disabled' : 'Enabled')} disabled={busy}
           className={clsx('ml-auto text-xs font-medium px-2 py-1 rounded', c.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500')}>
@@ -373,13 +401,67 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
   )
 }
 
-// ── New challenge for this sponsor ───────────────────────────────────────────
-// Creates a bracket challenge AND its campaign for this sponsor in one step
-// (the inverse of the /admin/challenges create-with-sponsor flow).
-function NewChallengeForSponsor({ sponsorId, sponsorName, onCreated }: { sponsorId: string; sponsorName: string; onCreated: () => void }) {
+// ── Add a campaign under an existing challenge ───────────────────────────────
+function AddCampaignToChallenge({ sponsorId, challengeId, onCreated }: { sponsorId: string; challengeId: string; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [name, setName] = useState(`${sponsorName} Bracket Challenge`)
+  const [prize, setPrize] = useState('')
+  const [clickUrl, setClickUrl] = useState('')
+  const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
+  const [endsAt, setEndsAt] = useState<string | null>(null)
+
+  const create = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/sponsors/campaigns', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: challengeId, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Failed to add campaign'); return }
+      toast.success('Campaign added')
+      setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null); setOpen(false)
+      onCreated()
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="w-full py-1.5 rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 hover:border-emerald-400 hover:text-emerald-600">
+      + Add a campaign
+    </button>
+  )
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
+      <p className="text-[11px] text-gray-500">Next promotion under this challenge — must not overlap an existing campaign.</p>
+      <div className="grid sm:grid-cols-2 gap-2.5">
+        <Field label="Prize" value={prize} onChange={setPrize} placeholder="e.g. $250 Fuel Voucher" />
+        <Field label="Click-through URL" value={clickUrl} onChange={setClickUrl} placeholder="defaults to sponsor website" />
+        <DateField label="Starts" value={startsAt} onChange={setStartsAt} />
+        <DateField label="Ends (lock)" value={endsAt} onChange={setEndsAt} />
+      </div>
+      <div className="flex gap-2">
+        <button disabled={busy} onClick={create} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50">
+          {busy ? 'Adding…' : 'Add campaign'}
+        </button>
+        <button onClick={() => setOpen(false)} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+// ── New challenge for this sponsor (type + auto-derived name) ─────────────────
+// Creates a challenge of a type the sponsor doesn't run yet, plus its first
+// campaign. Name derives from sponsor + type (one challenge per type).
+function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }: { sponsorId: string; sponsorName: string; usedTypes: Set<string>; onCreated: () => void }) {
+  const available = AVAILABLE_CHALLENGE_TYPES.filter(t => !usedTypes.has(t))
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [type, setType] = useState<string>(available[0] ?? 'bracket')
   const [slug, setSlug] = useState('')
   const [touchedSlug, setTouchedSlug] = useState(false)
   const [prize, setPrize] = useState('')
@@ -387,15 +469,15 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, onCreated }: { sponsor
   const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
   const [endsAt, setEndsAt] = useState<string | null>(null)
 
+  const name = deriveChallengeName(sponsorName, type)
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : toSlug(name)) || '—'
 
   const create = async () => {
-    if (!name.trim()) { toast.error('Challenge name required'); return }
     setBusy(true)
     try {
       const cr = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), slug: touchedSlug ? slug.trim() : undefined }),
+        body: JSON.stringify({ name, type, slug: touchedSlug ? slug.trim() : undefined }),
       })
       const cd = await cr.json().catch(() => ({}))
       if (!cr.ok) { toast.error(cd.error ?? 'Failed to create challenge'); return }
@@ -415,6 +497,10 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, onCreated }: { sponsor
     }
   }
 
+  if (!available.length) return (
+    <p className="text-[11px] text-gray-400 text-center py-1">{sponsorName} already runs every available challenge type.</p>
+  )
+
   if (!open) return (
     <button onClick={() => setOpen(true)} className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-emerald-400 hover:text-emerald-600">
       + Add a challenge for {sponsorName}
@@ -423,12 +509,19 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, onCreated }: { sponsor
 
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
-      <p className="text-xs text-gray-500">Creates a new bracket challenge sponsored by <b>{sponsorName}</b>. Starts now → live immediately; leave Ends blank for the default (first R32 kick-off).</p>
+      <p className="text-xs text-gray-500">New <b>{challengeTypeLabel(type)}</b> challenge for <b>{sponsorName}</b> → <b className="text-gray-700">{name}</b>. Starts now → live immediately.</p>
       <div className="grid sm:grid-cols-2 gap-2.5">
-        <Field label="Challenge name" value={name} onChange={setName} />
+        {available.length > 1 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <select value={type} onChange={e => setType(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+              {available.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from name" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
-          <p className="text-[11px] text-gray-400 mt-1">/bracket/leaderboard/<b className="text-gray-600">{effectiveSlug}</b></p>
+          <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>
         </div>
         <Field label="Prize" value={prize} onChange={setPrize} placeholder="e.g. $250 Fuel Voucher" />
         <Field label="Click-through URL" value={clickUrl} onChange={setClickUrl} placeholder="defaults to sponsor website" />
