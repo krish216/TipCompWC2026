@@ -6,7 +6,7 @@ import { clsx } from 'clsx'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner, Flag } from '@/components/ui'
-import { BracketGuestEntryModal, PENDING_ENTRY_KEY, ENTERED_KEY } from '@/components/game/BracketGuestEntryModal'
+import { BracketGuestEntryModal, ENTERED_KEY } from '@/components/game/BracketGuestEntryModal'
 import { BracketEntryModal } from '@/components/game/BracketEntryModal'
 import { SponsorLogoMark } from '@/components/game/SponsorLogoMark'
 
@@ -379,75 +379,49 @@ export default function BracketPage() {
       return
     }
 
-    // Signed-in: check for localStorage picks to migrate first
+    // Signed-in: this device may hold a guest-built bracket in localStorage. Load
+    // the account's DB bracket FIRST, then decide — never blindly overwrite.
     let localPicks: Picks = {}
     try {
       const stored = localStorage.getItem(localKey(selectedTournId))
       if (stored) localPicks = JSON.parse(stored)
     } catch {}
-
     const localEntries = Object.entries(localPicks).filter(([, v]) => !!v)
 
-    if (localEntries.length > 0) {
-      // Use local picks immediately and migrate to DB in background
-      setPicks(localPicks)
-      setLoading(false)
-      Promise.all(localEntries.map(([slot_key, team_name]) =>
-        fetch('/api/bracket', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
-        })
-      )).then(() => localStorage.removeItem(localKey(selectedTournId))).catch(() => {})
-      return
-    }
-
-    // Normal DB load
     fetch(`/api/bracket?tournament_id=${selectedTournId}`)
       .then(r => r.json())
-      .then(({ picks: p }) => { if (p) setPicks(p) })
+      .then(({ picks: dbPicks }) => {
+        const hasDbBracket = !!dbPicks && Object.values(dbPicks as Picks).some(Boolean)
+        if (localEntries.length > 0 && !hasDbBracket) {
+          // Empty account → migrate the guest's localStorage bracket up to it.
+          setPicks(localPicks)
+          Promise.all(localEntries.map(([slot_key, team_name]) =>
+            fetch('/api/bracket', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
+            })
+          )).then(() => { try { localStorage.removeItem(localKey(selectedTournId)) } catch {} }).catch(() => {})
+        } else {
+          // Account already has a bracket → keep it; discard this device's guest bracket.
+          if (dbPicks) setPicks(dbPicks)
+          if (hasDbBracket) { try { localStorage.removeItem(localKey(selectedTournId)) } catch {} }
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [session, selectedTournId])
 
-  // In-place sign-in migration: when a guest signs in while on this page, flush
-  // in-memory picks directly to bracket_picks (safety net for the localStorage path).
-  // wasGuestRef tracks whether the page loaded as a guest — only runs once per mount.
+  // When a guest signs in while on this page, attribute their captured champion
+  // prediction to the now signed-in user (analytics, best-effort). Bracket
+  // migration itself is handled non-destructively by the load effect above —
+  // we deliberately do NOT flush localStorage picks here (that clobbered the
+  // brackets of users who already had one). Runs once per mount.
   const wasGuestRef = useRef(!session)
   useEffect(() => {
     if (!wasGuestRef.current || !session || !selectedTournId) return
     wasGuestRef.current = false  // run once — this effect isn't idempotent
 
-    const entries = Object.entries(picksRef.current).filter(([, v]) => !!v)
-    if (entries.length === 0) return
-
-    Promise.all(
-      entries.map(([slot_key, team_name]) =>
-        fetch('/api/bracket', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
-        })
-      )
-    ).then(() => {
-      // Phase 3: replay a prize entry stashed by a guest whose email already had
-      // an account (BracketGuestEntryModal). Now that they're logged in and their
-      // bracket has migrated, complete the entry they couldn't make unauthenticated.
-      let pending: any = null
-      try {
-        const raw = localStorage.getItem(PENDING_ENTRY_KEY)
-        if (raw) pending = JSON.parse(raw)
-      } catch {}
-      if (pending && pending.tournament_id === selectedTournId) {
-        fetch('/api/bracket/enter', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pending),
-        }).then(r => { if (r.ok) { try { localStorage.removeItem(PENDING_ENTRY_KEY) } catch {} } })
-          .catch(() => {})
-      }
-    }).catch(() => {})
-
-    // Also claim any bracket_predictions guest row saved under the session_id
     const champion = picksRef.current['final'] ?? null
     if (champion) {
       const sessionId  = getOrCreateSessionId()
@@ -871,9 +845,10 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Challenges hub — build one bracket, enter many. Live for all players.
+      {/* Challenges hub — build one bracket, enter many. Logged-in players only;
+          guests use the completion card above (avoids two Enter affordances).
           Sponsor branding only appears per-row when a challenge actually has one. */}
-      {challenges.length > 0 && (
+      {session && challenges.length > 0 && (
         <div className="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm font-bold text-gray-900">🏆 Bracket Challenges</p>
