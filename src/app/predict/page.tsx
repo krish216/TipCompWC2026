@@ -76,9 +76,13 @@ export default function PredictPage() {
   // null → fall back to the hardcoded TOURNAMENT_KICKOFF.
   const [bonusLockAt,   setBonusLockAt]   = useState<number | null>(null)
   useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'bonus_lock_at').maybeSingle()
-      .then(({ data }: any) => { const v = data?.value; if (v) setBonusLockAt(new Date(v).getTime()) })
-      .catch(() => {})
+    (async () => {
+      try {
+        const { data } = await supabase.from('app_settings').select('value').eq('key', 'bonus_lock_at').maybeSingle()
+        const v = (data as any)?.value
+        if (v) setBonusLockAt(new Date(v).getTime())
+      } catch { /* keep the default lock */ }
+    })()
   }, [supabase])
   const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string}[]>([])
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
