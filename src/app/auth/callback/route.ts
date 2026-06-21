@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
+import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 // Handles PKCE code exchange for:
 //   - Google / Apple OAuth redirects
@@ -30,10 +31,29 @@ export async function GET(request: NextRequest) {
     )
     const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && sessionData?.user?.id) {
-      const admin = createAdminClient()
+      const admin  = createAdminClient()
+      const userId = sessionData.user.id
       await (admin.from('users') as any)
         .update({ email_verified: true })
-        .eq('id', sessionData.user.id)
+        .eq('id', userId)
+
+      // Enrol in the active tournament. OAuth (Google/Apple) signups and
+      // email-confirmation clicks both land here but were NEVER added to
+      // user_tournaments — only the email signup form did it — leaving them off
+      // every leaderboard. Idempotent; the welcome email is guarded (sent once,
+      // and suppressed for bracket guests).
+      try {
+        const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+        const tid = (t as any)?.id
+        if (tid) {
+          await (admin.from('user_tournaments') as any)
+            .upsert({ user_id: userId, tournament_id: tid }, { onConflict: 'user_id,tournament_id', ignoreDuplicates: true })
+          await sendWelcomeIfNeeded(userId, tid)
+        }
+      } catch (e: any) {
+        console.error('[auth/callback] tournament enrol failed:', e?.message ?? e)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
     if (error) {
