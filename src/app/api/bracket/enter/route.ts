@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
-import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
+import { resolveBracketChallenge, challengeClosesAt, ensureGlobalEntry } from '@/lib/bracket/challenge'
 import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
 
 export const dynamic = 'force-dynamic'
@@ -94,6 +94,15 @@ export async function POST(request: NextRequest) {
   }, { onConflict: 'user_id,challenge_id' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // "Global = everyone" — entering any sponsor challenge also enrols you in the
+  // tournament's Global board (if you're not already in), reusing this bracket.
+  await ensureGlobalEntry(admin, {
+    userId: user.id, tournamentId: tid, enteredChallengeId: challenge.id,
+    finalGoals, tpGoals,
+    phone: typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
+    consentMarketing: body.consent_marketing === true,
+  })
 
   // Branded "you're entered" confirmation — first entry only, fire-and-forget.
   if (isNewEntry) {

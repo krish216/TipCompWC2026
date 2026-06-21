@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
-import { resolveBracketChallenge, challengeClosesAt } from '@/lib/bracket/challenge'
+import { resolveBracketChallenge, challengeClosesAt, ensureGlobalEntry } from '@/lib/bracket/challenge'
 import { sendBracketClaimEmail } from '@/lib/bracket/guest-claim-email'
 import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
 import { establishSessionFor } from '@/lib/bracket/establish-session'
@@ -173,6 +173,15 @@ export async function POST(request: NextRequest) {
     updated_at:        now,
   }, { onConflict: 'user_id,challenge_id' })
   if (entryErr) return NextResponse.json({ error: entryErr.message }, { status: 500 })
+
+  // "Global = everyone" — a guest entering a sponsor challenge also lands on the
+  // tournament's Global board (if not already in), reusing this bracket.
+  await ensureGlobalEntry(admin, {
+    userId: userId!, tournamentId: tid, enteredChallengeId: challenge.id,
+    finalGoals, tpGoals,
+    phone: typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
+    consentMarketing: true,
+  })
 
   // Funnel analytics row (best-effort) — attribute the champion/runner-up capture.
   if (typeof body.session_id === 'string' && body.session_id) {

@@ -75,6 +75,44 @@ export async function resolveBracketChallenge(
   return shape(list.find(c => c.id === liveId) ?? list[0])
 }
 
+// "Global = everyone": ensure the user is also entered in the tournament's
+// Global bracket challenge (the earliest-created open challenge). No-op when the
+// challenge they just entered IS the Global one, or when they already have a
+// Global entry (we never overwrite their existing tie-breakers). Reuses the
+// passed tie-breakers/consent and the shared bracket. Best-effort.
+export async function ensureGlobalEntry(
+  admin: any,
+  opts: {
+    userId: string
+    tournamentId: string
+    enteredChallengeId: string
+    finalGoals: number
+    tpGoals: number
+    phone?: string | null
+    consentMarketing?: boolean
+  },
+): Promise<void> {
+  try {
+    const open = await listBracketChallenges(admin, { tournamentId: opts.tournamentId })
+    const globalCh = open[0]                                  // earliest open = the Global board
+    if (!globalCh || globalCh.id === opts.enteredChallengeId) return
+    await (admin.from('bracket_entries') as any).upsert({
+      user_id:           opts.userId,
+      tournament_id:     opts.tournamentId,
+      challenge_id:      globalCh.id,
+      final_goals:       opts.finalGoals,
+      tp_goals:          opts.tpGoals,
+      phone:             opts.phone ?? null,
+      consent_terms:     true,
+      consent_marketing: opts.consentMarketing ?? false,
+      source:            'auto_global',
+      updated_at:        new Date().toISOString(),
+    }, { onConflict: 'user_id,challenge_id', ignoreDuplicates: true })   // keep any existing Global entry
+  } catch {
+    // best-effort — never fail the primary entry over the auto-enrol
+  }
+}
+
 // All enabled bracket challenges for a tournament (default: the active one),
 // earliest-created first — powers the challenge chooser lists.
 export async function listBracketChallenges(
