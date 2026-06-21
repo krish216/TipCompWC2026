@@ -282,6 +282,8 @@ export default function BracketPage() {
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
   const didInitSection = useRef(false)
+  // Autosave feedback for signed-in users (debounced DB writes are otherwise silent).
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
@@ -496,18 +498,25 @@ export default function BracketPage() {
     // Signed-in: debounced DB write
     setPicks(prev => ({ ...prev, [slotKey]: teamName }))
     pendingRef.current.set(slotKey, teamName)
+    setSaveState('saving')
 
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       const batch = Array.from(pendingRef.current.entries())
       pendingRef.current.clear()
-      await Promise.all(batch.map(([slot_key, team_name]) =>
-        fetch('/api/bracket', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
-        })
-      ))
+      try {
+        await Promise.all(batch.map(([slot_key, team_name]) =>
+          fetch('/api/bracket', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
+          })
+        ))
+        setSaveState('saved')
+        setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 1800)
+      } catch {
+        setSaveState('idle')
+      }
     }, 600)
   }, [session, selectedTournId])
 
@@ -722,6 +731,17 @@ export default function BracketPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-28 pt-4">
+      {/* Autosave indicator (signed-in users) — confirms picks reach the server. */}
+      {session && saveState !== 'idle' && !bracketClearedToast && (
+        <div className={clsx(
+          'fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-full shadow-lg pointer-events-none transition-colors',
+          saveState === 'saving' ? 'bg-gray-800 text-white' : 'bg-emerald-600 text-white')}>
+          {saveState === 'saving'
+            ? <><Spinner className="w-3.5 h-3.5" /><span>Saving…</span></>
+            : <><span>✓</span><span>Bracket saved</span></>}
+        </div>
+      )}
+
       {/* Bracket-cleared toast */}
       {bracketClearedToast && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-gray-800 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg pointer-events-none">
