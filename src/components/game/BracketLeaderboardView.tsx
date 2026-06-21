@@ -317,7 +317,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             </div>
           </div>
           <div className="flex items-center justify-between mt-2 px-1">
-            <p className="text-xs text-gray-500">{challengeName} leaderboard · max {data?.max ?? 80} pts</p>
+            <p className="text-xs text-gray-500">max {data?.max ?? 80} pts · <Link href="/bracket/how-it-works" className="underline hover:text-gray-700">how it works</Link></p>
             <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Edit bracket →</Link>
           </div>
         </div>
@@ -325,7 +325,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <h1 className="text-lg font-bold text-gray-900">🏆 {challengeName}</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Leaderboard · max {data?.max ?? 80} pts</p>
+            <p className="text-xs text-gray-500 mt-0.5">max {data?.max ?? 80} pts · <Link href="/bracket/how-it-works" className="underline hover:text-gray-700">how it works</Link></p>
           </div>
           <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex-shrink-0">Edit bracket →</Link>
         </div>

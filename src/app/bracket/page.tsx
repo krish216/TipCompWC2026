@@ -761,7 +761,10 @@ export default function BracketPage() {
               </div>
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
-              <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Leaderboard →</a>
+              <div className="flex items-center gap-3">
+                <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Leaderboard →</a>
+                <a href="/bracket/how-it-works" className="text-xs font-semibold text-gray-400 hover:text-gray-600">How it works</a>
+              </div>
               {resetBtn('')}
             </div>
           </div>
@@ -775,7 +778,10 @@ export default function BracketPage() {
               </div>
               {resetBtn('flex-shrink-0 mt-0.5')}
             </div>
-            <a href={leaderboardHref} className="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700">← Leaderboard</a>
+            <div className="mt-2 flex items-center gap-3">
+              <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">← Leaderboard</a>
+              <a href="/bracket/how-it-works" className="text-xs font-semibold text-gray-400 hover:text-gray-600">How it works</a>
+            </div>
           </div>
         )
       })()}
