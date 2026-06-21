@@ -289,7 +289,6 @@ export default function BracketPage() {
   const [showGuestEnter, setShowGuestEnter] = useState(false)
   // Open bracket challenges for this tournament (each its own sponsor + leaderboard).
   const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean; locked?: boolean }[]>([])
-  const [isAdmin, setIsAdmin] = useState(false)               // gate the challenges hub (admin-only rollout)
   const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
   const [manageSlug, setManageSlug] = useState<string | null>(null)
   const [manageInitial, setManageInitial] = useState<{ final_goals?: number | null; tp_goals?: number | null; phone?: string | null } | null>(null)
@@ -339,12 +338,6 @@ export default function BracketPage() {
       .catch(() => {})
   }, [selectedTournId])
   useEffect(() => { loadChallenges() }, [loadChallenges])
-
-  // Admin gate for the Sponsor Challenges hub (surfaced to admins only for now).
-  useEffect(() => {
-    if (!session) { setIsAdmin(false); return }
-    fetch('/api/admin').then(r => r.json()).then(d => setIsAdmin(!!d.is_admin)).catch(() => setIsAdmin(false))
-  }, [session])
 
   // Sponsor co-branding for the builder header (specific challenge or default).
   useEffect(() => {
@@ -878,8 +871,8 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Sponsor Challenges hub — build one bracket, enter many (admin-only for now) */}
-      {isAdmin && challenges.length > 0 && (
+      {/* Sponsor Challenges hub — build one bracket, enter many. Live for all players. */}
+      {challenges.length > 0 && (
         <div className="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm font-bold text-gray-900">🏆 Sponsor Challenges</p>
