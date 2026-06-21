@@ -8,6 +8,18 @@
  * authoritative and tournament-specific (not a hardcoded constant).
  */
 export async function isBonusTeamLocked(client: any, tournamentId: string): Promise<boolean> {
+  // Admin override (app_settings.bonus_lock_at = ISO timestamp). Lets us re-open the
+  // bonus-team picker — e.g. extend the bonus to the Round of 32 and give everyone a
+  // fresh pick beforehand. When set it fully replaces the default; clear it to
+  // restore the default earliest-kickoff behaviour.
+  try {
+    const { data: ov } = await client
+      .from('app_settings').select('value').eq('key', 'bonus_lock_at').maybeSingle()
+    const override = (ov as any)?.value
+    if (override) return Date.now() >= new Date(override).getTime()
+  } catch { /* fall through to the default */ }
+
+  // Default: lock at the earliest real (non-warm-up) fixture kickoff.
   const { data } = await client
     .from('fixtures')
     .select('kickoff_utc')
