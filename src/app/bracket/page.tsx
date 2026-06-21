@@ -871,12 +871,13 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Sponsor Challenges hub — build one bracket, enter many. Live for all players. */}
+      {/* Challenges hub — build one bracket, enter many. Live for all players.
+          Sponsor branding only appears per-row when a challenge actually has one. */}
       {challenges.length > 0 && (
         <div className="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-900">🏆 Sponsor Challenges</p>
-            <p className="text-[11px] text-gray-500 mt-0.5">Build your bracket below, then enter each challenge with it — one bracket, many draws.</p>
+            <p className="text-sm font-bold text-gray-900">🏆 Bracket Challenges</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Build your bracket, then <strong>enter a challenge</strong> to get on its leaderboard — and into any prize draw.</p>
           </div>
           <div className="divide-y divide-gray-100">
             {challenges.map(c => (
