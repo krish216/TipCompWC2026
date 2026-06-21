@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     // (no claim link needed). Land them on the leaderboard.
     sendEntryConfirmation(admin, {
       email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-      closesAt: closes_at, origin,
+      closesAt: closes_at, origin, userId, tournamentId: tid,
     }).catch(() => {})
     return NextResponse.json({
       status: 'signed_in',

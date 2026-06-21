@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { resolveBracketChallenge, challengeClosesAt, ensureGlobalEntry } from '@/lib/bracket/challenge'
 import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
+import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -104,17 +105,23 @@ export async function POST(request: NextRequest) {
     consentMarketing: body.consent_marketing === true,
   })
 
-  // Branded "you're entered" confirmation — first entry only, fire-and-forget.
+  // Branded "you're entered" confirmation — first entry only, and only when a
+  // prize is on the line. A logged-in member entering the no-prize Global already
+  // saw the in-app confirmation, so an email there is just noise; for a prize
+  // (sponsored) challenge it's a useful "you're in the draw to win X" receipt.
   if (isNewEntry) {
-    const origin = new URL(request.url).origin
-    const { data: profile } = await admin.from('users').select('email, display_name').eq('id', user.id).maybeSingle()
-    const email = (profile as any)?.email
-    if (email) {
-      sendEntryConfirmation(admin, {
-        email, name: (profile as any)?.display_name ?? null,
-        challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-        closesAt: closes_at, origin,
-      }).catch(() => {})
+    const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })
+    if (cfg.enabled && cfg.prize) {
+      const origin = new URL(request.url).origin
+      const { data: profile } = await admin.from('users').select('email, display_name').eq('id', user.id).maybeSingle()
+      const email = (profile as any)?.email
+      if (email) {
+        sendEntryConfirmation(admin, {
+          email, name: (profile as any)?.display_name ?? null,
+          challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
+          closesAt: closes_at, origin, userId: user.id, tournamentId: tid,
+        }).catch(() => {})
+      }
     }
   }
 
