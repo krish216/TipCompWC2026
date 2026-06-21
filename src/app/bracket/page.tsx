@@ -284,6 +284,9 @@ export default function BracketPage() {
   const didInitSection = useRef(false)
   // Autosave feedback for signed-in users (debounced DB writes are otherwise silent).
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // Guest-built bracket that conflicts with the signed-in account's saved bracket
+  // → let the user choose which to keep (set by the load effect on sign-in).
+  const [bracketChoice, setBracketChoice] = useState<{ newPicks: Picks; existing: Picks } | null>(null)
   const [bracketClearedToast, setBracketClearedToast] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [showGuestEnter, setShowGuestEnter] = useState(false)
@@ -392,6 +395,10 @@ export default function BracketPage() {
       .then(r => r.json())
       .then(({ picks: dbPicks }) => {
         const hasDbBracket = !!dbPicks && Object.values(dbPicks as Picks).some(Boolean)
+        const conflict = localEntries.length > 0 && hasDbBracket
+          && !!localPicks['final'] && !!(dbPicks as Picks)['final']
+          && localPicks['final'] !== (dbPicks as Picks)['final']
+
         if (localEntries.length > 0 && !hasDbBracket) {
           // Empty account → migrate the guest's localStorage bracket up to it.
           setPicks(localPicks)
@@ -402,8 +409,13 @@ export default function BracketPage() {
               body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
             })
           )).then(() => { try { localStorage.removeItem(localKey(selectedTournId)) } catch {} }).catch(() => {})
+        } else if (conflict) {
+          // The account already has a DIFFERENT bracket → keep theirs for now and
+          // ask which to keep. localStorage is retained until they decide.
+          setPicks(dbPicks)
+          setBracketChoice({ newPicks: localPicks, existing: dbPicks })
         } else {
-          // Account already has a bracket → keep it; discard this device's guest bracket.
+          // Same bracket, or nothing local → keep the DB bracket; drop stale localStorage.
           if (dbPicks) setPicks(dbPicks)
           if (hasDbBracket) { try { localStorage.removeItem(localKey(selectedTournId)) } catch {} }
         }
@@ -907,6 +919,51 @@ export default function BracketPage() {
           onClose={() => setMemberEnterSlug(null)}
           onEntered={() => { setMemberEnterSlug(null); loadChallenges() }}
         />
+      )}
+
+      {/* Sign-in bracket conflict — the account already has a different saved bracket
+          than the one just built on this device. Let the user pick which to keep. */}
+      {bracketChoice && selectedTournId && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4">
+          <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">🏆 You already have a bracket</h3>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-600">
+                Your account already has a saved bracket (champion <strong className="text-gray-900">{bracketChoice.existing['final']}</strong>).
+                The bracket you just built on this device picks <strong className="text-gray-900">{bracketChoice.newPicks['final']}</strong>.
+              </p>
+              <p className="text-sm font-medium text-gray-800">Which would you like to keep?</p>
+              <button
+                onClick={() => { try { localStorage.removeItem(localKey(selectedTournId)) } catch {} ; setBracketChoice(null) }}
+                className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                Keep my saved bracket
+              </button>
+              <button
+                onClick={() => {
+                  const np = bracketChoice.newPicks
+                  setPicks(np)
+                  const entries = Object.entries(np).filter(([, v]) => !!v)
+                  setSaveState('saving')
+                  Promise.all(entries.map(([slot_key, team_name]) =>
+                    fetch('/api/bracket', {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ tournament_id: selectedTournId, slot_key, team_name }),
+                    })
+                  )).then(() => {
+                    try { localStorage.removeItem(localKey(selectedTournId)) } catch {}
+                    setSaveState('saved'); setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 1800)
+                  }).catch(() => setSaveState('idle'))
+                  setBracketChoice(null)
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-bold border border-gray-200 text-gray-700 hover:bg-gray-50">
+                Use my new picks instead
+              </button>
+              <p className="text-[11px] text-gray-400 text-center">Either way, you can still edit your bracket until the knockouts kick off.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Section nav */}

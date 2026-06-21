@@ -145,12 +145,21 @@ export async function POST(request: NextRequest) {
   // theirs (don't clobber a carefully-built bracket with this device's guest one).
   // Otherwise save the bracket they just built.
   let hasExistingBracket = false
+  let existingChampion: string | null = null
   if (isExisting) {
     const { count } = await admin.from('bracket_picks')
       .select('slot_key', { count: 'exact', head: true })
       .eq('user_id', userId).eq('tournament_id', tid)
     hasExistingBracket = (count ?? 0) > 0
+    if (hasExistingBracket) {
+      const { data: f } = await admin.from('bracket_picks')
+        .select('team_name').eq('user_id', userId).eq('tournament_id', tid).eq('slot_key', 'final').maybeSingle()
+      existingChampion = (f as any)?.team_name ?? null
+    }
   }
+  // The account already has a DIFFERENT bracket than the one just built → land them
+  // on /bracket so they can choose which to keep, instead of the leaderboard.
+  const bracketConflict = !!(hasExistingBracket && existingChampion && champion && existingChampion !== champion)
   if (!hasExistingBracket) {
     const pickRows = Object.entries(rawPicks)
       .filter(([slot, team]) => SLOT_RE.test(slot) && typeof team === 'string' && team)
@@ -215,7 +224,7 @@ export async function POST(request: NextRequest) {
     }).catch(() => {})
     return NextResponse.json({
       status: 'signed_in',
-      redirect: `/bracket/leaderboard/${challenge.slug}`,
+      redirect: bracketConflict ? '/bracket' : `/bracket/leaderboard/${challenge.slug}`,
       message: `${inLine} You’re signed in — taking you to the leaderboard.`,
     })
   }
