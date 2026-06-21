@@ -71,6 +71,15 @@ export default function PredictPage() {
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [savingFav,     setSavingFav]     = useState(false)
+  // Bonus-team lock override (app_settings.bonus_lock_at, ms). Lets us reopen the
+  // picker after the default kickoff lock — e.g. extend the bonus to GS3 + R32.
+  // null → fall back to the hardcoded TOURNAMENT_KICKOFF.
+  const [bonusLockAt,   setBonusLockAt]   = useState<number | null>(null)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'bonus_lock_at').maybeSingle()
+      .then(({ data }: any) => { const v = data?.value; if (v) setBonusLockAt(new Date(v).getTime()) })
+      .catch(() => {})
+  }, [supabase])
   const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string}[]>([])
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
@@ -763,7 +772,8 @@ export default function PredictPage() {
     }
   }
 
-  const tournamentStarted = Date.now() >= TOURNAMENT_KICKOFF.getTime()
+  // Honour the bonus_lock_at override (reopened picker) before the default kickoff lock.
+  const tournamentStarted = Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
 
   const saveFavTeam = async (team: string) => {
     if (!selectedTournId || tournamentStarted) return
