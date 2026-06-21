@@ -38,7 +38,7 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
 
           <div className="flex-1 min-w-0">
             <p className="text-[10px] text-purple-500 mb-1.5">
-              Group Stage only · pick once before Round 1 kicks off
+              Counts in GS3 + the Round of 32 · pick before 24 Jun
             </p>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -91,9 +91,9 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
               <div className="mt-2 bg-white border border-purple-100 rounded-lg px-3 py-2.5 text-[11px] text-gray-700 space-y-1.5">
                 <p className="font-semibold text-purple-700">Bonus team example</p>
                 <p>You pick <strong>🇧🇷 Brazil</strong> as your bonus team.</p>
-                <p>Brazil play Spain in Group Stage Round 1. You predict <strong>Brazil win</strong> — and Brazil win.</p>
-                <p>Normal: <strong>3 pts</strong> · With bonus team: <strong>6 pts</strong> ⭐</p>
-                <p className="text-gray-500 text-[10px] pt-0.5">The 2× applies whether your team wins, draws or loses — as long as you predicted the correct result (1/X/2). Group Stage rounds only.</p>
+                <p>Brazil play Spain in the Round of 32. You predict <strong>Brazil win</strong> — and Brazil win.</p>
+                <p>Normal: <strong>5 pts</strong> · With bonus team: <strong>10 pts</strong> ⭐</p>
+                <p className="text-gray-500 text-[10px] pt-0.5">The 2× applies whether your team wins, draws or loses — as long as you predicted the correct result (1/X/2). Counts in the final group round (GS3) and the Round of 32.</p>
               </div>
             )}
           </div>
@@ -108,7 +108,7 @@ export function FavTeamPicker({ teams, value, disabled, saving, onSelect }: Prop
         value={value}
         onSelect={onSelect}
         title="Choose your Bonus Points team"
-        subtitle="Earn 2× base pts when you correctly predict their result (win, draw or loss) — Group Stage only"
+        subtitle="Earn 2× base pts when you correctly predict their result (win, draw or loss) — in GS3 + the Round of 32"
       />
     </>
   )

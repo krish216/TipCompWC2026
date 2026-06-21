@@ -26,9 +26,9 @@ const FAQS = [
   { q: "What if I haven't entered a prediction?", a: 'Unpredicted matches earn 0 points regardless of the result. There is no default — blank means 0.' },
   { q: 'Do knockout matches count more?', a: 'Yes — points increase with every round. A correct result in the final is worth 25 pts vs 3 pts in the group stage. Note: the 3rd place play-off has lower points than the semi-finals.' },
   { q: 'What happens if there is a penalty shootout in knock-out stages?', a: 'Your pick will be scored at the end of regular time or the end of extra time if the match is drawn after regular time. If a match goes to penalties it will be scored as a draw.' },
-  { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team on the My Tips page. You earn double base points on any match involving that team in the Group Stage only. For example, a correct result (Home/Draw/Away) earns 6 pts instead of 3.' },
+  { q: 'How does the Bonus Points team work?', a: 'Pick a Bonus Points team on the My Tips page. You earn double base points on any match involving that team in the final group round (GS3) and the Round of 32. For example, a correct Round-of-32 result earns 10 pts instead of 5.' },
   { q: 'What happens if the Bonus Points team I picked lost?', a: 'You earn double points if you pick the correct result regardless of whether your Bonus Team wins, draws or loses.' },
-  { q: 'Can I change my Bonus Points team?', a: 'Yes — go to My Tips and update your Bonus Points team at any time before the tournament kicks off. The new team applies to all unscored matches going forward.' },
+  { q: 'Can I change my Bonus Points team?', a: 'Yes — go to My Tips and update your Bonus Points team any time before it locks (the start of the final group round, 24 Jun). The team then applies to GS3 and the Round of 32.' },
   { q: 'How are leaderboard ties broken?', a: 'Tied players are ranked by bonus score count, then base points earned, then alphabetically.' },
   { q: 'Can I see the leaderboard after each round?', a: 'Yes — the Leaderboard page has snapshot views showing standings after the Group Stage, Rd of 32, Rd of 16, Quarters, Semis, and Finals.' },
   { q: 'Can I be in multiple tribes?', a: 'No — you can only belong to one tribe at a time. Leave your current tribe to join another.' },
@@ -73,7 +73,7 @@ export default async function WC2026RulesPage() {
       </div>
       <p className="text-sm text-gray-500 mb-6">
         Pick the winner or draw for every group stage and knockout match. For the Semi-finals, 3rd place play-off and Final,
-        predict the exact score. Earn more points in later rounds. Pick a Bonus Points team for double base points in the Group Stage.
+        predict the exact score. Earn more points in later rounds. Pick a Bonus Points team for double base points in the final group round and the Round of 32.
       </p>
 
       {/* Scoring table */}
@@ -199,12 +199,12 @@ export default async function WC2026RulesPage() {
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
           <p className="text-sm text-gray-700 mb-1">
             Pick one team on the My Tips page. You earn <strong className="text-purple-700">double base points</strong> on
-            any match involving your team when you tip the right result — but only in the <strong>Group Stage</strong>.
+            any match involving your team when you tip the right result — in the <strong>final group round (GS3)</strong> and the <strong>Round of 32</strong>.
             The 2× applies to base points only; exact, margin and pen bonuses are always awarded at face value.
           </p>
-          <p className="text-xs text-gray-500 mb-3">The bonus does not apply from the Round of 32 onwards.</p>
+          <p className="text-xs text-gray-500 mb-3">The bonus does not apply beyond the Round of 32.</p>
           <div className="grid grid-cols-2 gap-3">
-            {[{ label: 'Group stage correct result', normal: 3, bonus: 6 }].map(ex => (
+            {[{ label: 'Round-of-32 correct result', normal: 5, bonus: 10 }].map(ex => (
               <div key={ex.label} className="bg-white rounded-lg border border-purple-100 p-3">
                 <p className="text-[11px] text-gray-500 mb-1.5">{ex.label}</p>
                 <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ export default async function WC2026RulesPage() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-3">You can change your Bonus Points team on the My Tips page at any time before the tournament starts.</p>
+          <p className="text-xs text-gray-500 mt-3">You can change your Bonus Points team on the My Tips page any time before it locks — the start of the final group round (24 Jun).</p>
         </div>
       </section>
 
