@@ -261,19 +261,23 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   const qp = (s?: string) => (s ? `?challenge=${encodeURIComponent(s)}` : '')
   const loadEntry = (s?: string) => fetch(`/api/bracket/enter${qp(s)}`).then(r => r.json()).then(setEs).catch(() => {})
 
-  useEffect(() => {
-    fetch(`/api/bracket/leaderboard${qp(slug)}`)
+  // Re-fetch the standings + sponsor config + the caller's entry status for the
+  // current challenge. Called on mount AND after entering/withdrawing so the
+  // leaderboard list updates in place (no manual refresh needed).
+  const loadBoard = (s?: string) =>
+    fetch(`/api/bracket/leaderboard${qp(s)}`)
       .then(r => r.json())
       .then((d: Data) => {
         setData(d)
-        // Lock onto the challenge the API actually resolved, then load its
-        // sponsor config + the caller's entry status for the same challenge.
-        const s = d?.challenge?.slug ?? slug
-        setResolvedSlug(s)
-        fetch(`/api/bracket/config${qp(s)}`).then(r => r.json()).then(setCfg).catch(() => {})
-        loadEntry(s)
+        const rs = d?.challenge?.slug ?? s
+        setResolvedSlug(rs)
+        fetch(`/api/bracket/config${qp(rs)}`).then(r => r.json()).then(setCfg).catch(() => {})
+        loadEntry(rs)
       })
       .catch(() => setErr(true))
+
+  useEffect(() => {
+    loadBoard(slug)
     // Sibling challenges — to offer a switcher when several run at once.
     fetch('/api/bracket/challenges').then(r => r.json())
       .then(d => setAllChallenges(Array.isArray(d?.challenges) ? d.challenges : [])).catch(() => {})
@@ -448,7 +452,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           editing={editingEntry}
           initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone } : undefined}
           onClose={() => { setShowEnter(false); setEditingEntry(false) }}
-          onEntered={() => { setShowEnter(false); setEditingEntry(false); loadEntry(resolvedSlug) }}
+          onEntered={() => { setShowEnter(false); setEditingEntry(false); loadBoard(resolvedSlug) }}
         />
       )}
     </div>
