@@ -5,6 +5,40 @@ top. Each item: what it is, why, options/notes, and status.
 
 ---
 
+## Sponsor uploads a customer list to invite to their challenge
+**Added:** 2026-06-22 · **Status:** Idea — not started
+
+Let a sponsor get their own customer/email list into the bracket challenge as invitees.
+Most of the funnel already exists — the guest entry flow (email → 6-digit code →
+auto-signup + auto-sign-in → enter) means an invitee only needs a link, not a
+pre-existing account. So the feature is really three pieces: **capture the list,
+send a tracked invite, measure conversion.**
+
+**Shape:**
+- **Data:** small `challenge_invites` table (mirrors `nps_invites`): `challenge_id,
+  email, name, token, invited_at, entered_at`.
+- **Invite link:** `…/bracket?challenge=br-<sponsor>&i=<token>` → co-branded builder →
+  enter with email+code → auto-sign-in. Token marks `entered_at` → **conversion rate
+  per sponsor** (invited → entered).
+- **Email:** branded to the sponsor's challenge ("{Sponsor} invites you… win {prize}"),
+  one CTA, unsubscribe footer.
+
+**Who uploads — the main fork:**
+- **A — Admin-on-behalf (MVP, ~½ day):** sponsor sends CSV; admin uploads in
+  `/admin/challenges` for that challenge → invites sent + tracked. No new auth. Start here.
+- **B — Sponsor self-serve portal (project):** sponsor logs in, uploads, watches their
+  leaderboard + conversion live. Needs sponsor auth + portal UI. Graduate to this later.
+
+**⚠️ Gating concern — deliverability + consent (do this first):** blasting a sponsor's
+list from our domain risks our **sender reputation** (bounces/spam complaints would poison
+*transactional* mail too — verification codes, welcome, confirmations). Mitigations:
+sponsor warrants the list is opted-in; validate/clean addresses on upload; rate-limit;
+unsubscribe + clear sponsor identity (CAN-SPAM/GDPR); and ideally send these **marketing
+invites from a separate subdomain/stream** so a bad list can't take down transactional
+deliverability. Treat as a must-do, not nice-to-have.
+
+---
+
 ## Lock-in + fixture tipsheet — released for ALL rounds
 **Added:** 2026-06-16 · **Status:** Live (warm-up gate removed)
 
