@@ -30,7 +30,7 @@ const PATH = [
 
 const FAQS = [
   { q: 'Do I have to enter to be on the leaderboard?', a: 'Yes — building a bracket isn’t enough. You must enter a challenge to appear on its leaderboard. The good news: one bracket can enter many challenges.' },
-  { q: 'When does the bracket lock?', a: 'At the first Round-of-32 kick-off — Wed 1 Jul 2026, 19:00 UTC. You can edit your picks freely right up until then.' },
+  { q: 'When does the bracket lock?', a: 'At the first Round-of-32 kick-off — Sun 28 Jun 2026, 19:00 UTC. You can edit your picks freely right up until then.' },
   { q: 'Can I change my bracket after entering?', a: 'Yes. Edit any pick or tie-breaker until lock — changes apply to every challenge you’ve entered, automatically.' },
   { q: 'What if my champion gets knocked out?', a: 'You keep every point you’ve already banked from correct earlier-round picks. Only future picks that involve the eliminated team miss out.' },
   { q: 'What about penalty shootouts?', a: 'You’re picking who advances, so the shootout winner is the correct pick. (This is different from the main prediction game, where a penalty shootout scores as a draw.)' },
