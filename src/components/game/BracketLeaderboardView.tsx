@@ -291,6 +291,21 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   // back to THIS challenge (and the bracket page can link back to this board).
   const bracketHref = resolvedSlug ? `/bracket?challenge=${encodeURIComponent(resolvedSlug)}` : '/bracket'
 
+  // A specific slug that resolves to no challenge (obsolete/typo/orphaned link) →
+  // show a clean "not found" instead of a hollow, empty leaderboard.
+  if (slug && data && !data.challenge) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="text-4xl mb-3">🏆</div>
+        <h1 className="text-lg font-bold text-gray-900">Challenge not found</h1>
+        <p className="text-sm text-gray-500 mt-1">This bracket challenge doesn&apos;t exist or is no longer available.</p>
+        <Link href="/bracket/leaderboard" className="inline-block mt-5 px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+          View the Bracket leaderboard →
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
