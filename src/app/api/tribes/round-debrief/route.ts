@@ -50,7 +50,23 @@ export async function GET(request: NextRequest) {
     }))
     const memberIds = members.map(m => m.user_id)
 
-    const empty = buildRoundDebrief(round, roundName, tribeName, members, [], [])
+    // Members who've made the GLOBAL leaderboard (top 50, as displayed) → 🌍 shout-out.
+    const GLOBAL_BOARD_TOP_N = 50
+    const globalRanks: Record<string, number> = {}
+    if (memberIds.length && tournId) {
+      const memberSet = new Set(memberIds)
+      const { data: globalRows } = await (admin.from('leaderboard') as any)
+        .select('user_id, total_points')
+        .eq('tournament_id', tournId)
+        .order('total_points', { ascending: false })
+        .order('bonus_count', { ascending: false })
+        .limit(GLOBAL_BOARD_TOP_N)
+      ;((globalRows ?? []) as any[]).forEach((r, i) => {
+        if (memberSet.has(r.user_id)) globalRanks[r.user_id] = i + 1
+      })
+    }
+
+    const empty = buildRoundDebrief(round, roundName, tribeName, members, [], [], globalRanks)
     if (!memberIds.length || !tournId) return NextResponse.json(empty)
 
     // This round's fixtures + the tribe's predictions on them.
@@ -63,7 +79,7 @@ export async function GET(request: NextRequest) {
     const { data: predRows } = await (admin.from('predictions') as any)
       .select('user_id, fixture_id, home, away, points_earned').in('user_id', memberIds).in('fixture_id', fxIds)
 
-    return NextResponse.json(buildRoundDebrief(round, roundName, tribeName, members, fixtures, (predRows ?? []) as any[]))
+    return NextResponse.json(buildRoundDebrief(round, roundName, tribeName, members, fixtures, (predRows ?? []) as any[], globalRanks))
   } catch (err: any) {
     console.error('[tribes/round-debrief]', err)
     return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })

@@ -31,6 +31,9 @@ const winnerOf = (f: Fixture): string | null => {
 export function buildRoundDebrief(
   roundCode: string, roundName: string, tribeName: string,
   members: Member[], fixtures: Fixture[], preds: Pred[],
+  // Optional: tribe members' rank on the GLOBAL leaderboard (user_id → 1-based rank),
+  // present only for members who appear on it. Drives the 🌍 shout-out award.
+  globalRanks?: Record<string, number>,
 ): RoundDebriefData {
   const scored = fixtures.filter(f => f.home_score != null && f.away_score != null)
   const played = scored.length > 0
@@ -67,6 +70,27 @@ export function buildRoundDebrief(
   const mvp = byPts[0]
   if (mvp && agg[mvp.user_id].pts > 0) {
     awards.push({ emoji: '🏆', title: 'Round MVP', winner: mvp.name, detail: `${agg[mvp.user_id].pts} pts — the sharpest crystal ball in the tribe.` })
+  }
+
+  // 🌍 On the World Stage — tribe members who've made the GLOBAL leaderboard.
+  if (globalRanks) {
+    const onBoard = members
+      .map(m => ({ name: m.name, rank: globalRanks[m.user_id] }))
+      .filter((x): x is { name: string; rank: number } => typeof x.rank === 'number')
+      .sort((a, b) => a.rank - b.rank)
+    if (onBoard.length === 1) {
+      awards.push({
+        emoji: '🌍', title: 'On the World Stage', winner: onBoard[0].name,
+        detail: `Sitting #${onBoard[0].rank} on the GLOBAL leaderboard. The whole tribe basks in the reflected glory.`,
+      })
+    } else if (onBoard.length > 1) {
+      const list = onBoard.slice(0, 5).map(x => `${x.name} (#${x.rank})`).join(', ')
+      const more = onBoard.length > 5 ? ` +${onBoard.length - 5} more` : ''
+      awards.push({
+        emoji: '🌍', title: 'Flying the Flag', winner: null,
+        detail: `${list}${more} — repping the tribe on the GLOBAL leaderboard. Reflected glory all round.`,
+      })
+    }
   }
 
   // 🎯 Sharpshooter — most correct results (only if it's someone other than the MVP)
