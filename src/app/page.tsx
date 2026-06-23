@@ -12,6 +12,9 @@ import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsCont
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
 
+// Default bonus-team lock (first WC2026 match). Overridden by app_settings.bonus_lock_at.
+const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
+
 const SAMPLE_TIP_SHEET = {
   matches: [
     { code: 'MEX·RSA', score: '0–1' },
@@ -845,6 +848,9 @@ export default function HomePage() {
   const [teamsList,        setTeamsList]        = useState<{ name: string; fifa_code: string; flag_emoji: string }[]>([])
   const [favouriteTeam,    setFavouriteTeam]    = useState<string | null>(null)
   const [savingFav,        setSavingFav]        = useState(false)
+  // Bonus-team lock (app_settings.bonus_lock_at, ms). Past this, picking is closed —
+  // hide the home-page nudges. Mirrors predict/page.tsx. null → not yet loaded / no lock.
+  const [bonusLockAt,      setBonusLockAt]      = useState<number | null>(null)
   const [persona,          setPersona]          = useState<'tipster' | 'organiser'>(
     searchParams.get('role') === 'organiser' ? 'organiser' : 'tipster'
   )
@@ -866,6 +872,8 @@ export default function HomePage() {
   // Onboarding step completion — fully derived from context, no DB flag needed
   const step2Done = !contextLoading && selectedCompId !== null
   const step3Done = hasTribe === true
+  // Bonus picking closed → stop nudging users to pick a bonus team.
+  const bonusLocked = Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
 
   // ── Load on session ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1056,6 +1064,17 @@ export default function HomePage() {
       setFavouriteTeam(myEnrol?.favourite_team ?? null)
     }).catch(() => {})
   }, [session, selectedTournId])
+
+  // Bonus-team lock override (reopened picker → GS3 + R32). null → default kickoff lock.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.from('app_settings').select('value').eq('key', 'bonus_lock_at').maybeSingle()
+        const v = (data as any)?.value
+        if (v) setBonusLockAt(new Date(v).getTime())
+      } catch { /* keep the default lock */ }
+    })()
+  }, [supabase])
 
   // Engagement alert: re-fetch on every comp switch. The API handles auth (non-admins
   // get a 403 which has no round_code, so the alert clears). Cancellation token ensures
@@ -2036,7 +2055,7 @@ export default function HomePage() {
                             <p className="text-sm text-green-200 flex items-center gap-1.5"><span>⚽</span> Warm-up picks saved!</p>
                           )}
                         </div>
-                        {teamsList.length > 0 && (
+                        {teamsList.length > 0 && !bonusLocked && (
                           <div className="mb-3">
                             <p className="text-xs font-semibold text-green-100 mb-1.5">⭐ Pick your Bonus Team</p>
                             <div className="flex items-center gap-2">
@@ -2055,7 +2074,7 @@ export default function HomePage() {
                               )}
                             </div>
                             {!favouriteTeam && (
-                              <p className="text-[11px] text-green-300/70 mt-1">2× base points on their Group Stage matches</p>
+                              <p className="text-[11px] text-green-300/70 mt-1">2× base points on their remaining matches (GS3 + Round of 32)</p>
                             )}
                           </div>
                         )}
@@ -2188,7 +2207,7 @@ export default function HomePage() {
               )}
 
               {/* Bonus team nudge — shown to tipsters who haven't picked one yet */}
-              {step3Done && !showAllSet && teamsList.length > 0 && !favouriteTeam && (
+              {step3Done && !showAllSet && teamsList.length > 0 && !favouriteTeam && !bonusLocked && (
                 <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-3 flex items-start gap-2.5">
                   <span className="text-base flex-shrink-0 mt-0.5">⭐</span>
                   <div className="flex-1 min-w-0">
@@ -2203,7 +2222,7 @@ export default function HomePage() {
                         <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
                       ))}
                     </select>
-                    <p className="text-[11px] text-purple-600 mt-1">Earn 2× base points on their Group Stage matches</p>
+                    <p className="text-[11px] text-purple-600 mt-1">Earn 2× base points on their remaining matches (GS3 + Round of 32)</p>
                   </div>
                 </div>
               )}

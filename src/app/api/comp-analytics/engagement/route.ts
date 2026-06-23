@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { untippedForOpenRound } from '@/lib/untipped'
+import { noBonusTeamForComp } from '@/lib/no-bonus-team'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,10 @@ export async function GET(request: NextRequest) {
     if (!(await verifyCompAdmin(admin, user.id, compId)))
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const r = await untippedForOpenRound(admin, compId)
+    const [r, b] = await Promise.all([
+      untippedForOpenRound(admin, compId),
+      noBonusTeamForComp(admin, compId),
+    ])
     return NextResponse.json({
       round_code:     r.round_code,
       round_name:     r.round_name,
@@ -37,6 +41,11 @@ export async function GET(request: NextRequest) {
       tipped_count:   r.tipped_count,
       untipped_count: r.untipped.length,
       untipped:       r.untipped,
+      // Bonus Team chase list (favourite_team missing for this tournament).
+      bonus_locked:    b.locked,
+      bonus_lock_at:   b.lock_at,
+      no_bonus_count:  b.missing.length,
+      no_bonus:        b.missing,
     })
 
   } catch (err: any) {

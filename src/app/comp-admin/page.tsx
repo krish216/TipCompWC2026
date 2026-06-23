@@ -42,7 +42,7 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'comms',      icon: '📣', label: 'Comms'      },
   { id: 'settings',   icon: '⚙️',  label: 'Settings'   },
   { id: 'tribes',     icon: '👥',  label: 'Tribes'     },
-  { id: 'challenges', icon: '⚡',  label: 'Challenges' },
+  // { id: 'challenges', icon: '⚡',  label: 'Challenges' },  // hidden — not in use (ChallengesTab code retained)
   { id: 'insights',   icon: '📊',  label: 'Insights'   },
 ]
 
@@ -891,6 +891,9 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
   const [roundInfo,       setRoundInfo]       = useState<{ round_name: string | null; deadline: string | null; untipped: { user_id: string; display_name: string; email: string }[] }>({ round_name: null, deadline: null, untipped: [] })
   const [loadingRoundInfo, setLoadingRoundInfo] = useState(false)
   const [nudging, setNudging] = useState(false)
+  // Bonus Team chase list — members missing a favourite team while picking is open.
+  const [bonusInfo, setBonusInfo] = useState<{ locked: boolean; lock_at: string | null; missing: { user_id: string; display_name: string; email: string }[] }>({ locked: true, lock_at: null, missing: [] })
+  const [nudgingBonus, setNudgingBonus] = useState(false)
 
   // FREE in-app reminder to members who haven't tipped the open round (no email).
   const nudgeUntipped = async () => {
@@ -909,12 +912,32 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     }
   }
 
+  // FREE in-app reminder to members who haven't picked a Bonus Team yet.
+  const nudgeNoBonus = async () => {
+    if (!comp?.id) return
+    setNudgingBonus(true)
+    try {
+      const res = await fetch('/api/comps/nudge-no-bonus', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(d.nudged > 0 ? `🔔 Nudged ${d.nudged} member${d.nudged === 1 ? '' : 's'} in-app` : (d.message ?? 'Nobody to nudge'))
+      else toast.error(d.error ?? 'Could not send nudge')
+    } finally {
+      setNudgingBonus(false)
+    }
+  }
+
   useEffect(() => {
     if (!emailOpen || !comp?.id) return
     setLoadingRoundInfo(true)
     fetch(`/api/comp-analytics/engagement?comp_id=${comp.id}`)
       .then(r => r.json())
-      .then(d => setRoundInfo({ round_name: d.round_name ?? null, deadline: d.deadline ?? null, untipped: d.untipped ?? [] }))
+      .then(d => {
+        setRoundInfo({ round_name: d.round_name ?? null, deadline: d.deadline ?? null, untipped: d.untipped ?? [] })
+        setBonusInfo({ locked: d.bonus_locked ?? true, lock_at: d.bonus_lock_at ?? null, missing: d.no_bonus ?? [] })
+      })
       .catch(() => {})
       .finally(() => setLoadingRoundInfo(false))
   }, [emailOpen, comp?.id])
@@ -931,12 +954,13 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
     { label: '👋 Welcome',  subject: `Welcome to ${comp?.name}!`,  body: `Hi {name},\n\nYou've been invited to join ${comp?.name} for the FIFA World Cup 2026.\n\nJoin code: ${comp?.invite_code}\n\nGood luck!\n\nThe ${comp?.name} team` },
     { label: '⏰ Reminder', subject: `Don't forget your tips!`,     body: reminderBody },
     { label: '🏆 Results',  subject: `Round results are in!`,       body: `Hi {name},\n\nThe latest results are in — check the leaderboard to see where you stand!\n\nThe ${comp?.name} team` },
+    { label: '⭐ Bonus Team', subject: `Pick your Bonus Team before it closes!`, body: `Hi {name},\n\nQuick one — have you picked your Bonus Team yet? It scores 2× points on Group Stage 3 + the Round of 32, so it's well worth locking in.\n\nHead to the Predict page and choose your team before picking closes.\n\nThe ${comp?.name} team` },
   ], [comp?.name, comp?.invite_code, reminderBody])
 
   const [activeTemplate, setActiveTemplate] = useState<string | null>(preset === 'reminder' ? '⏰ Reminder' : null)
   const [emailSubject,   setEmailSubject]   = useState(preset === 'reminder' ? `Don't forget your tips!` : '')
   const [emailBody,      setEmailBody]      = useState(preset === 'reminder' ? reminderBody : '')
-  const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
+  const [recipients,     setRecipients]     = useState<'all'|'not_tipped'|'no_bonus'|'custom'>(preset === 'reminder' ? 'not_tipped' : 'all')
   const [customSearch,   setCustomSearch]   = useState('')
   const [customSelected, setCustomSelected] = useState<Set<string>>(new Set())
   const [sending,        setSending]        = useState(false)
@@ -952,8 +976,9 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
   const recipientList = useMemo(() => {
     if (recipients === 'all')        return tipsters.map(t => t.email)
     if (recipients === 'not_tipped') return roundInfo.untipped.map(t => t.email)
+    if (recipients === 'no_bonus')   return bonusInfo.missing.map(t => t.email)
     return tipsters.filter(t => customSelected.has(t.user_id)).map(t => t.email)
-  }, [recipients, tipsters, customSelected, roundInfo.untipped])
+  }, [recipients, tipsters, customSelected, roundInfo.untipped, bonusInfo.missing])
 
   const send = async () => {
     if (!emailSubject.trim() || !emailBody.trim()) { toast.error('Subject and body required'); return }
@@ -1100,6 +1125,13 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                       {loadingRoundInfo ? 'Loading…' : `Not tipped this round${recipients === 'not_tipped' ? ` (${roundInfo.untipped.length})` : ''}`}
                     </button>
                   )}
+                  {!bonusInfo.locked && bonusInfo.missing.length > 0 && (
+                    <button onClick={() => setRecipients('no_bonus')}
+                      className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
+                        recipients === 'no_bonus' ? 'bg-purple-600 border-purple-600 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                      {loadingRoundInfo ? 'Loading…' : `⭐ No bonus team (${bonusInfo.missing.length})`}
+                    </button>
+                  )}
                   <button onClick={() => setRecipients('custom')}
                     className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
                       recipients === 'custom' ? 'bg-gray-900 border-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
@@ -1133,6 +1165,34 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
                       <button onClick={nudgeUntipped} disabled={nudging}
                         className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
                         {nudging ? 'Nudging…' : `🔔 Nudge ${roundInfo.untipped.length}`}
+                      </button>
+                    </div>
+                  </>
+                )}
+                {recipients === 'no_bonus' && bonusInfo.missing.length > 0 && (
+                  <>
+                    <div className="mt-2 border border-purple-100 rounded-xl overflow-hidden bg-purple-50/50">
+                      <div className="max-h-36 overflow-y-auto divide-y divide-purple-100">
+                        {bonusInfo.missing.map(t => (
+                          <div key={t.user_id} className="flex items-center gap-2 px-3 py-1.5">
+                            <Avi name={t.display_name} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 truncate">{t.display_name}</p>
+                              <p className="text-[11px] text-gray-400 truncate">{t.email}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* FREE in-app nudge — email campaign below is the Pro add-on. */}
+                    <div className="mt-2 flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+                      <p className="text-[11px] text-emerald-800 leading-snug">
+                        <strong>Free:</strong> nudge these {bonusInfo.missing.length} to pick a Bonus Team straight to their in-app notifications.
+                        <span className="text-emerald-600"> Reaching them by email (below) is a Pro add-on.</span>
+                      </p>
+                      <button onClick={nudgeNoBonus} disabled={nudgingBonus}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+                        {nudgingBonus ? 'Nudging…' : `🔔 Nudge ${bonusInfo.missing.length}`}
                       </button>
                     </div>
                   </>
@@ -2616,7 +2676,7 @@ export default function CompAdminPage() {
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
   const searchParams = useSearchParams()
 
-  const VALID_TABS: Tab[] = ['tipsters','payments','comms','settings','tribes','challenges','insights']
+  const VALID_TABS: Tab[] = ['tipsters','payments','comms','settings','tribes','insights']  // 'challenges' hidden — not in use
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
     const t = searchParams.get('tab') as Tab | null
     return (t && VALID_TABS.includes(t)) ? t : 'tipsters'
@@ -2928,11 +2988,11 @@ export default function CompAdminPage() {
       })()}
 
       {/* Tab nav — scrollable on mobile */}
-      <div className="flex overflow-x-auto gap-1 bg-sky-50 border border-sky-100 p-1 rounded-2xl mb-5 scrollbar-none">
+      <div className="flex overflow-x-auto gap-1 bg-sky-50 border border-sky-200 shadow-sm p-1 rounded-2xl mb-5 scrollbar-none">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={clsx('relative flex flex-col items-center gap-1 py-2.5 px-3 rounded-xl transition-all flex-shrink-0',
-              activeTab === t.id ? 'bg-white shadow-sm text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-white/50')}>
+              activeTab === t.id ? 'bg-white shadow-sm ring-1 ring-sky-200 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-white/50')}>
             <span className="text-lg leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
             <span className={clsx('text-[11px] font-bold leading-none', activeTab === t.id ? 'text-sky-700' : tabLocked[t.id] ? 'text-gray-300' : 'text-gray-500')}>{t.label}</span>
             {(badgeCounts[t.id] ?? 0) > 0 && (
