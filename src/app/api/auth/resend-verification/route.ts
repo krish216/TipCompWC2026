@@ -17,6 +17,19 @@ export async function POST() {
 
   const admin = createAdminClient()
 
+  // Backstop: never re-verify an already-verified user. Mirrors the app's canonical
+  // definition (Supabase email_confirmed_at OR our users.email_verified column), so any
+  // UI glitch that surfaces the verify banner to a verified user makes a stray "Resend"
+  // click a harmless no-op instead of a confusing "verify your email" email.
+  if ((user as any).email_confirmed_at) {
+    return NextResponse.json({ success: true, alreadyVerified: true })
+  }
+  const { data: vRow } = await (admin.from('users') as any)
+    .select('email_verified').eq('id', user.id).maybeSingle()
+  if ((vRow as any)?.email_verified === true) {
+    return NextResponse.json({ success: true, alreadyVerified: true })
+  }
+
   // Custom UUID token stored in the users table — bypasses Supabase magic links
   // which used hash-based redirects incompatible with our server-side /auth/callback.
   const token    = crypto.randomUUID()

@@ -15,12 +15,23 @@ export function EmailVerificationBanner() {
 
   useEffect(() => {
     if (!session?.user?.id) { setVerified(null); return }
+    // Source of truth mirrors src/app/page.tsx: verified if our column is true OR
+    // Supabase's own email_confirmed_at is set — covers OAuth logins and cases where
+    // the PKCE callback never wrote our column (which were wrongly re-prompting users).
+    const confirmedInAuth = !!session.user.email_confirmed_at
     supabase
       .from('users')
       .select('email_verified')
       .eq('id', session.user.id)
       .single()
-      .then(({ data }) => setVerified(!!(data as any)?.email_verified))
+      .then(({ data }) => {
+        const col = !!(data as any)?.email_verified
+        setVerified(col || confirmedInAuth)
+        // Self-heal the stale column so other surfaces reading it are correct too.
+        if (confirmedInAuth && !col) {
+          ;(supabase.from('users') as any).update({ email_verified: true }).eq('id', session.user.id).then(() => {})
+        }
+      })
   }, [session?.user?.id])
 
   // Don't render until we know the state, or if verified / dismissed
