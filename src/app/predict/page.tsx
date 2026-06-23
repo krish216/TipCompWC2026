@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { AdSlot } from '@/components/ui/AdSlot'
@@ -805,6 +806,7 @@ export default function PredictPage() {
     <>
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
+      <BracketEntryPrompt variant="banner" />
 
       {/* Practice / onboarding mode banner */}
       {allowRetroactivePredictions && (
@@ -843,7 +845,8 @@ export default function PredictPage() {
       {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
       <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
-          {ROUND_TABS.map(tab => {
+          {/* Warm-up tab hidden — the pre-tournament practice round is over. */}
+          {ROUND_TABS.filter(tab => tab !== 'wup').map(tab => {
             const cnt      = roundPredCounts[tab]
             const pts      = roundPoints[tab]
             const isActive = activeRound === tab

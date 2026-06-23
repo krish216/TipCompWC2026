@@ -7,6 +7,7 @@ import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
+import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -379,6 +380,8 @@ export default function LeaderboardPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-36 sm:pb-24">
+
+      <BracketEntryPrompt variant="card" />
 
       {/* Page header + comp selector in one row */}
       <div className="flex items-center justify-between gap-3 mb-4">
