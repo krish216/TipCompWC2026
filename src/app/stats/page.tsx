@@ -456,6 +456,7 @@ function TipReviewView({ tournamentId, compId, tribeId }: {
   const [loading, setLoading] = useState(true)
   const [activeRound, setActiveRound] = useState<string | null>(null)
   const [list, setList] = useState<ListReq | null>(null)
+  const [filter, setFilter] = useState<ReviewFilter>('all')
 
   useEffect(() => {
     if (!tournamentId) return
@@ -483,11 +484,12 @@ function TipReviewView({ tournamentId, compId, tribeId }: {
     return <p className="text-sm text-gray-500 text-center py-12">No settled tips to review yet.</p>
 
   const active = data.rounds.find(r => r.code === activeRound) ?? data.rounds[data.rounds.length - 1]
+  const shown = active.fixtures.filter(f => matchesFilter(f, filter))
 
-  // Distinct match days in this round → first fixture of each (for the date scrubber).
+  // Distinct match days in the (filtered) round → first fixture of each (date scrubber).
   const days: { label: string; firstId: number }[] = []
   const seenDay = new Set<string>()
-  for (const f of active.fixtures) {
+  for (const f of shown) {
     const label = matchDate(f.kickoffUtc)
     if (!seenDay.has(label)) { seenDay.add(label); days.push({ label, firstId: f.fixtureId }) }
   }
@@ -511,10 +513,25 @@ function TipReviewView({ tournamentId, compId, tribeId }: {
         </div>
       </div>
 
+      {/* Lens filters — with/against the field, backed favourite/underdog */}
+      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide mb-2.5">
+        <div className="flex gap-1.5 min-w-max">
+          {REVIEW_FILTERS.map(ff => (
+            <button key={ff.key} onClick={() => setFilter(ff.key)}
+              className={clsx('px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors',
+                filter === ff.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
+              {ff.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Legend />
 
       <div className="space-y-2.5 mt-3">
-        {active.fixtures.map(f => (
+        {shown.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-10">No games in {active.label} match this filter.</p>
+        ) : shown.map(f => (
           <FixtureRow key={f.fixtureId} f={f} multiTribe={data.multiTribe} flag={flag}
             compId={compId} tribeId={tribeId} onOpenList={setList} />
         ))}
@@ -564,11 +581,46 @@ const matchDate = (iso: string) =>
 
 interface ListReq { fixtureId: number; home: string; away: string; scope: 'comp' | 'tribe'; id: string; outcome: 'H' | 'D' | 'A' }
 
+type ReviewFilter = 'all' | 'against' | 'with' | 'dog' | 'fav'
+const REVIEW_FILTERS: { key: ReviewFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'against', label: '🔥 vs field' },
+  { key: 'with', label: '🌍 with field' },
+  { key: 'dog', label: '🐐 underdog' },
+  { key: 'fav', label: '⭐ favourite' },
+]
+function fieldMajority(split: PopSplit | null): 'H' | 'D' | 'A' | null {
+  if (!split || !split.total) return null
+  const { h, d, a } = split
+  if (h >= d && h >= a) return 'H'
+  if (a >= d && a >= h) return 'A'
+  return 'D'
+}
+// vsField: true = went against the field crowd, false = with it, null = no field data.
+// backedFav: true = backed the higher-FIFA-ranked side, false = the underdog, null = draw/no ranks.
+function classifyFixture(f: TipReviewFixture): { vsField: boolean | null; backedFav: boolean | null } {
+  const maj = fieldMajority(f.tournament)
+  const vsField = maj ? f.myOutcome !== maj : null
+  let backedFav: boolean | null = null
+  if (f.homeRank != null && f.awayRank != null && (f.myOutcome === 'H' || f.myOutcome === 'A')) {
+    backedFav = (f.myOutcome === 'H') === (f.homeRank <= f.awayRank)
+  }
+  return { vsField, backedFav }
+}
+function matchesFilter(f: TipReviewFixture, filter: ReviewFilter): boolean {
+  if (filter === 'all') return true
+  const c = classifyFixture(f)
+  if (filter === 'against') return c.vsField === true
+  if (filter === 'with') return c.vsField === false
+  if (filter === 'dog') return c.backedFav === false
+  return c.backedFav === true   // 'fav'
+}
+
 function FixtureRow({ f, multiTribe, flag, compId, tribeId, onOpenList }: {
   f: TipReviewFixture; multiTribe: boolean; flag: (t: string) => string
   compId: string | null; tribeId: string | null; onOpenList: (r: ListReq) => void
 }) {
-  const contrarianWin = f.correct && f.tournament != null && f.tournament.samePct != null && f.tournament.samePct < 35
+  const { vsField, backedFav } = classifyFixture(f)
   return (
     <div id={`fx-${f.fixtureId}`} className="bg-white rounded-2xl border border-gray-200 p-3.5 scroll-mt-16">
       {/* Fixture + result + date */}
@@ -596,11 +648,18 @@ function FixtureRow({ f, multiTribe, flag, compId, tribeId, onOpenList }: {
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2 mt-1 mb-2.5">
+      <div className="flex flex-wrap items-center gap-1.5 mt-1 mb-2.5">
         <p className="text-xs text-gray-500">You tipped:{' '}
           <span className={clsx('font-semibold', f.correct ? 'text-emerald-600' : 'text-red-500')}>{pickLabel(f)}</span>
         </p>
-        {contrarianWin && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 shrink-0">🎯 Contrarian win</span>}
+        {vsField === true && (
+          <span className={clsx('text-[10px] font-bold rounded px-1.5 py-0.5', f.correct ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50')}>
+            {f.correct ? '🎯 beat the field' : '🔥 vs field'}
+          </span>
+        )}
+        {vsField === false && <span className="text-[10px] font-bold text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">🌍 with field</span>}
+        {backedFav === true && <span className="text-[10px] font-bold text-blue-700 bg-blue-50 rounded px-1.5 py-0.5">⭐ favourite</span>}
+        {backedFav === false && <span className="text-[10px] font-bold text-purple-700 bg-purple-50 rounded px-1.5 py-0.5">🐐 underdog</span>}
       </div>
 
       {/* Population splits — ▼ = result, outline = your pick. Comp/Tribe segments
