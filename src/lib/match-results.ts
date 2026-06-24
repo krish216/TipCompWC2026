@@ -124,7 +124,9 @@ export function canonTeam(name?: string | null): string {
 
 /** True when a fixture's team is still an unresolved placeholder (e.g. "TBD R16-1"). */
 export function isPlaceholderTeam(name?: string | null): boolean {
-  return !name || /tbd|winner|runner|loser|\b[12][a-l]\b/i.test(name)
+  // Unresolved knockout slots: our seeds ("TBD R32-1") and ESPN descriptors
+  // ("Group A 2nd Place", "Third Place Group A/B/C/D/F", "Round of 32 1 Winner").
+  return !name || /tbd|winner|runner|loser|\bplace\b|\b3rd\b|\b[12][a-l]\b/i.test(name)
 }
 
 // ── Side effects shared by manual + auto result entry ───────────────────────────

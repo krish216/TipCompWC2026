@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     })
   } else {
     const { data: fx } = await (admin.from('fixtures') as any)
-      .select('round, kickoff_utc, home, away, home_score, away_score, pen_winner')
+      .select('round, kickoff_utc, home, away, home_score, away_score, pen_winner, bracket_slot')
       .eq('tournament_id', tournamentId).in('round', ['r32', 'r16', 'qf', 'sf', 'tp', 'f'])
     const fixtures = (fx ?? []) as KnockoutFixture[]
     actual = buildActualWinners(fixtures)

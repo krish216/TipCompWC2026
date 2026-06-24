@@ -35,6 +35,29 @@ export interface KnockoutFixture {
   home_score: number | null
   away_score: number | null
   pen_winner: string | null
+  bracket_slot?: string | null   // 'r32:1'… — explicit slot (preferred over kickoff order)
+}
+
+// Assign each knockout fixture to its bracket slot. Prefers the explicit
+// `bracket_slot` column; for any round that has NO explicitly-slotted fixtures it
+// falls back to the legacy "Nth fixture by kickoff = slot N" (back-compat for
+// pre-126 data / non-WC tournaments). Never mixes the two within a round.
+function assignSlots(fixtures: KnockoutFixture[]): Map<KnockoutFixture, string> {
+  const m = new Map<KnockoutFixture, string>()
+  const roundsWithExplicit = new Set<string>()
+  for (const f of fixtures) if (f.bracket_slot) { m.set(f, f.bracket_slot); roundsWithExplicit.add(f.round) }
+
+  const legacy: Record<string, KnockoutFixture[]> = {}
+  for (const f of fixtures) if (!f.bracket_slot && !roundsWithExplicit.has(f.round)) (legacy[f.round] ??= []).push(f)
+  const prefixOf: Record<string, string> = { r32: 'r32', r16: 'r16', qf: 'qf', sf: 'sf' }
+  for (const round of Object.keys(legacy)) {
+    const sorted = legacy[round].slice().sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
+    if (round === 'tp') { if (sorted[0]) m.set(sorted[0], 'tp'); continue }
+    if (round === 'f')  { if (sorted[0]) m.set(sorted[0], 'final'); continue }
+    const prefix = prefixOf[round]; if (!prefix) continue
+    sorted.forEach((f, i) => m.set(f, `${prefix}:${i + 1}`))
+  }
+  return m
 }
 
 // Winner team name from a knockout fixture, or null if no result yet.
@@ -47,17 +70,8 @@ export function fixtureWinner(fx: KnockoutFixture): string | null {
 
 // slot_key → actual winner, for matches that have a result.
 export function buildActualWinners(fixtures: KnockoutFixture[]): Record<string, string> {
-  const byRound: Record<string, KnockoutFixture[]> = {}
-  for (const f of fixtures) (byRound[f.round] ??= []).push(f)
-  const sorted = (round: string) =>
-    (byRound[round] ?? []).slice().sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
-
   const out: Record<string, string> = {}
-  for (const [round, prefix] of [['r32', 'r32'], ['r16', 'r16'], ['qf', 'qf'], ['sf', 'sf']] as const) {
-    sorted(round).forEach((f, i) => { const w = fixtureWinner(f); if (w) out[`${prefix}:${i + 1}`] = w })
-  }
-  const tp = sorted('tp')[0]; if (tp) { const w = fixtureWinner(tp); if (w) out.tp = w }
-  const fin = sorted('f')[0]; if (fin) { const w = fixtureWinner(fin); if (w) out.final = w }
+  for (const [f, slot] of assignSlots(fixtures)) { const w = fixtureWinner(f); if (w) out[slot] = w }
   return out
 }
 
@@ -71,24 +85,14 @@ export interface SlotResult {
 }
 
 export function buildSlotResults(fixtures: KnockoutFixture[]): Record<string, SlotResult> {
-  const byRound: Record<string, KnockoutFixture[]> = {}
-  for (const f of fixtures) (byRound[f.round] ??= []).push(f)
-  const sorted = (round: string) =>
-    (byRound[round] ?? []).slice().sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime())
-
   const detail = (f: KnockoutFixture): SlotResult => {
     const w = fixtureWinner(f)
     const played = f.home_score != null && f.away_score != null
     const loser = w ? (norm(w) === norm(f.home) ? f.away : f.home) : null
     return { winner: w, loser, played }
   }
-
   const out: Record<string, SlotResult> = {}
-  for (const [round, prefix] of [['r32', 'r32'], ['r16', 'r16'], ['qf', 'qf'], ['sf', 'sf']] as const) {
-    sorted(round).forEach((f, i) => { out[`${prefix}:${i + 1}`] = detail(f) })
-  }
-  const tp = sorted('tp')[0]; if (tp) out.tp = detail(tp)
-  const fin = sorted('f')[0]; if (fin) out.final = detail(fin)
+  for (const [f, slot] of assignSlots(fixtures)) out[slot] = detail(f)
   return out
 }
 
