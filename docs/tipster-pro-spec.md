@@ -281,7 +281,7 @@ meaningful (group stage complete), so there's no "wait for data" reason to delay
 | C | **`/api/tipster/stats`** — headline trio, form curve, 3 tendencies, persona; gated | ~1d | — | Week 1 |
 | D | **`/stats` dashboard** + gating + teaser/upsell + entry points | ~1d | C | Week 1–2 |
 | E | **`/pro/tipster` showcase** — ✅ **DONE (25 Jun)**: emerald landing, mock stats preview, 6 feature cards, $6.95 ad-free-checkout CTA, FAQ; teaser links to it | ~0.5d | B, C | **Built (on branch)** |
-| F | **Shareable stat card** (OG image) — persona + stats, TribePicks branding, **QR → referral join link**; + thin `ref`/`referred_by` attribution (§7) | ~1d | C | Week 2 (fast-follow) |
+| F | **Shareable stat card** — ✅ **DONE (25 Jun)**: `/api/tipster/card` (next/og 1080², avatar+persona+stats+QR, `?demo=1` for showcase); inline preview on Overview (Share/Save); shown on `/pro/tipster`. **Follow-up:** `/join?ref` attribution (`referred_by`) not yet wired — QR carries `?ref=<userId>` already | ~1d | C | **Built (on branch)** |
 | H | **CompChief Pro auto-reminders** — scheduled auto-nudge of untipped members (Pro feature) | ~1.5–2d | — | During WC (Pro upsell + engagement) |
 | I | **Head-to-head (Rivals)** — `/api/tipster/h2h` + Rivals tab on `/stats`; beat-your-mate vs a tribe rival (§6) | ~1d | C, D, Tip Review | **Pulled into v1 (2026-06-25)** — build while the comparison plumbing is warm |
 | G | **v2 advanced stats** — contrarian index, lock discipline, projected finish | — | — | **Post-WC** (ready for next tournament) |

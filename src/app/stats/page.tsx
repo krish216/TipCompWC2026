@@ -186,13 +186,6 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
   s: TipsterStats; tournamentId: string | null; compId: string | null; tribeId: string | null
 }) {
   const maxForm = Math.max(1, ...s.form.map(f => f.points))
-  const share = async () => {
-    const text = `I'm ${s.persona.emoji} ${s.persona.label} on TribePicks — Top ${s.topPercent}%, ${pct(s.hitRate)} hit-rate. Think you can beat that?`
-    try {
-      if (navigator.share) await navigator.share({ text, url: 'https://tribepicks.com' })
-      else { await navigator.clipboard.writeText(`${text} https://tribepicks.com`); toast.success('Copied to clipboard') }
-    } catch { /* user cancelled */ }
-  }
 
   return (
     <div className="space-y-3">
@@ -271,11 +264,53 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
         </Card>
       )}
 
-      {/* Share */}
-      <button onClick={share}
-        className="w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-colors">
-        Share my tipster card →
-      </button>
+      {/* Shareable card — inline preview */}
+      <ShareCard tournamentId={tournamentId} version={s.totalPoints} />
+    </div>
+  )
+}
+
+function ShareCard({ tournamentId, version }: { tournamentId: string | null; version: number }) {
+  const [busy, setBusy] = useState(false)
+  if (!tournamentId) return null
+  const src = `/api/tipster/card?tournament_id=${tournamentId}&v=${version}`
+
+  const onShare = async () => {
+    setBusy(true)
+    try {
+      const blob = await (await fetch(src)).blob()
+      const file = new File([blob], 'tribepicks-card.png', { type: 'image/png' })
+      const text = 'My TribePicks tipster card — think you can beat me?'
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], text })
+      } else if (navigator.share) {
+        await navigator.share({ text, url: window.location.origin })
+      } else {
+        const u = URL.createObjectURL(blob); const a = document.createElement('a')
+        a.href = u; a.download = 'tribepicks-card.png'; a.click(); URL.revokeObjectURL(u)
+        toast.success('Card downloaded')
+      }
+    } catch { /* user cancelled or unsupported */ }
+    setBusy(false)
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Share your card</p>
+      <div className="bg-white rounded-2xl border border-gray-200 p-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="Your tipster card" className="w-full rounded-xl bg-emerald-700" />
+        <div className="flex gap-2 mt-3">
+          <button onClick={onShare} disabled={busy}
+            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 transition-colors">
+            {busy ? 'Preparing…' : 'Share →'}
+          </button>
+          <a href={src} download="tribepicks-card.png"
+            className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 transition-colors">
+            Save
+          </a>
+        </div>
+      </div>
     </div>
   )
 }
