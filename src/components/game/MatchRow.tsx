@@ -218,7 +218,7 @@ export function MatchRow({
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
           <Flag team={fixture.home} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
-            'text-[11px] font-semibold text-center leading-tight',
+            'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
             result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
           )}>
             {short(fixture.home)}
@@ -340,7 +340,7 @@ export function MatchRow({
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
           <Flag team={fixture.away} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
-            'text-[11px] font-semibold text-center leading-tight',
+            'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
             result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
           )}>
             {short(fixture.away)}
