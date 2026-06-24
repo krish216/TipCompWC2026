@@ -199,14 +199,19 @@ Goal Glutton* 🍔 · 62% accuracy" with TribePicks branding + a join CTA. This 
 - Scope as a thin add: a `ref` param on the join/sign-up route + a `referred_by` column. Reward
   mechanics (free Pro, etc.) are a follow-up, not required for v1b.
 
-**Preview before sharing:** the "Share my tipster card" button opens a **preview modal** showing the
-actual generated card image, with **Share** (native Web Share sheet) and **Download / Save** actions
-— never fire a blind share. (Custom-photo upload, when added, lives in this same modal.)
+**Inline preview (DECIDED 2026-06-25 — inline, not a modal):** render the actual generated card
+**directly on the Overview tab** as a "Share your card" section (`<img src="/api/tipster/card?…">`),
+with **Share** (native Web Share sheet) and **Download / Save** buttons right beneath it. Always
+visible — seeing the real card is the nudge to share; no extra tap, no blind share. This **replaces**
+the current Web-Share text one-liner button. (Custom-photo upload, when added, lives in this section.)
+- Place it low on Overview (after the stats, where the "flex" makes sense), or near the persona hero
+  if we want it front-and-centre — A/B later.
+- **Caching:** the OG route should cache per (user, stat-version) so it isn't regenerated on every
+  Overview render; bust when stats change (e.g. include a points/round hash in the query).
 
 **Tech:** `next/og` `ImageResponse` at `/api/tipster/card`; QR via a lightweight encoder (e.g.
-`qrcode`) rendered to a data URI; avatar embedded from `avatar_url`. The existing `/stats` "Share my
-tipster card" button (currently a Web-Share text one-liner) swaps to open the preview → share this
-image URL.
+`qrcode`) rendered to a data URI; avatar embedded from `avatar_url`. Share uses `navigator.share`
+with the image URL (fallback: copy link / download).
 
 ---
 
