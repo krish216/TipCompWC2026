@@ -105,12 +105,15 @@ export default function TipsterProPage() {
         <section>
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4 text-center">A peek at your stats</p>
           <div className="space-y-3">
-            {/* The real shareable card (demo) */}
-            <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/api/tipster/card?demo=1" alt="Sample tipster share card" className="w-full bg-emerald-700" />
+            {/* The real shareable card (demo) — matches the /stats "Share your card" element */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2 px-1">📲 Your shareable card</p>
+              <div className="max-w-[240px] mx-auto">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/api/tipster/card?demo=1" alt="Sample tipster share card" className="w-full rounded-xl bg-emerald-700" />
+                <p className="text-[10px] text-gray-400 text-center mt-2">Persona, stats & a QR to challenge your mates.</p>
+              </div>
             </div>
-            <p className="text-[11px] text-gray-400 text-center -mt-1">☝️ Your shareable card — persona, stats & a QR to challenge your mates.</p>
             <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-2xl p-5 text-center">
               <div className="text-5xl mb-1">🔮</div>
               <p className="text-lg font-extrabold">The Oracle</p>
