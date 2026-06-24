@@ -12,7 +12,9 @@ export interface PopSplit { h: number; d: number; a: number; total: number; same
 export interface TipReviewFixture {
   fixtureId: number
   home: string; away: string
+  homeRank: number | null; awayRank: number | null
   homeScore: number | null; awayScore: number | null
+  kickoffUtc: string
   result: Outcome | null
   myOutcome: Outcome | null
   myScore: { h: number; a: number } | null   // only set for score rounds (sf/tp/f)
@@ -23,7 +25,7 @@ export interface TipReviewFixture {
   comp: PopSplit | null
   tribe: PopSplit | null
 }
-export interface TipReviewRound { code: string; name: string; order: number; fixtures: TipReviewFixture[] }
+export interface TipReviewRound { code: string; name: string; label: string; order: number; fixtures: TipReviewFixture[] }
 export interface TipReview { rounds: TipReviewRound[]; multiTribe: boolean }
 
 // Page through a filtered predictions set (PostgREST caps at ~1000/req).
@@ -69,22 +71,26 @@ export async function computeTipReview(
   compId: string | null,
   tribeId: string | null,
 ): Promise<TipReview> {
-  const [myPredsRes, fixturesRes, roundsRes, mockRes, tribesRes] = await Promise.all([
+  const [myPredsRes, fixturesRes, roundsRes, mockRes, tribesRes, teamsRes] = await Promise.all([
     (admin.from('predictions') as any)
       .select('fixture_id, outcome, home, away, points_earned, standard_points')
       .eq('user_id', userId).eq('tournament_id', tournamentId).not('points_earned', 'is', null),
     (admin.from('fixtures') as any)
       .select('id, home, away, home_score, away_score, round, kickoff_utc').eq('tournament_id', tournamentId),
     (admin.from('tournament_rounds') as any)
-      .select('round_code, round_name, round_order, predict_mode, include_in_scoring').eq('tournament_id', tournamentId),
+      .select('round_code, round_name, round_order, tab_label, predict_mode, include_in_scoring').eq('tournament_id', tournamentId),
     (admin.from('users') as any).select('id').like('email', 'mockuser%'),
     compId ? (admin.from('tribes') as any).select('id').eq('comp_id', compId) : Promise.resolve({ data: [] }),
+    (admin.from('tournament_teams') as any).select('name, fifa_rank').eq('tournament_id', tournamentId),
   ])
 
   const roundMeta = new Map<string, any>()
   for (const r of (roundsRes.data ?? []) as any[]) roundMeta.set(r.round_code, r)
   const isScoreRound  = (code: string) => roundMeta.get(code)?.predict_mode === 'score'
   const isScoring     = (code: string) => roundMeta.get(code)?.include_in_scoring !== false
+
+  const rankByTeam = new Map<string, number | null>()
+  for (const t of (teamsRes.data ?? []) as any[]) rankByTeam.set(t.name, t.fifa_rank ?? null)
 
   const fixtureById = new Map<number, any>()
   for (const f of (fixturesRes.data ?? []) as any[]) fixtureById.set(f.id, f)
@@ -96,9 +102,10 @@ export async function computeTipReview(
   const myFixtureIds = mine.map(x => x.f.id)
 
   const mockSet = new Set(((mockRes.data ?? []) as any[]).map(u => u.id))
-  // Compare against OTHERS — exclude mock seed accounts and the user themselves
-  // (in a small comp/tribe, counting your own pick would peg "same as you" near 100%).
-  const others = (ids: string[]) => ids.filter(id => !mockSet.has(id) && id !== userId)
+  // The bar shows where the WHOLE group tipped — including you (your pick's segment
+  // is then never empty, so the "your pick" outline always renders). Only the mock
+  // seed accounts are excluded (they'd otherwise flatten the distribution).
+  const realMembers = (ids: string[]) => ids.filter(id => !mockSet.has(id))
 
   // Comp & tribe member ids (mock excluded), then live aggregation.
   const [compMembersRes, tribeMembersRes, tournRows] = await Promise.all([
@@ -109,8 +116,8 @@ export async function computeTipReview(
       : Promise.resolve({ data: [] }),
   ])
 
-  const compIds  = others(((compMembersRes.data  ?? []) as any[]).map(r => r.user_id))
-  const tribeIds = others(((tribeMembersRes.data ?? []) as any[]).map(r => r.user_id))
+  const compIds  = realMembers(((compMembersRes.data  ?? []) as any[]).map(r => r.user_id))
+  const tribeIds = realMembers(((tribeMembersRes.data ?? []) as any[]).map(r => r.user_id))
   const [compRows, tribeRows] = await Promise.all([
     fetchPreds(admin, myFixtureIds, compIds),
     fetchPreds(admin, myFixtureIds, tribeIds),
@@ -131,7 +138,8 @@ export async function computeTipReview(
     const scoreRnd  = isScoreRound(f.round)
     const fixture: TipReviewFixture = {
       fixtureId: f.id, home: f.home, away: f.away,
-      homeScore: f.home_score, awayScore: f.away_score, result,
+      homeRank: rankByTeam.get(f.home) ?? null, awayRank: rankByTeam.get(f.away) ?? null,
+      homeScore: f.home_score, awayScore: f.away_score, kickoffUtc: f.kickoff_utc, result,
       myOutcome, myScore: scoreRnd ? { h: p.home, a: p.away } : null,
       correct: (p.standard_points ?? 0) > 0, points: p.points_earned ?? 0, isScoreRound: scoreRnd,
       tournament: splitFor(tournMap.get(f.id), myOutcome),
@@ -146,6 +154,7 @@ export async function computeTipReview(
     .map(([code, fixtures]) => ({
       code,
       name: roundMeta.get(code)?.round_name ?? code.toUpperCase(),
+      label: roundMeta.get(code)?.tab_label ?? roundMeta.get(code)?.round_name ?? code.toUpperCase(),
       order: roundMeta.get(code)?.round_order ?? 999,
       fixtures: fixtures.sort((a, b) =>
         new Date(fixtureById.get(a.fixtureId).kickoff_utc).getTime() -

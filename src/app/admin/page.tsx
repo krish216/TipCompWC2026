@@ -1236,7 +1236,7 @@ export default function AdminPage() {
                 <p className="text-xs font-semibold text-gray-800">Show ads to free users</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">
                   {adsOn
-                    ? 'ON — ads show to free users (AdSense, where configured) and the “Remove ads” $4.95 Tipster Pro upsell appears. Premium & ad-free users never see ads.'
+                    ? 'ON — ads show to free users (AdSense, where configured) and the “Remove ads” $6.95 Tipster Pro upsell appears. Premium & ad-free users never see ads.'
                     : 'OFF — no ads and no “Remove ads” upsell anywhere. Turn on once AdSense is approved & the env vars are set.'}
                 </p>
               </div>

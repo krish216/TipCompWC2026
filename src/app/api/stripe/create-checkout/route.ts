@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic'
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' })
 
 // Prices (AUD cents). CompChief Pro ($9.95) unlocks organiser features + ad-free.
-// Tipster Pro ($4.95) is the player tier — ad-free + advanced personal stats. It
+// Tipster Pro ($6.95) is the player tier — ad-free + advanced personal stats. It
 // reuses the `is_ad_free` flag, so stats gate on is_ad_free (see Phase C/D). Change
 // here to re-price.
 const PRO_PRICE_CENTS     = 995
-const AD_FREE_PRICE_CENTS = 495   // Tipster Pro
+const AD_FREE_PRICE_CENTS = 695   // Tipster Pro
 
 // POST /api/stripe/create-checkout
 // Body: { tournament_id: string, kind?: 'pro' | 'ad_free' }   (defaults to 'pro')
