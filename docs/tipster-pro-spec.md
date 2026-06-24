@@ -190,7 +190,7 @@ meaningful (group stage complete), so there's no "wait for data" reason to delay
 | # | Phase | Effort | Depends on | Ship target |
 |---|---|---|---|---|
 | A | **`/pro/comp-chief` showcase** — org features already live; marketing-only | ~0.5–1d | — | **This week (first)** |
-| B | **Pricing/positioning** — reposition ad-free → "Tipster Pro" ($4.95), rename Stripe product, update `AD_FREE_PRICE_CENTS` | ~0.5d | your price call | This week (with A) |
+| B | **Pricing/positioning** — ✅ **DONE (2026-06-24)**: locked **$4.95**, single Tipster Pro tier (ad-free + stats, reuses `is_ad_free`); `AD_FREE_PRICE_CENTS`→495, product renamed, UI labels bumped | ~0.5d | ✅ price locked | **Shipped (price live with stats)** |
 | C | **`/api/tipster/stats`** — headline trio, form curve, 3 tendencies, persona; gated | ~1d | — | Week 1 |
 | D | **`/stats` dashboard** + gating + teaser/upsell + entry points | ~1d | C | Week 1–2 |
 | E | **`/pro/tipster` showcase** — mock cards, $4.95 CTA | ~0.5d | B (price), C (visuals) | Week 1–2 |
@@ -227,7 +227,8 @@ naturally with Phase A (`/pro/comp-chief` showcase) — ship them together so th
 with "set-and-forget auto-reminders." It strengthens the Chief-owned model rather than bypassing it.
 
 ## 11. Open questions
-- Price point ($4.95?) and whether to rename ad-free → "Tipster Pro" or keep ad-free as a cheaper
-  separate option.
+- ~~Price point ($4.95?) and whether to rename ad-free → "Tipster Pro" or keep ad-free as a cheaper
+  separate option.~~ **DECIDED (2026-06-24):** $4.95, single Tipster Pro tier (ad-free + stats, reuses
+  `is_ad_free`). No separate cheaper ad-free SKU. Existing ad-free buyers get stats free when they land.
 - "Favourite" proxy: crowd-majority (have it) vs real odds (would need a feed) — v1 uses crowd.
 - Min predictions before stats are meaningful (gate behind e.g. ≥10 scored picks, else "keep tipping").

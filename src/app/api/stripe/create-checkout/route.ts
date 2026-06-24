@@ -7,10 +7,12 @@ export const dynamic = 'force-dynamic'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' })
 
-// Prices (AUD cents). Pro unlocks organiser features + ad-free; the ad-free pass
-// is the cheap, ads-only tier for tipsters. Change here to re-price.
+// Prices (AUD cents). CompChief Pro ($9.95) unlocks organiser features + ad-free.
+// Tipster Pro ($4.95) is the player tier — ad-free + advanced personal stats. It
+// reuses the `is_ad_free` flag, so stats gate on is_ad_free (see Phase C/D). Change
+// here to re-price.
 const PRO_PRICE_CENTS     = 995
-const AD_FREE_PRICE_CENTS = 295
+const AD_FREE_PRICE_CENTS = 495   // Tipster Pro
 
 // POST /api/stripe/create-checkout
 // Body: { tournament_id: string, kind?: 'pro' | 'ad_free' }   (defaults to 'pro')
@@ -58,8 +60,8 @@ export async function POST(request: NextRequest) {
           currency: 'aud',
           unit_amount: adFree ? AD_FREE_PRICE_CENTS : PRO_PRICE_CENTS,
           product_data: adFree
-            ? { name: 'TribePicks — Ad-free', description: `Remove ads for ${tName} — covers the whole tournament` }
-            : { name: 'TribePicks Pro',       description: `Premium comp-organiser features for ${tName}` },
+            ? { name: 'TribePicks · Tipster Pro', description: `Ad-free + advanced personal stats for ${tName} — covers the whole tournament` }
+            : { name: 'TribePicks · CompChief Pro', description: `Premium comp-organiser features for ${tName}` },
         },
         quantity: 1,
       }],
