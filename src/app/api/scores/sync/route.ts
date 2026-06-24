@@ -44,6 +44,10 @@ export async function GET(request: NextRequest) {
   try { reminders = await sendDueAutoReminders(supabase) }
   catch (e: any) { console.error('[scores/sync] auto-reminders failed:', e?.message ?? e) }
 
+  // Refresh the tournament-wide pick distribution (Tipster Tip Review). Best-effort.
+  try { await (supabase.rpc as any)('refresh_fixture_pick_stats') }
+  catch (e: any) { console.error('[scores/sync] pick-stats refresh failed:', e?.message ?? e) }
+
   // Real fixtures that have kicked off but have no result yet.
   const { data: pending, error: pendErr } = await (supabase.from('fixtures') as any)
     .select('id, home, away, kickoff_utc')

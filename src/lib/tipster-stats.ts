@@ -7,7 +7,8 @@
 
 const MIN_SCORED = 10        // below this, numbers aren't meaningful → "keep tipping"
 const BIG_GAP    = 20        // FIFA-rank gap that marks a "clear favourite" match
-const GLUT_BIAS  = 0.6       // avg goals over/under reality to read as a tendency
+// NB: picks are OUTCOME-only (W/D/L) for gs/r32/r16/qf; exact score only for sf/tp/f.
+// So we read predictions.outcome as the pick — NOT the scoreline (no goal-bias stat).
 
 export interface TipsterPersona { key: string; label: string; emoji: string; blurb: string }
 
@@ -26,7 +27,6 @@ export interface TipsterStats {
   // form curve (per scoring round, in order)
   form: { tab: string; order: number; points: number }[]
   // tendencies
-  goalBias: number                // avg(predicted goals) − avg(actual goals) per match
   drawsCalled: { called: number; actualDraws: number; rate: number }
   // FIFA-rank modules
   chalkIndex: { backedFav: number; decisive: number; rate: number; hitRate: number }
@@ -56,7 +56,7 @@ export async function computeTipsterStats(
   // ── Pull everything in parallel ───────────────────────────────────────────────
   const [predsRes, fixturesRes, teamsRes, meRes, formRes, utRes, roundsRes] = await Promise.all([
     (admin.from('predictions') as any)
-      .select('fixture_id, home, away, points_earned, standard_points, bonus_points')
+      .select('fixture_id, home, away, outcome, points_earned, standard_points, bonus_points')
       .eq('user_id', userId).eq('tournament_id', tournamentId)
       .not('points_earned', 'is', null),
     (admin.from('fixtures') as any)
@@ -124,7 +124,6 @@ export async function computeTipsterStats(
     .sort((a, b) => new Date(a.f.kickoff_utc).getTime() - new Date(b.f.kickoff_utc).getTime())
 
   let longestStreak = 0, currentStreak = 0, run = 0
-  let predGoals = 0, actGoals = 0, goalN = 0
   let calledDraws = 0, actualDraws = 0
   let backedFav = 0, favCorrect = 0, decisive = 0, backedDog = 0, dogCorrect = 0
   let favBucketHit = 0, favBucketN = 0, coinHit = 0, coinN = 0
@@ -138,12 +137,10 @@ export async function computeTipsterStats(
     if (correct) { run++; longestStreak = Math.max(longestStreak, run) } else { run = 0 }
     currentStreak = run
 
-    // goal bias
-    predGoals += (p.home + p.away); actGoals += (f.home_score + f.away_score); goalN++
-
-    // draws called
-    const actO = outcome(f.home_score, f.away_score)
-    const predO = outcome(p.home, p.away)
+    // draws called — predicted pick is the authoritative outcome column (scoreline
+    // is not a real prediction in outcome rounds); fall back to scoreline sign.
+    const actO  = outcome(f.home_score, f.away_score)
+    const predO = (p.outcome as Outcome | null) ?? outcome(p.home, p.away)
     if (actO === 'D') { actualDraws++; if (predO === 'D') calledDraws++ }
 
     // best pick
@@ -179,7 +176,6 @@ export async function computeTipsterStats(
     }
   }
 
-  const goalBias = goalN ? +(predGoals / goalN - actGoals / goalN).toFixed(2) : 0
   const chalkRate = decisive ? backedFav / decisive : 0
   const chalkHit  = backedFav ? favCorrect / backedFav : 0
   const dogRate   = backedDog ? dogCorrect / backedDog : 0
@@ -189,7 +185,6 @@ export async function computeTipsterStats(
     hitRate, predictionsMade, correctCount, totalPoints,
     longestStreak, currentStreak,
     form: (formRes.data ?? []).map((r: any) => ({ tab: r.tab_group, order: r.round_order, points: r.points })),
-    goalBias,
     drawsCalled: { called: calledDraws, actualDraws, rate: actualDraws ? calledDraws / actualDraws : 0 },
     chalkIndex: { backedFav, decisive, rate: chalkRate, hitRate: chalkHit },
     giantKiller: { backedDog, correct: dogCorrect, rate: dogRate },
@@ -201,15 +196,16 @@ export async function computeTipsterStats(
     bonusPoints: me?.total_bonus_points ?? 0,
     favouriteTeam: (utRes.data as any)?.favourite_team ?? null,
     best,
-    persona: derivePersona({ topPercent, hitRate, chalkRate, dogRate, goalBias, drawRate: actualDraws ? calledDraws / actualDraws : 0, actualDraws }),
+    persona: derivePersona({ topPercent, hitRate, chalkRate, dogRate, drawRate: actualDraws ? calledDraws / actualDraws : 0, actualDraws }),
   }
   return { ok: true, stats }
 }
 
-// Rule-based archetype — first match wins, so order = specificity.
+// Rule-based archetype — first match wins, so order = specificity. All signals are
+// outcome-based (no scoreline/goal stats — picks are W/D/L until the semis).
 function derivePersona(s: {
   topPercent: number; hitRate: number; chalkRate: number; dogRate: number
-  goalBias: number; drawRate: number; actualDraws: number
+  drawRate: number; actualDraws: number
 }): TipsterPersona {
   if (s.topPercent <= 10 && s.hitRate >= 0.6)
     return { key: 'oracle', label: 'The Oracle', emoji: '🔮', blurb: 'Top of the pile and rarely wrong — you see what others miss.' }
@@ -217,8 +213,6 @@ function derivePersona(s: {
     return { key: 'maverick', label: 'The Maverick', emoji: '🎲', blurb: 'You back the underdog and make it pay. Chaos is a ladder.' }
   if (s.chalkRate >= 0.7)
     return { key: 'banker', label: 'The Banker', emoji: '🏦', blurb: 'You ride the favourites. No drama, just points in the bank.' }
-  if (s.goalBias >= GLUT_BIAS)
-    return { key: 'glutton', label: 'The Goal Glutton', emoji: '🍔', blurb: 'You always smell goals — your scorelines run hot.' }
   if (s.actualDraws >= 4 && s.drawRate >= 0.5)
     return { key: 'whisperer', label: 'The Stalemate Whisperer', emoji: '🤝', blurb: 'You call the draws nobody else dares to. Spooky.' }
   return { key: 'allrounder', label: 'The All-Rounder', emoji: '⚽', blurb: 'No glaring weakness — you take what the games give you.' }
