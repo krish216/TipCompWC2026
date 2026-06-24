@@ -403,6 +403,17 @@ export default function LeaderboardPage() {
       <RoundDebriefCard className="mb-4" source="debrief_leaderboard" />
       <WeeklyReportCard className="mb-4" src="scoreboard" />
 
+      {/* Entry point for Tipster Pro "My Stats" — page handles its own gating/upsell */}
+      <a href="/stats"
+        className="flex items-center gap-3 mb-4 px-4 py-3 bg-white border border-emerald-200 rounded-2xl shadow-sm hover:border-emerald-300 hover:shadow transition-all">
+        <span className="text-2xl leading-none">📊</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-gray-900">My Tipster Stats</p>
+          <p className="text-[11px] text-gray-500">Your percentile, form, persona & the upsets you called</p>
+        </div>
+        <span className="text-emerald-600 font-bold text-lg leading-none">→</span>
+      </a>
+
       {/* Multi-comp selector — only shown when user is in >1 comp */}
       {userComps.length > 1 && (
         <div className="mb-4">
