@@ -105,9 +105,40 @@ Insights/drop-off, email campaigns, payment tracking, branding. Same format, ~45
 
 ---
 
-## 8. Once filmed
+## 8. YouTube channel setup (do once, ~30 min)
 
-1. Upload the 16:9 hero to YouTube (unlisted or public).
+A real channel makes the embeds credible (they show the channel name/avatar) and gives the shorts +
+future content a home.
+
+**Create & brand:**
+- Use a **Brand account** (not a personal Google login) so it's shareable/transferable:
+  youtube.com → Settings → *Add or manage your channel(s)* → **Create a channel**.
+- **Name:** `TribePicks`. **Handle:** `@tribepicks` (claim it → `youtube.com/@tribepicks`).
+- **Profile picture:** the logo (`public/logo.png`), 800×800.
+- **Banner:** 2048×1152 (keep text in the 1235×338 safe area) — logo + tagline ("World Cup tipping with
+  your tribe") + `tribepicks.com`, on brand emerald.
+- **Description:** what TribePicks is + the link + a Tipster Pro mention; add the website/socials links.
+- **Category/keywords:** Sports; keywords: *world cup, tipping, predictions, sweepstake, footy tips*.
+
+**Set once:**
+- Verify with a phone number → unlocks **custom thumbnails** and longer uploads.
+- Default upload visibility + a default description template containing the CTA link with a UTM
+  (`tribepicks.com/pro/tipster?utm_source=youtube`); default category = Sports.
+
+**Per-video on upload (hero):**
+- **Title (benefit-led):** *"Know your World Cup tipping stats — TribePicks Tipster Pro"*.
+- **Description:** 1-line hook → feature bullets → **CTA link** (with the UTM above).
+- **Custom thumbnail:** the share card / persona on emerald (base it on `/api/tipster/card?demo=1`).
+- **End screen + cards:** link to the site + the CompChief video; **pinned comment** with the join link.
+
+**Visibility for the embed:** **Unlisted** is enough for the `/pro/tipster` embed (it still plays) and
+keeps it off the public channel until launch — flip to **Public** when you push the shorts.
+
+---
+
+## 9. Publish & distribute
+
+1. Upload the 16:9 hero to YouTube (unlisted is fine to start).
 2. Set `NEXT_PUBLIC_TIPSTER_VIDEO_ID=<id>` in `.env.local` + Vercel → the "See it in action" section
    appears at the top of `/pro/tipster` automatically. (Or paste the link and I'll wire it.)
 3. Post the shorts; pin the hero on socials; use shorts as ad creatives.
