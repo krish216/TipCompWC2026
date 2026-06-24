@@ -13,6 +13,7 @@ interface Data {
   fixture: { id: number; round: string; home: string; away: string; kickoff_utc: string }
   is_exact: boolean
   final?: boolean
+  pro?: boolean
   locked_count: number
   total_members: number
   picks: Pick[]
@@ -94,7 +95,32 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
             )}
             </div>
 
-            {/* Vertical list of tipsters — scrolls */}
+            {/* Pro gate — free users get the bar above, but not the individual picks */}
+            {data.pro === false ? (
+              <div className="flex-1 min-h-0 relative px-2 py-2">
+                {/* Blurred placeholder rows */}
+                <div className="blur-[4px] opacity-50 space-y-2 pointer-events-none px-2">
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-2.5 py-2">
+                      <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                      <div className="flex-1 h-3 bg-gray-200 rounded" />
+                      <div className="w-16 h-4 bg-gray-200 rounded" />
+                    </div>
+                  ))}
+                </div>
+                {/* Upsell overlay */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                  <div className="text-2xl mb-1">🔒</div>
+                  <p className="text-sm font-bold text-gray-900">See who picked what</p>
+                  <p className="text-[11px] text-gray-500 mt-1 mb-3 max-w-[240px]">
+                    {data.locked_count} of {data.total_members} tipped — unlock every tribe-mate’s pick, on every game, with Tipster Pro.
+                  </p>
+                  <a href="/pro/tipster" className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
+                    Unlock Tipster Pro · $6.95 →
+                  </a>
+                </div>
+              </div>
+            ) : (
             <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
               {data.picks.length === 0 ? (
                 <p className="px-2 py-10 text-center text-sm text-gray-400">
@@ -113,6 +139,7 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                 </div>
               ))}
             </div>
+            )}
           </>
         )}
       </div>
