@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   // Query user_comps with admin client — no RLS interference
   let query = (adminClient.from('user_comps') as any)
-    .select('comp_id, joined_at, fee_paid, fee_paid_amount, comps(id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount)')
+    .select('comp_id, joined_at, fee_paid, fee_paid_amount, comps(id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount, auto_reminder)')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const compId = (userRow as any)?.comp_id ?? null
     if (compId) {
       const { data: compRow } = await (adminClient.from('comps') as any)
-        .select('id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount')
+        .select('id, name, slug, logo_url, tournament_id, invite_code, requires_payment_fee, entry_fee_amount, auto_reminder')
         .eq('id', compId).single()
 
       if (compRow && (!tournamentId || (compRow as any).tournament_id === tournamentId)) {

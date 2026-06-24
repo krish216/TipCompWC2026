@@ -78,6 +78,10 @@ export function UpgradeModal({ tournamentId, tournamentName, onClose }: {
             ))}
           </ul>
 
+          <a href="/pro/comp-chief" className="block text-center text-[11px] font-semibold text-amber-700 hover:text-amber-800 underline mb-3">
+            See everything in Pro →
+          </a>
+
           {/* Price */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-center">
             <p className="text-2xl font-black text-amber-700">$9.95 <span className="text-sm font-semibold">AUD</span></p>

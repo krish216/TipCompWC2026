@@ -5,6 +5,7 @@ import {
   notifyScoreUpdate, settleChallengesForFixture,
 } from '@/lib/match-results'
 import { refreshKnockoutSchedule } from '@/lib/bracket/schedule-sync'
+import { sendDueAutoReminders } from '@/lib/comp-auto-reminders'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,12 @@ export async function GET(request: NextRequest) {
   try { schedule = await refreshKnockoutSchedule(supabase) }
   catch (e: any) { console.error('[scores/sync] schedule refresh failed:', e?.message ?? e) }
 
+  // CompChief Pro auto-reminders — email untipped members of Pro comps before lock.
+  // Best-effort, deduped per (comp, round, window); never blocks results.
+  let reminders = { comps: 0, emails: 0 }
+  try { reminders = await sendDueAutoReminders(supabase) }
+  catch (e: any) { console.error('[scores/sync] auto-reminders failed:', e?.message ?? e) }
+
   // Real fixtures that have kicked off but have no result yet.
   const { data: pending, error: pendErr } = await (supabase.from('fixtures') as any)
     .select('id, home, away, kickoff_utc')
@@ -47,7 +54,7 @@ export async function GET(request: NextRequest) {
     .limit(MAX_PER_RUN)
 
   if (pendErr) return NextResponse.json({ error: pendErr.message }, { status: 500 })
-  if (!pending?.length) return NextResponse.json({ updated: 0, schedule, message: 'No pending fixtures' })
+  if (!pending?.length) return NextResponse.json({ updated: 0, schedule, reminders, message: 'No pending fixtures' })
 
   // One ESPN call covers a date range spanning the pending kickoffs (± a day, since
   // ESPN groups by its own local date).
@@ -110,5 +117,5 @@ export async function GET(request: NextRequest) {
     await settleChallengesForFixture(supabase, f.id).catch(() => {})
   }
 
-  return NextResponse.json({ updated, checked: pending.length, schedule, skipped, source: 'espn', timestamp: now.toISOString() })
+  return NextResponse.json({ updated, checked: pending.length, schedule, reminders, skipped, source: 'espn', timestamp: now.toISOString() })
 }

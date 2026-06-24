@@ -152,8 +152,13 @@ export async function PATCH(request: NextRequest) {
   const {
     comp_id, logo_url, min_age, name, requires_payment_fee, entry_fee_amount, max_tribe_size,
     visibility, is_discoverable, comp_category, team_affiliation,
-    description, prize_type, prize_description, member_cap,
+    description, prize_type, prize_description, member_cap, auto_reminder,
   } = body ?? {}
+  // auto_reminder: 'off', legacy 'both', or a comma list of lead hours from {48,24,3}.
+  const validReminder = typeof auto_reminder === 'string' && (
+    auto_reminder === 'off' || auto_reminder === 'both' ||
+    auto_reminder.split(',').every((p: string) => ['48', '24', '3'].includes(p.trim()))
+  )
   if (!comp_id) {
     return NextResponse.json({ error: 'comp_id required' }, { status: 400 })
   }
@@ -186,6 +191,7 @@ export async function PATCH(request: NextRequest) {
       ...(prize_type           !== undefined ? { prize_type }                                         : {}),
       ...(prize_description    !== undefined ? { prize_description }                                  : {}),
       ...(member_cap           !== undefined ? { member_cap }                                         : {}),
+      ...(validReminder                      ? { auto_reminder }                                       : {}),
     }).eq('id', comp_id)
 
   return NextResponse.json({ success: true })

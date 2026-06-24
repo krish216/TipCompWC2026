@@ -823,6 +823,34 @@ function PaymentsTab({ comp, tipsters, setTipsters, entryFeeDefault }: {
 
 // ─── Tab: Comms (Announce + Targeted Email) ────────────────────────────────────
 function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; preset?: string }) {
+  // ── Auto-reminders (CompChief Pro) ───────────────────────────────────────────
+  const { isProPaid } = useUserPrefs()
+  const [autoReminder, setAutoReminder] = useState<string>(comp?.auto_reminder ?? 'off')
+  // Re-sync when the admin switches to a different comp (CommsTab isn't re-keyed).
+  useEffect(() => { setAutoReminder(comp?.auto_reminder ?? 'off') }, [comp?.id])
+  const [savingReminder, setSavingReminder] = useState(false)
+  // Selected lead windows (hours) parsed from the stored comma list (legacy 'both' = 24+3).
+  const selectedWins = autoReminder === 'both' ? [24, 3]
+    : (autoReminder && autoReminder !== 'off' ? autoReminder.split(',').map(s => parseInt(s, 10)) : [])
+      .filter(n => [48, 24, 3].includes(n))
+  const saveAutoReminder = async (val: string) => {
+    setAutoReminder(val); setSavingReminder(true)
+    try {
+      const res = await fetch('/api/comps/create', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comp_id: comp.id, auto_reminder: val }),
+      })
+      if (res.ok) toast.success(val === 'off' ? 'Auto-reminders off' : 'Auto-reminders updated ✓')
+      else toast.error('Could not save')
+    } finally { setSavingReminder(false) }
+  }
+  const toggleWindow = (h: number) => {
+    const set = new Set(selectedWins)
+    set.has(h) ? set.delete(h) : set.add(h)
+    const arr = [48, 24, 3].filter(x => set.has(x))   // canonical order, largest first
+    saveAutoReminder(arr.length ? arr.join(',') : 'off')
+  }
+
   // ── Announce state ───────────────────────────────────────────────────────────
   const [annTitle,       setAnnTitle]       = useState('')
   const [annBody,        setAnnBody]        = useState('')
@@ -1073,6 +1101,40 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
           </div>
         )}
       </Section>
+
+      {/* ── Auto-reminders (CompChief Pro) ──────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">⏰ Auto-reminders</p>
+          {!isProPaid && <CrownBadge />}
+        </div>
+        <p className="text-[11px] text-gray-400 mb-3">Automatically email members who haven&apos;t tipped, before each round locks. Set it once — we handle the chasing.</p>
+        {isProPaid ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {[48, 24, 3].map(h => {
+                const on = selectedWins.includes(h)
+                return (
+                  <button key={h} onClick={() => toggleWindow(h)} disabled={savingReminder}
+                    className={clsx('px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors disabled:opacity-50',
+                      on ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-400')}>
+                    {on ? '✓ ' : ''}{h}h before
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">
+              {selectedWins.length
+                ? `Reminders go out ${[...selectedWins].sort((a, b) => b - a).map(h => `${h}h`).join(' + ')} before each round locks.`
+                : 'Off — tap a window above to switch on.'}
+            </p>
+          </>
+        ) : (
+          <a href="/pro/comp-chief" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100">
+            👑 Unlock with Pro — never chase your members again →
+          </a>
+        )}
+      </div>
 
       {/* ── Targeted Email (secondary, collapsible) ─────────────────────────── */}
       <button

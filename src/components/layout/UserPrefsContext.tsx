@@ -61,6 +61,7 @@ interface UserPrefsCtx {
   refreshHasTribe:    () => Promise<void>
   loading:            boolean
   isPremium:          boolean
+  isProPaid:          boolean   // user actually PAID for Pro this tournament (≠ isPremium, which is true for all when enforcement is off)
   enforcePremium:     boolean
   isAdFree:           boolean   // paid Pro OR paid ad-free pass — hides ads (independent of enforce_premium)
   adsEnabled:         boolean   // admin master switch (app_settings.ads_enabled); false = no ads site-wide
@@ -347,7 +348,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       pickTournament, pickComp, refreshComps,
       hasTribe, selectedTribeId, refreshHasTribe,
       loading,
-      isPremium, enforcePremium,
+      isPremium, isProPaid: isPremiumOrg, enforcePremium,
       isAdFree, adsEnabled,
     }}>
       {children}
