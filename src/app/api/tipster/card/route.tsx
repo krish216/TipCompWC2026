@@ -4,9 +4,15 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { computeTipsterStats } from '@/lib/tipster-stats'
 import QRCode from 'qrcode'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Embed the logo as a data URI (read once) — no network fetch at render time.
+let LOGO_DATA = ''
+try { LOGO_DATA = `data:image/png;base64,${readFileSync(join(process.cwd(), 'public', 'logo.png')).toString('base64')}` } catch { /* fall back to wordmark */ }
 
 // GET /api/tipster/card?tournament_id=   → 1080×1080 shareable tipster card (PNG).
 // ?demo=1 renders a sample card (no auth) for the showcase / previews.
@@ -60,8 +66,10 @@ export async function GET(request: NextRequest) {
   return new ImageResponse(
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(165deg, #059669 0%, #065f46 100%)', color: 'white', padding: '76px 64px' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', fontSize: 44, fontWeight: 800, letterSpacing: -1 }}>⚽ TribePicks</div>
+        {/* Header — logo (falls back to wordmark) */}
+        {LOGO_DATA
+          ? <img src={LOGO_DATA} width={150} height={150} style={{ objectFit: 'contain' }} />
+          : <div style={{ display: 'flex', alignItems: 'center', fontSize: 44, fontWeight: 800, letterSpacing: -1 }}>⚽ TribePicks</div>}
 
         {/* Middle */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
