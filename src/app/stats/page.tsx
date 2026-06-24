@@ -272,6 +272,7 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
 
 function ShareCard({ tournamentId, version }: { tournamentId: string | null; version: number }) {
   const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
   if (!tournamentId) return null
   const src = `/api/tipster/card?tournament_id=${tournamentId}&v=${version}`
 
@@ -295,22 +296,29 @@ function ShareCard({ tournamentId, version }: { tournamentId: string | null; ver
   }
 
   return (
-    <div>
-      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Share your card</p>
-      <div className="bg-white rounded-2xl border border-gray-200 p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="Your tipster card" className="w-full rounded-xl bg-emerald-700" />
-        <div className="flex gap-2 mt-3">
-          <button onClick={onShare} disabled={busy}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 transition-colors">
-            {busy ? 'Preparing…' : 'Share →'}
-          </button>
-          <a href={src} download="tribepicks-card.png"
-            className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 transition-colors">
-            Save
-          </a>
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      {/* Collapsed by default — the image (and its OG render) only loads on expand */}
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+        <span className="text-sm font-bold text-gray-900">📲 Share your tipster card</span>
+        <span className={clsx('text-gray-400 transition-transform', open && 'rotate-180')}>▾</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="Your tipster card" className="w-full rounded-xl bg-emerald-700" />
+          <div className="flex gap-2 mt-3">
+            <button onClick={onShare} disabled={busy}
+              className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 transition-colors">
+              {busy ? 'Preparing…' : 'Share →'}
+            </button>
+            <a href={src} download="tribepicks-card.png"
+              className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 transition-colors">
+              Save
+            </a>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
