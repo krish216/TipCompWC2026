@@ -36,6 +36,10 @@ const FAQS = [
   { q: 'Do I lose anything if I don’t?', a: 'No — playing and your basic standings are always free. Pro just unlocks the analysis and removes ads.' },
 ]
 
+// Demo video: set your YouTube video ID here (or via NEXT_PUBLIC_TIPSTER_VIDEO_ID).
+// Leave empty to hide the video section.
+const VIDEO_ID = process.env.NEXT_PUBLIC_TIPSTER_VIDEO_ID ?? ''
+
 export default function TipsterProPage() {
   const { session } = useSupabase()
   const { selectedTournId, isAdFree } = useUserPrefs()
@@ -89,6 +93,14 @@ export default function TipsterProPage() {
       </section>
 
       <div className="max-w-3xl mx-auto px-5 py-12 space-y-12">
+        {/* Demo video */}
+        {VIDEO_ID && (
+          <section>
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4 text-center">See it in action</p>
+            <VideoEmbed id={VIDEO_ID} />
+          </section>
+        )}
+
         {/* Stats preview — sample of what you unlock */}
         <section>
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4 text-center">A peek at your stats</p>
@@ -174,6 +186,30 @@ export default function TipsterProPage() {
           </div>
         </section>
       </div>
+    </div>
+  )
+}
+
+// Click-to-play YouTube embed — loads the (heavy) iframe only when the user taps play.
+function VideoEmbed({ id }: { id: string }) {
+  const [play, setPlay] = useState(false)
+  return (
+    <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md">
+      {play ? (
+        <iframe className="absolute inset-0 w-full h-full"
+          src={`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`}
+          title="TribePicks — Tipster Pro" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+      ) : (
+        <button onClick={() => setPlay(true)} className="absolute inset-0 w-full h-full group" aria-label="Play demo video">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`https://img.youtube.com/vi/${id}/hqdefault.jpg`} alt="Watch the Tipster Pro demo" className="w-full h-full object-cover" />
+          <span className="absolute inset-0 bg-black/25 flex items-center justify-center">
+            <span className="w-[68px] h-[68px] rounded-full bg-red-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+            </span>
+          </span>
+        </button>
+      )}
     </div>
   )
 }
