@@ -48,7 +48,14 @@ if a catch-all is ever wanted.)
 Inputs: `predictions` (user_id, fixture_id, home, away, points_earned, standard_points,
 bonus_points, locked_at), `fixtures` (home_score, away_score, round, kickoff_utc, home, away),
 `leaderboard` MV (total_points, correct_count, predictions_made, bonus_count), `user_tournaments`
-(favourite_team), and the mutual-lock tipsheet (crowd pick per fixture).
+(favourite_team), `tournament_teams` (name, **`fifa_rank`**, flag_emoji), and the mutual-lock
+tipsheet (crowd pick per fixture).
+
+**FIFA ranking as the objective favourite signal.** Per match, join both team names to
+`tournament_teams.fifa_rank`; **lower number = favourite**, and `|rankA − rankB|` = the size of the
+mismatch. This replaces the crowd-majority proxy for "who was the favourite," and unlocks the
+upset/chalk tendency axis below. Snapshot is frozen pre-tournament (see §3a), so it's stable and
+needs no live feed. Matches where either side is unranked/placeholder are skipped for these modules.
 
 | Module | Computation |
 |---|---|
@@ -58,12 +65,27 @@ bonus_points, locked_at), `fixtures` (home_score, away_score, round, kickoff_utc
 | **Form curve** | points per round (round breakdown MV) + cumulative rank at each completed round |
 | **Goal bias** | `avg(pred.home+pred.away) − avg(actual.home+actual.away)` over scored, tipped fixtures |
 | **Draws called** | % of actual draws the user predicted as draws, vs field avg |
-| **Favourite-backer** | crowd-majority outcome (from tipsheet) = "favourite"; % of user picks matching it + hit-rate |
+| **Favourite-backer (chalk index)** | % of picks where you backed the **higher-FIFA-ranked** team + your hit-rate on them — your "side with the favourite" rate |
+| **Giant-killer (upset-caller)** | of picks where you backed the **lower-ranked underdog**, how often you were right; flags you as Banker 🏦 ↔ Maverick 🎲 |
+| **Biggest upset called** | your correct pick with the largest favourable rank gap (lowest-ranked team you backed to win, and they did) — prime share-card line |
+| **Strength-adjusted accuracy** | hit-rate split by clear-favourite matches (big rank gap) vs coin-flips (small gap) — are you a banker or a flair caller? |
 | **Bonus Team ROI** | `sum(bonus_points)` + `favourite_team` label |
 | **Lock discipline** | avg (kickoff − locked_at); accuracy split early vs late lockers *(v2)* |
 | **Best / costliest** | top `points_earned` pick; pick where field scored and user didn't *(field delta)* |
 | **Projected finish** | extrapolate form trend over remaining fixtures *(v2)* |
 | **Persona** | rule-based archetype from the tendency values (see §4) |
+
+### 3a. FIFA ranking data — storage & sourcing
+- **Storage:** `ALTER TABLE public.tournament_teams ADD COLUMN fifa_rank smallint;` (nullable —
+  null = unranked/placeholder). One source of truth, already public-read, already name-joined to
+  fixtures. No new table.
+- **Sourcing:** seed **once** from the **official pre-tournament FIFA/Coca-Cola World Ranking**
+  snapshot (the ranking as it stood when players were tipping). **Frozen** for the tournament — FIFA
+  only republishes after international windows, and for "who was the favourite at tip time" the
+  pre-tournament list is the correct reference. **No live feed needed.**
+- **Accuracy gate:** these are factual numbers behind a paywalled feature — seed from a verified
+  source, don't approximate. Migration adds the column + a `VALUES` seed of `(name, rank)` matched
+  to the exact `tournament_teams.name` strings.
 
 ---
 
@@ -97,7 +119,10 @@ Derive one archetype from the tendency signals — drives identity + the shareab
   best/costliest → **Share card** button.
 - **Not Pro:** show a blurred/teaser version of the cards with a **PremiumGate** overlay → upsell
   to `/pro`. (Reuse `PremiumButton`/`PremiumSection` from `src/components/ui/PremiumGate.tsx`.)
-- **Entry points:** nav item, a "📊 View my stats" link on `/leaderboard` and the profile card.
+- **Entry points (DECIDED 2026-06-24 — no new nav tab; bottom bar is full):** a **"📊 My Stats"**
+  card/link at the top of `/leaderboard` (primary) + a **"📊 My Stats"** item in the existing avatar
+  dropdown menu in `Navbar` (secondary). `/stats` stays a standalone, deep-linkable route (needed for
+  the share card). NB: keep the name **"My Stats"** distinct from comp-admin's organiser **"Insights"** tab.
 
 ### `/pro/tipster` — Tipster Pro showcase (public)
 Marketing landing (mirror `/sponsor` & `/bracket/how-it-works`). Audience: **players**.
@@ -230,5 +255,8 @@ with "set-and-forget auto-reminders." It strengthens the Chief-owned model rathe
 - ~~Price point ($4.95?) and whether to rename ad-free → "Tipster Pro" or keep ad-free as a cheaper
   separate option.~~ **DECIDED (2026-06-24):** $4.95, single Tipster Pro tier (ad-free + stats, reuses
   `is_ad_free`). No separate cheaper ad-free SKU. Existing ad-free buyers get stats free when they land.
-- "Favourite" proxy: crowd-majority (have it) vs real odds (would need a feed) — v1 uses crowd.
+- ~~"Favourite" proxy: crowd-majority (have it) vs real odds (would need a feed) — v1 uses crowd.~~
+  **DECIDED (2026-06-24):** use **FIFA world ranking** as the objective favourite signal
+  (`tournament_teams.fifa_rank`, frozen pre-tournament snapshot — see §3a). Free, no odds feed,
+  cleaner than crowd-majority. Crowd pick stays available as a secondary "vs the field" angle.
 - Min predictions before stats are meaningful (gate behind e.g. ≥10 scored picks, else "keep tipping").
