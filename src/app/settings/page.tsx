@@ -305,8 +305,8 @@ export default function SettingsPage() {
             ) : (
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800">Remove ads</p>
-                  <p className="text-xs text-gray-500 mt-0.5">One-time $2.95 — no ads for the rest of WC 2026.</p>
+                  <p className="text-sm font-semibold text-gray-800">Tipster Pro</p>
+                  <p className="text-xs text-gray-500 mt-0.5">One-time $6.95 — ad-free for the rest of WC 2026, plus advanced personal stats coming this tournament.</p>
                 </div>
                 <RemoveAdsButton className="flex-shrink-0" />
               </div>

@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { clsx } from 'clsx'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
-// CTA for the $2.95 one-time ad-free pass (per tournament). Renders only when ads
+// CTA for the $6.95 one-time Tipster Pro pass (per tournament) — ad-free now, with
+// advanced personal stats landing this tournament. Renders only when ads
 // are actually being shown to this user — i.e. ads are on, they haven't already
 // paid (Pro or ad-free), and a tournament is selected. Price label mirrors
 // AD_FREE_PRICE_CENTS in /api/stripe/create-checkout.
@@ -33,7 +34,7 @@ export function RemoveAdsButton({ className, variant = 'button' }: { className?:
     return (
       <button onClick={go} disabled={loading}
         className={clsx('text-[11px] text-gray-400 hover:text-gray-600 underline disabled:opacity-50 transition-colors', className)}>
-        {loading ? 'Redirecting…' : 'Remove ads · $2.95'}
+        {loading ? 'Redirecting…' : 'Remove ads · $6.95'}
       </button>
     )
   }
@@ -42,7 +43,7 @@ export function RemoveAdsButton({ className, variant = 'button' }: { className?:
     return (
       <button onClick={go} disabled={loading}
         className={clsx('w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors', className)}>
-        <span>🚫</span> {loading ? 'Redirecting…' : 'Go ad-free · $2.95'}
+        <span>🚫</span> {loading ? 'Redirecting…' : 'Go ad-free · $6.95'}
       </button>
     )
   }
@@ -54,7 +55,7 @@ export function RemoveAdsButton({ className, variant = 'button' }: { className?:
         'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors',
         className,
       )}>
-      {loading ? 'Redirecting…' : 'Remove ads — $2.95'}
+      {loading ? 'Redirecting…' : 'Remove ads — $6.95'}
     </button>
   )
 }

@@ -13,7 +13,7 @@ Reposition the tipster tier as **"Tipster Pro" = Ad-free + Advanced Stats**, and
 the existing `user_tournaments.is_ad_free` flag** (org `is_premium` also unlocks). This means:
 - **No new Stripe SKU / no new flag** — reuse the ad-free purchase + webhook + flag already live.
 - Rename the Stripe product line ("TribePicks — Ad-free" → "TribePicks Pro · Tipster") and bump
-  price modestly (suggest **$4.95**; `AD_FREE_PRICE_CENTS` in `create-checkout/route.ts`).
+  price modestly (suggested, now locked at **$6.95**; `AD_FREE_PRICE_CENTS` in `create-checkout/route.ts`).
 - Anyone who already bought ad-free gets stats free — good will, no migration.
 
 *Alternative (more work):* a separate "stats" SKU + flag. Not recommended for v1.
@@ -23,16 +23,23 @@ the existing `user_tournaments.is_ad_free` flag** (org `is_premium` also unlocks
 
 ---
 
-## 2. v1 scope (4 deliverables)
+## 2. v1 scope
 
 Two distinct Pro tiers → **two separate showcase pages** (different audiences, value props,
 prices, and CTAs). The CompChief tier has **no landing page today** (it only surfaces inside the
 upgrade modal), so this gives it one too.
 
-1. **`GET /api/tipster/stats`** — computes all v1 stat modules server-side for the current user.
-2. **`/stats` page** — "My Tipster Stats" dashboard (gated; teaser + upsell when not Pro).
-3. **`/pro/tipster` page** — public showcase for **Tipster Pro** (stats + ad-free · ~$4.95).
-4. **`/pro/comp-chief` page** — public showcase for **CompChief Pro** (organiser features · $9.95).
+**Player dashboard (`/stats`, gated; teaser + upsell when not Pro):**
+1. **`GET /api/tipster/stats`** — headline stats, tendencies, persona (Overview tab).
+2. **`/stats` page** — three tabs: **Overview**, **By-round**, **Rivals** (head-to-head).
+3. **Tip Review** (`GET /api/tipster/tips`) — fixture-by-fixture: your pick vs Field/Comp/Tribe (By-round).
+4. **Bonus Team card** (`GET /api/tipster/bonus`) — shared-pick %, consensus, contrarian, ROI, status.
+5. **Head-to-head** (`GET /api/tipster/h2h`) — beat-your-mate vs a tribe rival (Rivals tab — §6).
+6. **Shareable stat card** (OG image) — UGC (Phase F).
+
+**Showcase pages:**
+7. **`/pro/tipster`** — public showcase for **Tipster Pro** (stats + ad-free · $6.95).
+8. **`/pro/comp-chief`** — public showcase for **CompChief Pro** (organiser features · $9.95).
 
 Wire each existing upsell CTA directly to the relevant page (player upsells → `/pro/tipster`;
 comp-admin `UpgradeModal` → `/pro/comp-chief`). No generic `/pro` chooser — the audience is
@@ -124,13 +131,31 @@ Derive one archetype from the tendency signals — drives identity + the shareab
   dropdown menu in `Navbar` (secondary). `/stats` stays a standalone, deep-linkable route (needed for
   the share card). NB: keep the name **"My Stats"** distinct from comp-admin's organiser **"Insights"** tab.
 
+### `/stats` — Head-to-head (Rivals) sub-tab  **[NEW — pulled into v1, 2026-06-25]**
+The "beat-your-mate" view — the single most engaging social stat. Originally Phase G (v2), pulled
+forward because the Tip Review + Bonus card already stood up all the plumbing it needs (tribe-member
+fetch, per-fixture pick joins, the round-breakdown MV, per-population aggregation), so it's now ~1d.
+- **A third `/stats` tab** ("Rivals" / ⚔️ Head-to-head), beside Overview and By-round. Audience:
+  **players in a tribe**. Hidden / "join a tribe to compare" empty-state when the user has no tribe-mates.
+- **Rival picker:** choose a tribe-mate to face (default = the member nearest you on the comp ladder —
+  the natural rival). Multi-tribe users pick which tribe first.
+- **The scoreline:** big **"You 142 – 138 Dave"** (tournament points), + **rounds won each** (from the
+  round-breakdown MV), **hit-rate each**, and **bonus-team H2H**.
+- **Swing fixtures:** the games that decided the gap — where one of you nailed it and the other missed
+  (points delta per shared fixture, sorted by |delta|). "You gained +5 on him at Brazil 2–0."
+- **Computation:** both users' `predictions`/`points_earned` joined on shared `fixture_id`;
+  `leaderboard` for totals, `leaderboard_round_breakdown` for per-round wins, `user_tournaments` for
+  the bonus-team face-off. No new schema; reuses the tip-review aggregation helpers.
+- **API:** `GET /api/tipster/h2h?tournament_id=&rival_id=` (same paid gate). Returns the totals,
+  per-round wins, per-fixture swing list, and bonus comparison. Rival must share a tribe with the caller.
+
 ### `/pro/tipster` — Tipster Pro showcase (public)
 Marketing landing (mirror `/sponsor` & `/bracket/how-it-works`). Audience: **players**.
 - **Hero:** "Know your game — TribePicks Pro for Tipsters." Sub: stats + ad-free, one price.
 - **Stats preview:** 3–4 mock stat cards (percentile, goal bias, persona, form curve) — the
   same visual the dashboard uses, with sample data.
 - **What you unlock:** advanced personal stats · tipster persona · shareable card · ad-free.
-- **Price + CTA:** `$4.95 · one-time · whole tournament` → ad-free checkout
+- **Price + CTA:** `$6.95 · one-time · whole tournament` → ad-free checkout
   (`/api/stripe/create-checkout` with `adFree:true`). Logged-out → sign-up then upgrade.
 - **FAQ:** what's included, per-tournament, refunds.
 
@@ -153,13 +178,50 @@ Render a branded card (OG-image route, e.g. `/api/tipster/card?u=…`) → "I'm 
 Goal Glutton* 🍔 · 62% accuracy" with TribePicks branding + a join CTA. This is **UGC acquisition**
 — players posting their card is top-of-funnel. Ties into the social/bracket marketing push.
 
+**Card contents:**
+- **Persona + headline stats** — persona name/emoji, percentile, hit-rate, a standout line (e.g.
+  biggest upset called). Pulled from `/api/tipster/stats` (no live recompute in the image route —
+  pass values in, or read the cached stats).
+- **Profile avatar** — the user's existing `avatar_url` rendered in a circle on the card (personal,
+  no upload step, already a chosen/moderated image). DECIDED 2026-06-25: **avatar only** for v1b;
+  **custom photo upload is a fast-follow** (adds upload UI + storage + light moderation, since the
+  image lands on a public branded card). Card still looks good if the user has no avatar (initials).
+- **TribePicks branding** — logo, brand colour, and the `tribepicks.com` wordmark/URL on the card.
+- **QR code → referral link.** Encode `https://tribepicks.com/join?ref=<code>` as a QR in the
+  corner, generated at render time (small QR lib → data-URI `<img>` inside the `ImageResponse`). Keeps
+  the card actionable when **screenshotted/reshared/printed** (scan with a second device), unlike a
+  tappable link which is lost in an image.
+
+**Referral attribution (small dependency):**
+- `ref=<code>` is a per-user share code (reuse the user id or a short slug). The `/join` flow reads
+  `ref`, attributes the signup to the sharer (store `referred_by` on signup), so we can **credit and
+  later reward** sharers — turning the card into a growth loop, not just a vanity post.
+- Scope as a thin add: a `ref` param on the join/sign-up route + a `referred_by` column. Reward
+  mechanics (free Pro, etc.) are a follow-up, not required for v1b.
+
+**Inline preview (DECIDED 2026-06-25 — inline, not a modal):** render the actual generated card
+**directly on the Overview tab** as a "Share your card" section (`<img src="/api/tipster/card?…">`),
+with **Share** (native Web Share sheet) and **Download / Save** buttons right beneath it. Always
+visible — seeing the real card is the nudge to share; no extra tap, no blind share. This **replaces**
+the current Web-Share text one-liner button. (Custom-photo upload, when added, lives in this section.)
+- Place it low on Overview (after the stats, where the "flex" makes sense), or near the persona hero
+  if we want it front-and-centre — A/B later.
+- **Caching:** the OG route should cache per (user, stat-version) so it isn't regenerated on every
+  Overview render; bust when stats change (e.g. include a points/round hash in the query).
+
+**Tech:** `next/og` `ImageResponse` at `/api/tipster/card`; QR via a lightweight encoder (e.g.
+`qrcode`) rendered to a data URI; avatar embedded from `avatar_url`. Share uses `navigator.share`
+with the image URL (fallback: copy link / download).
+
 ---
 
 ## 8. Phasing & effort (rough)
 - **v1 (~3 days):** `/api/tipster/stats` (~1d) · `/stats` page + gating (~1d) ·
   `/pro/tipster` showcase (~0.5d) · `/pro/comp-chief` showcase (~0.5d, mostly copy/screens).
 - **v1b (~0.5–1d):** shareable stat card (OG image).
-- **v2:** contrarian index, lock discipline, projected finish, head-to-head vs tribe rivals.
+- **v1 (added during build):** Tip Review (fixture-by-fixture vs Field/Comp/Tribe), Bonus Team card,
+  and **Head-to-head vs a tribe rival** (pulled forward from v2 — see Phase I).
+- **v2:** contrarian index, lock discipline, projected finish.
 
 The two showcase pages can ship **independently of the stats build** — `/pro/comp-chief` needs
 no new functionality (org features are live), so it's the fastest win and could go out first.
@@ -215,13 +277,19 @@ meaningful (group stage complete), so there's no "wait for data" reason to delay
 | # | Phase | Effort | Depends on | Ship target |
 |---|---|---|---|---|
 | A | **`/pro/comp-chief` showcase** — org features already live; marketing-only | ~0.5–1d | — | **This week (first)** |
-| B | **Pricing/positioning** — reposition ad-free → "Tipster Pro" ($4.95), rename Stripe product, update `AD_FREE_PRICE_CENTS` | ~0.5d | your price call | This week (with A) |
+| B | **Pricing/positioning** — ✅ **DONE**: single Tipster Pro tier (ad-free + stats, reuses `is_ad_free`); product renamed, UI labels. Priced $4.95 (24 Jun) → **bumped to $6.95 (25 Jun)** as scope grew (Tip Review + Bonus + H2H); `AD_FREE_PRICE_CENTS`=695. Still held (ships with stats) | ~0.5d | ✅ | **Held — deploys with stats** |
 | C | **`/api/tipster/stats`** — headline trio, form curve, 3 tendencies, persona; gated | ~1d | — | Week 1 |
 | D | **`/stats` dashboard** + gating + teaser/upsell + entry points | ~1d | C | Week 1–2 |
-| E | **`/pro/tipster` showcase** — mock cards, $4.95 CTA | ~0.5d | B (price), C (visuals) | Week 1–2 |
-| F | **Shareable stat card** (OG image) — UGC | ~0.5–1d | C | Week 2 (fast-follow) |
+| E | **`/pro/tipster` showcase** — ✅ **DONE (25 Jun)**: emerald landing, mock stats preview, 6 feature cards, $6.95 ad-free-checkout CTA, FAQ; teaser links to it | ~0.5d | B, C | **Built (on branch)** |
+| F | **Shareable stat card** — ✅ **DONE (25 Jun)**: `/api/tipster/card` (next/og 1080², avatar+persona+stats+QR, `?demo=1` for showcase); inline preview on Overview (Share/Save); shown on `/pro/tipster`. **Follow-up:** `/join?ref` attribution (`referred_by`) not yet wired — QR carries `?ref=<userId>` already | ~1d | C | **Built (on branch)** |
 | H | **CompChief Pro auto-reminders** — scheduled auto-nudge of untipped members (Pro feature) | ~1.5–2d | — | During WC (Pro upsell + engagement) |
-| G | **v2 advanced stats** — contrarian, lock discipline, projected finish, H2H | — | — | **Post-WC** (ready for next tournament) |
+| I | **Head-to-head (Rivals)** — `/api/tipster/h2h` + Rivals tab on `/stats`; beat-your-mate vs a tribe rival (§6) | ~1d | C, D, Tip Review | **Pulled into v1 (2026-06-25)** — build while the comparison plumbing is warm |
+| G | **v2 advanced stats** — contrarian index, lock discipline, projected finish | — | — | **Post-WC** (ready for next tournament) |
+
+> **NB — v1 grew during build (Jun 2026):** beyond C/D, the `/stats` dashboard now also ships the
+> **Tip Review** (fixture-by-fixture vs Field/Comp/Tribe, By-round tab; `/api/tipster/tips`) and the
+> **Bonus Team card** (shared-pick %, consensus, contrarian, ROI, status; `/api/tipster/bonus`).
+> **Head-to-head (Phase I)** is the next addition. All reuse the same gated, mock-excluded plumbing.
 
 **Critical path:** B → E and C → D → E. A is independent (ship immediately). F follows C.
 
@@ -232,7 +300,9 @@ meaningful (group stage complete), so there's no "wait for data" reason to delay
 3. **C → D → E** — the tipster stats build (~2.5d). Monetises the 1,200-player base during the
    knockout buzz.
 4. **F** — share card; amplifies organic reach while the audience is hot.
-5. **G** — after the final.
+5. **I (Head-to-head)** — build while the comp/tribe comparison plumbing is warm; the strongest
+   social/retention hook ("am I beating my mate?"). Pairs with the Tip Review.
+6. **G** — after the final.
 
 **Gates / acceptance:**
 - A: page live · CTA hits Pro checkout · modal links "See everything →".
@@ -252,8 +322,9 @@ naturally with Phase A (`/pro/comp-chief` showcase) — ship them together so th
 with "set-and-forget auto-reminders." It strengthens the Chief-owned model rather than bypassing it.
 
 ## 11. Open questions
-- Price point ($4.95?) and whether to rename ad-free → "Tipster Pro" or keep ad-free as a cheaper
-  separate option.
+- ~~Price point ($6.95?) and whether to rename ad-free → "Tipster Pro" or keep ad-free as a cheaper
+  separate option.~~ **DECIDED (2026-06-24):** $6.95, single Tipster Pro tier (ad-free + stats, reuses
+  `is_ad_free`). No separate cheaper ad-free SKU. Existing ad-free buyers get stats free when they land.
 - ~~"Favourite" proxy: crowd-majority (have it) vs real odds (would need a feed) — v1 uses crowd.~~
   **DECIDED (2026-06-24):** use **FIFA world ranking** as the objective favourite signal
   (`tournament_teams.fifa_rank`, frozen pre-tournament snapshot — see §3a). Free, no odds feed,

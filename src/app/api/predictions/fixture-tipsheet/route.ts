@@ -87,13 +87,20 @@ export async function GET(request: NextRequest) {
   const locked = picks.length
   const pct = (n: number) => (locked ? Math.round((n / locked) * 100) : 0)
 
+  // Pro gate — everyone gets the aggregate split bar; the individual "who picked
+  // what" list is Tipster Pro only. Don't leak the picks to free users.
+  const { data: ut } = await (admin.from('user_tournaments') as any)
+    .select('is_premium, is_ad_free').eq('user_id', user.id).eq('tournament_id', (fx as any).tournament_id).maybeSingle()
+  const isPro = !!((ut as any)?.is_premium || (ut as any)?.is_ad_free)
+
   return NextResponse.json({
     fixture: { id: (fx as any).id, round: (fx as any).round, home: (fx as any).home, away: (fx as any).away, kickoff_utc: (fx as any).kickoff_utc },
     is_exact: isExact,
     final: reveal,                  // true → showing the whole tribe (settled/locked)
+    pro: isPro,
     locked_count: locked,
     total_members: members.length,
-    picks,
+    picks: isPro ? picks : [],
     aggregate: { H, D, A, home_pct: pct(H), draw_pct: pct(D), away_pct: pct(A) },
   })
 }
