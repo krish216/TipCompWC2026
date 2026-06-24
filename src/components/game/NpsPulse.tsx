@@ -57,6 +57,10 @@ export function NpsPulse() {
     }
   }
 
+  // Scores below 9 (passives + detractors) are the actionable ones — prompt for and
+  // require a supporting comment so we capture the "why". Promoters (9–10) stay optional.
+  const needsComment = score != null && score < 9
+
   if (!show || hidden) return null
 
   return (
@@ -92,11 +96,16 @@ export function NpsPulse() {
             </div>
             {score != null && (
               <>
-                <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Main reason? (optional)"
-                  className="mt-2 w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                <button onClick={submit} disabled={submitting}
+                {needsComment && (
+                  <p className="text-[11px] font-semibold text-gray-700 mt-2.5">What's the main reason for your score?</p>
+                )}
+                <textarea value={comment} onChange={e => setComment(e.target.value)} rows={2}
+                  placeholder={needsComment ? 'Tell us what we could do better — it really helps 🙏' : 'What do you love most? (optional)'}
+                  className={clsx('mt-1.5 w-full text-xs border rounded-lg px-2.5 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400',
+                    needsComment && !comment.trim() ? 'border-amber-300' : 'border-gray-200')} />
+                <button onClick={submit} disabled={submitting || (needsComment && !comment.trim())}
                   className="mt-2 w-full py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
-                  {submitting ? 'Sending…' : 'Send'}
+                  {submitting ? 'Sending…' : needsComment && !comment.trim() ? 'Add a comment to send' : 'Send'}
                 </button>
               </>
             )}
