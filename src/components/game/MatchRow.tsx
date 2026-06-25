@@ -8,6 +8,7 @@ import { Flag } from '@/components/ui/Flag'
 import type { Fixture, MatchScore, RoundId } from '@/types'
 import { calcPoints, getDefaultScoringConfig, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
+import { isPlaceholderTeam } from '@/lib/placeholder'
 
 const short = (t: string) => t.length > 14 ? t.replace('and ', '& ').split(' ').map((w,i) => i === 0 ? w : w[0]+'.').join(' ') : t
 
@@ -17,6 +18,7 @@ interface Props {
   prediction?: { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null } | null
   result?:     (MatchScore & { pen_winner?: string|null; result_outcome?: string|null }) | null
   locked?:     boolean
+  teamsTbd?:   boolean        // knockout slot whose teams aren't confirmed yet — not tippable
   committed?:  boolean        // user has voluntarily locked in this prediction (final)
   saving?:     boolean
   isFavourite?: boolean
@@ -36,7 +38,7 @@ interface Props {
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
+  locked = false, teamsTbd = false, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
@@ -74,7 +76,9 @@ export function MatchRow({
   const isPredDraw  = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
-  const inputDisabled = locked || committed || (!!result && !retroactive)
+  const homeTbd = isPlaceholderTeam(fixture.home)
+  const awayTbd = isPlaceholderTeam(fixture.away)
+  const inputDisabled = locked || teamsTbd || committed || (!!result && !retroactive)
   const showPenPick = isKnockout && !locked && !committed && isPredDraw && (retroactive ? true : !result)
   const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !locked && !committed && (retroactive ? true : !result)
   const hasPred     = isOutcomeRound
@@ -155,7 +159,7 @@ export function MatchRow({
       {/* ── Top meta bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
         <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-          {locked && !result && (
+          {locked && !result && !teamsTbd && (
             <svg className="w-3 h-3 text-gray-400" viewBox="0 0 12 12" fill="currentColor">
               <rect x="1" y="5" width="10" height="7" rx="1.5"/>
               <path d="M3.5 5V3.5a2.5 2.5 0 015 0V5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
@@ -191,7 +195,12 @@ export function MatchRow({
           {!saving && awaitingPen && (
             <span className="text-amber-600 font-semibold animate-pulse">🥅 Pick penalties ↓</span>
           )}
-          {!locked && !result && !hasPred && !awaitingPen && (
+          {teamsTbd && !result && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-full">
+              ⏳ Teams TBD
+            </span>
+          )}
+          {!teamsTbd && !locked && !result && !hasPred && !awaitingPen && (
             <span className="text-amber-500 font-semibold">
               {maxPts != null ? `+${maxPts} pts` : 'Pick now'}
             </span>
@@ -219,15 +228,21 @@ export function MatchRow({
           <Flag team={fixture.home} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
-            result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
+            result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700',
+            homeTbd && 'text-gray-400 italic'
           )}>
-            {short(fixture.home)}
+            {homeTbd ? 'TBD' : short(fixture.home)}
           </span>
         </div>
 
         {/* Centre prediction area */}
         <div className="flex-1 flex flex-col items-center gap-1.5">
-          {isOutcomeRound ? (
+          {teamsTbd ? (
+            <div className="w-full flex flex-col items-center justify-center py-2.5 text-center">
+              <span className="text-[13px] font-semibold text-gray-500">⏳ Teams to be confirmed</span>
+              <span className="text-[11px] text-gray-400 mt-0.5">Tip opens once the matchup is set</span>
+            </div>
+          ) : isOutcomeRound ? (
             <>
               {/* Three outcome radio buttons filling the space */}
               <div className={clsx(
@@ -341,9 +356,10 @@ export function MatchRow({
           <Flag team={fixture.away} className="text-4xl rounded shadow-sm" />
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
-            result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700'
+            result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700',
+            awayTbd && 'text-gray-400 italic'
           )}>
-            {short(fixture.away)}
+            {awayTbd ? 'TBD' : short(fixture.away)}
           </span>
         </div>
       </div>

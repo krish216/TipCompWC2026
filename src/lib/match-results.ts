@@ -122,12 +122,9 @@ export function canonTeam(name?: string | null): string {
   return TEAM_ALIASES[n] ?? n
 }
 
-/** True when a fixture's team is still an unresolved placeholder (e.g. "TBD R16-1"). */
-export function isPlaceholderTeam(name?: string | null): boolean {
-  // Unresolved knockout slots: our seeds ("TBD R32-1") and ESPN descriptors
-  // ("Group A 2nd Place", "Third Place Group A/B/C/D/F", "Round of 32 1 Winner").
-  return !name || /tbd|winner|runner|loser|\bplace\b|\b3rd\b|\b[12][a-l]\b/i.test(name)
-}
+// Placeholder-team detection lives in its own client-safe module now; re-exported
+// here so existing server imports (scores/sync) keep working from one source.
+export { isPlaceholderTeam } from './placeholder'
 
 // ── Side effects shared by manual + auto result entry ───────────────────────────
 type Admin = any // SupabaseClient (admin/service-role) — typed loosely to match existing code
