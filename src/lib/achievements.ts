@@ -93,12 +93,12 @@ export async function computeAchievements(
   const wonARound = medals.some(m => m.place === 1)
 
   const badges: Badge[] = [
-    { key: 'top50',  emoji: '🏅', label: 'Top 50',       earned: globalRank != null && globalRank <= 50, hint: 'Reach the global top 50' },
-    { key: 'top10',  emoji: '🏆', label: 'Top 10',       earned: globalRank != null && globalRank <= 10, hint: 'Reach the global top 10' },
-    { key: 'roundw', emoji: '🥇', label: 'Round winner', earned: wonARound,                              hint: 'Top your tribe in a round' },
-    { key: 'sharp',  emoji: '🎯', label: 'Sharpshooter', earned: predictions >= MIN_PREDICTIONS && hitRate >= SHARP_RATE, hint: `${Math.round(SHARP_RATE * 100)}%+ hit-rate` },
-    { key: 'fire',   emoji: '🔥', label: 'On fire',      earned: longestStreak >= STREAK_BADGE,          hint: `${STREAK_BADGE} correct in a row` },
-    { key: 'ton',    emoji: '💯', label: 'Ton up',       earned: totalPoints >= TON,                     hint: `Bank ${TON} points` },
+    { key: 'top50',  emoji: '🏅', label: 'Top 50',       earned: globalRank != null && globalRank <= 50, hint: 'Sit inside the global top 50 on the leaderboard' },
+    { key: 'top10',  emoji: '🏆', label: 'Top 10',       earned: globalRank != null && globalRank <= 10, hint: 'Sit inside the global top 10 on the leaderboard' },
+    { key: 'roundw', emoji: '🥇', label: 'Round winner', earned: wonARound,                              hint: 'Finish 1st in your tribe for a completed round' },
+    { key: 'sharp',  emoji: '🎯', label: 'Sharpshooter', earned: predictions >= MIN_PREDICTIONS && hitRate >= SHARP_RATE, hint: `Call ${Math.round(SHARP_RATE * 100)}%+ of your results correctly (min ${MIN_PREDICTIONS} picks)` },
+    { key: 'fire',   emoji: '🔥', label: 'On fire',      earned: longestStreak >= STREAK_BADGE,          hint: `Get ${STREAK_BADGE} results correct in a row` },
+    { key: 'ton',    emoji: '💯', label: 'Ton up',       earned: totalPoints >= TON,                     hint: `Bank ${TON}+ tournament points` },
   ]
 
   return { globalRank, totalPlayers, totalPoints, medals, badges }
