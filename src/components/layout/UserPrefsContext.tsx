@@ -228,12 +228,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         const rows: RoundConfig[] = roundsData.data ?? []
         setRoundConfigs(rows)
         if (rows.length > 0) {
-          // Merge with fallback defaults — take max pen_bonus to prevent
-          // re-running seed migrations from overwriting migration 051 values
+          // tournament_rounds is the source of truth (the scoring trigger reads
+          // rc.pen_bonus straight from it), so honour the stored value — including a
+          // value lower than the default. Fall back to the default only when a row
+          // genuinely omits pen_bonus, so the UI never silently shows the wrong figure.
           const fallback = getDefaultScoringConfig()
           const merged = rows.map((r: RoundConfig) => ({
             ...r,
-            pen_bonus: Math.max(r.pen_bonus, (fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
+            pen_bonus: r.pen_bonus ?? (fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0,
           }))
           setScoringConfig(buildScoringConfig(merged))
         }
@@ -285,7 +287,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         const fallback = getDefaultScoringConfig()
         const merged = rows.map(r => ({
           ...r,
-          pen_bonus: Math.max(r.pen_bonus, ( fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0),
+          pen_bonus: r.pen_bonus ?? (fallback.rounds as any)[r.round_code]?.pen_bonus ?? 0,
         }))
         setScoringConfig(buildScoringConfig(merged))
       }
