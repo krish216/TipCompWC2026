@@ -127,11 +127,11 @@ export function MatchRow({
   // ── Max points at stake ───────────────────────────────────────────────────
   const maxPts = !result && !hasPred && !locked && sc
     ? (() => {
-        const base = isExactRound
-          ? sc.result_pts + sc.exact_bonus
-          : isKnockout && sc.pen_bonus > 0
-          ? sc.result_pts + sc.pen_bonus
-          : sc.result_pts
+        // Headline = the reward for a correct pick. Exact-score rounds include the
+        // exact-score bonus (reachable on any result); knockout outcome rounds do NOT
+        // fold in the pen bonus — it's only reachable on a draw → shoot-out, so it's
+        // upside surfaced via the pen picker, not a guaranteed at-stake figure.
+        const base = isExactRound ? sc.result_pts + sc.exact_bonus : sc.result_pts
         return isFavourite && cfg.fav_team_rounds.includes(round) ? base * 2 : base
       })()
     : null
@@ -368,8 +368,13 @@ export function MatchRow({
       {/* ── Penalty winner picker ──────────────────────────────────────────── */}
       {showPenPick && onPenWinner && (
         <div className="mx-3 mb-3 pt-2.5 border-t border-amber-200">
-          <p className="text-[11px] text-amber-700 font-semibold mb-2 text-center">
-            🥅 Who wins on penalties?
+          <p className="text-[11px] text-amber-700 font-semibold mb-2 flex items-center justify-center gap-1.5">
+            <span>🥅 Who wins on penalties?</span>
+            {sc?.pen_bonus ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold leading-none">
+                +{sc.pen_bonus} pts
+              </span>
+            ) : null}
           </p>
           <div className="flex gap-2">
             {[fixture.home, fixture.away].map(team => (
