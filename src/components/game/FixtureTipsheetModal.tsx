@@ -18,6 +18,8 @@ interface Data {
   locked_count: number
   total_members: number
   picks: Pick[]
+  picks_preview?: Pick[]   // free-tier teaser: a couple of real picks
+  hidden_count?: number    // free-tier: tribe-mates still behind the paywall
   aggregate: { H: number; D: number; A: number; home_pct: number; draw_pct: number; away_pct: number }
 }
 
@@ -51,6 +53,19 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
   const outcomeText: Record<'H' | 'D' | 'A', string> = data
     ? { H: data.fixture.home, D: 'Draw', A: data.fixture.away }
     : { H: 'H', D: 'D', A: 'A' }
+
+  const renderPick = (p: Pick, d: Data) => (
+    <div key={p.user_id} className={clsx('flex items-center gap-2.5 px-2 py-2 rounded-lg', p.is_me && 'bg-emerald-50/60')}>
+      <Avatar name={p.display_name} src={p.avatar_url} size="xs" className="flex-shrink-0" />
+      <span className="flex-1 text-sm text-gray-800 truncate">
+        {p.display_name}{p.is_me && <span className="text-emerald-600 font-semibold"> (you)</span>}
+      </span>
+      <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{pickValue(p, d)}</span>
+      <span className={clsx('text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', OUTCOME_CHIP[p.outcome])}>
+        {outcomeText[p.outcome]}
+      </span>
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
@@ -96,31 +111,64 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
             )}
             </div>
 
-            {/* Pro gate — free users get the bar above, but not the individual picks */}
+            {/* Pro gate — free users get the bar above + a couple of real picks as a
+                taste, then the rest behind the paywall. Pro users get the full list. */}
             {data.pro === false ? (
-              <div className="flex-1 min-h-0 relative px-2 py-2">
-                {/* Blurred placeholder rows */}
-                <div className="blur-[4px] opacity-50 space-y-2 pointer-events-none px-2">
-                  {[0, 1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-2.5 py-2">
-                      <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
-                      <div className="flex-1 h-3 bg-gray-200 rounded" />
-                      <div className="w-16 h-4 bg-gray-200 rounded" />
+              <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+                {(data.picks_preview ?? []).length > 0 ? (
+                  <>
+                    {/* Real teaser picks */}
+                    {(data.picks_preview ?? []).map(p => renderPick(p, data))}
+
+                    {/* Locked remainder — blurred rows + FOMO unlock */}
+                    {(data.hidden_count ?? 0) > 0 && (
+                      <div className="relative mt-1">
+                        <div className="blur-[4px] opacity-50 pointer-events-none px-2">
+                          {[0, 1].map(i => (
+                            <div key={i} className="flex items-center gap-2.5 py-2">
+                              <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                              <div className="flex-1 h-3 bg-gray-200 rounded" />
+                              <div className="w-16 h-4 bg-gray-200 rounded" />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                          <p className="text-sm font-bold text-gray-900">
+                            🔒 +{data.hidden_count} more {data.hidden_count === 1 ? 'tribe-mate' : 'tribe-mates'} picked
+                          </p>
+                          <a href="/pro/tipster" onClick={() => track('tipsheet_upsell_click')}
+                            className="mt-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
+                            Unlock every pick · $6.95 →
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Nothing to tease (no other lockers yet) — plain unlock prompt */
+                  <div className="relative px-2 py-8">
+                    <div className="blur-[4px] opacity-50 space-y-2 pointer-events-none px-2">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="flex items-center gap-2.5 py-2">
+                          <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                          <div className="flex-1 h-3 bg-gray-200 rounded" />
+                          <div className="w-16 h-4 bg-gray-200 rounded" />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {/* Upsell overlay */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-                  <div className="text-2xl mb-1">🔒</div>
-                  <p className="text-sm font-bold text-gray-900">See who picked what</p>
-                  <p className="text-[11px] text-gray-500 mt-1 mb-3 max-w-[240px]">
-                    {data.locked_count} of {data.total_members} tipped — unlock every tribe-mate’s pick, on every game, with Tipster Pro.
-                  </p>
-                  <a href="/pro/tipster" onClick={() => track('tipsheet_upsell_click')}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
-                    Unlock Tipster Pro · $6.95 →
-                  </a>
-                </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                      <div className="text-2xl mb-1">🔒</div>
+                      <p className="text-sm font-bold text-gray-900">See who picked what</p>
+                      <p className="text-[11px] text-gray-500 mt-1 mb-3 max-w-[240px]">
+                        Unlock every tribe-mate’s pick, on every game, with Tipster Pro.
+                      </p>
+                      <a href="/pro/tipster" onClick={() => track('tipsheet_upsell_click')}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
+                        Unlock Tipster Pro · $6.95 →
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
             <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
@@ -128,18 +176,7 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                 <p className="px-2 py-10 text-center text-sm text-gray-400">
                   {data.final ? 'No one in your tribe tipped this match.' : 'No one else has locked in yet — you’re first! 🥇'}
                 </p>
-              ) : data.picks.map(p => (
-                <div key={p.user_id} className={clsx('flex items-center gap-2.5 px-2 py-2 rounded-lg', p.is_me && 'bg-emerald-50/60')}>
-                  <Avatar name={p.display_name} src={p.avatar_url} size="xs" className="flex-shrink-0" />
-                  <span className="flex-1 text-sm text-gray-800 truncate">
-                    {p.display_name}{p.is_me && <span className="text-emerald-600 font-semibold"> (you)</span>}
-                  </span>
-                  <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{pickValue(p, data)}</span>
-                  <span className={clsx('text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', OUTCOME_CHIP[p.outcome])}>
-                    {outcomeText[p.outcome]}
-                  </span>
-                </div>
-              ))}
+              ) : data.picks.map(p => renderPick(p, data))}
             </div>
             )}
           </>

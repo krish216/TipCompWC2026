@@ -93,6 +93,14 @@ export async function GET(request: NextRequest) {
     .select('is_premium, is_ad_free').eq('user_id', user.id).eq('tournament_id', (fx as any).tournament_id).maybeSingle()
   const isPro = !!((ut as any)?.is_premium || (ut as any)?.is_ad_free)
 
+  // Free-tier teaser: reveal a couple of real tribe-mate picks to create FOMO, while
+  // always keeping at least one behind the paywall so the unlock still has a payoff.
+  // Pro users get the full list; free users get preview + a hidden count, not picks[].
+  const others = picks.filter(p => !p.is_me)
+  const previewCount = isPro ? 0 : Math.min(2, Math.max(0, others.length - 1))
+  const preview = others.slice(0, previewCount)
+  const hiddenCount = isPro ? 0 : others.length - preview.length
+
   return NextResponse.json({
     fixture: { id: (fx as any).id, round: (fx as any).round, home: (fx as any).home, away: (fx as any).away, kickoff_utc: (fx as any).kickoff_utc },
     is_exact: isExact,
@@ -101,6 +109,8 @@ export async function GET(request: NextRequest) {
     locked_count: locked,
     total_members: members.length,
     picks: isPro ? picks : [],
+    picks_preview: preview,         // free: a couple of real picks as a taste
+    hidden_count: hiddenCount,      // free: tribe-mates still behind the paywall
     aggregate: { H, D, A, home_pct: pct(H), draw_pct: pct(D), away_pct: pct(A) },
   })
 }
