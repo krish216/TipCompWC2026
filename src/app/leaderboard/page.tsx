@@ -8,6 +8,7 @@ import { AdSlot } from '@/components/ui/AdSlot'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
 import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { TrophyStrip } from '@/components/game/TrophyStrip'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -402,6 +403,9 @@ export default function LeaderboardPage() {
 
       <RoundDebriefCard className="mb-4" source="debrief_leaderboard" />
       <WeeklyReportCard className="mb-4" src="scoreboard" />
+
+      {/* Medals & badges — free engagement strip */}
+      <TrophyStrip className="mb-4" />
 
       {/* Entry point for Tipster Pro "My Stats" — page handles its own gating/upsell */}
       <a href="/stats"

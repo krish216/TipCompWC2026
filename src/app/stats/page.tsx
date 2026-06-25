@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Spinner, Avatar } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { TrophyStrip } from '@/components/game/TrophyStrip'
 import type { TipsterStats } from '@/lib/tipster-stats'
 import type { TipReview, TipReviewFixture, PopSplit } from '@/lib/tipster-tips'
 import type { BonusStats } from '@/lib/tipster-bonus'
@@ -202,6 +203,9 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
         <Stat label="Hit-rate" value={pct(s.hitRate)} sub={`${s.correctCount}/${s.predictionsMade} results`} />
         <Stat label="Points" value={String(s.totalPoints)} sub={s.bonusPoints ? `${s.bonusPoints} bonus` : 'this tournament'} />
       </div>
+
+      {/* Medals & badges */}
+      <TrophyStrip />
 
       {/* Streak */}
       <Card title="Form & streaks">
