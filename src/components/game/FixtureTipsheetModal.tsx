@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import { Avatar, Spinner } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { track } from '@vercel/analytics'
 
 interface Pick {
   user_id: string; display_name: string; avatar_url: string | null
@@ -115,7 +116,8 @@ export function FixtureTipsheetModal({ fixtureId, tribeId, onClose }: { fixtureI
                   <p className="text-[11px] text-gray-500 mt-1 mb-3 max-w-[240px]">
                     {data.locked_count} of {data.total_members} tipped — unlock every tribe-mate’s pick, on every game, with Tipster Pro.
                   </p>
-                  <a href="/pro/tipster" className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
+                  <a href="/pro/tipster" onClick={() => track('tipsheet_upsell_click')}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
                     Unlock Tipster Pro · $6.95 →
                   </a>
                 </div>

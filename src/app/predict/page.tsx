@@ -9,6 +9,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { FixtureTipsheetModal } from '@/components/game/FixtureTipsheetModal'
+import { track } from '@vercel/analytics'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
 import { RoundScoreBar } from '@/components/game/RoundScoreBar'
@@ -47,7 +48,7 @@ const predictCache = new Map<string, PredictCacheEntry>()
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
-  const { selectedTourn, selectedTournId, selectedTribeId, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const { selectedTourn, selectedTournId, selectedTribeId, isAdFree, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
 
@@ -496,7 +497,10 @@ export default function PredictPage() {
   const isCommitted = useCallback((fixtureId: number) => !!predictions[fixtureId]?.locked_at, [predictions])
 
   const handleLockIn = useCallback((fixtureId: number) => { setLockError(null); setLockTarget(fixtureId) }, [])
-  const handleViewTipsheet = useCallback((fixtureId: number) => setTipsheetFixture(fixtureId), [])
+  const handleViewTipsheet = useCallback((fixtureId: number) => {
+    track('tipsheet_open', { pro: !!isAdFree })   // pro:false = free user → upsell-funnel top
+    setTipsheetFixture(fixtureId)
+  }, [isAdFree])
 
   const confirmLockIn = useCallback(async () => {
     if (lockTarget == null) return
