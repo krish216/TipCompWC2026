@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     const { data: ut } = await (admin.from('user_tournaments') as any)
       .select('is_premium, is_ad_free')
       .eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle()
-    if (!(ut?.is_premium || ut?.is_ad_free)) return NextResponse.json({ pro: false })
+    const isPro = !!(ut?.is_premium || ut?.is_ad_free)
 
-    if (!tribeId) return NextResponse.json({ pro: true, rivals: [], myPoints: 0 })
+    if (!tribeId) return NextResponse.json({ pro: isPro, rivals: [], myPoints: 0 })
 
     // Caller must be in the tribe.
     const { data: mine } = await (admin.from('tribe_members') as any)
@@ -35,13 +35,19 @@ export async function GET(request: NextRequest) {
     if (!mine) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
 
     const { rivals, myPoints } = await listRivals(admin, user.id, tribeId, tournamentId)
+    // Free users only get a single, fixed rival: the LOWEST-ranked tribe-mate
+    // (rivals are sorted points-desc, so the last one). No picker, no real intel.
+    const free = isPro ? rivals : (rivals.length ? [rivals[rivals.length - 1]] : [])
 
-    if (!rivalId) return NextResponse.json({ pro: true, rivals, myPoints })
+    // Free: ignore any requested rival; force the lowest-ranked.
+    const target = isPro ? rivalId : (free[0]?.id ?? null)
+    if (!target) return NextResponse.json({ pro: isPro, rivals: free, myPoints })
 
-    // Gate: rival must be one of the tribe-mates.
-    if (!rivals.some(r => r.id === rivalId)) return NextResponse.json({ error: 'Rival not in your tribe' }, { status: 403 })
-    const h2h = await computeH2H(admin, user.id, rivalId, tournamentId)
-    return NextResponse.json({ pro: true, rivals, myPoints, h2h })
+    // Gate: rival must be one of the (allowed) tribe-mates.
+    const allowed = isPro ? rivals : free
+    if (!allowed.some(r => r.id === target)) return NextResponse.json({ error: 'Rival not allowed' }, { status: 403 })
+    const h2h = await computeH2H(admin, user.id, target, tournamentId)
+    return NextResponse.json({ pro: isPro, rivals: free, myPoints, h2h })
   } catch (err: any) {
     console.error('[tipster/h2h]', err)
     return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })

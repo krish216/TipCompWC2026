@@ -49,7 +49,7 @@ const lbCache = new Map<string, LbCacheEntry>()
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, isAdFree } = useUserPrefs()
+  const { scoringConfig } = useUserPrefs()
 
   const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
@@ -407,19 +407,13 @@ export default function LeaderboardPage() {
       {/* Medals & badges — free engagement strip */}
       <TrophyStrip className="mb-4" />
 
-      {/* Entry point for Tipster Pro "My Stats" — page handles its own gating/upsell.
-          Non-Pro users see it framed as a paid unlock; Pro users see a plain link. */}
+      {/* Entry point to /stats — open to all; the page itself gives a free taste + upsell */}
       <a href="/stats"
         className="flex items-center gap-3 mb-4 px-4 py-3 bg-white border border-emerald-200 rounded-2xl shadow-sm hover:border-emerald-300 hover:shadow transition-all">
         <span className="text-2xl leading-none">📊</span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            My Tipster Stats
-            {!isAdFree && <span className="text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">👑 Pro</span>}
-          </p>
-          <p className="text-[11px] text-gray-500">
-            {isAdFree ? 'Your percentile, form, persona & the upsets you called' : 'Unlock your percentile, form, persona & more · $6.95'}
-          </p>
+          <p className="text-sm font-bold text-gray-900">My Tipster Stats</p>
+          <p className="text-[11px] text-gray-500">Your persona, how you tipped vs the field, head-to-head & more</p>
         </div>
         <span className="text-emerald-600 font-bold text-lg leading-none">→</span>
       </a>

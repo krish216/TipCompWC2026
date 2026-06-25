@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
     const { data: ut } = await (admin.from('user_tournaments') as any)
       .select('is_premium, is_ad_free')
       .eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle()
-    if (!(ut?.is_premium || ut?.is_ad_free)) return NextResponse.json({ pro: false })
+    const isPro = !!(ut?.is_premium || ut?.is_ad_free)
 
     const review = await computeTipReview(admin, user.id, tournamentId, compId, tribeId)
+    if (!isPro) {
+      // Taste: just the FIRST fixture of the latest round (one round, one game).
+      const last = review.rounds[review.rounds.length - 1]
+      const rounds = last ? [{ ...last, fixtures: last.fixtures.slice(0, 1) }] : []
+      return NextResponse.json({ pro: false, rounds, multiTribe: review.multiTribe })
+    }
     return NextResponse.json({ pro: true, ...review })
   } catch (err: any) {
     console.error('[tipster/tips]', err)

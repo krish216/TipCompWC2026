@@ -25,18 +25,18 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    // Paid gate — never leak stat data to non-Pro users.
+    // Freemium: everyone gets their own stats computed; `pro` tells the UI how much
+    // to reveal (free = persona + headline + trophies; deeper modules gated/blurred).
     const { data: ut } = await (admin.from('user_tournaments') as any)
       .select('is_premium, is_ad_free')
       .eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle()
-    const canSeeStats = !!(ut?.is_premium || ut?.is_ad_free)
-    if (!canSeeStats) return NextResponse.json({ pro: false })
+    const isPro = !!(ut?.is_premium || ut?.is_ad_free)
 
     const result = await computeTipsterStats(admin, user.id, tournamentId)
     if (!result.ok) {
-      return NextResponse.json({ pro: true, ready: false, predictionsMade: result.predictionsMade })
+      return NextResponse.json({ pro: isPro, ready: false, predictionsMade: result.predictionsMade })
     }
-    return NextResponse.json({ pro: true, ready: true, stats: result.stats })
+    return NextResponse.json({ pro: isPro, ready: true, stats: result.stats })
   } catch (err: any) {
     console.error('[tipster/stats]', err)
     return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })

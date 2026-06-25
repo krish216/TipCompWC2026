@@ -18,9 +18,8 @@ import type { H2H, H2HRival } from '@/lib/tipster-h2h'
 //   { pro:true, ready:false, n }   → "keep tipping" (under the min-scored gate)
 //   { pro:true, ready:true, stats} → full dashboard
 type ApiResp =
-  | { pro: false }
-  | { pro: true; ready: false; predictionsMade: number }
-  | { pro: true; ready: true; stats: TipsterStats }
+  | { pro: boolean; ready: false; predictionsMade: number }
+  | { pro: boolean; ready: true; stats: TipsterStats }
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
 
@@ -55,7 +54,7 @@ export default function StatsPage() {
     fetch(`/api/tipster/stats?tournament_id=${selectedTournId}`)
       .then(r => r.json())
       .then(d => { if (live) { setResp(d); setLoading(false) } })
-      .catch(() => { if (live) { setResp({ pro: false }); setLoading(false) } })
+      .catch(() => { if (live) { setResp({ pro: false, ready: false, predictionsMade: 0 }); setLoading(false) } })
     return () => { live = false }
   }, [session, selectedTournId])
 
@@ -94,11 +93,9 @@ export default function StatsPage() {
           <div className="flex justify-center py-20"><Spinner className="w-6 h-6" /></div>
         ) : !session ? (
           <SignInPrompt />
-        ) : resp?.pro === false ? (
-          <Teaser onUnlock={unlock} loading={upLoading} />
-        ) : resp?.pro === true && resp.ready === false ? (
+        ) : resp?.ready === false ? (
           <KeepTipping made={resp.predictionsMade} />
-        ) : resp?.pro === true && resp.ready ? (
+        ) : resp?.ready ? (
           <>
             <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl">
               {([['overview', 'Overview'], ['review', 'By round'], ['rivals', '⚔️ Rivals']] as const).map(([t, label]) => (
@@ -109,9 +106,15 @@ export default function StatsPage() {
                 </button>
               ))}
             </div>
-            {tab === 'overview' ? <Dashboard s={resp.stats} tournamentId={selectedTournId} compId={statsCompId} tribeId={statsTribeId} />
-              : tab === 'review' ? <TipReviewView tournamentId={selectedTournId} compId={statsCompId} tribeId={statsTribeId} />
-              : <RivalsView tournamentId={selectedTournId} tribeId={statsTribeId} />}
+            {tab === 'overview' ? <Dashboard s={resp.stats} pro={resp.pro} onUnlock={unlock} tournamentId={selectedTournId} compId={statsCompId} tribeId={statsTribeId} />
+              : tab === 'review' ? <TipReviewView pro={resp.pro} onUnlock={unlock} tournamentId={selectedTournId} compId={statsCompId} tribeId={statsTribeId} />
+              : <RivalsView pro={resp.pro} onUnlock={unlock} tournamentId={selectedTournId} tribeId={statsTribeId} />}
+            {!resp.pro && (
+              <button onClick={unlock} disabled={upLoading}
+                className="w-full mt-4 py-3 rounded-xl bg-amber-400 text-amber-950 text-sm font-bold hover:bg-amber-300 disabled:opacity-60 transition-colors">
+                {upLoading ? 'Redirecting…' : '🔓 Unlock everything · $6.95'}
+              </button>
+            )}
           </>
         ) : (
           <p className="text-sm text-gray-500 text-center py-12">Couldn’t load your stats. Try again shortly.</p>
@@ -144,38 +147,15 @@ function KeepTipping({ made }: { made: number }) {
   )
 }
 
-function Teaser({ onUnlock, loading }: { onUnlock: () => void; loading: boolean }) {
+// Blurs gated content and overlays an unlock prompt. Tapping anywhere → checkout.
+function Locked({ children, onUnlock, label }: { children: React.ReactNode; onUnlock: () => void; label?: string }) {
   return (
     <div className="relative">
-      {/* Blurred sample dashboard */}
-      <div className="pointer-events-none select-none blur-[5px] opacity-50 space-y-3">
-        <SampleHero />
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Top" value="8%" />
-          <Stat label="Hit-rate" value="61%" />
-          <Stat label="Points" value="142" />
-        </div>
-        <Card title="Your tendencies">
-          <Row label="Chalk index" value="67% back the favourite" />
-          <Row label="Giant-killer" value="3 upsets called" />
-          <Row label="On clear favourites" value="78% hit-rate" />
-        </Card>
-      </div>
-      {/* Overlay CTA */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-        <div className="bg-white/90 backdrop-blur rounded-2xl border border-amber-200 shadow-lg p-6 max-w-sm">
-          <div className="text-3xl mb-2">📊</div>
-          <p className="text-base font-extrabold text-gray-900">Unlock your Tipster Stats</p>
-          <p className="text-xs text-gray-500 mt-1 mb-4 leading-relaxed">
-            Your percentile, hit-rate, form curve, tipster persona and the upsets you called —
-            plus an ad-free experience for the rest of the World Cup.
-          </p>
-          <button onClick={onUnlock} disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-amber-400 text-amber-950 text-sm font-bold hover:bg-amber-300 disabled:opacity-60 transition-colors">
-            {loading ? 'Redirecting to checkout…' : 'Unlock Tipster Pro · $6.95 →'}
-          </button>
-          <a href="/pro/tipster" className="block text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 underline mt-2">See everything in Tipster Pro →</a>
-          <p className="text-[10px] text-gray-400 mt-1.5">One-time · whole tournament · ad-free included</p>
+      <div className="pointer-events-none select-none blur-[5px] opacity-60">{children}</div>
+      <div className="absolute inset-0 flex items-center justify-center text-center px-4 cursor-pointer" onClick={onUnlock}>
+        <div className="bg-white/90 backdrop-blur rounded-xl border border-amber-200 shadow-md px-4 py-2.5">
+          <p className="text-xs font-bold text-amber-700">🔓 {label ?? 'Unlock with Tipster Pro'}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">$6.95 · whole tournament · ad-free</p>
         </div>
       </div>
     </div>
@@ -183,8 +163,9 @@ function Teaser({ onUnlock, loading }: { onUnlock: () => void; loading: boolean 
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ s, tournamentId, compId, tribeId }: {
-  s: TipsterStats; tournamentId: string | null; compId: string | null; tribeId: string | null
+function Dashboard({ s, pro, onUnlock, tournamentId, compId, tribeId }: {
+  s: TipsterStats; pro: boolean; onUnlock: () => void
+  tournamentId: string | null; compId: string | null; tribeId: string | null
 }) {
   const maxForm = Math.max(1, ...s.form.map(f => f.points))
 
@@ -207,6 +188,10 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
       {/* Medals & badges */}
       <TrophyStrip />
 
+      {/* Gated middle — free users see it blurred behind an unlock prompt */}
+      {(() => {
+        const gated = (
+          <div className="space-y-3">
       {/* Streak */}
       <Card title="Form & streaks">
         <Row label="Longest correct streak" value={`${s.longestStreak} in a row`} />
@@ -267,8 +252,12 @@ function Dashboard({ s, tournamentId, compId, tribeId }: {
           <p className="text-xs text-gray-500 mt-0.5">{s.best.points} points · {s.best.round.toUpperCase()}</p>
         </Card>
       )}
+          </div>
+        )
+        return pro ? gated : <Locked onUnlock={onUnlock} label="See all your stats — tendencies, upsets, bonus & best picks">{gated}</Locked>
+      })()}
 
-      {/* Shareable card — inline preview */}
+      {/* Shareable card — inline preview (free — the viral flex) */}
       <ShareCard tournamentId={tournamentId} version={s.totalPoints} />
     </div>
   )
@@ -452,7 +441,8 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 // ── Tip Review (By round) ───────────────────────────────────────────────────────
-function TipReviewView({ tournamentId, compId, tribeId }: {
+function TipReviewView({ pro, onUnlock, tournamentId, compId, tribeId }: {
+  pro: boolean; onUnlock: () => void
   tournamentId: string | null; compId: string | null; tribeId: string | null
 }) {
   const { flag } = useUserPrefs()
@@ -517,18 +507,22 @@ function TipReviewView({ tournamentId, compId, tribeId }: {
         </div>
       </div>
 
-      {/* Lens filters — with/against the field, backed favourite/underdog */}
-      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide mb-2.5">
-        <div className="flex gap-1.5 min-w-max">
-          {REVIEW_FILTERS.map(ff => (
-            <button key={ff.key} onClick={() => setFilter(ff.key)}
-              className={clsx('px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors',
-                filter === ff.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
-              {ff.label}
-            </button>
-          ))}
+      {/* Lens filters (Pro) — with/against the field, backed favourite/underdog */}
+      {pro && (
+        <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide mb-2.5">
+          <div className="flex gap-1.5 min-w-max">
+            {REVIEW_FILTERS.map(ff => (
+              <button key={ff.key} onClick={() => setFilter(ff.key)}
+                className={clsx('px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors',
+                  filter === ff.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
+                {ff.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {!pro && <p className="text-xs text-gray-500 mb-2.5">Here's one game — see how you tipped vs the field, your comp &amp; your tribe. 👇</p>}
 
       <Legend />
 
@@ -540,6 +534,13 @@ function TipReviewView({ tournamentId, compId, tribeId }: {
             compId={compId} tribeId={tribeId} onOpenList={setList} />
         ))}
       </div>
+
+      {!pro && (
+        <button onClick={onUnlock}
+          className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-800 text-sm font-bold hover:bg-amber-100 transition-colors">
+          🔓 Unlock every game — round by round, vs the field · $6.95
+        </button>
+      )}
 
       {list && <PickListModal req={list} flag={flag} onClose={() => setList(null)} />}
 
@@ -804,7 +805,7 @@ function PickListModal({ req, flag, onClose }: { req: ListReq; flag: (t: string)
 }
 
 // ── Rivals (Head-to-head) ─────────────────────────────────────────────────────
-function RivalsView({ tournamentId, tribeId }: { tournamentId: string | null; tribeId: string | null }) {
+function RivalsView({ pro, onUnlock, tournamentId, tribeId }: { pro: boolean; onUnlock: () => void; tournamentId: string | null; tribeId: string | null }) {
   const { flag } = useUserPrefs()
   const [rivals, setRivals] = useState<H2HRival[] | null>(null)
   const [myPoints, setMyPoints] = useState(0)
@@ -859,13 +860,21 @@ function RivalsView({ tournamentId, tribeId }: { tournamentId: string | null; tr
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-gray-500 shrink-0">Face:</span>
-        <select value={rivalId ?? ''} onChange={e => setRivalId(e.target.value || null)}
-          className="flex-1 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-          {rivals.map(r => <option key={r.id} value={r.id}>{r.name} · {r.points} pts</option>)}
-        </select>
-      </div>
+      {pro ? (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-500 shrink-0">Face:</span>
+          <select value={rivalId ?? ''} onChange={e => setRivalId(e.target.value || null)}
+            className="flex-1 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            {rivals.map(r => <option key={r.id} value={r.id}>{r.name} · {r.points} pts</option>)}
+          </select>
+        </div>
+      ) : (
+        <button onClick={onUnlock}
+          className="w-full flex items-center justify-between gap-2 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 hover:bg-amber-100 transition-colors">
+          <span>⚔️ Facing {h2h?.rival.name ?? 'a tribe-mate'} · 🔓 unlock to challenge anyone</span>
+          <span>$6.95 →</span>
+        </button>
+      )}
 
       {h2hLoading || !h2h ? (
         <div className="flex justify-center py-16"><Spinner className="w-6 h-6" /></div>
@@ -950,12 +959,3 @@ function H2HCard({ h2h, flag }: { h2h: H2H; flag: (t: string) => string }) {
   )
 }
 
-function SampleHero() {
-  return (
-    <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-2xl p-5 text-center">
-      <div className="text-5xl mb-1">🔮</div>
-      <p className="text-lg font-extrabold">The Oracle</p>
-      <p className="text-xs text-emerald-50 mt-1">Top of the pile and rarely wrong.</p>
-    </div>
-  )
-}
