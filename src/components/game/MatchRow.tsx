@@ -8,7 +8,7 @@ import { Flag } from '@/components/ui/Flag'
 import type { Fixture, MatchScore, RoundId } from '@/types'
 import { calcPoints, getDefaultScoringConfig, type TournamentScoringConfig } from '@/types'
 import { formatKickoff } from '@/lib/timezone'
-import { isPlaceholderTeam } from '@/lib/placeholder'
+import { isUnknownTeam } from '@/lib/placeholder'
 
 const short = (t: string) => t.length > 14 ? t.replace('and ', '& ').split(' ').map((w,i) => i === 0 ? w : w[0]+'.').join(' ') : t
 
@@ -19,6 +19,7 @@ interface Props {
   result?:     (MatchScore & { pen_winner?: string|null; result_outcome?: string|null }) | null
   locked?:     boolean
   teamsTbd?:   boolean        // knockout slot whose teams aren't confirmed yet — not tippable
+  knownTeams?: Set<string>    // canonical real-team tokens, for per-side TBD labelling
   committed?:  boolean        // user has voluntarily locked in this prediction (final)
   saving?:     boolean
   isFavourite?: boolean
@@ -38,7 +39,7 @@ interface Props {
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, teamsTbd = false, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
+  locked = false, teamsTbd = false, knownTeams, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
@@ -76,8 +77,8 @@ export function MatchRow({
   const isPredDraw  = isExactRound
     ? (prediction != null && prediction.home === prediction.away && prediction.home >= 0)
     : sel === 'D'
-  const homeTbd = isPlaceholderTeam(fixture.home)
-  const awayTbd = isPlaceholderTeam(fixture.away)
+  const homeTbd = isUnknownTeam(fixture.home, knownTeams)
+  const awayTbd = isUnknownTeam(fixture.away, knownTeams)
   const inputDisabled = locked || teamsTbd || committed || (!!result && !retroactive)
   const showPenPick = isKnockout && !locked && !committed && isPredDraw && (retroactive ? true : !result)
   const awaitingPen = isKnockout && isOutcomeRound && sel === 'D' && !penWinner && !locked && !committed && (retroactive ? true : !result)

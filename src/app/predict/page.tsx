@@ -18,7 +18,7 @@ import { EmptyState, Spinner } from '@/components/ui'
 import { FavTeamPicker } from '@/components/ui/FavTeamPicker'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
-import { fixtureHasPlaceholder } from '@/lib/placeholder'
+import { fixtureHasPlaceholder, knownTeamSet } from '@/lib/placeholder'
 import { useTimezone } from '@/hooks/useTimezone'
 
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; locked_at?: string|null; standard_points?: number|null; bonus_points?: number|null }>
@@ -487,13 +487,18 @@ export default function PredictPage() {
     return !!roundLocks[roundId] || !!roundLocks[tabGroup]
   }, [roundLocks, scoringConfig, ROUND_TABS])
 
+  // Canonical set of the tournament's real teams. A knockout fixture whose side
+  // isn't in here is still a placeholder slot ("Winner Group A") and can't be tipped.
+  // Empty until teamsList loads → fixtureHasPlaceholder falls back to its name heuristic.
+  const knownTeams = useMemo(() => knownTeamSet(teamsList.map(t => t.name)), [teamsList])
+
   const isLocked = useCallback((f: Fixture) => {
-    if (fixtureHasPlaceholder(f)) return true  // teams not confirmed yet — never tippable
+    if (fixtureHasPlaceholder(f, knownTeams)) return true  // teams not confirmed yet — never tippable
     if (!isRoundOpen(f.round)) return true  // round lock always enforced
     if (allowRetroactivePredictions) return false  // bypass kickoff/result locks only
     const minsToKickoff = (new Date(f.kickoff_utc).getTime() - Date.now()) / 60000
     return minsToKickoff <= 5
-  }, [isRoundOpen, allowRetroactivePredictions])
+  }, [isRoundOpen, allowRetroactivePredictions, knownTeams])
 
   // ── Lock-in (voluntary, irreversible commit that reveals the tribe tipsheet) ──
   const isCommitted = useCallback((fixtureId: number) => !!predictions[fixtureId]?.locked_at, [predictions])
@@ -558,7 +563,7 @@ export default function PredictPage() {
     for (const tab of ROUND_TABS) {
       // Exclude fixtures with unconfirmed (placeholder) teams — they can't be tipped,
       // so they shouldn't count toward the round's tip total or block "done".
-      const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? []).filter(f => !fixtureHasPlaceholder(f))
+      const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? []).filter(f => !fixtureHasPlaceholder(f, knownTeams))
       const entered = fs.filter(f => {
         const p = predictions[f.id]
         if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
@@ -567,7 +572,7 @@ export default function PredictPage() {
       counts[tab] = { entered, total: fs.length }
     }
     return counts
-  }, [fixtures, predictions, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig])
+  }, [fixtures, predictions, ROUND_TABS, TAB_TO_ROUNDS, scoringConfig, knownTeams])
 
   // Global stats
   const globalStats = useMemo(() => {
@@ -740,7 +745,8 @@ export default function PredictPage() {
       prediction={predictions[f.id] ?? null}
       result={effectiveResult}
       locked={isLocked(f)}
-      teamsTbd={fixtureHasPlaceholder(f)}
+      teamsTbd={fixtureHasPlaceholder(f, knownTeams)}
+      knownTeams={knownTeams}
       committed={isCommitted(f.id)}
       saving={saving.has(f.id)}
       celebrating={celebrating.has(f.id)}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { fixtureHasPlaceholder } from '@/lib/placeholder'
+import { fixtureHasPlaceholder, knownTeamSet } from '@/lib/placeholder'
 import { z } from 'zod'
 
 const PredictionSchema = z.object({
@@ -88,9 +88,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Fixture does not belong to your active tournament' }, { status: 409 })
     }
 
-    // A knockout fixture whose teams haven't been decided yet (placeholder slots
-    // like "Winner Group A") can't be tipped — even if the round is open.
-    if (fixtures.some((f: any) => fixtureHasPlaceholder(f))) {
+    // A knockout fixture whose teams haven't been decided yet can't be tipped — even
+    // if the round is open. Authoritative check: a side must be a real tournament team
+    // (placeholders like "Winner Group A" / "TBD R32-1" simply aren't in the list).
+    const { data: teamRows } = await (admin.from('tournament_teams') as any)
+      .select('name').eq('tournament_id', tournamentId)
+    const known = knownTeamSet((teamRows ?? []).map((t: any) => t.name))
+    if (fixtures.some((f: any) => fixtureHasPlaceholder(f, known))) {
       return NextResponse.json({ error: 'This match can’t be tipped yet — the teams haven’t been confirmed.' }, { status: 409 })
     }
 

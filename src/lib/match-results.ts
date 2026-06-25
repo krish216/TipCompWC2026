@@ -7,6 +7,8 @@
  * score notifications and prize-challenge settlement live in app code.
  */
 
+import { canonTeam } from './team-canon'
+
 // ── football-data.org (v4) — match results provider ─────────────────────────────
 // Free tier includes the FIFA World Cup (competition code "WC"). Auth: X-Auth-Token.
 const FOOTBALL_DATA_BASE = 'https://api.football-data.org/v4'
@@ -98,29 +100,9 @@ export function parseEspnEvent(ev: any): { comps: EspnComp[]; completed: boolean
 }
 
 // ── Team-name normalisation ─────────────────────────────────────────────────────
-// Maps the various spellings of the same nation (our seed vs API-Football) to a
-// single canonical token, so name-based matching is robust.
-const TEAM_ALIASES: Record<string, string> = {
-  southkorea: 'korea', korearepublic: 'korea', korea: 'korea',
-  usa: 'usa', unitedstates: 'usa', unitedstatesofamerica: 'usa',
-  iran: 'iran', iriran: 'iran',
-  cotedivoire: 'ivorycoast', ivorycoast: 'ivorycoast',
-  caboverde: 'capeverde', capeverde: 'capeverde', capeverdeislands: 'capeverde',
-  curazao: 'curacao', curacao: 'curacao',
-  czechia: 'czechrepublic', czechrepublic: 'czechrepublic',
-  bosniaandherzegovina: 'bosnia', bosniaherzegovina: 'bosnia', bosnia: 'bosnia',
-  turkey: 'turkey', turkiye: 'turkey',
-  drcongo: 'congo', congodr: 'congo', democraticrepublicofcongo: 'congo',
-}
-
-/** Canonical, accent/punctuation-insensitive team token used for matching. */
-export function canonTeam(name?: string | null): string {
-  if (!name) return ''
-  const n = name
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
-    .toLowerCase().replace(/[^a-z0-9]/g, '')           // strip spaces/punctuation
-  return TEAM_ALIASES[n] ?? n
-}
+// canonTeam lives in its own client-safe module now (imported at top); re-exported
+// here so existing server imports keep working from one source.
+export { canonTeam }
 
 // Placeholder-team detection lives in its own client-safe module now; re-exported
 // here so existing server imports (scores/sync) keep working from one source.
