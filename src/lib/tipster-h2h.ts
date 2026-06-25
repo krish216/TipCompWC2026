@@ -52,7 +52,7 @@ export async function listRivals(admin: any, userId: string, tribeId: string, to
 
 export async function computeH2H(admin: any, userId: string, rivalId: string, tournamentId: string): Promise<H2H> {
   const pair = [userId, rivalId]
-  const [lbRes, brkRes, predsRes, fxRes, utRes, usersRes] = await Promise.all([
+  const [lbRes, brkRes, predsRes, fxRes, roundsRes, utRes, usersRes] = await Promise.all([
     (admin.from('leaderboard') as any)
       .select('user_id, total_points, correct_count, predictions_made, total_bonus_points')
       .eq('tournament_id', tournamentId).in('user_id', pair),
@@ -63,9 +63,16 @@ export async function computeH2H(admin: any, userId: string, rivalId: string, to
       .eq('tournament_id', tournamentId).in('user_id', pair).not('points_earned', 'is', null),
     (admin.from('fixtures') as any)
       .select('id, home, away, home_score, away_score, round').eq('tournament_id', tournamentId),
+    (admin.from('tournament_rounds') as any)
+      .select('round_code, include_in_scoring').eq('tournament_id', tournamentId),
     (admin.from('user_tournaments') as any).select('user_id, favourite_team').eq('tournament_id', tournamentId).in('user_id', pair),
     (admin.from('users') as any).select('id, display_name, avatar_url').in('id', pair),
   ])
+
+  // Same scoring filter as the leaderboard MV — exclude rounds flagged out of scoring
+  // (e.g. the warm-up round 'wup') so they don't leak into the swing fixtures.
+  const roundMeta = new Map(((roundsRes.data ?? []) as any[]).map(r => [r.round_code, r.include_in_scoring]))
+  const isScoring = (code: string) => roundMeta.get(code) !== false
 
   const lb = new Map(((lbRes.data ?? []) as any[]).map(r => [r.user_id, r]))
   const ut = new Map(((utRes.data ?? []) as any[]).map(r => [r.user_id, r.favourite_team]))
@@ -101,7 +108,7 @@ export async function computeH2H(admin: any, userId: string, rivalId: string, to
   const swing: H2HSwing[] = []
   for (const [fid, mp] of mineByFx) {
     const rp = rivalByFx.get(fid); const f = fxById.get(fid)
-    if (!rp || !f || f.home_score == null) continue
+    if (!rp || !f || f.home_score == null || !isScoring(f.round)) continue
     const myPoints = mp.points_earned ?? 0, rivalPoints = rp.points_earned ?? 0
     if (myPoints === rivalPoints) continue
     swing.push({
