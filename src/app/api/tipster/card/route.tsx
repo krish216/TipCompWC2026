@@ -45,12 +45,10 @@ export async function GET(request: NextRequest) {
     const tournamentId = url.searchParams.get('tournament_id')
     if (!tournamentId) return new Response('tournament_id required', { status: 400 })
 
+    // The share card is FREE (it's the acquisition flex) — auth only, no Pro gate.
     const admin = createAdminClient()
-    const [{ data: ut }, { data: u }] = await Promise.all([
-      (admin.from('user_tournaments') as any).select('is_premium, is_ad_free').eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle(),
-      (admin.from('users') as any).select('display_name, avatar_url').eq('id', user.id).maybeSingle(),
-    ])
-    if (!(ut?.is_premium || ut?.is_ad_free)) return new Response('Pro only', { status: 403 })
+    const { data: u } = await (admin.from('users') as any)
+      .select('display_name, avatar_url').eq('id', user.id).maybeSingle()
 
     const res = await computeTipsterStats(admin, user.id, tournamentId)
     const name = (u as any)?.display_name ?? 'Tipster'
@@ -62,6 +60,19 @@ export async function GET(request: NextRequest) {
       const upset = s.biggestUpset ? `🐐 Called ${s.biggestUpset.picked} over the field` : `${s.correctCount}/${s.predictionsMade} results called`
       data = { name, avatarUrl, emoji: s.persona.emoji, persona: s.persona.label, topPercent: s.topPercent, hitRate: Math.round(s.hitRate * 100), points: s.totalPoints, tagline: upset, joinUrl: `${appUrl}/join?ref=${user.id}`, accent: PERSONA_ACCENT[s.persona.key] ?? '#34d399' }
     }
+  }
+
+  // Pre-fetch the avatar to a data URI so the image render can't fail on a slow /
+  // odd-format avatar host. Only Satori-safe formats; anything else → initials.
+  let avatarData: string | null = null
+  if (data.avatarUrl && /^https?:\/\//.test(data.avatarUrl)) {
+    try {
+      const r = await fetch(data.avatarUrl)
+      const ct = r.headers.get('content-type') || ''
+      if (r.ok && /image\/(png|jpe?g|gif)/.test(ct)) {
+        avatarData = `data:${ct};base64,${Buffer.from(await r.arrayBuffer()).toString('base64')}`
+      }
+    } catch { /* fall back to initials */ }
   }
 
   const qr = await QRCode.toDataURL(data.joinUrl, { margin: 1, width: 220, color: { dark: '#065f46', light: '#ffffff' } })
@@ -84,8 +95,8 @@ export async function GET(request: NextRequest) {
         {/* Hero — avatar + persona */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ display: 'flex', padding: 9, borderRadius: 999, background: data.accent, boxShadow: '0 20px 55px rgba(0,0,0,0.4)' }}>
-            {data.avatarUrl
-              ? <img src={data.avatarUrl} width={232} height={232} style={{ borderRadius: 116 }} />
+            {avatarData
+              ? <img src={avatarData} width={232} height={232} style={{ borderRadius: 116 }} />
               : <div style={{ width: 232, height: 232, borderRadius: 116, background: '#064e3b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 96, fontWeight: 800 }}>{initials}</div>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 28, background: 'rgba(255,255,255,0.1)', border: `2px solid ${data.accent}`, borderRadius: 999, padding: '12px 32px' }}>

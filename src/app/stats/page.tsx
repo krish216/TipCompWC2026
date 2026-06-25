@@ -463,7 +463,7 @@ function TipReviewView({ pro, onUnlock, tournamentId, compId, tribeId }: {
       .then(r => r.json())
       .then(d => {
         if (!live) return
-        const review: TipReview = d?.pro ? d : { rounds: [], multiTribe: false }
+        const review: TipReview = d?.rounds ? d : { rounds: [], multiTribe: false }
         setData(review)
         // Default to the most recent round with tips.
         setActiveRound(review.rounds.length ? review.rounds[review.rounds.length - 1].code : null)
