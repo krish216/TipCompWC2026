@@ -860,18 +860,17 @@ function RivalsView({ pro, onUnlock, tournamentId, tribeId }: { pro: boolean; on
 
   return (
     <div className="space-y-3">
-      {pro ? (
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-500 shrink-0">Face:</span>
-          <select value={rivalId ?? ''} onChange={e => setRivalId(e.target.value || null)}
-            className="flex-1 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-            {rivals.map(r => <option key={r.id} value={r.id}>{r.name} · {r.points} pts</option>)}
-          </select>
-        </div>
-      ) : (
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-gray-500 shrink-0">Face:</span>
+        <select value={rivalId ?? ''} onChange={e => setRivalId(e.target.value || null)}
+          className="flex-1 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          {rivals.map(r => <option key={r.id} value={r.id}>{r.name} · {r.points} pts</option>)}
+        </select>
+      </div>
+      {!pro && (
         <button onClick={onUnlock}
           className="w-full flex items-center justify-between gap-2 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 hover:bg-amber-100 transition-colors">
-          <span>⚔️ Facing {h2h?.rival.name ?? 'a tribe-mate'} · 🔓 unlock to challenge anyone</span>
+          <span>🔓 Unlock to challenge anyone in your tribe</span>
           <span>$6.95 →</span>
         </button>
       )}
