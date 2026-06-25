@@ -16,6 +16,7 @@ const FEATURES = [
   { icon: '⚡', title: 'Challenges & bonus comps', body: 'Spice things up with match challenges and bonus competitions — extra prizes and extra reasons for your players to keep coming back.' },
   { icon: '💰', title: 'Full payment tracking',    body: 'Track entry fees for every member — mark who’s paid, chase who hasn’t, and export the lot to CSV.' },
   { icon: '🎨', title: 'Custom comp branding',     body: 'Upload your logo and make the comp unmistakably yours — on the leaderboard and on every invite you send.' },
+  { icon: '🎁', title: 'Tipster Pro — included',   body: 'You also get the entire player stats suite: your Tipster persona, fixture-by-fixture tip review, head-to-head vs your rivals, your shareable card — and ad-free. The complete TribePicks experience in one.' },
 ]
 
 const FAQS = [
@@ -23,6 +24,7 @@ const FAQS = [
   { q: 'Where do the features show up?', a: 'In your comp’s Manage screen. The moment you upgrade, Insights, email campaigns, challenges, payment tracking and branding unlock for that comp.' },
   { q: 'Does it cover all my comps?', a: 'Pro is per tournament for your account, so the Pro tools apply to the comps you run this tournament.' },
   { q: 'Do my members pay anything?', a: 'No. Pro is just for you, the Comp Chief. Playing is always free for your members.' },
+  { q: 'Do I get the player stats too?', a: 'Yes — CompChief Pro is the all-in-one tier. It includes the full Tipster Pro stats suite (your persona, tip review, head-to-head and shareable card) plus ad-free, on top of the organiser tools. No need to buy Tipster Pro separately.' },
 ]
 
 export default function CompChiefProPage() {
@@ -70,7 +72,8 @@ export default function CompChiefProPage() {
           <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight">Run a bigger, slicker comp</h1>
           <p className="mt-4 text-amber-50 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto">
             The organiser toolkit for serious Comp Chiefs — insights to spot drop-off, email to bring players back,
-            challenges to keep it lively, payment tracking, and your own branding. One price, the whole tournament.
+            challenges to keep it lively, payment tracking, and your own branding. <strong>Plus the full Tipster Pro
+            stats suite, included.</strong> One price, the whole tournament.
           </p>
           <div className="mt-7"><Cta large /></div>
           <p className="mt-3 text-[12px] text-amber-100">$9.95 AUD · one-time · covers the full tournament · GST included</p>
