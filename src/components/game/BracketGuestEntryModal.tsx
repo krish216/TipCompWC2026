@@ -143,6 +143,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
             <div className="text-4xl">📩</div>
             <p className="text-sm font-bold text-emerald-900">You’re all set</p>
             <p className="text-sm text-gray-600">{done.message}</p>
+            <p className="text-[11px] text-gray-400">Can’t find the email? Check your spam/junk folder.</p>
             <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Done</button>
           </div>
         ) : (
@@ -169,6 +170,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
                     inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code from your email"
                     className="w-full text-sm tracking-[0.3em] font-bold text-center border-2 border-emerald-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                   <p className="text-[11px] text-emerald-700">📩 We emailed a code to <strong>{email.trim()}</strong> — enter it to verify and lock in your entry.</p>
+                  <p className="text-[11px] text-gray-400">Can’t find it? Check your spam/junk folder (and add us to your contacts).</p>
                 </>
               )}
             </div>
