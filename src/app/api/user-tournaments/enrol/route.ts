@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 import { isBonusTeamLocked } from '@/lib/tournament-lock'
+import { pickAliveTeam } from '@/lib/bonus-team'
 
 // POST /api/user-tournaments/enrol
 // Called immediately after signUp() during registration — before email confirmation.
@@ -26,7 +27,21 @@ export async function POST(request: NextRequest) {
   // succeeds after that — we just don't apply a (now-disallowed) favourite team.
   const locked = await isBonusTeamLocked(admin, tournament_id)
   const row: any = { user_id, tournament_id }
-  if (!locked) row.favourite_team = favourite_team || null
+  if (!locked) {
+    row.favourite_team = favourite_team || null
+  } else {
+    // Tournament under way: the picker is locked, so a player joining for the
+    // knockout run can't choose a bonus team. Auto-allocate one from the still-alive
+    // R32 advancers so they still get the Round-of-32 2x — unless they already have a
+    // pick (e.g. re-enrol of someone who chose before lock), which we never clobber.
+    const { data: existing } = await admin
+      .from('user_tournaments').select('favourite_team')
+      .eq('user_id', user_id).eq('tournament_id', tournament_id).maybeSingle()
+    if (!(existing as any)?.favourite_team) {
+      const auto = await pickAliveTeam(admin, tournament_id)
+      if (auto) { row.favourite_team = auto; row.favourite_team_auto = true }
+    }
+  }
 
   // Upsert — idempotent, safe to call multiple times
   const { error } = await (admin.from('user_tournaments') as any)
