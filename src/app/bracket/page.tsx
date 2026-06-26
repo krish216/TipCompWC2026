@@ -764,7 +764,7 @@ export default function BracketPage() {
                 {sponsorCfg.sponsor_url
                   ? <a href={sponsorCfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" /></a>
                   : <SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" />}
-                {sponsorCfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{sponsorCfg.sponsor_name}</span>}
+                {sponsorCfg.sponsor_name && !sponsorCfg.logo_includes_name && <span className="text-xs sm:text-sm font-bold text-white">{sponsorCfg.sponsor_name}</span>}
                 {sponsorCfg.sponsor_tagline && <span className="text-[10px] text-white/70 leading-tight">{sponsorCfg.sponsor_tagline}</span>}
               </div>
               <div className="text-center sm:text-right min-w-0">

@@ -16,7 +16,8 @@ export interface Sponsor {
   logo_url:      string | null
   logo_tone:     LogoTone
   brand_color:   string | null   // banner background hex (co-branded leaderboard)
-  tagline:       string | null   // banner subtitle / location line
+  tagline:       string | null   // banner subtitle / location line (subsidiary/franchise)
+  logo_includes_name: boolean    // logo is a wordmark → don't print the name as text
   status:        SponsorStatus
   notes:         string | null
   created_at:    string
@@ -61,5 +62,6 @@ export interface ResolvedSponsorConfig {
   sponsor_url:         string
   logo_tone:           LogoTone
   sponsor_brand_color: string | null   // banner background hex; null → default treatment
-  sponsor_tagline:     string | null   // banner subtitle / location line
+  sponsor_tagline:     string | null   // banner subtitle / location line (subsidiary/franchise)
+  logo_includes_name:  boolean         // logo is a wordmark → suppress the name text
 }

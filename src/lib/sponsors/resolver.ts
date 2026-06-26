@@ -11,7 +11,7 @@ import { ChallengeType, LogoTone, ResolvedSponsorConfig } from './types'
 
 const EMPTY: ResolvedSponsorConfig = {
   enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', prize_1: '', prize_2: '', prize_3: '', sponsor_url: '', logo_tone: 'dark',
-  sponsor_brand_color: null, sponsor_tagline: null,
+  sponsor_brand_color: null, sponsor_tagline: null, logo_includes_name: false,
 }
 
 export async function resolveActiveCampaign(
@@ -46,7 +46,7 @@ export async function resolveActiveCampaign(
 
     const nowIso = new Date().toISOString()
     const { data: camps } = await (admin.from('sponsor_campaigns') as any)
-      .select('id, prize, click_url, logo_tone, sponsors(name, website_url, logo_url, logo_tone, brand_color, tagline)')
+      .select('id, prize, click_url, logo_tone, sponsors(id, name, website_url, logo_url, logo_tone, brand_color, tagline)')
       .eq('challenge_id', challengeId).eq('enabled', true)
       .lte('starts_at', nowIso).gte('ends_at', nowIso)
       .order('starts_at', { ascending: true }).limit(1)
@@ -63,6 +63,14 @@ export async function resolveActiveCampaign(
       if (!pe && pp) { prize_1 = (pp as any).prize_1 ?? ''; prize_2 = (pp as any).prize_2 ?? ''; prize_3 = (pp as any).prize_3 ?? '' }
     } catch { /* columns not migrated yet */ }
 
+    // Wordmark flag (migration 134) — best-effort, defaults false until migrated.
+    let logoIncludesName = false
+    try {
+      const { data: sp, error: se } = await (admin.from('sponsors') as any)
+        .select('logo_includes_name').eq('id', c.sponsors.id).maybeSingle()
+      if (!se && sp) logoIncludesName = !!(sp as any).logo_includes_name
+    } catch { /* column not migrated yet */ }
+
     const tone: LogoTone = (c.logo_tone ?? c.sponsors.logo_tone) === 'light' ? 'light' : 'dark'
     return {
       enabled:      true,
@@ -76,6 +84,7 @@ export async function resolveActiveCampaign(
       logo_tone:    tone,
       sponsor_brand_color: c.sponsors.brand_color ?? null,
       sponsor_tagline:     c.sponsors.tagline ?? null,
+      logo_includes_name:  logoIncludesName,
     }
   } catch {
     return EMPTY
