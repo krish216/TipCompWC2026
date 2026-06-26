@@ -606,7 +606,7 @@ export default function BracketPage() {
         slug: challengeParam,
         name: sponsorCfg.challenge_name ?? 'Bracket Challenge',
         entrants: 0,
-        sponsor: { name: sponsorCfg.sponsor_name, logo: sponsorCfg.sponsor_logo, prize: sponsorCfg.prize, url: sponsorCfg.sponsor_url, logo_tone: sponsorCfg.logo_tone },
+        sponsor: { name: sponsorCfg.sponsor_name, logo: sponsorCfg.sponsor_logo, prize: sponsorCfg.prize, url: sponsorCfg.sponsor_url, logo_tone: sponsorCfg.logo_tone, tagline: sponsorCfg.sponsor_tagline },
       } : undefined)
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
   // Find a challenge by slug, including the synthesized targeted one (so the entry
@@ -765,6 +765,7 @@ export default function BracketPage() {
                   ? <a href={sponsorCfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" /></a>
                   : <SponsorLogoMark logo={sponsorCfg.sponsor_logo} name={sponsorCfg.sponsor_name} logoTone={sponsorCfg.logo_tone} surface="dark" className="max-h-12 sm:max-h-16 max-w-[140px] sm:max-w-[200px]" />}
                 {sponsorCfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{sponsorCfg.sponsor_name}</span>}
+                {sponsorCfg.sponsor_tagline && <span className="text-[10px] text-white/70 leading-tight">{sponsorCfg.sponsor_tagline}</span>}
               </div>
               <div className="text-center sm:text-right min-w-0">
                 {sponsorCfg.prize
@@ -839,6 +840,7 @@ export default function BracketPage() {
           hasPrize={!!chFor(guestChallenge)?.sponsor?.prize}
           challengeName={chFor(guestChallenge)?.name}
           sponsorName={chFor(guestChallenge)?.sponsor?.name ?? null}
+          sponsorSubsidiary={chFor(guestChallenge)?.sponsor?.tagline ?? null}
           sponsorLogo={chFor(guestChallenge)?.sponsor?.logo ?? null}
           sponsorLogoTone={chFor(guestChallenge)?.sponsor?.logo_tone ?? null}
           picks={picks}
@@ -931,6 +933,7 @@ export default function BracketPage() {
           initial={manageInitial ?? undefined}
           hasPrize={!!chFor(manageSlug)?.sponsor?.prize}
           sponsorName={chFor(manageSlug)?.sponsor?.name ?? null}
+          sponsorSubsidiary={chFor(manageSlug)?.sponsor?.tagline ?? null}
           sponsorLogo={chFor(manageSlug)?.sponsor?.logo ?? null}
           sponsorLogoTone={chFor(manageSlug)?.sponsor?.logo_tone ?? null}
           onClose={() => setManageSlug(null)}
@@ -944,6 +947,7 @@ export default function BracketPage() {
           challengeName={chFor(memberEnterSlug)?.name}
           hasPrize={!!chFor(memberEnterSlug)?.sponsor?.prize}
           sponsorName={chFor(memberEnterSlug)?.sponsor?.name ?? null}
+          sponsorSubsidiary={chFor(memberEnterSlug)?.sponsor?.tagline ?? null}
           sponsorLogo={chFor(memberEnterSlug)?.sponsor?.logo ?? null}
           sponsorLogoTone={chFor(memberEnterSlug)?.sponsor?.logo_tone ?? null}
           onClose={() => setMemberEnterSlug(null)}

@@ -195,7 +195,7 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
     const res = await fetch(`/api/sponsors/${sponsor.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: edit.name, website_url: edit.website_url, contact_name: edit.contact_name,
+        name: edit.name, tagline: edit.tagline, website_url: edit.website_url, contact_name: edit.contact_name,
         contact_email: edit.contact_email, phone: edit.phone, logo_tone: edit.logo_tone,
         status: edit.status, notes: edit.notes,
       }),
@@ -258,6 +258,7 @@ function SponsorRow({ sponsor, expanded, onToggle, onChanged }: {
           {/* Brand details */}
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="Name" value={edit.name} onChange={v => setEdit(p => ({ ...p, name: v }))} />
+            <Field label="Subsidiary / franchise (shown under the name)" value={edit.tagline ?? ''} onChange={v => setEdit(p => ({ ...p, tagline: v }))} placeholder="e.g. Earlwood & Wolli Creek" />
             <Field label="Website URL" value={edit.website_url ?? ''} onChange={v => setEdit(p => ({ ...p, website_url: v }))} />
             <Field label="Contact name" value={edit.contact_name ?? ''} onChange={v => setEdit(p => ({ ...p, contact_name: v }))} />
             <Field label="Contact email" value={edit.contact_email ?? ''} onChange={v => setEdit(p => ({ ...p, contact_email: v }))} />

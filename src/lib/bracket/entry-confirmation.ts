@@ -74,6 +74,7 @@ export async function sendEntryConfirmation(
     const prize       = cfg.enabled ? cfg.prize : ''
     const sponsorLogo = cfg.enabled ? (cfg.sponsor_logo || '') : ''
     const sponsorUrl  = cfg.enabled ? (cfg.sponsor_url  || '') : ''
+    const subsidiary  = cfg.enabled ? (cfg.sponsor_tagline || '') : ''
     const firstName = (opts.name ?? '').trim().split(' ')[0]
     const leaderUrl = `${opts.origin.replace(/\/$/, '')}/bracket/leaderboard/${opts.challenge.slug}`
     const closes    = opts.closesAt ? fmtDate(opts.closesAt) : ''
@@ -85,7 +86,7 @@ export async function sendEntryConfirmation(
     const resend  = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
       from: FROM, to: opts.email, subject,
-      html: buildHtml({ firstName, challengeName: opts.challenge.name, sponsor, prize, sponsorLogo, sponsorUrl, closes, leaderUrl, summary }),
+      html: buildHtml({ firstName, challengeName: opts.challenge.name, sponsor, subsidiary, prize, sponsorLogo, sponsorUrl, closes, leaderUrl, summary }),
     })
     if (error) console.error('[entry-confirmation] send failed:', error)
   } catch (e: any) {
@@ -120,7 +121,7 @@ function summaryBlock(s: EntrySummary): string {
 }
 
 function buildHtml(v: {
-  firstName: string; challengeName: string; sponsor: string; prize: string; sponsorLogo: string; sponsorUrl: string; closes: string; leaderUrl: string; summary: EntrySummary | null
+  firstName: string; challengeName: string; sponsor: string; subsidiary: string; prize: string; sponsorLogo: string; sponsorUrl: string; closes: string; leaderUrl: string; summary: EntrySummary | null
 }): string {
   const greeting = v.firstName ? `Nice one, ${v.firstName} —` : 'Nice one —'
   const prizeLine = v.prize
@@ -154,7 +155,8 @@ function buildHtml(v: {
     ${v.sponsorLogo
       ? `<a href="${v.sponsorUrl || 'https://www.tribepicks.com'}" style="text-decoration:none;"><img src="${v.sponsorLogo}" alt="${esc(v.sponsor)}" height="48" style="display:inline-block;border-radius:6px;"/></a>`
       : `<p style="margin:0;font-size:16px;font-weight:800;color:#111827;">${esc(v.sponsor)}</p>`}
-    ${v.sponsorUrl ? `<p style="margin:10px 0 0;font-size:13px;"><a href="${v.sponsorUrl}" style="color:#065f46;font-weight:600;text-decoration:none;">Visit ${esc(v.sponsor)} →</a></p>` : ''}
+    ${v.subsidiary ? `<p style="margin:8px 0 0;font-size:13px;font-weight:600;color:#374151;">${esc(v.subsidiary)}</p>` : ''}
+    ${v.sponsorUrl ? `<p style="margin:8px 0 0;font-size:13px;"><a href="${v.sponsorUrl}" style="color:#065f46;font-weight:600;text-decoration:none;">Visit ${esc(v.sponsor)} →</a></p>` : ''}
   </div>` : ''}
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">You're receiving this because you entered a challenge at

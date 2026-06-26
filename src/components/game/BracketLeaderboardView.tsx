@@ -347,6 +347,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
                 ? <a href={cfg.sponsor_url} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex"><CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" /></a>
                 : <CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
               {cfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{cfg.sponsor_name}</span>}
+              {cfg.sponsor_tagline && <span className="text-[10px] text-white/70 leading-tight">{cfg.sponsor_tagline}</span>}
             </div>
             <div className="text-center min-w-0">
               {cfg.prize
@@ -500,6 +501,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone, postcode: es?.entry?.postcode } : undefined}
           hasPrize={!!cfg?.prize}
           sponsorName={cfg?.sponsor_name ?? null}
+          sponsorSubsidiary={cfg?.sponsor_tagline ?? null}
           sponsorLogo={cfg?.sponsor_logo ?? null}
           sponsorLogoTone={cfg?.logo_tone ?? null}
           onClose={() => { setShowEnter(false); setEditingEntry(false) }}

@@ -23,7 +23,7 @@ async function entrantCount(admin: any, challengeId: string): Promise<number> {
 
 function sponsorSummary(cfg: any) {
   return cfg.enabled
-    ? { name: cfg.sponsor_name, logo: cfg.sponsor_logo, prize: cfg.prize, url: cfg.sponsor_url, logo_tone: cfg.logo_tone }
+    ? { name: cfg.sponsor_name, logo: cfg.sponsor_logo, prize: cfg.prize, url: cfg.sponsor_url, logo_tone: cfg.logo_tone, tagline: cfg.sponsor_tagline }
     : null
 }
 

@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ sponsor, campaigns: campaigns ?? [] })
 }
 
-const EDITABLE = ['name', 'contact_name', 'contact_email', 'phone', 'website_url', 'logo_url', 'logo_tone', 'status', 'notes'] as const
+const EDITABLE = ['name', 'tagline', 'contact_name', 'contact_email', 'phone', 'website_url', 'logo_url', 'logo_tone', 'status', 'notes'] as const
 
 // PATCH /api/sponsors/:id — admin: update editable fields.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
