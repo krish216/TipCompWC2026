@@ -392,14 +392,17 @@ function CampaignCard({ campaign, hideLabel, onChanged }: { campaign: CampaignRo
         </button>
       </div>
       <div className="grid sm:grid-cols-2 gap-2.5">
-        <Field label="Prize" value={c.prize ?? ''} onChange={v => setC(p => ({ ...p, prize: v }))} placeholder="e.g. $500 voucher" />
+        <Field label="Headline prize (the total to win)" value={c.prize ?? ''} onChange={v => setC(p => ({ ...p, prize: v }))} placeholder="e.g. $500 worth of fuel vouchers" />
         <Field label="Click-through URL" value={c.click_url ?? ''} onChange={v => setC(p => ({ ...p, click_url: v }))} placeholder="defaults to sponsor website" />
+        <Field label="1st place (optional)" value={c.prize_1 ?? ''} onChange={v => setC(p => ({ ...p, prize_1: v }))} placeholder="e.g. $250" />
+        <Field label="2nd place (optional)" value={c.prize_2 ?? ''} onChange={v => setC(p => ({ ...p, prize_2: v }))} placeholder="e.g. $150" />
+        <Field label="3rd place (optional)" value={c.prize_3 ?? ''} onChange={v => setC(p => ({ ...p, prize_3: v }))} placeholder="e.g. $100" />
         <DateField label="Starts" value={c.starts_at} onChange={v => setC(p => ({ ...p, starts_at: v }))} />
         <DateField label="Ends (lock)" value={c.ends_at} onChange={v => setC(p => ({ ...p, ends_at: v }))} />
       </div>
       <div className="flex gap-2">
         <button disabled={busy}
-          onClick={() => patch({ prize: c.prize, click_url: c.click_url, starts_at: c.starts_at, ends_at: c.ends_at }, 'Saved')}
+          onClick={() => patch({ prize: c.prize, prize_1: c.prize_1, prize_2: c.prize_2, prize_3: c.prize_3, click_url: c.click_url, starts_at: c.starts_at, ends_at: c.ends_at }, 'Saved')}
           className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50">Save</button>
         <button onClick={remove} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 ml-auto">Delete</button>
       </div>

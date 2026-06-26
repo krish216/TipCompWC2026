@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   // Entry row — gracefully report unavailable if the table isn't migrated yet.
   let entry: any = null, available = true
   const { data, error } = await admin.from('bracket_entries')
-    .select('final_goals, tp_goals, phone, consent_marketing, entered_at')
+    .select('final_goals, tp_goals, phone, postcode, consent_marketing, entered_at')
     .eq('user_id', user.id).eq('challenge_id', challenge.id).maybeSingle()
   if (error) available = false
   else entry = data
@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
   if (!(await hasChampion(admin, user.id, tid)))
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })
 
+  // Sponsored (prize) challenges capture the entrant's postcode — lead data for the
+  // sponsor, covered by the marketing consent. Required for those; never for generic
+  // challenges. Resolve once and reuse for the confirmation email below.
+  const sponsorCfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })
+  const hasPrize = !!(sponsorCfg.enabled && sponsorCfg.prize)
+  const postcode = typeof body.postcode === 'string' ? body.postcode.trim() : ''
+  if (hasPrize && !/^\d{4}$/.test(postcode))
+    return NextResponse.json({ error: 'Enter your 4-digit postcode to go in the prize draw.' }, { status: 422 })
+
   // First entry vs edit — drives the one-time confirmation email below.
   const { data: prior } = await admin.from('bracket_entries')
     .select('user_id').eq('user_id', user.id).eq('challenge_id', challenge.id).maybeSingle()
@@ -88,6 +97,7 @@ export async function POST(request: NextRequest) {
     final_goals:       finalGoals,
     tp_goals:          tpGoals,
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
+    postcode:          postcode || null,
     consent_terms:     true,
     consent_marketing: body.consent_marketing === true,
     source:            'member',
@@ -102,6 +112,7 @@ export async function POST(request: NextRequest) {
     userId: user.id, tournamentId: tid, enteredChallengeId: challenge.id,
     finalGoals, tpGoals,
     phone: typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
+    postcode: postcode || null,
     consentMarketing: body.consent_marketing === true,
   })
 
@@ -110,8 +121,7 @@ export async function POST(request: NextRequest) {
   // saw the in-app confirmation, so an email there is just noise; for a prize
   // (sponsored) challenge it's a useful "you're in the draw to win X" receipt.
   if (isNewEntry) {
-    const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })
-    if (cfg.enabled && cfg.prize) {
+    if (sponsorCfg.enabled && sponsorCfg.prize) {
       const origin = new URL(request.url).origin
       const { data: profile } = await admin.from('users').select('email, display_name').eq('id', user.id).maybeSingle()
       const email = (profile as any)?.email

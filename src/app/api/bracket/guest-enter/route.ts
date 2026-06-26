@@ -96,6 +96,12 @@ export async function POST(request: NextRequest) {
   const hasPrize = !!(sponsorCfg.enabled && sponsorCfg.prize)
   const inLine = hasPrize ? 'You’re in the draw!' : 'You’re entered!'
 
+  // Sponsored (prize) challenges capture the entrant's postcode (lead data for the
+  // sponsor, per the marketing consent). Required for those; never for generic ones.
+  const postcode = typeof body.postcode === 'string' ? body.postcode.trim() : ''
+  if (hasPrize && !/^\d{4}$/.test(postcode))
+    return NextResponse.json({ error: 'Enter your 4-digit postcode to go in the prize draw.' }, { status: 422 })
+
   const now = new Date().toISOString()
 
   // ── Resolve the account ─────────────────────────────────────────────────────
@@ -176,6 +182,7 @@ export async function POST(request: NextRequest) {
     final_goals:       finalGoals,
     tp_goals:          tpGoals,
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
+    postcode:          postcode || null,
     consent_terms:     true,
     consent_marketing: true,
     source:            'guest',

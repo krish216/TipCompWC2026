@@ -7,11 +7,12 @@ import { useState } from 'react'
 // `challenge` is the challenge slug being entered (omitted → the default one).
 // `editing` + `initial` re-open the form to amend an existing entry (the POST
 // upserts on user+challenge, so re-submitting overwrites the tie-breakers).
-export function BracketEntryModal({ challenge, challengeName, editing, initial, onClose, onEntered }: {
+export function BracketEntryModal({ challenge, challengeName, editing, initial, hasPrize, onClose, onEntered }: {
   challenge?: string
   challengeName?: string
   editing?: boolean
-  initial?: { final_goals?: number | null; tp_goals?: number | null; phone?: string | null }
+  initial?: { final_goals?: number | null; tp_goals?: number | null; phone?: string | null; postcode?: string | null }
+  hasPrize?: boolean   // sponsored challenge with a live prize → capture postcode for the draw
   onClose: () => void
   onEntered: () => void
 }) {
@@ -20,11 +21,13 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   const [terms,      setTerms]      = useState(!!editing)     // already consented when amending
   const [marketing,  setMarketing]  = useState(!!editing)
   const [phone,      setPhone]      = useState(initial?.phone ?? '')
+  const [postcode,   setPostcode]   = useState(initial?.postcode ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
   const numOk = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
-  const canSubmit = terms && marketing && numOk(finalGoals) && numOk(tpGoals) && !submitting
+  const pcOk  = !hasPrize || /^\d{4}$/.test(postcode.trim())   // postcode required for prize draws
+  const canSubmit = terms && marketing && numOk(finalGoals) && numOk(tpGoals) && pcOk && !submitting
 
   const submit = async () => {
     setSubmitting(true); setError(null)
@@ -35,6 +38,7 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
           final_goals: +finalGoals, tp_goals: +tpGoals,
           consent_terms: terms, consent_marketing: marketing,
           phone: phone.trim() || undefined,
+          postcode: postcode.trim() || undefined,
           challenge: challenge || undefined,
         }),
       })
@@ -94,13 +98,22 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
             placeholder="Phone (optional — for the prize)"
             className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
 
+          {hasPrize && (
+            <input type="text" inputMode="numeric" value={postcode}
+              onChange={e => setPostcode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="Postcode (to go in the prize draw) *"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          )}
+
           <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
             <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
             <span>I accept the challenge <a href="/terms" target="_blank" className="underline">terms &amp; conditions</a>. <span className="text-red-500">*</span></span>
           </label>
           <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
             <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-            <span>I agree my contact details can be shared with the prize sponsor, who hands out the prizes. <span className="text-red-500">*</span></span>
+            <span>{hasPrize
+              ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
+              : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
           </label>
 
           {error && <p className="text-xs text-red-600">{error}</p>}

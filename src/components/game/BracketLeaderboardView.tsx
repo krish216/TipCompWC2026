@@ -42,6 +42,16 @@ function CfgLogoMark({ cfg, surface, className }: { cfg: any; surface: 'dark' | 
   return <SponsorLogoMark logo={cfg?.sponsor_logo} name={cfg?.sponsor_name} logoTone={cfg?.logo_tone} surface={surface} className={className} />
 }
 
+// Readable ink for a sponsor banner: dark slate on a light brand colour, white on a
+// dark one (sRGB luminance). Falls back to white for the default dark-green banner.
+function readableInk(hex?: string | null): string {
+  const m = (hex ?? '').replace('#', '').match(/^([0-9a-fA-F]{6})$/)
+  if (!m) return '#ffffff'
+  const n = parseInt(m[1], 16)
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+  return lum > 0.6 ? '#0f172a' : '#ffffff'
+}
+
 // One match within an expanded round, framed from the player's pick.
 function MatchRow({ s }: { s: SlotCard }) {
   let subject = s.pick, verb: string | null = null, object: string | null = null, note: string | null = null
@@ -217,10 +227,28 @@ function BracketSponsorInsert({ cfg }: { cfg: any }) {
   )
 }
 
-function LeaderboardList({ data, poolLabel }: { data: Data; poolLabel: string }) {
+function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: string; cfg?: any }) {
   return (
     <>
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        {/* Branded leaderboard header strip — sponsor on the brand colour, flush atop
+            the standings. Shown only for sponsored brackets. */}
+        {cfg?.enabled && (cfg.sponsor_name || cfg.sponsor_logo) && (() => {
+          const brand = cfg.sponsor_brand_color || '#064e3b'
+          const ink   = readableInk(cfg.sponsor_brand_color)
+          return (
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ background: brand }}>
+              <div className="min-w-0">
+                <p className="text-lg sm:text-xl font-black leading-tight uppercase tracking-tight truncate" style={{ color: ink }}>{cfg.sponsor_name}</p>
+                {cfg.sponsor_tagline && <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] mt-0.5 truncate" style={{ color: ink, opacity: 0.72 }}>{cfg.sponsor_tagline}</p>}
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-sm font-bold leading-tight" style={{ color: ink }}>{poolLabel}</p>
+                <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: ink, opacity: 0.72 }}>presented by {cfg.sponsor_name}</p>
+              </div>
+            </div>
+          )
+        })()}
         <div className="grid grid-cols-[36px_1fr_56px] gap-2 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
           <span className="text-center">#</span><span>Player · top 12</span><span className="text-right">Pts</span>
         </div>
@@ -310,12 +338,9 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
     <div className="max-w-2xl mx-auto px-4 py-5 pb-28">
       {coBranded ? (
         <div className="mb-4">
+          {/* Green hero — challenge name, sponsor logo, headline prize */}
           <div className="bg-green-900 rounded-2xl px-5 py-6 flex flex-col items-center gap-4 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
-            {/* Title — centred on mobile (stacked), left in the three-up */}
             <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight text-center sm:text-left min-w-0">{challengeName}</h1>
-
-            {/* Logo — centred; tile hugs the creative (max-h, not fixed h, so wide/short
-                wordmarks don't letterbox) */}
             <div className="flex flex-col items-center gap-1.5">
               <span className="text-[8px] uppercase tracking-[0.2em] text-amber-300 whitespace-nowrap">Sponsored by</span>
               {cfg.sponsor_url
@@ -323,14 +348,21 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
                 : <CfgLogoMark cfg={cfg} surface="dark" className="max-h-16 sm:max-h-24 max-w-[160px] sm:max-w-[260px]" />}
               {cfg.sponsor_name && <span className="text-xs sm:text-sm font-bold text-white">{cfg.sponsor_name}</span>}
             </div>
-
-            {/* Prize — right, balances the title and keeps the logo centred */}
             <div className="text-center min-w-0">
               {cfg.prize
                 ? <p className="text-sm sm:text-base text-green-200">🏆 Win <strong className="text-amber-300 font-bold">{cfg.prize}</strong></p>
                 : <p className="text-sm sm:text-base text-green-300">🏆 Predict the knockout bracket</p>}
             </div>
           </div>
+          {/* Podium breakdown — 1st/2nd/3rd; each shown only when set. The headline
+              total ({cfg.prize}) is already in the hero above. */}
+          {(cfg.prize_1 || cfg.prize_2 || cfg.prize_3) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
+              {cfg.prize_1 && <span>🥇 <span className="text-gray-400">1st</span> <strong className="text-gray-800">{cfg.prize_1}</strong></span>}
+              {cfg.prize_2 && <span>🥈 <span className="text-gray-400">2nd</span> <strong className="text-gray-800">{cfg.prize_2}</strong></span>}
+              {cfg.prize_3 && <span>🥉 <span className="text-gray-400">3rd</span> <strong className="text-gray-800">{cfg.prize_3}</strong></span>}
+            </div>
+          )}
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-xs text-gray-500">max {data?.max ?? 80} pts · <Link href="/bracket/how-it-works" className="underline hover:text-gray-700">how it works</Link></p>
             <Link href={bracketHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Edit bracket →</Link>
@@ -448,11 +480,11 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
                   entry={es?.entry}
                 />
               ) : (
-                <LeaderboardList data={data} poolLabel={challengeName} />
+                <LeaderboardList data={data} poolLabel={challengeName} cfg={cfg} />
               )}
             </>
           ) : (
-            <LeaderboardList data={data} poolLabel={challengeName} />
+            <LeaderboardList data={data} poolLabel={challengeName} cfg={cfg} />
           )}
 
           {/* Sponsor insert / ad space below the bracket (per-challenge config) */}
@@ -465,7 +497,8 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           challenge={resolvedSlug}
           challengeName={data?.challenge?.name}
           editing={editingEntry}
-          initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone } : undefined}
+          initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone, postcode: es?.entry?.postcode } : undefined}
+          hasPrize={!!cfg?.prize}
           onClose={() => { setShowEnter(false); setEditingEntry(false) }}
           onEntered={() => { setShowEnter(false); setEditingEntry(false); loadBoard(resolvedSlug) }}
         />

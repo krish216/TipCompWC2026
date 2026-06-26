@@ -5,7 +5,7 @@ import { overlappingCampaign } from '@/lib/sponsors/campaigns'
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-const EDITABLE = ['prize', 'click_url', 'logo_tone', 'starts_at', 'ends_at', 'enabled'] as const
+const EDITABLE = ['prize', 'prize_1', 'prize_2', 'prize_3', 'click_url', 'logo_tone', 'starts_at', 'ends_at', 'enabled'] as const
 
 // PATCH /api/sponsors/campaigns/:id — admin: update a campaign.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {

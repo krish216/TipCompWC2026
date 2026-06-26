@@ -89,6 +89,7 @@ export async function ensureGlobalEntry(
     finalGoals: number
     tpGoals: number
     phone?: string | null
+    postcode?: string | null
     consentMarketing?: boolean
   },
 ): Promise<void> {
@@ -103,6 +104,7 @@ export async function ensureGlobalEntry(
       final_goals:       opts.finalGoals,
       tp_goals:          opts.tpGoals,
       phone:             opts.phone ?? null,
+      postcode:          opts.postcode ?? null,
       consent_terms:     true,
       consent_marketing: opts.consentMarketing ?? false,
       source:            'auto_global',

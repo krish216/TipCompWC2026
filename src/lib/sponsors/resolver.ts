@@ -10,7 +10,8 @@
 import { ChallengeType, LogoTone, ResolvedSponsorConfig } from './types'
 
 const EMPTY: ResolvedSponsorConfig = {
-  enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', sponsor_url: '', logo_tone: 'dark',
+  enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', prize_1: '', prize_2: '', prize_3: '', sponsor_url: '', logo_tone: 'dark',
+  sponsor_brand_color: null, sponsor_tagline: null,
 }
 
 export async function resolveActiveCampaign(
@@ -45,7 +46,7 @@ export async function resolveActiveCampaign(
 
     const nowIso = new Date().toISOString()
     const { data: camps } = await (admin.from('sponsor_campaigns') as any)
-      .select('prize, click_url, logo_tone, sponsors(name, website_url, logo_url, logo_tone)')
+      .select('id, prize, click_url, logo_tone, sponsors(name, website_url, logo_url, logo_tone, brand_color, tagline)')
       .eq('challenge_id', challengeId).eq('enabled', true)
       .lte('starts_at', nowIso).gte('ends_at', nowIso)
       .order('starts_at', { ascending: true }).limit(1)
@@ -53,14 +54,28 @@ export async function resolveActiveCampaign(
     const c = (camps as any)?.[0]
     if (!c || !c.sponsors) return EMPTY
 
+    // Podium prizes (migration 133) — best-effort so the banner never breaks if the
+    // columns aren't present yet; they simply stay empty until the migration runs.
+    let prize_1 = '', prize_2 = '', prize_3 = ''
+    try {
+      const { data: pp, error: pe } = await (admin.from('sponsor_campaigns') as any)
+        .select('prize_1, prize_2, prize_3').eq('id', c.id).maybeSingle()
+      if (!pe && pp) { prize_1 = (pp as any).prize_1 ?? ''; prize_2 = (pp as any).prize_2 ?? ''; prize_3 = (pp as any).prize_3 ?? '' }
+    } catch { /* columns not migrated yet */ }
+
     const tone: LogoTone = (c.logo_tone ?? c.sponsors.logo_tone) === 'light' ? 'light' : 'dark'
     return {
       enabled:      true,
       sponsor_name: c.sponsors.name ?? '',
       sponsor_logo: c.sponsors.logo_url ?? '',
       prize:        c.prize ?? '',
+      prize_1,
+      prize_2,
+      prize_3,
       sponsor_url:  c.click_url || c.sponsors.website_url || '',
       logo_tone:    tone,
+      sponsor_brand_color: c.sponsors.brand_color ?? null,
+      sponsor_tagline:     c.sponsors.tagline ?? null,
     }
   } catch {
     return EMPTY

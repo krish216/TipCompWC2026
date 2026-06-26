@@ -31,6 +31,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   const [finalGoals, setFinalGoals] = useState('')
   const [tpGoals,    setTpGoals]    = useState('')
   const [phone,      setPhone]      = useState('')
+  const [postcode,   setPostcode]   = useState('')
   const [terms,      setTerms]      = useState(false)
   const [marketing,  setMarketing]  = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -44,7 +45,8 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   const numOk    = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
   const emailOk  = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
   const codeOk   = /^\d{6}$/.test(code.trim())
-  const canSubmit = name.trim().length >= 2 && emailOk && codeSent && codeOk && terms && marketing && numOk(finalGoals) && numOk(tpGoals) && !submitting
+  const pcOk     = !hasPrize || /^\d{4}$/.test(postcode.trim())   // postcode required for prize draws
+  const canSubmit = name.trim().length >= 2 && emailOk && codeSent && codeOk && terms && marketing && numOk(finalGoals) && numOk(tpGoals) && pcOk && !submitting
 
   const sendCode = async () => {
     if (!emailOk) { setError('Enter a valid email first.'); return }
@@ -78,6 +80,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
           final_goals:   +finalGoals,
           tp_goals:      +tpGoals,
           phone:         phone.trim() || undefined,
+          postcode:      postcode.trim() || undefined,
           consent_terms: terms,
           consent_marketing: marketing,
           picks,
@@ -177,13 +180,22 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
               placeholder="Phone (optional — for the prize)"
               className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
 
+            {hasPrize && (
+              <input type="text" inputMode="numeric" value={postcode}
+                onChange={e => setPostcode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                placeholder="Postcode (to go in the prize draw) *"
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+            )}
+
             <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
               <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
               <span>I accept the challenge <a href="/terms" target="_blank" className="underline">terms &amp; conditions</a>. <span className="text-red-500">*</span></span>
             </label>
             <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
               <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-              <span>I agree my contact details can be shared with the prize sponsor, who hands out the prizes. <span className="text-red-500">*</span></span>
+              <span>{hasPrize
+                ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
+                : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
             </label>
 
             {error && <p className="text-xs text-red-600">{error}</p>}

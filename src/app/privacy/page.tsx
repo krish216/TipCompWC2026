@@ -78,8 +78,15 @@ export default function PrivacyPage() {
             <li><strong>Google LLC</strong> — advertising via Google AdSense. Google may set cookies and use device identifiers to serve and measure ads (see section 6). Premium subscribers are not shown advertisements.</li>
           </ul>
           <p className="mt-2">
-            We do not disclose your personal information to any other third parties except where required by
-            Australian law or a court order.
+            <strong>Prize draws &amp; sponsors.</strong> Some challenges (such as the Bracket Challenge) are run with a
+            sponsor who provides the prize. If you enter a sponsored challenge and tick the consent box, we share the
+            entry details you provide — which may include your name, postcode, phone number and email — with that
+            sponsor so they can administer the draw and may contact you about their products or services. Entering a
+            sponsored challenge is optional, and you can ask us or the sponsor to stop contacting you at any time.
+          </p>
+          <p className="mt-2">
+            Other than the sponsor disclosure described above, we do not disclose your personal information to any other
+            third parties except where required by Australian law or a court order.
           </p>
           <p className="mt-2">
             By using the Service you acknowledge that your data may be transferred to and stored in countries

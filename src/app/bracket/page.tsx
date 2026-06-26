@@ -294,7 +294,7 @@ export default function BracketPage() {
   const [challenges, setChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any; entered?: boolean; locked?: boolean }[]>([])
   const [memberEnterSlug, setMemberEnterSlug] = useState<string | null>(null)
   const [manageSlug, setManageSlug] = useState<string | null>(null)
-  const [manageInitial, setManageInitial] = useState<{ final_goals?: number | null; tp_goals?: number | null; phone?: string | null } | null>(null)
+  const [manageInitial, setManageInitial] = useState<{ final_goals?: number | null; tp_goals?: number | null; phone?: string | null; postcode?: string | null } | null>(null)
 
   // Open the entry modal in "edit" mode (amend tie-breakers or withdraw) for an
   // already-entered challenge. Pull the current entry so the form is pre-filled.
@@ -913,6 +913,7 @@ export default function BracketPage() {
           challengeName={challenges.find(c => c.slug === manageSlug)?.name}
           editing
           initial={manageInitial ?? undefined}
+          hasPrize={!!challenges.find(c => c.slug === manageSlug)?.sponsor?.prize}
           onClose={() => setManageSlug(null)}
           onEntered={() => { setManageSlug(null); loadChallenges() }}
         />
@@ -922,6 +923,7 @@ export default function BracketPage() {
         <BracketEntryModal
           challenge={memberEnterSlug}
           challengeName={challenges.find(c => c.slug === memberEnterSlug)?.name}
+          hasPrize={!!challenges.find(c => c.slug === memberEnterSlug)?.sponsor?.prize}
           onClose={() => setMemberEnterSlug(null)}
           onEntered={() => { setMemberEnterSlug(null); loadChallenges() }}
         />
