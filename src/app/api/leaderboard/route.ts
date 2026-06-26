@@ -84,7 +84,20 @@ export async function GET(request: NextRequest) {
     // For comp/tribe scopes, scopeUserIds already bounds the result to that group so
     // no further limit is applied — every member is returned for accurate round rankings.
     // Global scope caps at 100 to keep response size reasonable.
-    let lbQuery = (adminClient.from('leaderboard') as any)
+    // Knockout-only view: rank on the leaderboard_knockout MV (R32 onward) instead of
+    // the full-tournament leaderboard. Gated by the tournament's feature flag so a
+    // stray ?phase=knockout can't surface it before an admin enables it.
+    const phaseParam = searchParams.get('phase')
+    let knockoutEnabled = false
+    if (tournamentId) {
+      const { data: tRow } = await (adminClient.from('tournaments') as any)
+        .select('knockout_leaderboard_enabled').eq('id', tournamentId).maybeSingle()
+      knockoutEnabled = !!(tRow as any)?.knockout_leaderboard_enabled
+    }
+    const useKnockout = phaseParam === 'knockout' && knockoutEnabled
+    const lbTable = useKnockout ? 'leaderboard_knockout' : 'leaderboard'
+
+    let lbQuery = (adminClient.from(lbTable) as any)
       .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
       .order('total_points', { ascending: false })
       .order('bonus_count',  { ascending: false })
@@ -177,16 +190,24 @@ export async function GET(request: NextRequest) {
       // Fetch tournament_rounds once — needed for round→tab fallback and prevRoundRank
       const roundTabMap: Record<string, string> = {}
       const nonScoringRounds = new Set<string>()   // rounds flagged out of scoring (e.g. 'wup')
+      // In the knockout lens, drop group-stage rounds/tabs from the breakdowns so the
+      // per-round columns mirror the knockout-only standings (no GS1/GS2/GS3 columns).
+      const nonKnockoutRounds = new Set<string>()
+      const nonKnockoutTabs   = new Set<string>()
       if (tournamentId) {
         const { data: trs } = await adminClient
           .from('tournament_rounds')
-          .select('round_code, tab_group, round_order, include_in_scoring')
+          .select('round_code, tab_group, round_order, include_in_scoring, is_knockout')
           .eq('tournament_id', tournamentId)
           .order('round_order', { ascending: true })
         trRows = (trs ?? []) as any[]
         for (const tr of trRows) {
           roundTabMap[tr.round_code as string] = (tr.tab_group ?? tr.round_code) as string
           if (tr.include_in_scoring === false) nonScoringRounds.add(tr.round_code as string)
+          if (useKnockout && !tr.is_knockout) {
+            nonKnockoutRounds.add(tr.round_code as string)
+            nonKnockoutTabs.add((tr.tab_group ?? tr.round_code) as string)
+          }
         }
       }
 
@@ -202,6 +223,7 @@ export async function GET(request: NextRequest) {
         const round = fixtureRoundMap[p.fixture_id]
         if (!round) return
         if (nonScoringRounds.has(round)) return   // keep non-scoring rounds (e.g. 'wup') off the board
+        if (nonKnockoutRounds.has(round)) return  // knockout lens: drop group-stage rounds
         if (!breakdownMap[p.user_id])         breakdownMap[p.user_id]         = {} as Record<RoundId, number>
         if (!standardBreakdownMap[p.user_id]) standardBreakdownMap[p.user_id] = {} as Record<RoundId, number>
         if (!bonusBreakdownMap[p.user_id])    bonusBreakdownMap[p.user_id]    = {} as Record<RoundId, number>
@@ -217,6 +239,7 @@ export async function GET(request: NextRequest) {
           .eq('tournament_id', tournamentId)
           .in('user_id', userIds)
         ;(tabRows ?? []).forEach((row: any) => {
+          if (nonKnockoutTabs.has(row.tab_group)) return   // knockout lens: drop group-stage tabs
           if (!tabBreakdownMap[row.user_id]) tabBreakdownMap[row.user_id] = {}
           if (!tabBonusMap[row.user_id])     tabBonusMap[row.user_id]     = {}
           tabBreakdownMap[row.user_id][row.tab_group] = Number(row.points)
@@ -326,14 +349,14 @@ export async function GET(request: NextRequest) {
       myEntry = { ...myEntry, rank: betterRank }
     }
     if (!myEntry) {
-      let myEntryQuery = (adminClient.from('leaderboard') as any)
+      let myEntryQuery = (adminClient.from(lbTable) as any)
         .select('user_id, display_name, country, total_points, total_bonus_points, bonus_count, correct_count, predictions_made')
         .eq('user_id', user.id)
       if (tournamentId) myEntryQuery = myEntryQuery.eq('tournament_id', tournamentId)
       const { data: myRaw } = await myEntryQuery.single()
       if (myRaw) {
         const m = myRaw as any
-        let aheadQ = (adminClient.from('leaderboard') as any)
+        let aheadQ = (adminClient.from(lbTable) as any)
           .select('user_id', { count: 'exact', head: true })
           .gt('total_points', m.total_points)
         if (tournamentId) aheadQ = aheadQ.eq('tournament_id', tournamentId)
@@ -360,7 +383,7 @@ export async function GET(request: NextRequest) {
       myEntry = { ...myEntry, prev_round_rank: prevRoundRank, prev_round_tab: prevRoundTab }
     }
 
-    return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length })
+    return NextResponse.json({ data: ranked, my_entry: myEntry, total: rows.length, knockout_enabled: knockoutEnabled, phase: useKnockout ? 'knockout' : 'all' })
 
   } catch (err: any) {
     console.error('Leaderboard error:', {

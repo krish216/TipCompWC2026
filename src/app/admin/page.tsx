@@ -476,6 +476,7 @@ export default function AdminPage() {
   // ── Retroactive predictions toggle ───────────────────────────
   const [togglingRetroactive,    setTogglingRetroactive]    = useState(false)
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
+  const [togglingKnockout,       setTogglingKnockout]       = useState(false)
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
   const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
@@ -591,6 +592,23 @@ export default function AdminPage() {
     if (res.ok) {
       setTournamentData((prev: any) => ({ ...prev, allow_retroactive_predictions: next }))
       toast.success(next ? '🧪 Practice Mode enabled' : 'Practice Mode disabled')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const handleToggleKnockout = async () => {
+    if (!tournamentData) return
+    const next = !tournamentData.knockout_leaderboard_enabled
+    setTogglingKnockout(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, knockout_leaderboard_enabled: next }),
+    })
+    setTogglingKnockout(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, knockout_leaderboard_enabled: next }))
+      toast.success(next ? '🥊 Knockout leaderboard enabled' : 'Knockout leaderboard hidden')
     } else {
       toast.error('Failed to update setting')
     }
@@ -1309,6 +1327,33 @@ export default function AdminPage() {
                 )}
               </>
             )}
+          </div>
+
+          {/* Leaderboard features */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🏆 Leaderboard</h3>
+            <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl">
+              <div>
+                <p className="text-xs font-semibold text-gray-800">🥊 Knockout-only leaderboard</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {tournamentData?.knockout_leaderboard_enabled
+                    ? 'ON — tipsters can switch the Scoreboard to a Knockouts-only ranking (R32 onward). New joiners start level.'
+                    : 'OFF — only the full-tournament leaderboard is shown.'}
+                </p>
+              </div>
+              <button
+                onClick={handleToggleKnockout}
+                disabled={togglingKnockout || !tournamentData}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                  tournamentData?.knockout_leaderboard_enabled ? 'bg-emerald-500' : 'bg-gray-200'
+                )}>
+                <span className={clsx(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                  tournamentData?.knockout_leaderboard_enabled ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
+            </div>
           </div>
 
           {/* Danger zone */}

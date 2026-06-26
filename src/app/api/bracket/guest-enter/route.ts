@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
   const postcode = typeof body.postcode === 'string' ? body.postcode.trim() : ''
   if (hasPrize && !/^\d{4}$/.test(postcode))
     return NextResponse.json({ error: 'Enter your 4-digit postcode to go in the prize draw.' }, { status: 422 })
+  // AU prize promotions require entrants to be 18+.
+  if (hasPrize && body.consent_over18 !== true)
+    return NextResponse.json({ error: 'You must confirm you are 18 or older to enter the prize draw.' }, { status: 422 })
 
   const now = new Date().toISOString()
 
@@ -185,6 +188,7 @@ export async function POST(request: NextRequest) {
     postcode:          postcode || null,
     consent_terms:     true,
     consent_marketing: true,
+    consent_over18:    body.consent_over18 === true,
     source:            'guest',
     updated_at:        now,
   }, { onConflict: 'user_id,challenge_id' })

@@ -24,6 +24,7 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   const [tpGoals,    setTpGoals]    = useState(initial?.tp_goals != null ? String(initial.tp_goals) : '')
   const [terms,      setTerms]      = useState(!!editing)     // already consented when amending
   const [marketing,  setMarketing]  = useState(!!editing)
+  const [over18,     setOver18]     = useState(!!editing)     // prize-draw eligibility (AU 18+)
   const [phone,      setPhone]      = useState(initial?.phone ?? '')
   const [postcode,   setPostcode]   = useState(initial?.postcode ?? '')
   const [submitting, setSubmitting] = useState(false)
@@ -31,7 +32,8 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
 
   const numOk = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
   const pcOk  = !hasPrize || /^\d{4}$/.test(postcode.trim())   // postcode required for prize draws
-  const canSubmit = terms && marketing && numOk(finalGoals) && numOk(tpGoals) && pcOk && !submitting
+  const ageOk = !hasPrize || over18                            // must confirm 18+ to enter a prize draw
+  const canSubmit = terms && marketing && ageOk && numOk(finalGoals) && numOk(tpGoals) && pcOk && !submitting
 
   const submit = async () => {
     setSubmitting(true); setError(null)
@@ -40,7 +42,7 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           final_goals: +finalGoals, tp_goals: +tpGoals,
-          consent_terms: terms, consent_marketing: marketing,
+          consent_terms: terms, consent_marketing: marketing, consent_over18: over18,
           phone: phone.trim() || undefined,
           postcode: postcode.trim() || undefined,
           challenge: challenge || undefined,
@@ -115,6 +117,12 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
               className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           )}
 
+          {hasPrize && (
+            <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={over18} onChange={e => setOver18(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
+              <span>I confirm I am 18 years or older. <span className="text-red-500">*</span></span>
+            </label>
+          )}
           <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
             <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
             <span>I accept the challenge <a href="/terms" target="_blank" className="underline">terms &amp; conditions</a>. <span className="text-red-500">*</span></span>

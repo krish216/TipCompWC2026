@@ -99,6 +99,11 @@ export default function LeaderboardPage() {
   const [scope,           setScope]           = useState<Scope>('comp')
   const [compTribeCount,  setCompTribeCount]  = useState<number | null>(null)
   const [roundView, setRoundView] = useState<RoundView>('all')
+  // Knockout-only phase lens (R32 onward) — gated by the tournament feature flag,
+  // surfaced by the leaderboard API. When on, we rank on the leaderboard_knockout MV
+  // and pin roundView to 'all' (the snapshot tabs don't apply to the knockout lens).
+  const [phase,           setPhase]           = useState<'all' | 'knockout'>('all')
+  const [knockoutEnabled, setKnockoutEnabled] = useState(false)
   const [entries,   setEntries]   = useState<any[]>([])
   const [myEntry,   setMyEntry]   = useState<any | null>(null)
   const [loading,        setLoading]        = useState(true)
@@ -112,7 +117,7 @@ export default function LeaderboardPage() {
   const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
     setError(null)
     const tid = tournId ?? activeTournamentId
-    const cacheKey = `${session?.user?.id ?? ''}:${sc}:${tid ?? ''}`
+    const cacheKey = `${session?.user?.id ?? ''}:${sc}:${tid ?? ''}:${phase}`
     // Seed instantly from cache (no spinner) when we've shown this scope before —
     // remounts and realtime updates revalidate silently. Cold loads show the spinner.
     const cached = lbCache.get(cacheKey)
@@ -126,9 +131,11 @@ export default function LeaderboardPage() {
       setLoading(true); setMessage(null)
     }
     try {
-      const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}`
+      const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}${phase === 'knockout' ? '&phase=knockout' : ''}`
       const res  = await fetch(url)
       const json = await res.json().catch(() => ({}))
+      // Whether this tournament offers the knockout lens (drives the toggle visibility).
+      if (typeof json.knockout_enabled === 'boolean') setKnockoutEnabled(json.knockout_enabled)
       if (res.status === 401) {
         setLoading(false)
         return  // Session expired — silently bail; router guard will redirect
@@ -199,6 +206,16 @@ export default function LeaderboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, scope])
 
+  // Re-fetch when the phase lens (all ⇄ knockout) changes. Guarded so it doesn't
+  // double-fetch on first mount (the main loader above already fetches).
+  const didMountPhase = useRef(false)
+  useEffect(() => {
+    if (!session) return
+    if (!didMountPhase.current) { didMountPhase.current = true; return }
+    fetchLeaderboard(scope)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
   useEffect(() => {
     if (!session) return
     const channel = supabase.channel('lb-realtime')
@@ -222,9 +239,11 @@ export default function LeaderboardPage() {
 
   const filteredEntries = useMemo(() => {
     if (roundView === 'all') {
-      const base = entries.filter(e => (e.total_points ?? 0) > 0)
+      // Knockout lens shows every participant from a 0 baseline (the board would
+      // otherwise look empty until R32 results land); the full board hides 0-pointers.
+      const base = phase === 'knockout' ? [...entries] : entries.filter(e => (e.total_points ?? 0) > 0)
       // Insert current user if they're outside the API's top-N
-      const meOutsideTopN = myEntry && !base.some(e => e.user_id === myEntry.user_id) && (myEntry.total_points ?? 0) > 0
+      const meOutsideTopN = myEntry && !base.some(e => e.user_id === myEntry.user_id) && (phase === 'knockout' || (myEntry.total_points ?? 0) > 0)
       if (meOutsideTopN) base.push({ ...myEntry })
       const compareFn = sortRound
         ? (a: any, b: any) => {
@@ -281,7 +300,7 @@ export default function LeaderboardPage() {
         return a.is_me ? -1 : b.is_me ? 1 : (b.bonus_count ?? 0) - (a.bonus_count ?? 0)
       })
       .map((e, i) => ({ ...e, rank: i + 1 }))
-  }, [entries, myEntry, roundView, sortRound, CUMULATIVE_TABS])
+  }, [entries, myEntry, roundView, sortRound, CUMULATIVE_TABS, phase])
 
   // Previous snapshot rankings — for movement arrows (compare consecutive non-'all' snapshots)
   const prevFilteredEntries = useMemo(() => {
@@ -511,8 +530,33 @@ export default function LeaderboardPage() {
               ))}
           </div>
 
-          {/* Round snapshot pills — hidden on global scope (no round breakdown returned) */}
-          <div className={clsx('mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide', scope === 'global' && 'hidden')}>
+          {/* Phase lens — All tournament ⇄ Knockouts only (R32+). Only when the
+              tournament has the knockout leaderboard enabled. Picking "Knockouts only"
+              resets the round snapshot to Overall (snapshots don't apply to this lens). */}
+          {knockoutEnabled && (
+            <div className="flex gap-1 mb-3 bg-emerald-50 p-1 rounded-lg border border-emerald-100">
+              {([
+                { id: 'all',      label: '🌍 All tournament' },
+                { id: 'knockout', label: '🥊 Knockouts only' },
+              ] as const).map(p => (
+                <button key={p.id}
+                  onClick={() => { setPhase(p.id); if (p.id === 'knockout') setRoundView('all') }}
+                  className={clsx(
+                    'flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors',
+                    phase === p.id ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-600 hover:text-emerald-800'
+                  )}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {phase === 'knockout' && (
+            <p className="text-[11px] text-gray-500 mb-3 -mt-1 px-1">Knockouts only — group-stage points excluded, so everyone starts level from the Round of 32.</p>
+          )}
+
+          {/* Round snapshot pills — hidden on global scope (no round breakdown returned)
+              and in the knockout lens (per-round snapshots don't apply there). */}
+          <div className={clsx('mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide', (scope === 'global' || phase === 'knockout') && 'hidden')}>
             <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
               {ROUND_SNAPSHOTS.map(r => {
                 const isActive = roundView === r.id

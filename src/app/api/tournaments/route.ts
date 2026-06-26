@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   let query = supabase
     .from('tournaments')
-    .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, created_at, allow_retroactive_predictions')
+    .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, created_at, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled')
     .order('start_date', { ascending: false })
   if (slug) query = (query as any).eq('slug', slug)
   const { data, error } = await query
@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest) {
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions, enforce_premium } = await request.json()
+  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const updates: any = {}
@@ -75,6 +75,7 @@ export async function PATCH(request: NextRequest) {
   if (total_rounds   !== undefined) updates.total_rounds   = total_rounds
   if (allow_retroactive_predictions !== undefined) updates.allow_retroactive_predictions = allow_retroactive_predictions
   if (enforce_premium !== undefined) updates.enforce_premium = enforce_premium
+  if (knockout_leaderboard_enabled !== undefined) updates.knockout_leaderboard_enabled = knockout_leaderboard_enabled
   if (start_date  !== undefined) updates.start_date  = start_date
   if (end_date    !== undefined) updates.end_date    = end_date
 
