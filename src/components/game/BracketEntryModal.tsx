@@ -78,8 +78,8 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {sponsorLogo && <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} className="h-9 w-auto max-w-[84px] object-contain rounded flex-shrink-0" />}
             <div className="min-w-0">
@@ -90,7 +90,7 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 flex-shrink-0" aria-label="Close">✕</button>
         </div>
 
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
           <p className="text-xs text-gray-500">Two quick tie-breakers (used only if players finish level on points), then you&apos;re in the draw.</p>
 
           <div className="flex items-center justify-between">
@@ -124,14 +124,13 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
               ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
               : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
           </label>
-
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 space-y-2">
           {error && <p className="text-xs text-red-600">{error}</p>}
-
           <button onClick={submit} disabled={!canSubmit}
             className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
             {submitting ? (editing ? 'Updating…' : 'Entering…') : (editing ? 'Update entry' : 'Enter to win 🎯')}
           </button>
-
           {editing && (
             <button onClick={withdraw} disabled={submitting}
               className="w-full text-center text-xs font-medium text-red-600 hover:text-red-700 underline disabled:opacity-50">

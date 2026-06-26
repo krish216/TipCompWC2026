@@ -126,8 +126,8 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             {sponsorLogo && <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} className="h-9 w-auto max-w-[84px] object-contain rounded flex-shrink-0" />}
             <div className="min-w-0">
@@ -147,7 +147,8 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
             <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Done</button>
           </div>
         ) : (
-          <div className="px-5 py-4 space-y-4">
+          <>
+          <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
             <p className="text-xs text-gray-500">{hasPrize ? 'Enter your details to join the prize draw. We’ll create your free TribePicks account so your bracket is saved and scored all tournament.' : 'Enter your details to save your bracket. We’ll create your free TribePicks account so it’s scored all tournament long.'}</p>
 
             <input type="text" value={name} onChange={e => setName(e.target.value)}
@@ -209,15 +210,16 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
                 ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
                 : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
             </label>
-
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 space-y-2">
             {error && <p className="text-xs text-red-600">{error}</p>}
-
             <button onClick={submit} disabled={!canSubmit}
               className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
               {submitting ? 'Entering…' : 'Enter to win 🎯'}
             </button>
             <p className="text-center text-[11px] text-gray-400">Already have an account? Just use this email — we’ll send you a login link.</p>
           </div>
+          </>
         )}
       </div>
     </div>
