@@ -499,6 +499,9 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
           editing={editingEntry}
           initial={editingEntry ? { final_goals: es?.entry?.final_goals, tp_goals: es?.entry?.tp_goals, phone: es?.entry?.phone, postcode: es?.entry?.postcode } : undefined}
           hasPrize={!!cfg?.prize}
+          sponsorName={cfg?.sponsor_name ?? null}
+          sponsorLogo={cfg?.sponsor_logo ?? null}
+          sponsorLogoTone={cfg?.logo_tone ?? null}
           onClose={() => { setShowEnter(false); setEditingEntry(false) }}
           onEntered={() => { setShowEnter(false); setEditingEntry(false); loadBoard(resolvedSlug) }}
         />

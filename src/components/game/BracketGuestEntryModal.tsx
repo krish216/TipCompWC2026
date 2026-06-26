@@ -22,10 +22,14 @@ interface Props {
   device?: string
   challenge?: string           // challenge slug being entered (omitted → default)
   hasPrize?: boolean           // sponsor with a live prize → use prize-draw copy
+  challengeName?: string | null
+  sponsorName?: string | null
+  sponsorLogo?: string | null
+  sponsorLogoTone?: string | null
   onClose: () => void
 }
 
-export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, hasPrize, onClose }: Props) {
+export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, hasPrize, challengeName, sponsorName, sponsorLogo, onClose }: Props) {
   const [name,       setName]       = useState('')
   const [email,      setEmail]      = useState('')
   const [finalGoals, setFinalGoals] = useState('')
@@ -123,9 +127,15 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">{hasPrize ? '🏆 Enter the Bracket Challenge' : '🎯 Enter your bracket'}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1" aria-label="Close">✕</button>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {sponsorLogo && <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} className="h-9 w-auto max-w-[84px] object-contain rounded flex-shrink-0" />}
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">{challengeName || (hasPrize ? '🏆 Enter the Bracket Challenge' : '🎯 Enter your bracket')}</h3>
+              {sponsorName && <p className="text-[10px] text-gray-500 truncate">presented by {sponsorName}</p>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 flex-shrink-0" aria-label="Close">✕</button>
         </div>
 
         {done ? (

@@ -7,12 +7,15 @@ import { useState } from 'react'
 // `challenge` is the challenge slug being entered (omitted → the default one).
 // `editing` + `initial` re-open the form to amend an existing entry (the POST
 // upserts on user+challenge, so re-submitting overwrites the tie-breakers).
-export function BracketEntryModal({ challenge, challengeName, editing, initial, hasPrize, onClose, onEntered }: {
+export function BracketEntryModal({ challenge, challengeName, editing, initial, hasPrize, sponsorName, sponsorLogo, onClose, onEntered }: {
   challenge?: string
   challengeName?: string
   editing?: boolean
   initial?: { final_goals?: number | null; tp_goals?: number | null; phone?: string | null; postcode?: string | null }
   hasPrize?: boolean   // sponsored challenge with a live prize → capture postcode for the draw
+  sponsorName?: string | null
+  sponsorLogo?: string | null
+  sponsorLogoTone?: string | null
   onClose: () => void
   onEntered: () => void
 }) {
@@ -76,9 +79,15 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">{editing ? `✏️ Update your entry${challengeName ? ` · ${challengeName}` : ''}` : `🏆 Enter the ${challengeName ?? 'Bracket Challenge'}`}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1" aria-label="Close">✕</button>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {sponsorLogo && <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} className="h-9 w-auto max-w-[84px] object-contain rounded flex-shrink-0" />}
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">{editing ? '✏️ Update your entry' : (challengeName ?? '🏆 Enter the Bracket Challenge')}</h3>
+              {sponsorName && <p className="text-[10px] text-gray-500 truncate">presented by {sponsorName}</p>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 flex-shrink-0" aria-label="Close">✕</button>
         </div>
 
         <div className="px-5 py-4 space-y-4">

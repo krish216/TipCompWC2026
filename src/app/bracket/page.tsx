@@ -598,8 +598,20 @@ export default function BracketPage() {
 
   // Arrived from a specific sponsor's leaderboard (/bracket?challenge=slug)?
   // Then focus the entry on that challenge and offer a link back to its board.
-  const targetedChallenge = challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined
+  // Invite-only sponsor challenges aren't in the public `challenges` list, so rebuild
+  // the targeted challenge from the resolved sponsor config (which resolves by slug).
+  // Without this, the CTA/modal fall back to the Global challenge and miss the sponsor.
+  const targetedChallenge = (challengeParam ? challenges.find(c => c.slug === challengeParam) : undefined)
+    ?? (challengeParam && sponsorCfg?.enabled ? {
+        slug: challengeParam,
+        name: sponsorCfg.challenge_name ?? 'Bracket Challenge',
+        entrants: 0,
+        sponsor: { name: sponsorCfg.sponsor_name, logo: sponsorCfg.sponsor_logo, prize: sponsorCfg.prize, url: sponsorCfg.sponsor_url, logo_tone: sponsorCfg.logo_tone },
+      } : undefined)
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
+  // Find a challenge by slug, including the synthesized targeted one (so the entry
+  // modals see the sponsor for invite-only challenges).
+  const chFor = (s?: string | null) => (targetedChallenge && targetedChallenge.slug === s ? targetedChallenge : challenges.find(c => c.slug === s))
   const allCtaEntered = ctaChallenges.length > 0 && ctaChallenges.every(c => !!enteredMap[c.slug])
   // Only talk about prizes / a "draw" when a sponsor with a prize is actually live;
   // an unsponsored challenge is just "save & track your bracket".
@@ -824,7 +836,11 @@ export default function BracketPage() {
         <BracketGuestEntryModal
           tournamentId={selectedTournId}
           challenge={guestChallenge}
-          hasPrize={!!challenges.find(c => c.slug === guestChallenge)?.sponsor?.prize}
+          hasPrize={!!chFor(guestChallenge)?.sponsor?.prize}
+          challengeName={chFor(guestChallenge)?.name}
+          sponsorName={chFor(guestChallenge)?.sponsor?.name ?? null}
+          sponsorLogo={chFor(guestChallenge)?.sponsor?.logo ?? null}
+          sponsorLogoTone={chFor(guestChallenge)?.sponsor?.logo_tone ?? null}
           picks={picks}
           sessionId={getOrCreateSessionId()}
           source={sourceRef.current}
@@ -910,10 +926,13 @@ export default function BracketPage() {
       {manageSlug && (
         <BracketEntryModal
           challenge={manageSlug}
-          challengeName={challenges.find(c => c.slug === manageSlug)?.name}
+          challengeName={chFor(manageSlug)?.name}
           editing
           initial={manageInitial ?? undefined}
-          hasPrize={!!challenges.find(c => c.slug === manageSlug)?.sponsor?.prize}
+          hasPrize={!!chFor(manageSlug)?.sponsor?.prize}
+          sponsorName={chFor(manageSlug)?.sponsor?.name ?? null}
+          sponsorLogo={chFor(manageSlug)?.sponsor?.logo ?? null}
+          sponsorLogoTone={chFor(manageSlug)?.sponsor?.logo_tone ?? null}
           onClose={() => setManageSlug(null)}
           onEntered={() => { setManageSlug(null); loadChallenges() }}
         />
@@ -922,8 +941,11 @@ export default function BracketPage() {
       {memberEnterSlug && (
         <BracketEntryModal
           challenge={memberEnterSlug}
-          challengeName={challenges.find(c => c.slug === memberEnterSlug)?.name}
-          hasPrize={!!challenges.find(c => c.slug === memberEnterSlug)?.sponsor?.prize}
+          challengeName={chFor(memberEnterSlug)?.name}
+          hasPrize={!!chFor(memberEnterSlug)?.sponsor?.prize}
+          sponsorName={chFor(memberEnterSlug)?.sponsor?.name ?? null}
+          sponsorLogo={chFor(memberEnterSlug)?.sponsor?.logo ?? null}
+          sponsorLogoTone={chFor(memberEnterSlug)?.sponsor?.logo_tone ?? null}
           onClose={() => setMemberEnterSlug(null)}
           onEntered={() => { window.location.href = `/bracket/leaderboard/${memberEnterSlug}` }}
         />
