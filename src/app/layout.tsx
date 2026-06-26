@@ -43,6 +43,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const supabase = createServerSupabaseClient()
   const { data: { session } } = await supabase.auth.getSession()
 
+  // The session handed to the client provider must NOT carry credentials. The browser
+  // client rehydrates the full session (access + refresh tokens) from cookies via the
+  // INITIAL_SESSION event right after mount, so embedding tokens in the server-rendered
+  // HTML is needless exposure — markup can be cached by proxies/CDNs/browser history, and
+  // a refresh token is long-lived. Strip the tokens but keep the user for a flicker-free
+  // first paint; consumers that send Authorization headers only run post-hydration, by
+  // which point the real session has repopulated from cookies.
+  const clientSession = session && {
+    ...session,
+    access_token: '',
+    refresh_token: '',
+    provider_token: null,
+    provider_refresh_token: null,
+  }
+
   // Donation link (Stripe Payment Link, "customers choose what to pay"). Defaults to the
   // live link; DONATE_URL env overrides it without a code change. When a user is signed in
   // we pass client_reference_id (their id) and prefilled_email so the webhook can attribute
@@ -88,7 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsClient}`}
           />
         )}
-        <SupabaseProvider initialSession={session}>
+        <SupabaseProvider initialSession={clientSession || null}>
           <UserPrefsProvider>
             <Suspense fallback={<div className="h-12 bg-white border-b border-gray-200" />}>
               <Navbar isAdmin={isAdmin} />
