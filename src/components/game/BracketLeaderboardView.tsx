@@ -237,11 +237,15 @@ function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: stri
           const brand = cfg.sponsor_brand_color || '#064e3b'
           const ink   = readableInk(cfg.sponsor_brand_color)
           return (
-            <div className="px-5 py-4 text-center" style={{ background: brand }}>
-              <p className="text-lg sm:text-2xl font-black leading-tight uppercase tracking-tight" style={{ color: ink }}>{cfg.sponsor_name}</p>
-              {cfg.sponsor_tagline && <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] mt-0.5" style={{ color: ink, opacity: 0.72 }}>{cfg.sponsor_tagline}</p>}
-              <p className="text-[10px] uppercase tracking-[0.2em] mt-2 mb-0.5" style={{ color: ink, opacity: 0.6 }}>Presents</p>
-              <p className="text-sm sm:text-base font-bold leading-tight" style={{ color: ink }}>{poolLabel}</p>
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ background: brand }}>
+              <div className="min-w-0">
+                <p className="text-lg sm:text-xl font-black leading-tight uppercase tracking-tight truncate" style={{ color: ink }}>{cfg.sponsor_name}</p>
+                {cfg.sponsor_tagline && <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] mt-0.5 truncate" style={{ color: ink, opacity: 0.72 }}>{cfg.sponsor_tagline}</p>}
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-[10px] uppercase tracking-[0.12em] leading-none mb-0.5" style={{ color: ink, opacity: 0.72 }}>Presents</p>
+                <p className="text-sm font-bold leading-tight" style={{ color: ink }}>{poolLabel}</p>
+              </div>
             </div>
           )
         })()}
