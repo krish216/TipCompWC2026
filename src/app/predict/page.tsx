@@ -338,12 +338,6 @@ export default function PredictPage() {
   }, [predictions, triggerCelebration, refreshPrediction])
 
   const onOutcome = useCallback(async (fixtureId: number, outcome: 'H' | 'D' | 'A') => {
-    // Look up round for this fixture
-    const allFx = Object.values(fixtures).flat() as Fixture[]
-    const fx = allFx.find(f => f.id === fixtureId)
-    const isKnockout = fx ? scoringConfig.knockout_rounds.includes(fx.round) : false
-    const needsPen = isKnockout && outcome === 'D'
-
     // Always update local state immediately; reset scoring so calcPoints is used for fresh feedback
     setPredictions(prev => ({
       ...prev,
@@ -356,10 +350,12 @@ export default function PredictPage() {
       }
     }))
 
-    // For knockout draws: don't save yet — wait for pen winner selection
-    if (needsPen) return
-
-    const outcomePayload = { fixture_id: fixtureId, outcome, pen_winner: null as null }
+    // Save the pick straight away — including a knockout draw, which scores the base
+    // result points on its own. The penalty winner is optional upside added later via
+    // onPenWinner, so abandoning at the draw step no longer loses the prediction. Keep
+    // any existing pen winner (re-tapping draw must not wipe a previously saved pick).
+    const pen = outcome === 'D' ? (predictions[fixtureId]?.pen_winner ?? null) : null
+    const outcomePayload = { fixture_id: fixtureId, outcome, pen_winner: pen }
     failedPayloads.current.set(fixtureId, outcomePayload)
     setSaving(prev => new Set(prev).add(fixtureId))
     let outcomeOk = false
@@ -385,7 +381,7 @@ export default function PredictPage() {
       triggerCelebration(fixtureId)
       refreshPrediction(fixtureId)
     }
-  }, [fixtures, scoringConfig, triggerCelebration, refreshPrediction])
+  }, [predictions, triggerCelebration, refreshPrediction])
 
   const persistPrediction = useCallback(async (fixtureId: number, home: number, away: number) => {
     const scorePayload = { fixture_id: fixtureId, home, away, outcome: null as null, pen_winner: null as null }
@@ -566,7 +562,12 @@ export default function PredictPage() {
       const fs = (TAB_TO_ROUNDS[tab] ?? []).flatMap(rid => fixtures[rid] ?? []).filter(f => !fixtureHasPlaceholder(f, knownTeams))
       const entered = fs.filter(f => {
         const p = predictions[f.id]
-        if (scoringConfig.outcome_rounds.includes(f.round)) return p && (p as any).outcome != null
+        if (scoringConfig.outcome_rounds.includes(f.round)) {
+          if (!p || (p as any).outcome == null) return false
+          // a knockout draw isn't a complete pick until the penalty winner is chosen
+          if (scoringConfig.knockout_rounds.includes(f.round) && (p as any).outcome === 'D' && !(p as any).pen_winner) return false
+          return true
+        }
         return p && p.home >= 0 && p.away >= 0
       }).length
       counts[tab] = { entered, total: fs.length }
