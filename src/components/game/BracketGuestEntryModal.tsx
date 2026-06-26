@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, hasPrize, challengeName, sponsorName, sponsorSubsidiary, sponsorLogo, onClose }: Props) {
+export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source, device, challenge, hasPrize, challengeName, sponsorName, sponsorLogo, onClose }: Props) {
   const [name,       setName]       = useState('')
   const [email,      setEmail]      = useState('')
   const [finalGoals, setFinalGoals] = useState('')
@@ -132,9 +132,8 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
           <div className="flex items-center gap-2.5 min-w-0">
             {sponsorLogo && <img src={sponsorLogo} alt={sponsorName || 'Sponsor'} className="h-9 w-auto max-w-[84px] object-contain rounded flex-shrink-0" />}
             <div className="min-w-0">
+              {sponsorLogo && <p className="text-[9px] uppercase tracking-[0.12em] text-gray-400 leading-none mb-0.5">Presents</p>}
               <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">{challengeName || (hasPrize ? '🏆 Enter the Bracket Challenge' : '🎯 Enter your bracket')}</h3>
-              {sponsorName && <p className="text-[10px] text-gray-500 truncate">presented by {sponsorName}</p>}
-              {sponsorSubsidiary && <p className="text-[10px] text-gray-400 truncate">{sponsorSubsidiary}</p>}
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 flex-shrink-0" aria-label="Close">✕</button>
