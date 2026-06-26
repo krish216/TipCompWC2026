@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
   // so the user is never locked out.
   await sendBracketClaimEmail(admin, {
     email, name: displayName, challenge: { id: challenge.id, slug: challenge.slug, name: challenge.name },
-    closesAt: closes_at, origin, next: '/bracket/leaderboard', existing: isExisting,
+    closesAt: closes_at, origin, next: `/bracket/leaderboard/${challenge.slug}`, existing: isExisting,
   }).catch(() => {})
   return NextResponse.json({
     status: isExisting ? 'existing' : 'created',

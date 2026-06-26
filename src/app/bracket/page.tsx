@@ -925,7 +925,7 @@ export default function BracketPage() {
           challengeName={challenges.find(c => c.slug === memberEnterSlug)?.name}
           hasPrize={!!challenges.find(c => c.slug === memberEnterSlug)?.sponsor?.prize}
           onClose={() => setMemberEnterSlug(null)}
-          onEntered={() => { setMemberEnterSlug(null); loadChallenges() }}
+          onEntered={() => { window.location.href = `/bracket/leaderboard/${memberEnterSlug}` }}
         />
       )}
 
