@@ -70,8 +70,10 @@ export async function sendEntryConfirmation(
   if (!process.env.RESEND_API_KEY) return
   try {
     const cfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: opts.challenge.id })
-    const sponsor   = cfg.enabled ? cfg.sponsor_name : ''
-    const prize     = cfg.enabled ? cfg.prize : ''
+    const sponsor     = cfg.enabled ? cfg.sponsor_name : ''
+    const prize       = cfg.enabled ? cfg.prize : ''
+    const sponsorLogo = cfg.enabled ? (cfg.sponsor_logo || '') : ''
+    const sponsorUrl  = cfg.enabled ? (cfg.sponsor_url  || '') : ''
     const firstName = (opts.name ?? '').trim().split(' ')[0]
     const leaderUrl = `${opts.origin.replace(/\/$/, '')}/bracket/leaderboard/${opts.challenge.slug}`
     const closes    = opts.closesAt ? fmtDate(opts.closesAt) : ''
@@ -83,7 +85,7 @@ export async function sendEntryConfirmation(
     const resend  = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
       from: FROM, to: opts.email, subject,
-      html: buildHtml({ firstName, challengeName: opts.challenge.name, sponsor, prize, closes, leaderUrl, summary }),
+      html: buildHtml({ firstName, challengeName: opts.challenge.name, sponsor, prize, sponsorLogo, sponsorUrl, closes, leaderUrl, summary }),
     })
     if (error) console.error('[entry-confirmation] send failed:', error)
   } catch (e: any) {
@@ -92,6 +94,7 @@ export async function sendEntryConfirmation(
 }
 
 const esc = (s: string) => s.replace(/[<>&]/g, c => (c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'))
+const goalsLabel = (n: number | null) => (n == null ? '–' : `${n} goal${n === 1 ? '' : 's'}`)
 
 function summaryBlock(s: EntrySummary): string {
   if (!s.champion) return ''
@@ -105,7 +108,7 @@ function summaryBlock(s: EntrySummary): string {
     s.semis.length ? row('⚽ Semi-finalists', s.semis.join(' · ')) : '',
     s.third ? row('🥉 3rd place', s.third) : '',
     (s.finalGoals != null || s.tpGoals != null)
-      ? row('🎯 Tie-breakers', `Final ${s.finalGoals ?? '–'} · 3rd-place ${s.tpGoals ?? '–'}`)
+      ? row('🎯 Tie-breakers', `Final ${goalsLabel(s.finalGoals)} · 3rd-place ${goalsLabel(s.tpGoals)}`)
       : '',
   ].filter(Boolean).join('')
 
@@ -117,7 +120,7 @@ function summaryBlock(s: EntrySummary): string {
 }
 
 function buildHtml(v: {
-  firstName: string; challengeName: string; sponsor: string; prize: string; closes: string; leaderUrl: string; summary: EntrySummary | null
+  firstName: string; challengeName: string; sponsor: string; prize: string; sponsorLogo: string; sponsorUrl: string; closes: string; leaderUrl: string; summary: EntrySummary | null
 }): string {
   const greeting = v.firstName ? `Nice one, ${v.firstName} —` : 'Nice one —'
   const prizeLine = v.prize
@@ -145,6 +148,14 @@ function buildHtml(v: {
   <div style="text-align:center;margin-bottom:24px;">
     <a href="${v.leaderUrl}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">View the leaderboard →</a>
   </div>
+  ${(v.sponsorLogo || v.sponsor) ? `
+  <div style="text-align:center;margin-bottom:24px;padding-top:6px;border-top:1px solid #f1f5f9;">
+    <p style="margin:16px 0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Brought to you by</p>
+    ${v.sponsorLogo
+      ? `<a href="${v.sponsorUrl || 'https://www.tribepicks.com'}" style="text-decoration:none;"><img src="${v.sponsorLogo}" alt="${esc(v.sponsor)}" height="48" style="display:inline-block;border-radius:6px;"/></a>`
+      : `<p style="margin:0;font-size:16px;font-weight:800;color:#111827;">${esc(v.sponsor)}</p>`}
+    ${v.sponsorUrl ? `<p style="margin:10px 0 0;font-size:13px;"><a href="${v.sponsorUrl}" style="color:#065f46;font-weight:600;text-decoration:none;">Visit ${esc(v.sponsor)} →</a></p>` : ''}
+  </div>` : ''}
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">You're receiving this because you entered a challenge at
     <a href="https://www.tribepicks.com" style="color:#6b7280;">TribePicks</a>. Good luck! 🍀</p>
