@@ -254,7 +254,21 @@ export default function BracketPage() {
   const { session } = useSupabase()
   const { selectedTournId: ctxTournId } = useUserPrefs()
   const searchParams = useSearchParams()
-  const challengeParam = searchParams.get('challenge')   // sponsor challenge slug, if any
+  const urlChallenge = searchParams.get('challenge')   // sponsor challenge slug from the URL, if any
+  // Remember the sponsor challenge the user last arrived with, so navigating here
+  // via the navbar (plain /bracket, no ?challenge=) keeps them in the sponsor's
+  // context — otherwise they lose the link back to its leaderboard to enter.
+  // Invite-only challenges aren't in the public list, so this is their only anchor.
+  const [rememberedChallenge, setRememberedChallenge] = useState<string | null>(null)
+  useEffect(() => {
+    if (urlChallenge) {
+      try { localStorage.setItem('tribepicks_bracket_challenge', urlChallenge) } catch {}
+      setRememberedChallenge(urlChallenge)
+    } else {
+      try { setRememberedChallenge(localStorage.getItem('tribepicks_bracket_challenge')) } catch {}
+    }
+  }, [urlChallenge])
+  const challengeParam = urlChallenge ?? rememberedChallenge   // sponsor challenge slug, if any
 
   // Guests: resolve tournament ID from ?slug= URL param (context is always null for non-signed-in users)
   const [resolvedTournId, setResolvedTournId] = useState<string | null>(null)
@@ -346,6 +360,9 @@ export default function BracketPage() {
   useEffect(() => {
     const qp = challengeParam ? `?challenge=${encodeURIComponent(challengeParam)}` : ''
     fetch(`/api/bracket/config${qp}`).then(r => r.json()).then(setSponsorCfg).catch(() => {})
+    // Keep the guest entry modal pointed at the same challenge once it resolves
+    // (covers the remembered-challenge fallback, where the URL param was dropped).
+    if (challengeParam) setGuestChallenge(prev => prev ?? challengeParam)
   }, [challengeParam])
 
   // Land on the furthest-complete view: if the bracket already has a champion
@@ -775,7 +792,7 @@ export default function BracketPage() {
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
               <div className="flex items-center gap-3">
-                <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Leaderboard →</a>
+                <a href={leaderboardHref} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">{sponsorCfg.sponsor_name ? `${sponsorCfg.sponsor_name} Leaderboard →` : 'Leaderboard →'}</a>
                 <a href="/bracket/how-it-works" className="text-xs font-semibold text-gray-400 hover:text-gray-600">How it works</a>
               </div>
               {resetBtn('')}
@@ -887,7 +904,7 @@ export default function BracketPage() {
       {session && challenges.length > 0 && (
         <div className="mb-5 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-900">🏆 Bracket Challenges</p>
+            <p className="text-sm font-bold text-gray-900">🏆 My Bracket Challenges</p>
             <p className="text-[11px] text-gray-500 mt-0.5">Build your bracket, then <strong>enter a challenge</strong> to get on its leaderboard — and into any prize draw.</p>
           </div>
           <div className="divide-y divide-gray-100">

@@ -319,6 +319,15 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   // back to THIS challenge (and the bracket page can link back to this board).
   const bracketHref = resolvedSlug ? `/bracket?challenge=${encodeURIComponent(resolvedSlug)}` : '/bracket'
 
+  // Anchor the sponsor context so the bracket page keeps a link back here even
+  // when the user later navigates via the navbar (plain /bracket, no ?challenge=).
+  // Only sponsor challenges are anchored — the generic global board isn't.
+  useEffect(() => {
+    if (resolvedSlug && coBranded) {
+      try { localStorage.setItem('tribepicks_bracket_challenge', resolvedSlug) } catch {}
+    }
+  }, [resolvedSlug, coBranded])
+
   // A specific slug that resolves to no challenge (obsolete/typo/orphaned link) →
   // show a clean "not found" instead of a hollow, empty leaderboard.
   if (slug && data && !data.challenge) {

@@ -124,9 +124,12 @@ function buildHtml(v: {
   firstName: string; challengeName: string; sponsor: string; subsidiary: string; prize: string; sponsorLogo: string; sponsorUrl: string; closes: string; leaderUrl: string; summary: EntrySummary | null
 }): string {
   const greeting = v.firstName ? `Nice one, ${v.firstName} —` : 'Nice one —'
+  // Include the franchise/subsidiary so it reads as the actual sponsoring office
+  // (e.g. "Ray White Earlwood · Wolli Creek"), matching the header co-branding.
+  const sponsorLabel = v.sponsor ? `<strong>${esc(v.sponsor)}${v.subsidiary ? ` ${esc(v.subsidiary)}` : ''}</strong>` : ''
   const prizeLine = v.prize
-    ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">You're in the draw to win <strong style="color:#065f46;">${v.prize}</strong>${v.sponsor ? ` from <strong>${v.sponsor}</strong>` : ''}.</p>`
-    : (v.sponsor ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">You're in the draw, proudly sponsored by <strong>${v.sponsor}</strong>.</p>` : '')
+    ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">You're in the draw to win <strong style="color:#065f46;">${v.prize}</strong>${sponsorLabel ? ` from ${sponsorLabel}` : ''}.</p>`
+    : (sponsorLabel ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">You're in the draw, proudly sponsored by ${sponsorLabel}.</p>` : '')
   const closesLine = v.closes
     ? `<p style="margin:0;font-size:13px;color:#6b7280;">Entries lock <strong>${v.closes}</strong> — your picks are saved until then, so you can still tweak your bracket.</p>`
     : `<p style="margin:0;font-size:13px;color:#6b7280;">Your picks are saved — you can still tweak your bracket until the knockouts kick off.</p>`
