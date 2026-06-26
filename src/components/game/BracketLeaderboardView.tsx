@@ -242,7 +242,7 @@ function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: stri
                 <p className="text-lg sm:text-xl font-black leading-tight uppercase tracking-tight truncate" style={{ color: ink }}>{cfg.sponsor_name}</p>
                 {cfg.sponsor_tagline && <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] mt-0.5 truncate" style={{ color: ink, opacity: 0.72 }}>{cfg.sponsor_tagline}</p>}
               </div>
-              <div className="text-right flex-shrink-0">
+              <div className="text-center flex-shrink-0">
                 <p className="text-[10px] uppercase tracking-[0.12em] leading-none mb-0.5" style={{ color: ink, opacity: 0.72 }}>Presents</p>
                 <p className="text-sm font-bold leading-tight" style={{ color: ink }}>{poolLabel}</p>
               </div>
