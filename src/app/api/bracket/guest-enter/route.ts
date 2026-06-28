@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
   const closes_at = challenge ? await challengeClosesAt(admin, challenge) : null
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
-    return NextResponse.json({ error: 'Entries are closed — the knockouts have started.' }, { status: 409 })
+    return NextResponse.json({ error: 'Entries are closed for this challenge — the semi-finals have started.' }, { status: 409 })
 
   // Only call it a "prize draw" when a sponsor with a live prize is attached.
   const sponsorCfg = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })

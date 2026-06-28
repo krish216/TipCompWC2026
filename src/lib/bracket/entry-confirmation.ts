@@ -132,7 +132,7 @@ function buildHtml(v: {
     : (sponsorLabel ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">You're in the draw, proudly sponsored by ${sponsorLabel}.</p>` : '')
   const closesLine = v.closes
     ? `<p style="margin:0;font-size:13px;color:#6b7280;">Entries lock <strong>${v.closes}</strong> — your picks are saved until then, so you can still tweak your bracket.</p>`
-    : `<p style="margin:0;font-size:13px;color:#6b7280;">Your picks are saved — you can still tweak your bracket until the knockouts kick off.</p>`
+    : `<p style="margin:0;font-size:13px;color:#6b7280;">Your picks are saved — you can keep tweaking each pick until that match kicks off.</p>`
 
   return `<!DOCTYPE html>
 <html>

@@ -477,6 +477,7 @@ export default function AdminPage() {
   const [togglingRetroactive,    setTogglingRetroactive]    = useState(false)
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
   const [togglingKnockout,       setTogglingKnockout]       = useState(false)
+  const [togglingBracketKO,      setTogglingBracketKO]      = useState(false)
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
   const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
@@ -609,6 +610,23 @@ export default function AdminPage() {
     if (res.ok) {
       setTournamentData((prev: any) => ({ ...prev, knockout_leaderboard_enabled: next }))
       toast.success(next ? '🥊 Knockout leaderboard enabled' : 'Knockout leaderboard hidden')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
+
+  const handleToggleBracketKnockout = async () => {
+    if (!tournamentData) return
+    const next = !tournamentData.bracket_knockout_mode
+    setTogglingBracketKO(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, bracket_knockout_mode: next }),
+    })
+    setTogglingBracketKO(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, bracket_knockout_mode: next }))
+      toast.success(next ? '🏆 Bracket knockout mode ON — real R32 teams' : 'Bracket knockout mode off — back to predictions')
     } else {
       toast.error('Failed to update setting')
     }
@@ -1351,6 +1369,33 @@ export default function AdminPage() {
                 <span className={clsx(
                   'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
                   tournamentData?.knockout_leaderboard_enabled ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
+            </div>
+          </div>
+
+          {/* Bracket features */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🏆 Bracket</h3>
+            <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl">
+              <div>
+                <p className="text-xs font-semibold text-gray-800">🏆 Knockout mode (real R32 teams)</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {tournamentData?.bracket_knockout_mode
+                    ? 'ON — bracket seeds from the confirmed Round-of-32 fixtures; group & 3rd-place steps hidden.'
+                    : 'OFF — bracket shows each user’s predicted qualifiers (group/3rd-place prediction flow). Turn on once the group stage is complete.'}
+                </p>
+              </div>
+              <button
+                onClick={handleToggleBracketKnockout}
+                disabled={togglingBracketKO || !tournamentData}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                  tournamentData?.bracket_knockout_mode ? 'bg-emerald-500' : 'bg-gray-200'
+                )}>
+                <span className={clsx(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                  tournamentData?.bracket_knockout_mode ? 'translate-x-5' : 'translate-x-0'
                 )} />
               </button>
             </div>

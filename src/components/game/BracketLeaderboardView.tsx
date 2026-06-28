@@ -406,7 +406,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
       {/* How you get on this board + entry CTA */}
       {es && es.available && (
         es.locked ? (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">🔒 Entries closed — the knockouts have started.</div>
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">🔒 Entries closed — the semi-finals have started.</div>
         ) : es.entered ? (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800 flex items-start justify-between gap-2">
             <span className="min-w-0">✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.</span>

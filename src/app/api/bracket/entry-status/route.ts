@@ -5,9 +5,9 @@ import { createAdminClient } from '@/lib/supabase'
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-// Bracket lock — first Round-of-32 kick-off. Matches the challenges' closes_at and
+// Entry deadline — first semi-final kick-off. Matches the challenges' closes_at and
 // the how-it-works copy. After this, entry is closed so the prompt must disappear.
-const LOCK_MS = new Date('2026-06-28T19:00:00Z').getTime()
+const LOCK_MS = new Date('2026-07-14T19:00:00Z').getTime()
 
 // GET /api/bracket/entry-status
 // The SINGLE source of truth for "should we nudge this user to enter the bracket

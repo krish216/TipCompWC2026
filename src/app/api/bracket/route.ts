@@ -48,6 +48,20 @@ export async function PUT(request: NextRequest) {
     }
 
     const admin = createAdminClient()
+
+    // Server-side lock (defence in depth — the client lock is bypassable). Once a
+    // tie has kicked off or has a result, its pick can't be written or changed.
+    // Knockout slot_keys ('r32:1'…'final','tp') map 1:1 to a fixture bracket_slot;
+    // group / 3rd-place slots have no fixture, so they're unaffected.
+    const { data: fx } = await (admin.from('fixtures') as any)
+      .select('kickoff_utc, home_score')
+      .eq('tournament_id', tournament_id).eq('bracket_slot', slot_key).maybeSingle()
+    if (fx) {
+      const f = fx as { kickoff_utc: string | null; home_score: number | null }
+      const locked = f.home_score != null || (!!f.kickoff_utc && Date.parse(f.kickoff_utc) <= Date.now())
+      if (locked) return NextResponse.json({ error: 'This match has locked — picks are closed.' }, { status: 409 })
+    }
+
     const { error } = await (admin.from('bracket_picks') as any)
       .upsert(
         {

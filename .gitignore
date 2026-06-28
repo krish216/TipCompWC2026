@@ -37,3 +37,7 @@ next-env.d.ts
 # Logs
 deploy-*.log
 .vercel
+
+# Broadcast contact export — contains user PII, never commit
+broadcast-contacts.csv
+broadcast-contacts-test.csv

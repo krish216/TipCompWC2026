@@ -42,7 +42,7 @@ export const TEAM_ISO: Record<string, string> = {
 const TEAM_ISO_ALIASES: Record<string, string> = {
   'Türkiye': 'tr', 'Turkiye': 'tr',
   'United States': 'us', 'United States of America': 'us',
-  'Bosnia & Herzegovina': 'ba', 'Bosnia': 'ba',
+  'Bosnia & Herzegovina': 'ba', 'Bosnia': 'ba', 'Bosnia-Herzegovina': 'ba', 'Bosnia and Herzegovina ': 'ba',
   'Cape Verde': 'cv', 'Côte d’Ivoire': 'ci', "Cote d'Ivoire": 'ci',
   'Korea Republic': 'kr', 'South Korea ': 'kr',
   'IR Iran': 'ir', 'Czech Republic': 'cz', 'Curaçao': 'cw',

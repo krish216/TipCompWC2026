@@ -295,6 +295,19 @@ export default function BracketPage() {
   const [picks,   setPicks]   = useState<Picks>({})
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState<Section>('groups')
+
+  // Knockout mode: bracket seeds from the real R32 fixtures and hides the group
+  // prediction steps. Prod gate = tournaments.bracket_knockout_mode (admin toggle).
+  // Dev override: ?knockout=1/0, honoured only outside production so we can test on
+  // localhost without flipping the real toggle.
+  const [bracketKnockoutFlag, setBracketKnockoutFlag] = useState(false)
+  const devKnockoutParam = searchParams.get('knockout')
+  const devKnockout = process.env.NODE_ENV !== 'production' && devKnockoutParam != null
+    ? (devKnockoutParam === '1' || devKnockoutParam === 'true')
+    : null
+  const knockoutMode = devKnockout !== null ? devKnockout : bracketKnockoutFlag
+  // In knockout mode the only step is the bracket; never show groups/thirds.
+  const showSection: Section = knockoutMode ? 'bracket' : section
   const didInitSection = useRef(false)
   // Autosave feedback for signed-in users (debounced DB writes are otherwise silent).
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -342,6 +355,48 @@ export default function BracketPage() {
   const deviceRef       = useRef<string>(typeof window !== 'undefined' ? (window.innerWidth < 768 ? 'mobile' : 'desktop') : 'unknown')
   const [shareFormat, setShareFormat] = useState<'portrait' | 'landscape' | 'square'>('landscape')
   const shareFnRef      = useRef<() => void>(() => {})
+
+  // R32 fixture schedule (kickoff/venue per bracket slot) — used to order the
+  // R32 cards chronologically and show each tie's date. Keyed by bracket_slot.
+  // Read the tournament's bracket_knockout_mode flag (admin toggle).
+  useEffect(() => {
+    if (!selectedTournId) return
+    fetch('/api/tournaments')
+      .then(r => r.json())
+      .then(d => {
+        const t = (d?.data ?? []).find((x: any) => x.id === selectedTournId)
+        setBracketKnockoutFlag(t?.bracket_knockout_mode === true)
+      })
+      .catch(() => {})
+  }, [selectedTournId])
+
+  const [koFixtures, setKoFixtures] = useState<KoFixtureMap>({})
+  useEffect(() => {
+    if (!selectedTournId) return
+    // All knockout fixtures (rows carrying a bracket_slot), keyed by slot.
+    fetch(`/api/fixtures?tournament_id=${selectedTournId}`)
+      .then(r => r.json())
+      .then(j => {
+        const map: KoFixtureMap = {}
+        for (const f of (j?.data ?? [])) {
+          if (!f?.bracket_slot) continue
+          const r = f.result
+          const actualWinner = r
+            ? (r.home > r.away ? f.home : r.away > r.home ? f.away : (r.pen_winner ?? null))
+            : null
+          map[f.bracket_slot] = {
+            kickoff_utc: f.kickoff_utc ?? null,
+            venue:       f.venue ?? null,
+            home:        f.home ?? null,
+            away:        f.away ?? null,
+            hasResult:   !!r,
+            actualWinner,
+          }
+        }
+        setKoFixtures(map)
+      })
+      .catch(() => {})
+  }, [selectedTournId])
 
   // Keep picksRef in sync so callbacks can read latest picks without stale closure
   useEffect(() => { picksRef.current = picks }, [picks])
@@ -1011,13 +1066,14 @@ export default function BracketPage() {
                 className="w-full py-2.5 rounded-xl text-sm font-bold border border-gray-200 text-gray-700 hover:bg-gray-50">
                 Use my new picks instead
               </button>
-              <p className="text-[11px] text-gray-400 text-center">Either way, you can still edit your bracket until the knockouts kick off.</p>
+              <p className="text-[11px] text-gray-400 text-center">Either way, you can keep editing each pick until that match kicks off — entries stay open until the semi-finals.</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Section nav */}
+      {/* Section nav — hidden in knockout mode (bracket is the only step) */}
+      {!knockoutMode && (
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1">
         {([
           { id: 'groups',  label: 'Groups',  badge: groupsDone ? '✓' : null },
@@ -1039,10 +1095,11 @@ export default function BracketPage() {
           </button>
         ))}
       </div>
+      )}
 
-      {section === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
-      {section === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} groupsDone={groupsDone} />}
-      {section === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} shareFormat={shareFormat} shareFnRef={shareFnRef} onNavigate={navigateTo} onShare={(fmt: string) => {
+      {showSection === 'groups'  && <GroupsSection  picks={picks} savePick={savePickWithCascade} onNavigate={navigateTo} />}
+      {showSection === 'thirds'  && <ThirdsSection  picks={picks} savePick={savePickWithCascade} advancingThirds={advancingThirds} onNavigate={navigateTo} groupsDone={groupsDone} />}
+      {showSection === 'bracket' && <BracketSection picks={picks} picksRef={picksRef} savePick={savePick} resolveSlot={resolveSlot} advancingThirds={advancingThirds} koFixtures={koFixtures} knockoutMode={knockoutMode} shareFormat={shareFormat} shareFnRef={shareFnRef} onNavigate={navigateTo} onShare={(fmt: string) => {
         if (!selectedTournId) return
         fetch('/api/bracket-prediction', {
           method: 'PATCH',
@@ -1507,11 +1564,11 @@ function ThirdsProgressBar({ advancingThirds, onNavigate }: {
 const SLOT_H  = 68    // height per R32 slot (px) — sets vertical scale of the whole tree
 const CARD_H  = 56    // match card height (px) — 28px per team row (better touch target)
 const LABEL_H = 34    // round label row height above the tree (round name + date)
-const COL_W   = 124   // match card column width (px)
-const CONN_W  = 28    // connector area width between columns (px)
+const COL_W   = 100   // match card column width (px)
+const CONN_W  = 16    // connector area width between columns (px)
 const TREE_H  = R32_MATCHES.length * SLOT_H       // 960px (matches only)
 const TOTAL_H = LABEL_H + TREE_H                   // 982px
-const CHAMP_W = 68
+const CHAMP_W = 56
 const TOTAL_W = 5 * COL_W + 4 * CONN_W + CHAMP_W  // full bracket width
 
 // Y-center of a match within the tree area (excludes LABEL_H)
@@ -1521,35 +1578,164 @@ const matchTY = (r: number, i: number) => LABEL_H + treeCY(r, i) - CARD_H / 2
 // Left edge of a round column
 const colX    = (r: number) => r * (COL_W + CONN_W)
 
+// Knockout fixture schedule + real participants + result state, keyed by
+// bracket_slot ('r32:1'…'final'). Used to seed R32 teams, show R32 dates, and
+// lock cards whose tie has kicked off or finished.
+type KoFixture = { kickoff_utc: string | null; venue: string | null; home: string | null; away: string | null; hasResult: boolean; actualWinner: string | null }
+type KoFixtureMap = Record<string, KoFixture>
+
+// A fixture team field is either a real qualified team, or a placeholder seed
+// label ("Group L Winner", "Third Place Group E/H/I/J/K", "Group J 2nd Place").
+// Real teams resolve to flags and are pickable; placeholders render as TBC.
+const isPlaceholderTeam = (s: string | null | undefined): boolean =>
+  !s || /\b(group|winner|place|3rd|runner|tbd|tbc)\b/i.test(s)
+const realTeam = (s: string | null | undefined): string | null =>
+  isPlaceholderTeam(s) ? null : (s as string)
+
+// Compact local date for an R32 card label, e.g. "Sun 28 Jun"
+const fmtR32Date = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  } catch { return '' }
+}
+
 const ROUND_LABELS = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
 const ROUND_DATES  = ['Jul 1–6', 'Jul 8–11', 'Jul 13–14', 'Jul 16–17', 'Jul 20 · NY']
 
 // ── Bracket Section ──────────────────────────────────────────────────────────
 
-function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, shareFnRef, onNavigate, onShare }: {
+function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, knockoutMode, shareFormat, shareFnRef, onNavigate, onShare }: {
   picks: Picks
   picksRef: React.RefObject<Picks>
   savePick: (k: string, v: string | null) => void
   resolveSlot: (desc: SlotDesc) => string | null
   advancingThirds: (string | null)[]
+  koFixtures: KoFixtureMap
+  knockoutMode: boolean
   shareFormat: 'portrait' | 'landscape' | 'square'
   shareFnRef: React.MutableRefObject<() => void>
   onNavigate: (s: Section) => void
   onShare: (format: string) => void
 }) {
-  const champion     = picks['final'] ?? null
   const scrollRef    = useRef<HTMLDivElement>(null)
   const treeRef      = useRef<HTMLDivElement>(null)
   const [showRightFade, setShowRightFade] = useState(true)
+  // In-progress "build-forward" choices: client-only, NEVER saved (so the tie reports
+  // as not entered and never scores). Lets users keep building during the live window.
+  const [provisional, setProvisional] = useState<Record<string, string | null>>({})
 
   const groupsDone   = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
   const thirdsCount  = T_SLOTS.filter(t => picks[thirdSlot(t)]).length
 
-  // Derive SF losers for the 3rd place play-off card
-  const sf1Pick = picks[BRACKET_TREE.sf[0].key] ?? null
-  const sf2Pick = picks[BRACKET_TREE.sf[1].key] ?? null
-  const tpHome  = sf1Pick ? (BRACKET_TREE.sf[0].from.map((k: string) => picks[k] ?? null).find(t => t !== sf1Pick) ?? null) : null
-  const tpAway  = sf2Pick ? (BRACKET_TREE.sf[1].from.map((k: string) => picks[k] ?? null).find(t => t !== sf2Pick) ?? null) : null
+  // ── Knockout-mode seeding (render-time only; never mutates bracket_picks) ────
+  // R32 participants are the REAL fixtures (by bracket_slot). Any stored pick that
+  // no longer matches its real tie is treated as unpicked, cascading down the tree.
+  const r32TeamsFor = (key: string): [string | null, string | null] => {
+    const f = koFixtures[key]
+    return [realTeam(f?.home), realTeam(f?.away)]
+  }
+  // ── Fixture state (knockout mode) ───────────────────────────────────────────
+  const nowMs = Date.now()
+  const decided    = (slot: string): boolean => !!koFixtures[slot]?.hasResult
+  const started    = (slot: string): boolean => {
+    const f = koFixtures[slot]; if (!f) return false
+    return decided(slot) || (!!f.kickoff_utc && Date.parse(f.kickoff_utc) <= nowMs)
+  }
+  // In progress = kicked off, no result yet.
+  const inProgress = (slot: string): boolean => knockoutMode && started(slot) && !decided(slot)
+  // Auto-advance the ACTUAL winner of a DECIDED tie into the next round (guarded to a
+  // current participant) so users can keep building after the result.
+  const autoAdvance = (slot: string, a: string | null, b: string | null): string | null => {
+    if (!decided(slot)) return null
+    const aw = koFixtures[slot]?.actualWinner ?? null
+    return aw && (aw === a || aw === b) ? aw : null
+  }
+  const validPick = (slot: string, a: string | null, b: string | null): string | null => {
+    const w = picks[slot] ?? null
+    return w && (w === a || w === b) ? w : null
+  }
+
+  // Per-slot derived state (knockout mode), built top-down:
+  //  • shown   = what the card highlights: the validated saved pick, or a decided tie's
+  //              real winner. NEVER the in-progress build-only choice (those stay "Not entered").
+  //  • adv     = what advances to the next round: shown, plus the in-progress build-only
+  //              provisional choice (so users can build through the live window).
+  //  • locked  = card can't be interacted with: a decided tie, an in-progress tie already
+  //              entered (no editing mid-match), or an in-progress terminal tie (final/3rd —
+  //              nothing to build forward, so locked at kickoff).
+  const TERMINAL = new Set<string>([BRACKET_TREE.final.key, BRACKET_TREE.thirdPlace.key])
+  const shownMap:  Record<string, string | null> = {}
+  const advMap:    Record<string, string | null> = {}
+  const lockedMap: Record<string, boolean>        = {}
+  const computeSlot = (slot: string, a: string | null, b: string | null) => {
+    const vp = validPick(slot, a, b)
+    shownMap[slot]  = vp ?? autoAdvance(slot, a, b)
+    advMap[slot]    = shownMap[slot] ?? (inProgress(slot) ? (provisional[slot] ?? null) : null)
+    lockedMap[slot] = decided(slot) || (inProgress(slot) && (TERMINAL.has(slot) || vp !== null))
+  }
+  if (knockoutMode) {
+    for (const m of R32_MATCHES) { const [h, a] = r32TeamsFor(m.key); computeSlot(m.key, h, a) }
+    for (const m of [...BRACKET_TREE.r16, ...BRACKET_TREE.qf, ...BRACKET_TREE.sf, BRACKET_TREE.final]) {
+      computeSlot(m.key, advMap[m.from[0]] ?? null, advMap[m.from[1]] ?? null)
+    }
+  }
+  // Card-highlight winner (no in-progress build choice); raw picks outside knockout mode.
+  const win = (key: string): string | null => knockoutMode ? (shownMap[key] ?? null) : (picks[key] ?? null)
+  // Team that advances to the next round (includes in-progress build choices).
+  const advance = (key: string): string | null => knockoutMode ? (advMap[key] ?? null) : (picks[key] ?? null)
+  const lockedSlot = (slot: string): boolean => {
+    if (!knockoutMode) return false
+    return slot in lockedMap ? lockedMap[slot] : started(slot)   // terminal/uncomputed (e.g. tp) → lock at kickoff
+  }
+
+  // Surfaces the user's ORIGINAL stored pick under a card (knockout mode only), so a
+  // prediction-era pick that isn't one of the real teams is still visible — marked
+  // right/wrong once the tie has a result. Absolutely positioned just below the card.
+  // Centered pill overlay showing the user's ORIGINAL pick for a slot (knockout mode):
+  // their pick (marked right/wrong once the tie has a result) — or "Not picked" once a
+  // tie is locked with no pick. Click-through so the team rows stay tappable.
+  const pickNote = (slot: string): React.ReactNode => {
+    if (!knockoutMode) return null
+    const pill = (cls: string, label: React.ReactNode) => (
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
+        <span className={clsx('inline-flex items-center gap-0.5 rounded-full border bg-white/95 px-1.5 py-0.5 text-[8px] font-semibold leading-none shadow-sm max-w-[84px] truncate', cls)}>
+          {label}
+        </span>
+      </div>
+    )
+    // In progress: a saved (counting) pick shows neutrally; otherwise the tie reports
+    // as "Not entered" (any build-forward choice is silent — it only seeds the next round).
+    if (inProgress(slot)) {
+      const sp = shownMap[slot] ?? null
+      return sp
+        ? pill('border-gray-200 text-gray-600', <span className="truncate">{sp}</span>)
+        : pill('border-gray-200 text-gray-400 italic', 'Not entered')
+    }
+    const p = picks[slot] ?? null
+    if (!p) {
+      // Decided tie with no pick = a definitive miss; a not-yet-started tie stays blank.
+      return decided(slot) ? pill('border-gray-200 text-gray-400 italic', '✗ Not picked') : null
+    }
+    const aw = koFixtures[slot]?.actualWinner ?? null
+    const verdict = aw ? (p === aw ? 'ok' : 'no') : null
+    const cls = verdict === 'ok' ? 'border-emerald-300 text-emerald-700'
+      : verdict === 'no' ? 'border-rose-300 text-rose-600'
+      : 'border-gray-200 text-gray-600'
+    return pill(cls, <span className="truncate">{p}{verdict === 'ok' ? ' ✓' : verdict === 'no' ? ' ✗' : ''}</span>)
+  }
+
+  const champion = win('final')
+
+  // Derive SF losers for the 3rd place play-off card (downstream advancers)
+  const sf1Pick = advance(BRACKET_TREE.sf[0].key)
+  const sf2Pick = advance(BRACKET_TREE.sf[1].key)
+  const tpHome  = sf1Pick ? (BRACKET_TREE.sf[0].from.map((k: string) => advance(k)).find(t => t && t !== sf1Pick) ?? null) : null
+  const tpAway  = sf2Pick ? (BRACKET_TREE.sf[1].from.map((k: string) => advance(k)).find(t => t && t !== sf2Pick) ?? null) : null
+  // 3rd-place winner is validated against the SF losers (the tp participants).
+  const tpRaw    = picks[BRACKET_TREE.thirdPlace.key] ?? null
+  const tpWinner = knockoutMode
+    ? ((tpRaw && (tpRaw === tpHome || tpRaw === tpAway) ? tpRaw : null) ?? autoAdvance(BRACKET_TREE.thirdPlace.key, tpHome, tpAway))
+    : tpRaw
 
   // Y position of the 3rd place card within the tree (below the Final card)
   const TP_CARD_TOP = matchTY(4, 0) + CARD_H + 28
@@ -1641,6 +1827,15 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
       }
     }
   }, [savePick, centerColumn, scrollToNextR32, scrollToNextInRound, scrollToThirdPlace, picksRef])
+
+  // Build-only choice for an in-progress tie: client-only (never saved), so the tie stays
+  // "not entered" and never scores. It only seeds the next round so users can keep building.
+  const provisionalPick = useCallback((key: string, team: string | null) => {
+    setProvisional(prev => ({ ...prev, [key]: prev[key] === team ? null : team }))
+  }, [])
+  // Pick handler per slot: in-progress + not-yet-entered ties build provisionally (not saved);
+  // everything else saves normally.
+  const pickHandler = (slot: string) => (inProgress(slot) && !lockedSlot(slot)) ? provisionalPick : bracketPick
 
   const shareAsPng = useCallback(async () => {
     const winner = picksRef.current?.['final'] ?? null
@@ -2029,8 +2224,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
   // Expose shareAsPng to parent via ref so the banner rendered above the tabs can trigger it
   shareFnRef.current = shareAsPng
 
-  // Show prerequisite gate before the bracket tree
-  if (!groupsDone || thirdsCount < 8) {
+  // Show prerequisite gate before the bracket tree (skipped in knockout mode —
+  // the bracket seeds from real fixtures, so group/thirds picks aren't required)
+  if (!knockoutMode && (!groupsDone || thirdsCount < 8)) {
     const needGroups = !groupsDone
     return (
       <div className="flex flex-col items-center justify-center gap-5 py-16 text-center px-4">
@@ -2057,7 +2253,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
   return (
     <div>
       <p className="text-xs text-gray-500 mb-3">
-        Pick winners for each match. Teams shown are from your group stage picks.
+        {knockoutMode
+          ? 'Pick winners for each match. Teams are the confirmed Round-of-32 qualifiers.'
+          : 'Pick winners for each match. Teams shown are from your group stage picks.'}
       </p>
       <div className="relative">
         {/* Right-edge fade — indicates horizontal scrollability; hidden once scrolled to the end */}
@@ -2085,17 +2283,34 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             <span className="text-[10px] font-bold text-amber-500 tracking-wider uppercase">Winner</span>
           </div>
 
-          {/* ── Round of 32 ── */}
-          {R32_MATCHES.map((m, i) => (
-            <div key={m.key} style={{ position: 'absolute', top: matchTY(0, i), left: colX(0), width: COL_W }}>
-              <BracketMatchCard
-                matchKey={m.key}
-                homeTeam={resolveSlot(m.home)} awayTeam={resolveSlot(m.away)}
-                homeDesc={m.home}              awayDesc={m.away}
-                winner={picks[m.key] ?? null}  savePick={bracketPick}
-              />
-            </div>
-          ))}
+          {/* ── Round of 32 (bracket-topology order; date shown above each card) ── */}
+          {R32_MATCHES.map((m, i) => {
+            const fx = koFixtures[m.key]
+            const ko = fx?.kickoff_utc ?? null
+            // Knockout mode: seed from real fixtures (placeholder → null = TBC).
+            const homeTeam = knockoutMode ? realTeam(fx?.home) : resolveSlot(m.home)
+            const awayTeam = knockoutMode ? realTeam(fx?.away) : resolveSlot(m.away)
+            const homeDesc = knockoutMode ? (fx?.home ?? m.home) : m.home
+            const awayDesc = knockoutMode ? (fx?.away ?? m.away) : m.away
+            return (
+              <div key={m.key} style={{ position: 'absolute', top: matchTY(0, i), left: colX(0), width: COL_W }}>
+                {ko && (
+                  <div className="absolute left-0 right-0 text-center text-[8px] font-semibold text-gray-400 leading-none"
+                    style={{ top: -11 }}>
+                    {fmtR32Date(ko)}
+                  </div>
+                )}
+                <BracketMatchCard
+                  matchKey={m.key}
+                  homeTeam={homeTeam} awayTeam={awayTeam}
+                  homeDesc={homeDesc} awayDesc={awayDesc}
+                  winner={win(m.key)} savePick={pickHandler(m.key)}
+                  locked={lockedSlot(m.key)}
+                  overlay={pickNote(m.key)}
+                />
+              </div>
+            )
+          })}
           <BracketConnectors fromRoundIdx={0} fromCount={16} />
 
           {/* ── Round of 16 ── */}
@@ -2103,9 +2318,11 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             <div key={m.key} style={{ position: 'absolute', top: matchTY(1, i), left: colX(1), width: COL_W }}>
               <BracketMatchCard
                 matchKey={m.key}
-                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
-                homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={bracketPick}
+                homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
+                homeDesc={m.from[0]}          awayDesc={m.from[1]}
+                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                locked={lockedSlot(m.key)}
+                overlay={pickNote(m.key)}
               />
             </div>
           ))}
@@ -2116,9 +2333,11 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             <div key={m.key} style={{ position: 'absolute', top: matchTY(2, i), left: colX(2), width: COL_W }}>
               <BracketMatchCard
                 matchKey={m.key}
-                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
-                homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={bracketPick}
+                homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
+                homeDesc={m.from[0]}          awayDesc={m.from[1]}
+                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                locked={lockedSlot(m.key)}
+                overlay={pickNote(m.key)}
               />
             </div>
           ))}
@@ -2129,9 +2348,11 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
             <div key={m.key} style={{ position: 'absolute', top: matchTY(3, i), left: colX(3), width: COL_W }}>
               <BracketMatchCard
                 matchKey={m.key}
-                homeTeam={picks[m.from[0]] ?? null} awayTeam={picks[m.from[1]] ?? null}
-                homeDesc={m.from[0]}                awayDesc={m.from[1]}
-                winner={picks[m.key] ?? null}        savePick={bracketPick}
+                homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
+                homeDesc={m.from[0]}          awayDesc={m.from[1]}
+                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                locked={lockedSlot(m.key)}
+                overlay={pickNote(m.key)}
               />
             </div>
           ))}
@@ -2148,17 +2369,21 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
               awayTeam={tpAway}
               homeDesc="SF1 loser"
               awayDesc="SF2 loser"
-              winner={picks[BRACKET_TREE.thirdPlace.key] ?? null}
+              winner={tpWinner}
               savePick={bracketPick}
+              locked={lockedSlot(BRACKET_TREE.thirdPlace.key)}
+              overlay={pickNote(BRACKET_TREE.thirdPlace.key)}
             />
           </div>
 
           {/* ── Final (locked until 3rd place is picked, so it isn't skipped) ── */}
           {(() => {
-            const finalHome   = picks[BRACKET_TREE.final.from[0]] ?? null
-            const finalAway   = picks[BRACKET_TREE.final.from[1]] ?? null
-            const thirdPicked = !!picks[BRACKET_TREE.thirdPlace.key]
-            const finalLocked = !!(finalHome && finalAway) && !thirdPicked
+            const finalHome   = advance(BRACKET_TREE.final.from[0])
+            const finalAway   = advance(BRACKET_TREE.final.from[1])
+            const thirdPicked = !!tpWinner
+            // Locked if the Final has kicked off / has a result, or the existing
+            // 3rd-place-first gate applies.
+            const finalLocked = lockedSlot(BRACKET_TREE.final.key) || (!!(finalHome && finalAway) && !thirdPicked)
             return (
               <div style={{ position: 'absolute', top: matchTY(4, 0) - 14, left: colX(4), width: COL_W }}>
                 <div className="text-[8px] font-bold text-amber-500 tracking-wider uppercase text-center mb-1.5">
@@ -2175,6 +2400,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, shareFormat, s
                     savePick={savePick}
                     isFinal
                     locked={finalLocked}
+                    overlay={pickNote(BRACKET_TREE.final.key)}
                   />
                   {finalLocked && (
                     <div className="pointer-events-none absolute inset-x-0 -bottom-8 flex justify-center">
@@ -2234,7 +2460,7 @@ function BracketConnectors({ fromRoundIdx, fromCount }: { fromRoundIdx: number; 
   )
 }
 
-function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick, isFinal, locked }: {
+function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, winner, savePick, isFinal, locked, overlay }: {
   matchKey: string
   homeTeam: string | null
   awayTeam: string | null
@@ -2244,6 +2470,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
   savePick: (k: string, v: string | null) => void
   isFinal?: boolean
   locked?: boolean
+  overlay?: React.ReactNode
 }) {
   // A winner can only be chosen once BOTH competitors are known — otherwise a
   // lone qualifier (e.g. one semi-finalist while the other slot is still a
@@ -2256,10 +2483,21 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
 
   return (
     <div className={clsx(
-      'rounded-xl border bg-white shadow-sm overflow-hidden',
+      'relative rounded-xl border bg-white shadow-sm overflow-hidden',
       isFinal ? 'border-amber-400 ring-1 ring-amber-300' : 'border-gray-200',
       locked && 'opacity-60'
     )} style={{ height: CARD_H }}>
+      {locked && (
+        <span
+          className="absolute top-0.5 right-0.5 z-10 flex items-center justify-center rounded-full bg-white/90 p-0.5 shadow-sm"
+          aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+            strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5 text-gray-500">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </span>
+      )}
       {[
         { team: homeTeam, desc: homeDesc },
         { team: awayTeam, desc: awayDesc },
@@ -2280,7 +2518,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
             aria-pressed={isWinner}
             style={{ height: CARD_H / 2 }}
             className={clsx(
-              'w-full flex items-center gap-1.5 px-2.5 text-left transition-all',
+              'w-full flex items-center gap-1 px-1.5 text-left transition-all',
               i === 0 ? '' : 'border-t border-gray-100',
               isWinner && 'bg-emerald-50',
               isLoser && 'opacity-40',
@@ -2304,6 +2542,7 @@ function BracketMatchCard({ matchKey, homeTeam, awayTeam, homeDesc, awayDesc, wi
           </button>
         )
       })}
+      {overlay}
     </div>
   )
 }

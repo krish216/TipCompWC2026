@@ -90,13 +90,13 @@ export async function GET(request: NextRequest) {
   const tid   = tournamentId ?? list[0]?.tournament_id ?? (await activeTournamentId(admin))
 
   // Which of these challenges the caller has entered, whether they have a
-  // completed bracket (champion picked), and when entries lock (first R32 KO).
+  // completed bracket (champion picked), and when entries lock (first SF KO).
   const entered = new Set<string>()
   let has_bracket = false
   let closes_at: string | null = null
   if (tid) {
     const { data: fx } = await (admin.from('fixtures') as any)
-      .select('kickoff_utc').eq('tournament_id', tid).eq('round', 'r32')
+      .select('kickoff_utc').eq('tournament_id', tid).eq('round', 'sf')
       .order('kickoff_utc', { ascending: true }).limit(1)
     closes_at = (fx as any)?.[0]?.kickoff_utc ?? null
   }
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     ;((ents ?? []) as any[]).forEach(e => entered.add(e.challenge_id))
     has_bracket = !!champ
   }
-  const r32 = closes_at   // tournament-wide fallback (first R32 kick-off)
+  const defaultClose = closes_at   // tournament-wide fallback (first SF kick-off)
   const lockedAt = (iso: string | null) => !!iso && Date.now() >= new Date(iso).getTime()
 
   const challenges = await Promise.all(list.map(async ch => {
@@ -116,10 +116,10 @@ export async function GET(request: NextRequest) {
       entrantCount(admin, ch.id),
       resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: ch.id }),
     ])
-    const chCloses = ch.closes_at ?? r32   // the challenge's own end date, else R32
+    const chCloses = ch.closes_at ?? defaultClose   // the challenge's own end date, else the SF default
     return { slug: ch.slug, name: ch.name, entrants, sponsor: sponsorSummary(cfg), entered: entered.has(ch.id), closes_at: chCloses, locked: lockedAt(chCloses) }
   }))
-  return NextResponse.json({ challenges, logged_in: !!user, has_bracket, closes_at: r32, locked: lockedAt(r32) })
+  return NextResponse.json({ challenges, logged_in: !!user, has_bracket, closes_at: defaultClose, locked: lockedAt(defaultClose) })
 }
 
 // POST /api/bracket/challenges — admin: create a bracket challenge.

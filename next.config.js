@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 // Cache buster: 20260418-215104
 const nextConfig = {
-  generateBuildId: async () => '20260418215104',
+  // Fixed build ID only in production (cache-busting). In dev, a constant build
+  // ID desyncs from the HMR hot-update manifest and makes _next/static chunks
+  // 404 after the first hot reload — so let dev use its default 'development' ID.
+  ...(process.env.NODE_ENV === 'production' ? { generateBuildId: async () => '20260418215104' } : {}),
   // Image domains for avatars (Supabase storage + Gravatar)
   images: {
     remotePatterns: [

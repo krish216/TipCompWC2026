@@ -11,23 +11,25 @@ export interface BracketChallenge {
   slug:          string
   name:          string
   tournament_id: string
-  closes_at:     string | null   // challenge's own end date; null → first R32 kick-off
+  closes_at:     string | null   // challenge's own end date; null → first semi-final kick-off
 }
 
 const COLS = 'id, slug, name, tournament_id, type, enabled, created_at, closes_at'
 
-// First R32 kick-off for a tournament — the default bracket lock.
-async function firstR32Kickoff(admin: any, tournamentId: string): Promise<string | null> {
+// First semi-final kick-off for a tournament — the default entry deadline.
+// Entries stay open through R32/R16/QF; each tie locks individually at its own
+// kick-off (so a late entrant just scores 0 on ties already played).
+async function firstSemiKickoff(admin: any, tournamentId: string): Promise<string | null> {
   const { data } = await admin.from('fixtures')
-    .select('kickoff_utc').eq('tournament_id', tournamentId).eq('round', 'r32')
+    .select('kickoff_utc').eq('tournament_id', tournamentId).eq('round', 'sf')
     .order('kickoff_utc', { ascending: true }).limit(1)
   return (data as any)?.[0]?.kickoff_utc ?? null
 }
 
-// When a challenge closes for entries: its own end date, else the R32 lock.
+// When a challenge closes for entries: its own end date, else the semi-finals.
 export async function challengeClosesAt(admin: any, challenge: { tournament_id: string; closes_at?: string | null }): Promise<string | null> {
   if (challenge.closes_at) return challenge.closes_at
-  return firstR32Kickoff(admin, challenge.tournament_id)
+  return firstSemiKickoff(admin, challenge.tournament_id)
 }
 
 async function activeTournamentId(admin: any): Promise<string | null> {

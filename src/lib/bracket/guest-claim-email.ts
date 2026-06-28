@@ -104,7 +104,7 @@ function buildHtml(v: {
     : (v.sponsor ? `<p style="margin:0 0 6px;font-size:15px;color:#374151;">Proudly sponsored by <strong>${v.sponsor}</strong>.</p>` : '')
   const closesLine = v.closes
     ? `<p style="margin:0;font-size:13px;color:#6b7280;">Entries lock <strong>${v.closes}</strong> — you can still tweak your bracket until then.</p>`
-    : `<p style="margin:0;font-size:13px;color:#6b7280;">You can still tweak your bracket until the knockouts kick off.</p>`
+    : `<p style="margin:0;font-size:13px;color:#6b7280;">You can keep tweaking each pick until that match kicks off.</p>`
   const detailBlock = (prizeLine || v.closes)
     ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 20px;margin-bottom:22px;">${prizeLine}${closesLine}</div>`
     : ''

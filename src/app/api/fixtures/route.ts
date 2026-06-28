@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
   }
 
   let query = (adminClient.from('fixtures') as any)
-    .select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, result_outcome, tournament_id')
+    .select('id, round, grp, home, away, kickoff_utc, venue, bracket_slot, home_score, away_score, pen_winner, result_outcome, tournament_id')
     .order('kickoff_utc')
 
   // Always filter by tournament
@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     away:          f.away,
     kickoff_utc:   f.kickoff_utc,
     venue:         f.venue,
+    bracket_slot:  f.bracket_slot ?? null,
     tournament_id: f.tournament_id,
     result:        f.home_score != null
       ? { home: f.home_score, away: f.away_score, pen_winner: f.pen_winner ?? null, result_outcome: f.result_outcome ?? null }
