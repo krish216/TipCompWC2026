@@ -58,15 +58,22 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   const postcodeRef = useRef<HTMLInputElement>(null)
   const consentRef  = useRef<HTMLDivElement>(null)
 
-  // Reliably scroll the modal's own scroll box to bring `el` into view. We scroll
-  // the container explicitly (rect math) rather than el.scrollIntoView(), which is
-  // flaky inside a flex/overflow modal and gets overridden by native focus-scroll.
-  const reveal = (el: HTMLElement | null, focus = false) => {
+  // Scroll the modal's own scroll box (rect math, not el.scrollIntoView() which is
+  // flaky inside a flex/overflow modal). Deferred so it runs AFTER the browser's
+  // native focus-scroll (which fires when the user taps the next field) — otherwise
+  // that focus-scroll overrides ours and it looks like nothing happened.
+  // align 'top'  → pin the element near the top (reveals everything below it)
+  // align 'bottom' → bring the element's bottom into view (jump to a single field)
+  const scrollBox = (el: HTMLElement | null, align: 'top' | 'bottom', focus = false) => {
     const box = scrollBoxRef.current
     if (!box || !el) return
-    const delta = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom + 24
-    if (delta > 0) box.scrollTo({ top: box.scrollTop + delta, behavior: 'smooth' })
-    if (focus) setTimeout(() => el.focus?.(), 300)
+    setTimeout(() => {
+      const b = box.getBoundingClientRect()
+      const e = el.getBoundingClientRect()
+      const delta = align === 'top' ? (e.top - b.top - 12) : (e.bottom - b.bottom + 24)
+      box.scrollTo({ top: box.scrollTop + delta, behavior: 'smooth' })
+    }, 60)
+    if (focus) setTimeout(() => el.focus?.(), 120)
   }
 
   const numOk    = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
@@ -94,7 +101,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   // section (tie-breakers + consents sit below the fold) so they aren't left
   // staring at a disabled CTA, unsure what's missing.
   useEffect(() => {
-    if (codeOk) reveal(tieRef.current)
+    if (codeOk) scrollBox(tieRef.current, 'top')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codeOk])
 
@@ -102,7 +109,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
   // missing field (and focus it when it's a text input) instead of doing nothing.
   const handleEnter = () => {
     if (canSubmit) { submit(); return }
-    if (missing) reveal(missing.ref.current, missing.focus)
+    if (missing) scrollBox(missing.ref.current, 'bottom', missing.focus)
   }
 
   const sendCode = async () => {
@@ -235,7 +242,7 @@ export function BracketGuestEntryModal({ tournamentId, picks, sessionId, source,
               <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Tie-breakers</p>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-800">Total goals in the <strong>Final</strong></label>
-                {numInput(finalGoals, setFinalGoals, () => { if (numOk(finalGoals)) reveal(consentRef.current) })}
+                {numInput(finalGoals, setFinalGoals, () => { if (numOk(finalGoals)) scrollBox(tieRef.current, 'top') })}
               </div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-800">Total goals in the <strong>3rd-place</strong> match</label>

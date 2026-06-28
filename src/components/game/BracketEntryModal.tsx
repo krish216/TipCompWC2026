@@ -33,17 +33,25 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   // Scroll/focus targets — the postcode + consent fields sit below the fold, so a
   // disabled CTA is otherwise a dead end (the user can't see what's missing).
   const scrollBoxRef = useRef<HTMLDivElement>(null)
+  const tieRef       = useRef<HTMLDivElement>(null)
   const postcodeRef  = useRef<HTMLInputElement>(null)
   const consentRef   = useRef<HTMLDivElement>(null)
 
-  // Reliably scroll the modal's own scroll box to bring `el` into view (rect math,
-  // not el.scrollIntoView() which is flaky inside a flex/overflow modal).
-  const reveal = (el: HTMLElement | null, focus = false) => {
+  // Scroll the modal's own scroll box (rect math, not el.scrollIntoView() which is
+  // flaky here). Deferred so it runs AFTER the browser's native focus-scroll, which
+  // would otherwise override ours when the user taps the next field.
+  // align 'top' → pin element near the top (reveals everything below it);
+  // align 'bottom' → bring the element's bottom into view (jump to one field).
+  const scrollBox = (el: HTMLElement | null, align: 'top' | 'bottom', focus = false) => {
     const box = scrollBoxRef.current
     if (!box || !el) return
-    const delta = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom + 24
-    if (delta > 0) box.scrollTo({ top: box.scrollTop + delta, behavior: 'smooth' })
-    if (focus) setTimeout(() => el.focus?.(), 300)
+    setTimeout(() => {
+      const b = box.getBoundingClientRect()
+      const e = el.getBoundingClientRect()
+      const delta = align === 'top' ? (e.top - b.top - 12) : (e.bottom - b.bottom + 24)
+      box.scrollTo({ top: box.scrollTop + delta, behavior: 'smooth' })
+    }, 60)
+    if (focus) setTimeout(() => el.focus?.(), 120)
   }
 
   const numOk = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
@@ -66,7 +74,7 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   // missing field (and focus it when it's a text input) instead of doing nothing.
   const handleEnter = () => {
     if (canSubmit) { submit(); return }
-    if (missing?.ref) reveal(missing.ref.current, missing.focus)
+    if (missing?.ref) scrollBox(missing.ref.current, 'bottom', missing.focus)
   }
 
   const submit = async () => {
@@ -131,15 +139,17 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
         <div ref={scrollBoxRef} className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
           <p className="text-xs text-gray-500">Two quick tie-breakers (used only if players finish level on points), then you&apos;re in the draw.</p>
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-800">Total goals in the <strong>Final</strong></label>
-            {numInput(finalGoals, setFinalGoals, () => { if (numOk(finalGoals)) reveal(consentRef.current) })}
+          <div ref={tieRef} className="space-y-4 scroll-mt-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-800">Total goals in the <strong>Final</strong></label>
+              {numInput(finalGoals, setFinalGoals, () => { if (numOk(finalGoals)) scrollBox(tieRef.current, 'top') })}
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-800">Total goals in the <strong>3rd-place</strong> match</label>
+              {numInput(tpGoals, setTpGoals)}
+            </div>
+            <p className="text-[11px] text-gray-400 -mt-1">⚽ Count goals up to the end of extra time — penalty shootouts don&apos;t count.</p>
           </div>
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-800">Total goals in the <strong>3rd-place</strong> match</label>
-            {numInput(tpGoals, setTpGoals)}
-          </div>
-          <p className="text-[11px] text-gray-400 -mt-1">⚽ Count goals up to the end of extra time — penalty shootouts don&apos;t count.</p>
 
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
             placeholder="Phone (optional — for the prize)"
