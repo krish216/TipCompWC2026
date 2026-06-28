@@ -678,6 +678,8 @@ export default function BracketPage() {
         slug: challengeParam,
         name: sponsorCfg.challenge_name ?? 'Bracket Challenge',
         entrants: 0,
+        entered: false as boolean | undefined,
+        locked: false as boolean | undefined,
         sponsor: { name: sponsorCfg.sponsor_name, logo: sponsorCfg.sponsor_logo, prize: sponsorCfg.prize, url: sponsorCfg.sponsor_url, logo_tone: sponsorCfg.logo_tone, tagline: sponsorCfg.sponsor_tagline },
       } : undefined)
   const ctaChallenges = targetedChallenge ? [targetedChallenge] : challenges
@@ -691,6 +693,12 @@ export default function BracketPage() {
   const branded = !!(sponsorCfg?.enabled && (sponsorCfg.sponsor_logo || sponsorCfg.sponsor_name))
   // Leaderboard the header links to: the targeted board, else the generic one.
   const leaderboardHref = targetedChallenge ? `/bracket/leaderboard/${targetedChallenge.slug}` : '/bracket/leaderboard'
+  // The sponsor challenge the player arrived from, enriched with live entered/locked
+  // state from the loaded challenges list (synthesized invite-only ones lack it).
+  // Drives the prominent "enter to win" completion CTA for signed-in players.
+  const targetedLive = targetedChallenge
+    ? (challenges.find(c => c.slug === targetedChallenge.slug) ?? targetedChallenge)
+    : null
 
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
@@ -903,6 +911,37 @@ export default function BracketPage() {
             Want a full comp with your crew? <a href="/login?tab=register&bracket=1" className="underline font-semibold">Sign up here</a>.
           </p>
         </div>
+      )}
+
+      {/* Completion CTA — signed-in players who arrived from a sponsor challenge get a
+          prominent, contextual prompt to enter THAT challenge once their bracket is
+          done (the challenges hub below still lists every open challenge). */}
+      {session && champion && showSection === 'bracket' && targetedLive && !targetedLive.locked && (
+        targetedLive.entered ? (
+          <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-emerald-900 min-w-0 truncate">✓ You&apos;re in{targetedLive.sponsor?.prize ? ' the draw' : ''}{targetedLive.sponsor?.name ? ` · ${targetedLive.sponsor.name}` : ''} 🎉</p>
+            <a href={`/bracket/leaderboard/${targetedLive.slug}`} className="flex-shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
+          </div>
+        ) : (
+          <div className="mb-4 px-4 py-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl shadow-sm">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Flag team={champion} className="text-3xl rounded shadow-sm" />
+              <span className="text-sm font-bold text-emerald-900">{champion}</span>
+              <span className="text-2xl leading-none">🏆</span>
+            </div>
+            <p className="text-sm font-bold text-emerald-900 mb-0.5 text-center">{targetedLive.sponsor?.prize ? 'Your bracket is done — enter to win 🏆' : 'Your bracket is done! 🎯'}</p>
+            <p className="text-xs text-emerald-700 mb-3 text-center">
+              {targetedLive.sponsor?.prize
+                ? <>Enter the <strong>{targetedLive.name}</strong> for a shot at <strong>{targetedLive.sponsor.prize}</strong> and get on its leaderboard.</>
+                : <>Enter the <strong>{targetedLive.name}</strong> to get on its leaderboard.</>}
+            </p>
+            <button onClick={() => setMemberEnterSlug(targetedLive.slug)}
+              className="w-full flex items-center justify-between gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all">
+              <span className="truncate">Enter {targetedLive.sponsor?.name ? `${targetedLive.sponsor.name} · ` : ''}{targetedLive.name}</span>
+              <span aria-hidden>→</span>
+            </button>
+          </div>
+        )
       )}
 
       {showGuestEnter && selectedTournId && (
