@@ -165,6 +165,14 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
 
   const isCompAdminPage = pathname.startsWith('/comp-admin')
 
+  // On the public bracket pages a guest can play with NO account, so the generic
+  // "Sign in / Register" buttons mislead (they imply an account is required). Show
+  // a primary "Play free" CTA into the builder instead, keeping a quiet Sign in for
+  // returning users. The challenge slug from a leaderboard URL travels along.
+  const isBracketPage = pathname.startsWith('/bracket')
+  const bracketSlugMatch = pathname.match(/^\/bracket\/leaderboard\/([^/]+)/)
+  const bracketPlayHref = bracketSlugMatch ? `/bracket?challenge=${bracketSlugMatch[1]}` : '/bracket'
+
   // Desktop nav items (shown in top bar on sm+)
   const desktopItems = isCompAdminPage
     ? [
@@ -416,10 +424,17 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
             ) : (
               <div className="flex items-center gap-2">
                 <Link href="/login?tab=login" className="text-xs text-gray-500 hover:text-gray-700">Sign in</Link>
-                <Link href="/login?tab=register"
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
-                  Register
-                </Link>
+                {isBracketPage ? (
+                  <Link href={bracketPlayHref}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
+                    🏆 Play free
+                  </Link>
+                ) : (
+                  <Link href="/login?tab=register"
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                    Register
+                  </Link>
+                )}
               </div>
             )}
           </div>

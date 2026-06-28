@@ -5,6 +5,7 @@ import { sendBracketClaimEmail } from '@/lib/bracket/guest-claim-email'
 import { sendEntryConfirmation } from '@/lib/bracket/entry-confirmation'
 import { establishSessionFor } from '@/lib/bracket/establish-session'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
+import { enrolInTournament } from '@/lib/enrol-tournament'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -217,11 +218,12 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'user_id,tournament_id' }).then(() => {}, () => {})
   }
 
-  // Enrol in the tournament so they're a fully tracked player (fire-and-forget).
-  fetch(`${origin}/api/user-tournaments/enrol`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, tournament_id: tid }),
-  }).catch(() => {})
+  // Enrol in the tournament so they're a fully tracked player. AWAITED in-process —
+  // a fire-and-forget fetch gets dropped when the serverless function returns its
+  // response, which left guest accounts with NO user_tournaments row. Enrolment
+  // failure must not lose their entry (already saved above), so log and continue.
+  const enrol = await enrolInTournament(admin, { userId: userId!, tournamentId: tid })
+  if (!enrol.ok) console.error('[guest-enter] tournament enrol failed:', enrol.error, 'user:', userId)
 
   // ── Sign them straight in (the code already verified the email) ──────────────
   const signedIn = await establishSessionFor(admin, email)
