@@ -333,6 +333,11 @@ export default function BracketPage() {
     setManageSlug(slug)
   }, [])
   const [guestChallenge, setGuestChallenge] = useState<string | undefined>(challengeParam ?? undefined)
+  // Authoritative entry status for the targeted (sponsor) challenge. The public
+  // challenges list excludes invite-only challenges, so their `entered` flag can't
+  // be read from it — we ask /api/bracket/enter directly (same source the
+  // leaderboard uses) so an already-entered user isn't shown an Enter CTA again.
+  const [targetedEntered, setTargetedEntered] = useState<boolean | null>(null)
   // Guest (not logged in) entries we've made this device, slug → tie-breakers.
   const [enteredMap, setEnteredMap] = useState<Record<string, { final_goals: number; tp_goals: number }>>({})
   // Sponsor co-branding for the builder: the URL's challenge sponsor, else the
@@ -419,6 +424,14 @@ export default function BracketPage() {
     // (covers the remembered-challenge fallback, where the URL param was dropped).
     if (challengeParam) setGuestChallenge(prev => prev ?? challengeParam)
   }, [challengeParam])
+
+  // Authoritative entry status for the targeted sponsor challenge (covers invite-only
+  // challenges, which aren't in the public list) so an entered user never sees Enter again.
+  useEffect(() => {
+    if (!session || !challengeParam) { setTargetedEntered(null); return }
+    fetch(`/api/bracket/enter?challenge=${encodeURIComponent(challengeParam)}`)
+      .then(r => r.json()).then(d => setTargetedEntered(!!d?.entered)).catch(() => {})
+  }, [session, challengeParam])
 
   // Land on the furthest-complete view: if the bracket already has a champion
   // (e.g. arriving from the leaderboard's "Edit bracket →"), open the Bracket
@@ -917,7 +930,7 @@ export default function BracketPage() {
           prominent, contextual prompt to enter THAT challenge once their bracket is
           done (the challenges hub below still lists every open challenge). */}
       {session && champion && showSection === 'bracket' && targetedLive && !targetedLive.locked && (
-        targetedLive.entered ? (
+        (targetedEntered ?? targetedLive.entered) ? (
           <div className="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
             <p className="text-sm font-bold text-emerald-900 min-w-0 truncate">✓ You&apos;re in{targetedLive.sponsor?.prize ? ' the draw' : ''}{targetedLive.sponsor?.name ? ` · ${targetedLive.sponsor.name}` : ''} 🎉</p>
             <a href={`/bracket/leaderboard/${targetedLive.slug}`} className="flex-shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
