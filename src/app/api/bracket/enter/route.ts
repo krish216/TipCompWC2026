@@ -8,11 +8,13 @@ import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-async function hasChampion(admin: any, userId: string, tid: string): Promise<boolean> {
+// The caller's champion pick for this tournament (the Final winner), or null if
+// they haven't completed a bracket yet. Doubles as the "has a bracket" signal.
+async function getChampion(admin: any, userId: string, tid: string): Promise<string | null> {
   const { data } = await admin.from('bracket_picks')
     .select('team_name').eq('user_id', userId).eq('tournament_id', tid).eq('slot_key', 'final')
     .not('team_name', 'is', null).maybeSingle()
-  return !!data
+  return (data as any)?.team_name ?? null
 }
 
 // GET /api/bracket/enter?challenge=<slug> — the caller's entry status for one
@@ -31,7 +33,8 @@ export async function GET(request: NextRequest) {
 
   if (!user) return NextResponse.json({ available: true, logged_in: false, closes_at, locked, challenge: challengeInfo })
 
-  const has_bracket = await hasChampion(admin, user.id, tid)
+  const champion = await getChampion(admin, user.id, tid)
+  const has_bracket = !!champion
 
   // Entry row — gracefully report unavailable if the table isn't migrated yet.
   let entry: any = null, available = true
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
   else entry = data
 
   return NextResponse.json({
-    available, logged_in: true, has_bracket, entered: !!entry, entry, closes_at, locked, challenge: challengeInfo,
+    available, logged_in: true, has_bracket, champion, entered: !!entry, entry, closes_at, locked, challenge: challengeInfo,
   })
 }
 
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
   if (closes_at && Date.now() >= new Date(closes_at).getTime())
     return NextResponse.json({ error: 'Entries are closed for this challenge.' }, { status: 409 })
 
-  if (!(await hasChampion(admin, user.id, tid)))
+  if (!(await getChampion(admin, user.id, tid)))
     return NextResponse.json({ error: 'Complete your bracket (pick a champion) before entering.' }, { status: 400 })
 
   // Sponsored (prize) challenges capture the entrant's postcode — lead data for the

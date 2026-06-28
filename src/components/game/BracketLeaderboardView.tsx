@@ -412,10 +412,28 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <span className="min-w-0">✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.</span>
             <button onClick={() => { setEditingEntry(true); setShowEnter(true) }} className="flex-shrink-0 font-semibold underline hover:text-emerald-900">Edit</button>
           </div>
+        ) : es.logged_in && es.has_bracket ? (
+          // Already built a bracket (champion picked) but NOT entered: affirm what
+          // they've done and drive straight to entering. Showing the generic "how to
+          // get on this leaderboard" steps here wrongly implies they still have to
+          // pick a winner.
+          <div className="mb-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50 px-4 py-4">
+            <div className="flex items-center gap-2 mb-1">
+              {(es.champion || data?.champion?.team) && <Flag team={es.champion || data!.champion!.team} className="text-xl rounded-sm flex-shrink-0" />}
+              <p className="text-sm font-extrabold text-emerald-900">
+                ✓ Your bracket&apos;s ready{(es.champion || data?.champion?.team) ? <> — you picked <span className="text-emerald-700">{es.champion || data?.champion?.team}</span> 🏆</> : ''}
+              </p>
+            </div>
+            <p className="text-xs text-emerald-800 mb-3">
+              You haven&apos;t entered yet — enter the <strong>{challengeName}</strong> to get on this leaderboard{cfg?.prize ? <> and go in the draw for <strong className="text-emerald-700">{cfg.prize}</strong></> : null}.{es.closes_at ? ` Entries ${closesLabel(es.closes_at)}.` : ''}
+            </p>
+            <button onClick={() => setShowEnter(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter to win →</button>
+            <p className="text-center text-[11px] text-emerald-700 mt-2"><Link href={bracketHref} className="underline font-semibold">Edit your bracket</Link> first if you want to change a pick.</p>
+          </div>
         ) : (
-          // Not yet entered (guest, no bracket, or bracket-ready): explain the loop
-          // and link to the builder. The slug travels with the link so finishing
-          // there enters THIS challenge and lands the player on this board.
+          // Not yet entered (guest or unfinished bracket): explain the loop and link
+          // to the builder. The slug travels with the link so finishing there enters
+          // THIS challenge and lands the player on this board.
           <div className="mb-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50 overflow-hidden">
             <div className="px-4 pt-3 pb-2">
               <p className="text-sm font-extrabold text-emerald-900">🏆 How to get on this leaderboard</p>
@@ -435,16 +453,11 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
                   <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
                   <p className="text-center text-[11px] text-emerald-700 mt-2">No account needed to start · <a href="/login" className="underline font-semibold">log in</a> if you already have one</p>
                 </>
-              ) : !es.has_bracket ? (
+              ) : (
                 <>
                   <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
                   <p className="text-center text-[11px] text-emerald-700 mt-2">Pick your champion to complete it, then enter.</p>
                 </>
-              ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-emerald-700 min-w-0">Your bracket&apos;s ready · {es.closes_at ? `entries ${closesLabel(es.closes_at)}` : 'open now'}</p>
-                  <button onClick={() => setShowEnter(true)} className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter to win →</button>
-                </div>
               )}
             </div>
           </div>
