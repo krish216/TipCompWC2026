@@ -1744,6 +1744,18 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
   // Keep the share-image snapshot current (real R32 seeds + resolved advancement).
   koShareRef.current = { on: knockoutMode, fixtures: koFixtures, shown: shownMap, adv: advMap, tpHome, tpAway, tpWinner }
 
+  // Completion progress — every winner from R32 through the Final, plus the
+  // 3rd-place play-off. Drives the "not done until you pick your champion" nudge.
+  const progressKeys = [
+    ...R32_MATCHES.map(m => m.key),
+    ...BRACKET_TREE.r16.map(m => m.key),
+    ...BRACKET_TREE.qf.map(m => m.key),
+    ...BRACKET_TREE.sf.map(m => m.key),
+  ]
+  const totalPicks  = progressKeys.length + 2   // + 3rd place + Final
+  const chosenPicks = progressKeys.filter(k => advance(k)).length + (tpWinner ? 1 : 0) + (champion ? 1 : 0)
+  const picksLeft   = Math.max(0, totalPicks - chosenPicks)
+
   // Y position of the 3rd place card within the tree (below the Final card)
   const TP_CARD_TOP = matchTY(4, 0) + CARD_H + 28
 
@@ -2278,6 +2290,27 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
 
   return (
     <div>
+      {/* Completion nudge — until a champion is crowned, make it UNMISTAKABLE the
+          bracket isn't finished (and you're not entered) yet. Sticky so it stays in
+          view while scrolling the tall bracket. */}
+      {!champion ? (
+        <div className="sticky top-14 z-30 mb-3 rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-lg ring-1 ring-amber-200">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <p className="text-sm sm:text-base font-extrabold text-amber-900 flex items-center gap-1.5">
+              <span className="animate-bounce inline-block">🏆</span> Not done yet — pick your champion!
+            </p>
+            <span className="text-xs font-extrabold text-white bg-amber-500 rounded-full px-2.5 py-1 whitespace-nowrap">{chosenPicks}/{totalPicks}</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-amber-100 overflow-hidden">
+            <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${Math.round((chosenPicks / totalPicks) * 100)}%` }} />
+          </div>
+          <p className="text-[11px] sm:text-xs font-semibold text-amber-800 mt-1.5">
+            {picksLeft === 1
+              ? '⚠️ One pick to go — choose the Final winner to crown your champion and enter.'
+              : `⚠️ You're NOT entered yet. Keep picking winners through to the Final to crown your World Cup champion — ${picksLeft} picks to go.`}
+          </p>
+        </div>
+      ) : null}
       <p className="text-xs text-gray-500 mb-3">
         {knockoutMode
           ? 'Pick winners for each match. Teams are the confirmed Round-of-32 qualifiers.'
@@ -2441,7 +2474,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
           })()}
 
           {/* ── Champion ── */}
-          {champion && (
+          {champion ? (
             <div style={{
               position: 'absolute',
               top: LABEL_H + treeCY(4, 0) - 44,
@@ -2451,6 +2484,19 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
               <Flag team={champion} className="text-2xl rounded-sm" />
               <span className="text-[9px] font-bold text-amber-700 text-center leading-tight">{champion}</span>
               <span className="text-base leading-none">🏆</span>
+            </div>
+          ) : (
+            // SUPER-obvious placeholder: a pulsing dashed trophy slot so the goal —
+            // crowning a champion — is unmistakable while the bracket is unfinished.
+            <div style={{
+              position: 'absolute',
+              top: LABEL_H + treeCY(4, 0) - 44,
+              left: colX(4) + COL_W + 10,
+              width: CHAMP_W - 10,
+            }} className="flex flex-col items-center gap-1 bg-amber-50 border-2 border-dashed border-amber-400 rounded-xl px-2 py-2.5 animate-pulse">
+              <span className="text-2xl leading-none">🏆</span>
+              <span className="text-[8px] font-bold text-amber-600 text-center leading-tight">Your champion</span>
+              <span className="text-[8px] font-bold text-amber-500 text-center leading-tight">↑ pick to win</span>
             </div>
           )}
         </div>
