@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 // Member entry into the Bracket Challenge prize comp: capture the two tie-break
 // totals (goals in the Final + the 3rd-place match) and consent, then POST.
@@ -30,10 +30,44 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
+  // Scroll/focus targets — the postcode + consent fields sit below the fold, so a
+  // disabled CTA is otherwise a dead end (the user can't see what's missing).
+  const scrollBoxRef = useRef<HTMLDivElement>(null)
+  const postcodeRef  = useRef<HTMLInputElement>(null)
+  const consentRef   = useRef<HTMLDivElement>(null)
+
+  // Reliably scroll the modal's own scroll box to bring `el` into view (rect math,
+  // not el.scrollIntoView() which is flaky inside a flex/overflow modal).
+  const reveal = (el: HTMLElement | null, focus = false) => {
+    const box = scrollBoxRef.current
+    if (!box || !el) return
+    const delta = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom + 24
+    if (delta > 0) box.scrollTo({ top: box.scrollTop + delta, behavior: 'smooth' })
+    if (focus) setTimeout(() => el.focus?.(), 300)
+  }
+
   const numOk = (v: string) => v !== '' && Number.isInteger(+v) && +v >= 0 && +v <= 20
   const pcOk  = !hasPrize || /^\d{4}$/.test(postcode.trim())   // postcode required for prize draws
   const ageOk = !hasPrize || over18                            // must confirm 18+ to enter a prize draw
   const canSubmit = terms && marketing && ageOk && numOk(finalGoals) && numOk(tpGoals) && pcOk && !submitting
+
+  // First unmet requirement (in form order): drives the helper line above the CTA
+  // and where a tap on the (incomplete) CTA jumps the user to.
+  const missing: { ref?: React.RefObject<HTMLElement>; msg: string; focus?: boolean } | null =
+      !numOk(finalGoals) ? { msg: 'Add total goals for the Final' }
+    : !numOk(tpGoals)    ? { msg: 'Add total goals for the 3rd-place match' }
+    : !pcOk              ? { ref: postcodeRef, msg: 'Enter your 4-digit postcode', focus: true }
+    : !ageOk             ? { ref: consentRef,  msg: 'Confirm you’re 18 or older' }
+    : !terms             ? { ref: consentRef,  msg: 'Accept the terms & conditions' }
+    : !marketing         ? { ref: consentRef,  msg: 'Agree to share your details with the sponsor' }
+    : null
+
+  // CTA is always tappable: complete → submit; incomplete → jump to the first
+  // missing field (and focus it when it's a text input) instead of doing nothing.
+  const handleEnter = () => {
+    if (canSubmit) { submit(); return }
+    if (missing?.ref) reveal(missing.ref.current, missing.focus)
+  }
 
   const submit = async () => {
     setSubmitting(true); setError(null)
@@ -73,9 +107,10 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
     }
   }
 
-  const numInput = (v: string, set: (s: string) => void) => (
+  const numInput = (v: string, set: (s: string) => void, onBlur?: () => void) => (
     <input type="number" min={0} max={20} value={v} inputMode="numeric"
       onChange={e => set(e.target.value.replace(/[^0-9]/g, ''))}
+      onBlur={onBlur}
       className="w-16 h-11 text-center text-lg font-bold border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400" />
   )
 
@@ -93,12 +128,12 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 flex-shrink-0" aria-label="Close">✕</button>
         </div>
 
-        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
+        <div ref={scrollBoxRef} className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
           <p className="text-xs text-gray-500">Two quick tie-breakers (used only if players finish level on points), then you&apos;re in the draw.</p>
 
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-800">Total goals in the <strong>Final</strong></label>
-            {numInput(finalGoals, setFinalGoals)}
+            {numInput(finalGoals, setFinalGoals, () => { if (numOk(finalGoals)) reveal(consentRef.current) })}
           </div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-800">Total goals in the <strong>3rd-place</strong> match</label>
@@ -111,33 +146,38 @@ export function BracketEntryModal({ challenge, challengeName, editing, initial, 
             className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
 
           {hasPrize && (
-            <input type="text" inputMode="numeric" value={postcode}
+            <input ref={postcodeRef} type="text" inputMode="numeric" value={postcode}
               onChange={e => setPostcode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
               placeholder="Postcode (to go in the prize draw) *"
               className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           )}
 
-          {hasPrize && (
+          <div ref={consentRef} className="space-y-3 scroll-mt-2">
+            {hasPrize && (
+              <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={over18} onChange={e => setOver18(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
+                <span>I confirm I am 18 years or older. <span className="text-red-500">*</span></span>
+              </label>
+            )}
             <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
-              <input type="checkbox" checked={over18} onChange={e => setOver18(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-              <span>I confirm I am 18 years or older. <span className="text-red-500">*</span></span>
+              <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
+              <span>I accept the challenge <a href="/terms" target="_blank" className="underline">terms &amp; conditions</a>. <span className="text-red-500">*</span></span>
             </label>
-          )}
-          <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
-            <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-            <span>I accept the challenge <a href="/terms" target="_blank" className="underline">terms &amp; conditions</a>. <span className="text-red-500">*</span></span>
-          </label>
-          <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
-            <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
-            <span>{hasPrize
-              ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
-              : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
-          </label>
+            <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-600" />
+              <span>{hasPrize
+                ? <>I agree my postcode and contact details can be shared with the prize sponsor, who runs the draw and may contact me about their services.</>
+                : <>I agree my contact details can be shared with the prize sponsor, who hands out the prizes.</>} <span className="text-red-500">*</span></span>
+            </label>
+          </div>
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 space-y-2">
           {error && <p className="text-xs text-red-600">{error}</p>}
-          <button onClick={submit} disabled={!canSubmit}
-            className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
+          {!canSubmit && !submitting && missing && (
+            <p className="text-center text-[11px] font-medium text-amber-600">👉 {missing.msg}</p>
+          )}
+          <button onClick={handleEnter} aria-disabled={!canSubmit}
+            className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-colors ${canSubmit ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-600/50 hover:bg-emerald-600/60'}`}>
             {submitting ? (editing ? 'Updating…' : 'Entering…') : (editing ? 'Update entry' : 'Enter to win 🎯')}
           </button>
           {editing && (

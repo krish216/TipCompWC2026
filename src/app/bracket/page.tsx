@@ -872,7 +872,7 @@ export default function BracketPage() {
       })()}
 
       {/* Completion CTA — persistent card for guests once champion is picked */}
-      {!session && champion && section === 'bracket' && (
+      {!session && champion && showSection === 'bracket' && (
         <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Flag team={champion} className="text-3xl rounded shadow-sm" />
@@ -924,7 +924,7 @@ export default function BracketPage() {
       )}
 
       {/* Champion share banner — shown above section tabs when bracket is complete */}
-      {picks['final'] && section === 'bracket' && (
+      {picks['final'] && showSection === 'bracket' && (
         <div ref={championBannerRef} className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1623,6 +1623,10 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
   // In-progress "build-forward" choices: client-only, NEVER saved (so the tie reports
   // as not entered and never scores). Lets users keep building during the live window.
   const [provisional, setProvisional] = useState<Record<string, string | null>>({})
+  // Snapshot of the knockout-resolved teams (real R32 seeds + advancement) so the
+  // share-image canvas can render the SAME bracket the screen shows. Kept in a ref
+  // (synced each render below) because the share builder reads it lazily on click.
+  const koShareRef = useRef<{ on: boolean; fixtures: KoFixtureMap; shown: Record<string, string | null>; adv: Record<string, string | null>; tpHome: string | null; tpAway: string | null; tpWinner: string | null }>({ on: false, fixtures: {}, shown: {}, adv: {}, tpHome: null, tpAway: null, tpWinner: null })
 
   const groupsDone   = GROUPS.every(g => picks[grpSlot(g.id, 1)] && picks[grpSlot(g.id, 2)] && picks[grpSlot(g.id, 3)])
   const thirdsCount  = T_SLOTS.filter(t => picks[thirdSlot(t)]).length
@@ -1736,6 +1740,9 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
   const tpWinner = knockoutMode
     ? ((tpRaw && (tpRaw === tpHome || tpRaw === tpAway) ? tpRaw : null) ?? autoAdvance(BRACKET_TREE.thirdPlace.key, tpHome, tpAway))
     : tpRaw
+
+  // Keep the share-image snapshot current (real R32 seeds + resolved advancement).
+  koShareRef.current = { on: knockoutMode, fixtures: koFixtures, shown: shownMap, adv: advMap, tpHome, tpAway, tpWinner }
 
   // Y position of the 3rd place card within the tree (below the Final card)
   const TP_CARD_TOP = matchTY(4, 0) + CARD_H + 28
@@ -1913,6 +1920,23 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
           return latest[grpSlot(desc[1], parseInt(desc[0]) as 1 | 2)] ?? null
         }
 
+        // Knockout mode draws from the SAME resolved teams as the screen (real R32
+        // seeds + advancement), not the group/thirds prediction path. Outside
+        // knockout mode these fall back to the prediction sources.
+        const ko        = koShareRef.current
+        const koOn      = !!ko.on
+        // The two participants of a slot.
+        const r32Parts  = (m: R32Match): [string | null, string | null] => koOn
+          ? [realTeam(ko.fixtures[m.key]?.home), realTeam(ko.fixtures[m.key]?.away)]
+          : [resolveD(m.home), resolveD(m.away)]
+        const upParts   = (m: { from: string[] }): [string | null, string | null] => koOn
+          ? [ko.adv[m.from[0]] ?? null, ko.adv[m.from[1]] ?? null]
+          : [latest[m.from[0]] ?? null, latest[m.from[1]] ?? null]
+        // The card-highlighted winner of a slot.
+        const winOf     = (key: string): string | null => koOn ? (ko.shown[key] ?? null) : (latest[key] ?? null)
+        // Champion as resolved on screen (knockout) or the raw final pick otherwise.
+        const champ     = koOn ? (winOf('final') ?? winner) : winner
+
         const CW = 1600, CH = 900
         const isSquare = shareFormat === 'square'
         const TOP_PAD  = isSquare ? 350 : 0
@@ -2067,11 +2091,11 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
 
         // ── Phase 2: Champion path highlight (amber spine) ──
         {
-          const r32i = R32_MATCHES.findIndex(m => (latest[m.key] ?? null) === winner)
-          const r16i = BRACKET_TREE.r16.findIndex(m => (latest[m.key] ?? null) === winner)
-          const qfi  = BRACKET_TREE.qf.findIndex(m => (latest[m.key] ?? null) === winner)
-          const sfi  = BRACKET_TREE.sf.findIndex(m => (latest[m.key] ?? null) === winner)
-          if (winner && r32i >= 0 && r16i >= 0 && qfi >= 0 && sfi >= 0) {
+          const r32i = R32_MATCHES.findIndex(m => winOf(m.key) === champ)
+          const r16i = BRACKET_TREE.r16.findIndex(m => winOf(m.key) === champ)
+          const qfi  = BRACKET_TREE.qf.findIndex(m => winOf(m.key) === champ)
+          const sfi  = BRACKET_TREE.sf.findIndex(m => winOf(m.key) === champ)
+          if (champ && r32i >= 0 && r16i >= 0 && qfi >= 0 && sfi >= 0) {
             ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
             if (sfi === 0) {
               const xA = r32LX + MW + CG / 2
@@ -2104,29 +2128,29 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
         }
 
         R32_MATCHES.slice(0, 8).forEach((m, i) =>
-          drawCard(r32LX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
+          drawCard(r32LX, mCY(0, i) - MH / 2, ...r32Parts(m), winOf(m.key))
         )
         BRACKET_TREE.r16.slice(0, 4).forEach((m, i) =>
-          drawCard(r16LX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          drawCard(r16LX, mCY(1, i) - MH / 2, ...upParts(m), winOf(m.key))
         )
         BRACKET_TREE.qf.slice(0, 2).forEach((m, i) =>
-          drawCard(qfLX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          drawCard(qfLX, mCY(2, i) - MH / 2, ...upParts(m), winOf(m.key))
         )
-        { const m = BRACKET_TREE.sf[0]; const ty = mCY(3, 0) - MH / 2; drawCard(sfLX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null); drawVT(sfLX, ty, 'MetLife, NY', '2026-07-16T23:00:00Z') }
+        { const m = BRACKET_TREE.sf[0]; const ty = mCY(3, 0) - MH / 2; drawCard(sfLX, ty, ...upParts(m), winOf(m.key)); drawVT(sfLX, ty, 'MetLife, NY', '2026-07-16T23:00:00Z') }
 
         R32_MATCHES.slice(8).forEach((m, i) =>
-          drawCard(r32RX, mCY(0, i) - MH / 2, resolveD(m.home), resolveD(m.away), latest[m.key] ?? null)
+          drawCard(r32RX, mCY(0, i) - MH / 2, ...r32Parts(m), winOf(m.key))
         )
         BRACKET_TREE.r16.slice(4).forEach((m, i) =>
-          drawCard(r16RX, mCY(1, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          drawCard(r16RX, mCY(1, i) - MH / 2, ...upParts(m), winOf(m.key))
         )
         BRACKET_TREE.qf.slice(2).forEach((m, i) =>
-          drawCard(qfRX, mCY(2, i) - MH / 2, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null)
+          drawCard(qfRX, mCY(2, i) - MH / 2, ...upParts(m), winOf(m.key))
         )
-        { const m = BRACKET_TREE.sf[1]; const ty = mCY(3, 0) - MH / 2; drawCard(sfRX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, latest[m.key] ?? null); drawVT(sfRX, ty, 'AT&T, Dallas', '2026-07-17T23:00:00Z') }
+        { const m = BRACKET_TREE.sf[1]; const ty = mCY(3, 0) - MH / 2; drawCard(sfRX, ty, ...upParts(m), winOf(m.key)); drawVT(sfRX, ty, 'AT&T, Dallas', '2026-07-17T23:00:00Z') }
 
         // ── Final (centre) ──
-        { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, latest[m.from[0]] ?? null, latest[m.from[1]] ?? null, winner, true); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
+        { const m = BRACKET_TREE.final; const ty = mCY(3, 0) - MH / 2; drawCard(finalX, ty, ...upParts(m), champ, true); drawVT(finalX, ty, 'MetLife, NY', '2026-07-20T19:00:00Z') }
 
         // Final label above card
         ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
@@ -2139,17 +2163,19 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
         ctx.textAlign = 'center'; ctx.textBaseline = 'top'
         ctx.font = '22px serif'; ctx.fillStyle = '#000'
         ctx.fillText('🏆', CW / 2, badgeY)
-        ctx.font = `bold ${winner.length > 12 ? 11 : 13}px -apple-system, BlinkMacSystemFont, sans-serif`
+        ctx.font = `bold ${champ.length > 12 ? 11 : 13}px -apple-system, BlinkMacSystemFont, sans-serif`
         ctx.fillStyle = '#b45309'
-        ctx.fillText(winner, CW / 2, badgeY + 28)
+        ctx.fillText(champ, CW / 2, badgeY + 28)
 
         // ── 3rd Place Play-off (below champion badge) ──
         {
-          const sf1 = latest[BRACKET_TREE.sf[0].key] ?? null
-          const sf2 = latest[BRACKET_TREE.sf[1].key] ?? null
-          const sfL1 = sf1 ? (BRACKET_TREE.sf[0].from.map((k: string) => latest[k] ?? null).find(t => t !== sf1) ?? null) : null
-          const sfL2 = sf2 ? (BRACKET_TREE.sf[1].from.map((k: string) => latest[k] ?? null).find(t => t !== sf2) ?? null) : null
-          const tpWinner = latest[BRACKET_TREE.thirdPlace.key] ?? null
+          const [sfA0, sfA1] = upParts(BRACKET_TREE.sf[0])
+          const [sfB0, sfB1] = upParts(BRACKET_TREE.sf[1])
+          const sf1 = winOf(BRACKET_TREE.sf[0].key)
+          const sf2 = winOf(BRACKET_TREE.sf[1].key)
+          const sfL1 = koOn ? ko.tpHome : (sf1 ? ([sfA0, sfA1].find(t => t && t !== sf1) ?? null) : null)
+          const sfL2 = koOn ? ko.tpAway : (sf2 ? ([sfB0, sfB1].find(t => t && t !== sf2) ?? null) : null)
+          const tpWinner = koOn ? ko.tpWinner : (latest[BRACKET_TREE.thirdPlace.key] ?? null)
           const tpY = badgeY + 52
           ctx.textAlign = 'center'; ctx.textBaseline = 'top'
           ctx.font = 'bold 8px -apple-system, BlinkMacSystemFont, sans-serif'

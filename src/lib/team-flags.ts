@@ -11,7 +11,7 @@ export const TEAM_FLAGS: Record<string, string> = {
   'Spain': '🇪🇸', 'Cabo Verde': '🇨🇻', 'Saudi Arabia': '🇸🇦', 'Uruguay': '🇺🇾',
   'France': '🇫🇷', 'Senegal': '🇸🇳', 'Norway': '🇳🇴', 'Iraq': '🇮🇶',
   'Argentina': '🇦🇷', 'Algeria': '🇩🇿', 'Austria': '🇦🇹', 'Jordan': '🇯🇴',
-  'Portugal': '🇵🇹', 'Uzbekistan': '🇺🇿', 'Colombia': '🇨🇴', 'DR Congo': '🇨🇩',
+  'Portugal': '🇵🇹', 'Uzbekistan': '🇺🇿', 'Colombia': '🇨🇴', 'DR Congo': '🇨🇩', 'Congo DR': '🇨🇩',
   'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Croatia': '🇭🇷', 'Ghana': '🇬🇭', 'Panama': '🇵🇦',
 }
 
@@ -46,6 +46,7 @@ const TEAM_ISO_ALIASES: Record<string, string> = {
   'Cape Verde': 'cv', 'Côte d’Ivoire': 'ci', "Cote d'Ivoire": 'ci',
   'Korea Republic': 'kr', 'South Korea ': 'kr',
   'IR Iran': 'ir', 'Czech Republic': 'cz', 'Curaçao': 'cw',
+  'Congo DR': 'cd', 'Congo DR ': 'cd', 'DR Congo ': 'cd', 'Democratic Republic of the Congo': 'cd',
 }
 
 // Resolve a team name to a flag-icons code (or null when unknown).

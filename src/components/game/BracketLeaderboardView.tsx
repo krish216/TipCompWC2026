@@ -422,7 +422,7 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
               <ol className="mt-1.5 text-[12px] text-emerald-800 space-y-0.5 list-decimal list-inside">
                 <li>
                   <Link href={bracketHref} className="font-bold text-emerald-700 underline hover:text-emerald-800">
-                    Build your bracket{cfg?.sponsor_name ? ` with ${cfg.sponsor_name}` : ''} now{cfg?.prize ? ' for a chance to win' : ''} →
+                    Pick the World Cup 2026 Winner{cfg?.sponsor_name ? ` with ${cfg.sponsor_name}` : ''} now{cfg?.prize ? ' for a chance to win' : ''} →
                   </Link>
                 </li>
                 <li>Enter the <strong>{challengeName}</strong>{cfg?.prize ? <> for a shot at <strong className="text-emerald-700">{cfg.prize}</strong></> : null}</li>
@@ -432,12 +432,12 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <div className="px-4 pb-3 pt-1">
               {!es.logged_in ? (
                 <>
-                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Build your bracket →</Link>
+                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
                   <p className="text-center text-[11px] text-emerald-700 mt-2">No account needed to start · <a href="/login" className="underline font-semibold">log in</a> if you already have one</p>
                 </>
               ) : !es.has_bracket ? (
                 <>
-                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Finish your bracket →</Link>
+                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
                   <p className="text-center text-[11px] text-emerald-700 mt-2">Pick your champion to complete it, then enter.</p>
                 </>
               ) : (
