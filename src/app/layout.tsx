@@ -26,6 +26,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://tribepicks.com'),
   title: 'TribePicks',
   description: 'Predict every match of the 2026 FIFA World Cup. Compete with your tribe.',
   openGraph: {
@@ -127,7 +128,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* Top row — disclaimer + nav links */}
                 <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-gray-400">
                   <span>TribePicks — unofficial fan competition, not affiliated with FIFA</span>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <a href="/teams" className="hover:text-gray-600 transition-colors">Teams</a>
+                    <a href="/groups" className="hover:text-gray-600 transition-colors">Groups</a>
+                    <a href="/bracket" className="hover:text-gray-600 transition-colors">Bracket</a>
                     <a href="/faq" className="hover:text-gray-600 transition-colors">FAQ</a>
                     <a href="mailto:tribepicks@gmail.com" className="hover:text-gray-600 transition-colors">Contact</a>
                     {donateHref && (
