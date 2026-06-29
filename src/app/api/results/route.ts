@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
+import { cascadeKnockoutTeams } from '@/lib/cascade-knockout'
 import { z } from 'zod'
+
+// Knockout rounds whose result advances a team into the next round's fixture.
+const KO_FEEDER_ROUNDS = new Set(['r32', 'r16', 'qf', 'sf'])
 
 const ResultSchema = z.object({
   fixture_id: z.number().int().positive(),
@@ -76,6 +80,15 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Knockout result → advance the winner into the next round's fixture so the
+  // schedule (My Tips, bracket) shows the real progressed teams, ESPN-aligned.
+  // Awaited in-process (serverless drops fire-and-forget work) and best-effort —
+  // the result is already saved, so a cascade hiccup must not fail the request.
+  if (KO_FEEDER_ROUNDS.has((data as any)?.round) && (data as any)?.tournament_id) {
+    try { await cascadeKnockoutTeams(admin, (data as any).tournament_id) }
+    catch (e: any) { console.error('[results] knockout cascade failed:', e?.message ?? e) }
+  }
 
   // DB trigger scores all predictions automatically — just return the count
   const { count } = await admin
