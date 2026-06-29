@@ -272,6 +272,103 @@ function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: stri
   )
 }
 
+// Step-by-step onboarding for a visitor who hasn't entered yet — mirrors the
+// homepage tipster onboarding (dark header band + numbered step list with
+// done/now/locked states). Drives the build → enter → leaderboard funnel.
+function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnter }: {
+  es: any; cfg: any; champion: string | null; challengeName: string; bracketHref: string; onEnter: () => void
+}) {
+  const sponsor = cfg?.enabled ? cfg?.sponsor_name : null
+  const prize   = cfg?.enabled ? cfg?.prize : null
+  const hasBracket = !!es?.has_bracket || !!champion
+  // Step states: 1 build, 2 enter, 3 leaderboard.
+  const s1: 'done' | 'now' = hasBracket ? 'done' : 'now'
+  const s2: 'done' | 'now' | 'locked' = hasBracket ? 'now' : 'locked'
+
+  const circle = (state: 'done' | 'now' | 'locked', n: number) =>
+    state === 'done'
+      ? <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
+      : state === 'now'
+      ? <span className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">{n}</span>
+      : <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-gray-400 text-xs font-bold">{n}</span>
+  const pill = (state: 'done' | 'now' | 'locked') =>
+    state === 'done'
+      ? <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full ml-auto flex-shrink-0">Done</span>
+      : state === 'now'
+      ? <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-auto flex-shrink-0">Now</span>
+      : <span className="text-[11px] font-semibold text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full ml-auto flex-shrink-0">Locked</span>
+
+  return (
+    <div className="mb-4">
+      <div className="rounded-2xl overflow-hidden shadow-lg">
+        <div style={{ background: 'linear-gradient(160deg,#0a2e1c 0%,#153d26 50%,#0d3320 100%)', padding: '18px 20px 14px' }}>
+          <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px' }}>🏆 Get on the{sponsor ? ` ${sponsor}` : ''} leaderboard</p>
+          <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+            {prize ? <>Three steps to go in the draw for <strong style={{ color: '#fcd34d' }}>{prize}</strong>.</> : 'Three quick steps — no account needed to start.'}
+          </p>
+        </div>
+        <div className="bg-white border border-t-0 border-gray-200 rounded-b-2xl divide-y divide-gray-100">
+          {/* Step 1 — build bracket */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            {circle(s1, 1)}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">Pick the World Cup 2026 winner</p>
+              {s1 === 'done'
+                ? <p className="text-[11px] text-gray-500 mt-0.5">{champion ? <>You picked <strong className="text-gray-700">{champion}</strong> 🏆 · <Link href={bracketHref} className="text-emerald-700 underline">edit</Link></> : <>Bracket built · <Link href={bracketHref} className="text-emerald-700 underline">edit</Link></>}</p>
+                : <Link href={bracketHref} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Build your bracket →</Link>}
+            </div>
+            {pill(s1)}
+          </div>
+          {/* Step 2 — enter */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            {circle(s2, 2)}
+            <div className="flex-1 min-w-0">
+              <p className={clsx('text-sm font-semibold', s2 === 'locked' ? 'text-gray-400' : 'text-gray-900')}>Enter the {challengeName}</p>
+              {s2 === 'now'
+                ? (es?.logged_in
+                    ? <button onClick={onEnter} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Enter to win →</button>
+                    : <Link href={bracketHref} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Enter to win →</Link>)
+                : <p className="text-[11px] text-gray-400 mt-0.5">Finish your bracket first</p>}
+            </div>
+            {pill(s2)}
+          </div>
+          {/* Step 3 — leaderboard (locked until entered) */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            {circle('locked', 3)}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-400">{prize ? `Climb the board & win ${prize}` : 'Climb the leaderboard'}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Score points all tournament — your name appears here</p>
+            </div>
+            {pill('locked')}
+          </div>
+        </div>
+      </div>
+      {!es?.logged_in && (
+        <p className="text-center text-[11px] text-gray-400 mt-2">No account needed to start · <a href="/login" className="underline font-semibold">log in</a> if you already have one</p>
+      )}
+    </div>
+  )
+}
+
+// Slim "top 3 + count" leaderboard teaser for visitors who haven't entered —
+// social proof without burying the onboarding funnel above it.
+function StandingsPeek({ data }: { data: Data }) {
+  const top = data.entries.slice(0, 3)
+  return (
+    <div>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Current standings</p>
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        {top.length === 0
+          ? <p className="text-center text-sm text-gray-400 py-6">No entries yet — be the first on the board! 🏆</p>
+          : top.map(e => <Row key={e.user_id} e={e} isMe={false} />)}
+      </div>
+      <p className="text-[11px] text-gray-400 text-center mt-2">
+        {data.total_entrants} bracket{data.total_entrants === 1 ? '' : 's'} entered{data.total_entrants > 3 ? ' · enter to see the full leaderboard' : ''}
+      </p>
+    </div>
+  )
+}
+
 // Shared bracket leaderboard. `slug` selects a specific challenge's pool; when
 // omitted, the API resolves the tournament's default bracket challenge and tells
 // us its slug (used for the entry/config calls so all three agree).
@@ -285,6 +382,20 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
   const [tab,  setTab]  = useState<'leaderboard' | 'mine'>('leaderboard')
   const [resolvedSlug, setResolvedSlug] = useState<string | undefined>(slug)
   const [allChallenges, setAllChallenges] = useState<{ slug: string; name: string; entrants: number; sponsor: any }[]>([])
+  // A guest's bracket lives in localStorage (the server can't see it), so detect a
+  // built bracket here to mark onboarding step 1 done even before they sign in/enter.
+  const [localChampion, setLocalChampion] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && /^tribepicks_bracket_[0-9a-f-]{36}$/.test(k)) {
+          const picks = JSON.parse(localStorage.getItem(k) || '{}')
+          if (picks?.final) { setLocalChampion(picks.final); break }
+        }
+      }
+    } catch { /* no localStorage */ }
+  }, [])
 
   const qp = (s?: string) => (s ? `?challenge=${encodeURIComponent(s)}` : '')
   const loadEntry = (s?: string) => fetch(`/api/bracket/enter${qp(s)}`).then(r => r.json()).then(setEs).catch(() => {})
@@ -412,55 +523,15 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             <span className="min-w-0">✓ You&apos;re in the draw! Tie-breakers — Final <strong>{es.entry?.final_goals}</strong> goal{es.entry?.final_goals === 1 ? '' : 's'} · 3rd place <strong>{es.entry?.tp_goals}</strong> goal{es.entry?.tp_goals === 1 ? '' : 's'}.</span>
             <button onClick={() => { setEditingEntry(true); setShowEnter(true) }} className="flex-shrink-0 font-semibold underline hover:text-emerald-900">Edit</button>
           </div>
-        ) : es.logged_in && es.has_bracket ? (
-          // Already built a bracket (champion picked) but NOT entered: affirm what
-          // they've done and drive straight to entering. Showing the generic "how to
-          // get on this leaderboard" steps here wrongly implies they still have to
-          // pick a winner.
-          <div className="mb-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50 px-4 py-4">
-            <div className="flex items-center gap-2 mb-1">
-              {(es.champion || data?.champion?.team) && <Flag team={es.champion || data!.champion!.team} className="text-xl rounded-sm flex-shrink-0" />}
-              <p className="text-sm font-extrabold text-emerald-900">
-                ✓ Your bracket&apos;s ready{(es.champion || data?.champion?.team) ? <> — you picked <span className="text-emerald-700">{es.champion || data?.champion?.team}</span> 🏆</> : ''}
-              </p>
-            </div>
-            <p className="text-xs text-emerald-800 mb-3">
-              You haven&apos;t entered yet — enter the <strong>{challengeName}</strong> to get on this leaderboard{cfg?.prize ? <> and go in the draw for <strong className="text-emerald-700">{cfg.prize}</strong></> : null}.{es.closes_at ? ` Entries ${closesLabel(es.closes_at)}.` : ''}
-            </p>
-            <button onClick={() => setShowEnter(true)} className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Enter to win →</button>
-            <p className="text-center text-[11px] text-emerald-700 mt-2"><Link href={bracketHref} className="underline font-semibold">Edit your bracket</Link> first if you want to change a pick.</p>
-          </div>
         ) : (
-          // Not yet entered (guest or unfinished bracket): explain the loop and link
-          // to the builder. The slug travels with the link so finishing there enters
-          // THIS challenge and lands the player on this board.
-          <div className="mb-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50 overflow-hidden">
-            <div className="px-4 pt-3 pb-2">
-              <p className="text-sm font-extrabold text-emerald-900">🏆 How to get on this leaderboard</p>
-              <ol className="mt-1.5 text-[12px] text-emerald-800 space-y-0.5 list-decimal list-inside">
-                <li>
-                  <Link href={bracketHref} className="font-bold text-emerald-700 underline hover:text-emerald-800">
-                    Pick the World Cup 2026 Winner{cfg?.sponsor_name ? ` with ${cfg.sponsor_name}` : ''} now{cfg?.prize ? ' for a chance to win' : ''} →
-                  </Link>
-                </li>
-                <li>Enter the <strong>{challengeName}</strong>{cfg?.prize ? <> for a shot at <strong className="text-emerald-700">{cfg.prize}</strong></> : null}</li>
-                <li>Score points all tournament — your name appears right here</li>
-              </ol>
-            </div>
-            <div className="px-4 pb-3 pt-1">
-              {!es.logged_in ? (
-                <>
-                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
-                  <p className="text-center text-[11px] text-emerald-700 mt-2">No account needed to start · <a href="/login" className="underline font-semibold">log in</a> if you already have one</p>
-                </>
-              ) : (
-                <>
-                  <Link href={bracketHref} className="block text-center px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Pick the World Cup 2026 Winner →</Link>
-                  <p className="text-center text-[11px] text-emerald-700 mt-2">Pick your champion to complete it, then enter.</p>
-                </>
-              )}
-            </div>
-          </div>
+          // Not yet entered (guest, no bracket, or bracket-ready): a step-by-step
+          // onboarding (mirrors the homepage tipster onboarding) that drives the
+          // build → enter → leaderboard funnel.
+          <OnboardingSteps
+            es={es} cfg={cfg} champion={es.champion || data?.champion?.team || localChampion}
+            challengeName={challengeName} bracketHref={bracketHref}
+            onEnter={() => setShowEnter(true)}
+          />
         )
       )}
 
@@ -480,8 +551,11 @@ export function BracketLeaderboardView({ slug }: { slug?: string }) {
             </div>
           )}
 
-          {/* Segmented toggle — only when the caller has a bracket to show. */}
-          {data.me ? (
+          {/* Entrants see the full board (+ their scorecard). Everyone else gets a
+              slim "top 3 + count" peek — social proof without burying the funnel. */}
+          {es && !es.entered ? (
+            <StandingsPeek data={data} />
+          ) : data.me ? (
             <>
               <div className="mb-4 grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100">
                 {([['leaderboard', 'Leaderboard'], ['mine', 'My scorecard']] as const).map(([key, label]) => (
