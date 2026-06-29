@@ -1726,8 +1726,16 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
   const computeSlot = (slot: string, a: string | null, b: string | null) => {
     const vp = validPick(slot, a, b)
     shownMap[slot]  = vp ?? autoAdvance(slot, a, b)
-    advMap[slot]    = shownMap[slot] ?? (inProgress(slot) ? (provisional[slot] ?? null) : null)
-    lockedMap[slot] = decided(slot) || (inProgress(slot) && (TERMINAL.has(slot) || vp !== null))
+    // In-progress ties stay editable (build-forward, client-only): a live pick
+    // overrides what advances, defaulting to the pre-kickoff pick. Other ties
+    // advance their shown winner.
+    advMap[slot]    = inProgress(slot)
+      ? (slot in provisional ? provisional[slot] : (shownMap[slot] ?? null))
+      : (shownMap[slot] ?? null)
+    // Locked only when decided, or an in-progress TERMINAL tie (final/3rd — nothing
+    // to build forward). In-progress non-terminal ties stay editable so users can
+    // change who advances mid-match; those live picks never score (see pickNote).
+    lockedMap[slot] = decided(slot) || (inProgress(slot) && TERMINAL.has(slot))
   }
   if (knockoutMode) {
     for (const m of R32_MATCHES) { const [h, a] = r32TeamsFor(m.key); computeSlot(m.key, h, a) }
@@ -1743,6 +1751,10 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
     if (!knockoutMode) return false
     return slot in lockedMap ? lockedMap[slot] : started(slot)   // terminal/uncomputed (e.g. tp) → lock at kickoff
   }
+  // What a card highlights. Same as win(), except an in-progress tie highlights the
+  // live build-forward pick too — so tapping a team in a match that's underway gives
+  // visible feedback (it still won't score; the pill says so).
+  const cardWinner = (key: string): string | null => inProgress(key) ? advance(key) : win(key)
 
   // Surfaces the user's ORIGINAL stored pick under a card (knockout mode only), so a
   // prediction-era pick that isn't one of the real teams is still visible — marked
@@ -1762,9 +1774,16 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
     // In progress: a saved (counting) pick shows neutrally; otherwise the tie reports
     // as "Not entered" (any build-forward choice is silent — it only seeds the next round).
     if (inProgress(slot)) {
-      const sp = shownMap[slot] ?? null
-      return sp
-        ? pill('border-gray-200 text-gray-600', <span className="truncate">{sp}</span>)
+      const saved = shownMap[slot] ?? null   // pick saved before kickoff — counts
+      // Until the user changes it live, show their pre-kickoff pick (it counts).
+      if (!(slot in provisional)) {
+        return saved
+          ? pill('border-gray-200 text-gray-600', <span className="truncate">{saved}</span>)
+          : pill('border-gray-200 text-gray-400 italic', 'Not entered')
+      }
+      // A live build-forward change highlights on the card but never scores.
+      return provisional[slot]
+        ? pill('border-amber-300 text-amber-700', <span className="truncate">live · won&apos;t score</span>)
         : pill('border-gray-200 text-gray-400 italic', 'Not entered')
     }
     const p = picks[slot] ?? null
@@ -2415,7 +2434,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
                   matchKey={m.key}
                   homeTeam={homeTeam} awayTeam={awayTeam}
                   homeDesc={homeDesc} awayDesc={awayDesc}
-                  winner={win(m.key)} savePick={pickHandler(m.key)}
+                  winner={cardWinner(m.key)} savePick={pickHandler(m.key)}
                   locked={lockedSlot(m.key)}
                   overlay={pickNote(m.key)}
                 />
@@ -2431,7 +2450,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
                 matchKey={m.key}
                 homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
                 homeDesc={m.from[0]}          awayDesc={m.from[1]}
-                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                winner={cardWinner(m.key)}           savePick={pickHandler(m.key)}
                 locked={lockedSlot(m.key)}
                 overlay={pickNote(m.key)}
               />
@@ -2446,7 +2465,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
                 matchKey={m.key}
                 homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
                 homeDesc={m.from[0]}          awayDesc={m.from[1]}
-                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                winner={cardWinner(m.key)}           savePick={pickHandler(m.key)}
                 locked={lockedSlot(m.key)}
                 overlay={pickNote(m.key)}
               />
@@ -2461,7 +2480,7 @@ function BracketSection({ picks, picksRef, savePick, resolveSlot, koFixtures, kn
                 matchKey={m.key}
                 homeTeam={advance(m.from[0])} awayTeam={advance(m.from[1])}
                 homeDesc={m.from[0]}          awayDesc={m.from[1]}
-                winner={win(m.key)}           savePick={pickHandler(m.key)}
+                winner={cardWinner(m.key)}           savePick={pickHandler(m.key)}
                 locked={lockedSlot(m.key)}
                 overlay={pickNote(m.key)}
               />
