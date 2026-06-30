@@ -8,7 +8,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { TrophyStrip } from '@/components/game/TrophyStrip'
 import type { TipsterStats } from '@/lib/tipster-stats'
-import type { TipReview, TipReviewFixture, PopSplit } from '@/lib/tipster-tips'
+import type { TipReview, TipReviewFixture, PopSplit, PenStat } from '@/lib/tipster-tips'
 import type { BonusStats } from '@/lib/tipster-bonus'
 import type { H2H, H2HRival } from '@/lib/tipster-h2h'
 
@@ -372,7 +372,7 @@ function BonusTeamCard({ tournamentId, compId, tribeId }: {
       )}
 
       <div className="mt-3 space-y-1.5">
-        <BonusRow label="🌍 Field"  pop={b.tournament} myTeam={b.team} flag={flag} />
+        <BonusRow label="🌍 TribePicks"  pop={b.tournament} myTeam={b.team} flag={flag} />
         {b.comp  && <BonusRow label="🏢 Comp"  pop={b.comp}  myTeam={b.team} flag={flag} />}
         {b.multiTribe && b.tribe && <BonusRow label="👥 Tribe" pop={b.tribe} myTeam={b.team} flag={flag} />}
       </div>
@@ -670,15 +670,40 @@ function FixtureRow({ f, multiTribe, flag, compId, tribeId, onOpenList }: {
       {/* Population splits — ▼ = result, outline = your pick. Comp/Tribe segments
           are tappable → who picked that outcome. */}
       <div className="space-y-1.5">
-        <SplitBar label="🌍 Field" split={f.tournament} f={f} />
+        <SplitBar label="🌍 TribePicks" split={f.tournament} f={f} />
         {f.comp && compId && <SplitBar label="🏢 Comp" split={f.comp} f={f}
           onSegClick={o => onOpenList({ fixtureId: f.fixtureId, home: f.home, away: f.away, scope: 'comp', id: compId, outcome: o })} />}
         {multiTribe && f.tribe && tribeId && <SplitBar label="👥 Tribe" split={f.tribe} f={f}
           onSegClick={o => onOpenList({ fixtureId: f.fixtureId, home: f.home, away: f.away, scope: 'tribe', id: tribeId, outcome: o })} />}
       </div>
       {(f.comp || f.tribe) && <p className="text-[9px] text-gray-300 mt-1.5">Tap a Comp/Tribe bar to see who picked it</p>}
+
+      {/* Penalty shootout — who called the winner among draw-tippers */}
+      {f.penalty && (
+        <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5">
+          <p className="text-[11px] font-semibold text-gray-700">
+            🥅 Shootout: <span className="text-gray-900">{flag(f.penalty.winner)} {f.penalty.winner}</span> won on penalties
+            {f.penalty.myPick != null && (
+              <span className={clsx('ml-1 font-bold', f.penalty.myPick === f.penalty.winner ? 'text-emerald-600' : 'text-red-500')}>
+                · you called {f.penalty.myPick} {f.penalty.myPick === f.penalty.winner ? '✓' : '✗'}
+              </span>
+            )}
+          </p>
+          <p className="text-[10px] text-gray-500 mt-1">Of those who tipped a draw, how many called the shootout winner:</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-gray-600">
+            <span><span className="font-semibold text-gray-700">🌍 TribePicks</span> {penFrac(f.penalty.field)}</span>
+            {f.penalty.comp && <span><span className="font-semibold text-gray-700">🏢 Comp</span> {penFrac(f.penalty.comp)}</span>}
+            {f.penalty.tribe && <span><span className="font-semibold text-gray-700">👥 Tribe</span> {penFrac(f.penalty.tribe)}</span>}
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+// "2/7" — of those who tipped a draw, how many called the shootout winner.
+function penFrac(s: PenStat): string {
+  return s.total ? `${s.correct}/${s.total}` : 'no draws tipped'
 }
 
 // Stacked H/D/A bar for one population. Segment fill is fixed by outcome —
@@ -690,7 +715,7 @@ function SplitBar({ label, split, f, onSegClick }: {
   if (!split || !split.total)
     return (
       <div className="flex items-center gap-2 text-[11px] text-gray-300">
-        <span className="w-14 shrink-0">{label}</span><span>not enough tippers</span>
+        <span className="w-[6.5rem] shrink-0 whitespace-nowrap">{label}</span><span>not enough tippers</span>
       </div>
     )
   const h = Math.round((split.h / split.total) * 100)
@@ -721,8 +746,8 @@ function SplitBar({ label, split, f, onSegClick }: {
   }
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] text-gray-500 w-14 shrink-0 flex items-center justify-between">
-        <span>{label}</span><span className="text-gray-300 text-[9px]">{split.total}</span>
+      <span className="text-[11px] text-gray-500 w-[6.5rem] shrink-0 flex items-center justify-between gap-1">
+        <span className="whitespace-nowrap">{label}</span><span className="text-gray-300 text-[9px]">{split.total}</span>
       </span>
       <div className="flex-1">
         <div className="flex h-2.5">{arrow('H', h)}{arrow('D', d)}{arrow('A', a)}</div>

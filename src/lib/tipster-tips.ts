@@ -9,6 +9,17 @@ const sign = (h: number, a: number): Outcome => (h > a ? 'H' : h < a ? 'A' : 'D'
 const pickOf = (p: any): Outcome => (p.outcome as Outcome | null) ?? sign(p.home, p.away)
 
 export interface PopSplit { h: number; d: number; a: number; total: number; samePct: number | null }
+// Penalty-shootout breakdown for a knockout tie that ended level (decided on pens).
+// `correct`/`total` count, among those who tipped a DRAW, how many called the
+// actual shootout winner.
+export interface PenStat { correct: number; total: number }
+export interface PenInfo {
+  winner: string             // the actual shootout winner
+  myPick: string | null      // the caller's pen-winner pick (set only if they tipped a draw)
+  field: PenStat
+  comp: PenStat | null
+  tribe: PenStat | null
+}
 export interface TipReviewFixture {
   fixtureId: number
   home: string; away: string
@@ -24,6 +35,7 @@ export interface TipReviewFixture {
   tournament: PopSplit | null
   comp: PopSplit | null
   tribe: PopSplit | null
+  penalty: PenInfo | null   // set only for knockout ties decided on penalties
 }
 export interface TipReviewRound { code: string; name: string; label: string; order: number; fixtures: TipReviewFixture[] }
 export interface TipReview { rounds: TipReviewRound[]; multiTribe: boolean }
@@ -73,10 +85,10 @@ export async function computeTipReview(
 ): Promise<TipReview> {
   const [myPredsRes, fixturesRes, roundsRes, mockRes, tribesRes, teamsRes] = await Promise.all([
     (admin.from('predictions') as any)
-      .select('fixture_id, outcome, home, away, points_earned, standard_points')
+      .select('fixture_id, outcome, home, away, pen_winner, points_earned, standard_points')
       .eq('user_id', userId).eq('tournament_id', tournamentId).not('points_earned', 'is', null),
     (admin.from('fixtures') as any)
-      .select('id, home, away, home_score, away_score, round, kickoff_utc').eq('tournament_id', tournamentId),
+      .select('id, home, away, home_score, away_score, pen_winner, round, kickoff_utc').eq('tournament_id', tournamentId),
     (admin.from('tournament_rounds') as any)
       .select('round_code, round_name, round_order, tab_label, predict_mode, include_in_scoring').eq('tournament_id', tournamentId),
     (admin.from('users') as any).select('id').like('email', 'mockuser%'),
@@ -130,6 +142,49 @@ export async function computeTipReview(
 
   const multiTribe = ((tribesRes.data ?? []) as any[]).length > 1
 
+  // ── Penalty-shootout breakdown ──────────────────────────────────────────────
+  // For any tie the caller tipped that ended level (decided on penalties), work out
+  // how many of the DRAW-tippers called the actual shootout winner — Field (mock-
+  // excluded), Comp and Tribe — plus the caller's own pen pick.
+  const penByFixture = new Map<number, PenInfo>()
+  const penFxIds = mine.filter(x => x.f.pen_winner).map(x => x.f.id)
+  if (penFxIds.length) {
+    const penRows: any[] = []
+    for (let from = 0; from < 20000; from += 1000) {
+      const { data } = await (admin.from('predictions') as any)
+        .select('fixture_id, user_id, pen_winner')
+        .in('fixture_id', penFxIds).eq('outcome', 'D').not('pen_winner', 'is', null)
+        .range(from, from + 999)
+      const rows = (data ?? []) as any[]
+      penRows.push(...rows)
+      if (rows.length < 1000) break
+    }
+    const compSet = new Set(compIds), tribeSet = new Set(tribeIds)
+    const blank = (): PenStat => ({ correct: 0, total: 0 })
+    const acc = new Map<number, { field: PenStat; comp: PenStat; tribe: PenStat }>()
+    for (const id of penFxIds) acc.set(id, { field: blank(), comp: blank(), tribe: blank() })
+    for (const r of penRows) {
+      if (mockSet.has(r.user_id)) continue                  // Field excludes mock seeds
+      const a = acc.get(r.fixture_id); if (!a) continue
+      const right = r.pen_winner === fixtureById.get(r.fixture_id)?.pen_winner
+      a.field.total++; if (right) a.field.correct++
+      if (compSet.has(r.user_id))  { a.comp.total++;  if (right) a.comp.correct++ }
+      if (tribeSet.has(r.user_id)) { a.tribe.total++; if (right) a.tribe.correct++ }
+    }
+    const myPen = new Map<number, string | null>()
+    for (const x of mine) if (x.f.pen_winner) myPen.set(x.f.id, x.p.pen_winner ?? null)
+    for (const id of penFxIds) {
+      const a = acc.get(id)!
+      penByFixture.set(id, {
+        winner: fixtureById.get(id)?.pen_winner,
+        myPick: myPen.get(id) ?? null,
+        field: a.field,
+        comp:  compId  ? a.comp  : null,
+        tribe: tribeId ? a.tribe : null,
+      })
+    }
+  }
+
   // Build fixtures, group by round.
   const byRound = new Map<string, TipReviewFixture[]>()
   for (const { p, f } of mine) {
@@ -145,6 +200,7 @@ export async function computeTipReview(
       tournament: splitFor(tournMap.get(f.id), myOutcome),
       comp:  compId  ? splitFor(compMap.get(f.id),  myOutcome) : null,
       tribe: tribeId ? splitFor(tribeMap.get(f.id), myOutcome) : null,
+      penalty: penByFixture.get(f.id) ?? null,
     }
     if (!byRound.has(f.round)) byRound.set(f.round, [])
     byRound.get(f.round)!.push(fixture)
