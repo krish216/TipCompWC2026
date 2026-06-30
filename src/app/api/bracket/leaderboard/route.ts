@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { resolveBracketChallenge } from '@/lib/bracket/challenge'
+import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 import { buildActualWinners, buildSlotResults, scoreBracket, BRACKET_MAX, BRACKET_SLOT_POINTS, SCORED_SLOTS, type KnockoutFixture, type SlotResult } from '@/lib/bracket-scoring'
 
 export const dynamic = 'force-dynamic'
@@ -157,8 +158,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Sponsored boards list EVERY entrant (it's the partner's public board); the
+  // generic/global board stays a top-12 summary (+ the caller's own row).
+  const campaign = await resolveActiveCampaign(admin, { challengeType: 'bracket', challengeId: challenge.id })
+  const sponsored = !!(campaign.enabled && (campaign.sponsor_name || campaign.sponsor_logo))
+
   return NextResponse.json({
-    entries:         ranked.slice(0, 12),   // top 12
+    entries:         sponsored ? ranked : ranked.slice(0, 12),
+    full:            sponsored,             // true → entries is the complete field, not top-12
     total_entrants:  ranked.length,
     me,                                     // caller's own row (incl. rank), even if outside top 12
     max:             BRACKET_MAX,

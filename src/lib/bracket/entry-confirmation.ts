@@ -82,7 +82,10 @@ export async function sendEntryConfirmation(
       ? await loadSummary(admin, opts.userId, opts.tournamentId, opts.challenge.id)
       : null
 
-    const subject = `You're in 🏆 ${opts.challenge.name}`
+    // Lead with the sponsor so the prize partner is front-and-centre in the inbox.
+    const subject = sponsor
+      ? `You're in 🏆 ${sponsor} · ${opts.challenge.name}`
+      : `You're in 🏆 ${opts.challenge.name}`
     const resend  = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
       from: FROM, to: opts.email, subject,

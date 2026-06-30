@@ -21,6 +21,7 @@ interface SlotCard {
 }
 interface Data {
   entries: Entry[]; total_entrants: number; me: Entry | null; max: number; scoring_started: boolean; simulated?: boolean
+  full?: boolean   // true → entries is the complete field (sponsored board), not a top-12 cut
   scorecard?: SlotCard[] | null
   champion?: { team: string; status: 'in' | 'out' | 'won' } | null
   challenge?: { slug: string; name: string } | null
@@ -227,7 +228,17 @@ function BracketSponsorInsert({ cfg }: { cfg: any }) {
   )
 }
 
+// Sponsored boards list every entrant, paginated.
+const SPONSORED_PAGE_SIZE = 50
 function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: string; cfg?: any }) {
+  const [page, setPage] = useState(0)
+  const paginated  = !!data.full
+  const totalPages = paginated ? Math.max(1, Math.ceil(data.entries.length / SPONSORED_PAGE_SIZE)) : 1
+  const safePage   = Math.min(Math.max(0, page), totalPages - 1)
+  const shown      = paginated
+    ? data.entries.slice(safePage * SPONSORED_PAGE_SIZE, safePage * SPONSORED_PAGE_SIZE + SPONSORED_PAGE_SIZE)
+    : data.entries
+  const myPage     = data.me ? Math.floor((data.me.rank - 1) / SPONSORED_PAGE_SIZE) : -1
   return (
     <>
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -250,20 +261,36 @@ function LeaderboardList({ data, poolLabel, cfg }: { data: Data; poolLabel: stri
           )
         })()}
         <div className="grid grid-cols-[36px_1fr_56px] gap-2 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-          <span className="text-center">#</span><span>Player · top 12</span><span className="text-right">Pts</span>
+          <span className="text-center">#</span><span>Player{data.full ? '' : ' · top 12'}</span><span className="text-right">Pts</span>
         </div>
         {data.entries.length === 0 ? (
           <p className="text-center text-sm text-gray-400 py-8">No entries yet.</p>
-        ) : data.entries.map(e => <Row key={e.user_id} e={e} isMe={data.me?.user_id === e.user_id} />)}
+        ) : shown.map(e => <Row key={e.user_id} e={e} isMe={data.me?.user_id === e.user_id} />)}
 
-        {/* Your position row when outside the top 12 */}
-        {data.me && data.me.rank > 12 && (
+        {/* Your position row when you're not already in the shown list (top-12 cut) */}
+        {data.me && !data.entries.some(e => e.user_id === data.me!.user_id) && (
           <>
             <div className="text-center text-gray-300 py-1">⋯</div>
             <Row e={data.me} isMe />
           </>
         )}
       </div>
+
+      {/* Pagination — sponsored boards only */}
+      {paginated && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-3">
+          <button onClick={() => setPage(safePage - 1)} disabled={safePage === 0}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent">← Prev</button>
+          <span className="text-xs font-medium text-gray-500">Page {safePage + 1} of {totalPages}</span>
+          <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages - 1}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent">Next →</button>
+        </div>
+      )}
+      {paginated && data.me && myPage !== safePage && (
+        <p className="text-center text-[11px] text-emerald-700 mt-2">
+          You&apos;re <strong>#{data.me.rank}</strong> · <button onClick={() => setPage(myPage)} className="underline font-semibold hover:text-emerald-800">jump to your spot</button>
+        </p>
+      )}
 
       <p className="text-[11px] text-gray-400 text-center mt-3">
         {data.total_entrants} bracket{data.total_entrants === 1 ? '' : 's'} entered · {poolLabel}

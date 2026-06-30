@@ -66,9 +66,11 @@ export async function sendBracketClaimEmail(
     const firstName = (opts.name ?? '').trim().split(' ')[0]
     const closes    = opts.closesAt ? fmtDate(opts.closesAt) : ''
 
+    // Lead with the sponsor so the prize partner is front-and-centre in the inbox.
+    const challengeLabel = sponsor ? `${sponsor} · ${opts.challenge.name}` : opts.challenge.name
     const subject = opts.existing
-      ? `Finish entering — ${opts.challenge.name}`
-      : `You're in 🏆 ${opts.challenge.name}`
+      ? `Finish entering — ${challengeLabel}`
+      : `You're in 🏆 ${challengeLabel}`
 
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error: mailErr } = await resend.emails.send({
