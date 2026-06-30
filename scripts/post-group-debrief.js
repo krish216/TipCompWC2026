@@ -44,10 +44,10 @@ const MIN_MEMBERS = 4
 
     // Dedupe: already posted the COMBINED link (round=gs, not gs1/gs2/gs3)?
     const { data: sys } = await db.from('chat_messages').select('content')
-      .eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', '%/tribe/round-debrief%')
+      .eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', '%round-debrief%')
     if ((sys || []).some(m => /round=gs(?!\d)/.test(m.content || ''))) { skippedDone++; continue }
 
-    const link = `${APP}/tribe/round-debrief?tribe_id=${tribe.id}&round=gs`
+    const link = `${APP}/api/r/round-debrief?tribe_id=${tribe.id}&round=gs&source=debrief_chat`
     const content = `🕵️ The Group Stage Debrief is in 👀 (members only) — who topped the tribe, and who bagged the Wooden Spoon? 🥄\n${link}`
 
     if (APPLY) {

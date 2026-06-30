@@ -37,10 +37,12 @@ export async function postRoundDebriefToTribes(
     if (ids.size < MIN_MEMBERS) { skipped++; continue }
 
     const { data: sys } = await admin.from('chat_messages').select('content')
-      .eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', '%/tribe/round-debrief%')
+      .eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', '%round-debrief%')
     if ((sys ?? []).some((m: any) => seen.test(m.content || ''))) { skipped++; continue }
 
-    const link = `${APP}/tribe/round-debrief?tribe_id=${tribe.id}&round=${round}`
+    // Tracked redirect → logs the click in report_link_clicks, then forwards to the
+    // members-only debrief page. source distinguishes chat clicks from the card.
+    const link = `${APP}/api/r/round-debrief?tribe_id=${tribe.id}&round=${round}&source=debrief_chat`
     const content = `🕵️ The ${noun} is in 👀 (members only) — who topped the tribe, and who bagged the Wooden Spoon? 🥄\n${link}`
     const { error } = await admin.from('chat_messages').insert({ tribe_id: tribe.id, user_id: null, is_system: true, content, round_code: null })
     if (error) { skipped++; continue }

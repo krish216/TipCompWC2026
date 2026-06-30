@@ -48,15 +48,16 @@ export async function POST(request: NextRequest) {
     ;(us ?? []).forEach((r: any) => r.id && ids.add(r.id))
     if (ids.size < MIN_MEMBERS) { skipped++; continue }
 
-    const link = `${origin}/tribe/round-debrief?tribe_id=${tribe.id}&round=${round}`
+    // Tracked redirect → logs the click in report_link_clicks, then forwards to the
+    // members-only debrief page.
+    const link = `${origin}/api/r/round-debrief?tribe_id=${tribe.id}&round=${round}&source=debrief_chat`
 
-    // Dedupe: skip if this tribe's chat already has the debrief link for this round.
+    // Dedupe: skip if this tribe's chat already has a debrief link for this round
+    // (matches both the tracked /api/r/... and the older /tribe/round-debrief form).
     const { data: existing } = await (admin.from('chat_messages') as any)
-      .select('id').eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', `%round=${round}%round-debrief%`).limit(1)
-    // (the ilike is best-effort; also match the plain link)
-    const { data: existing2 } = await (admin.from('chat_messages') as any)
-      .select('id').eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', `%/tribe/round-debrief%${round}%`).limit(1)
-    if ((existing as any[])?.length || (existing2 as any[])?.length) { skipped++; continue }
+      .select('id, content').eq('tribe_id', tribe.id).eq('is_system', true).ilike('content', '%round-debrief%')
+    const re = new RegExp(`round=${round}(?!\\d)`)
+    if (((existing as any[]) ?? []).some(m => re.test(m.content || ''))) { skipped++; continue }
 
     const content = `🕵️ The Round Debrief is in 👀 (members only) — who bagged the Wooden Spoon? 🥄\n${link}`
     const { error } = await (admin.from('chat_messages') as any)
