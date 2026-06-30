@@ -33,9 +33,13 @@ export async function GET(request: NextRequest) {
     const tournId   = (tribe as any).tournament_id ?? null
     const tribeName = (tribe as any).name ?? 'Your Tribe'
 
+    // 'gs'/'groups' = a combined Group Stage debrief (GS1+GS2+GS3); else one round.
+    const GROUP_ROUNDS = ['gs1', 'gs2', 'gs3']
+    const isGroupStage = round === 'gs' || round === 'groups'
+
     // Round name (fallback to "Round 1")
-    let roundName = 'Round 1'
-    if (tournId) {
+    let roundName = isGroupStage ? 'Group Stage' : 'Round 1'
+    if (!isGroupStage && tournId) {
       const { data: tr } = await (admin.from('tournament_rounds') as any)
         .select('round_name').eq('tournament_id', tournId).eq('round_code', round).maybeSingle()
       if ((tr as any)?.round_name) roundName = (tr as any).round_name
@@ -69,9 +73,11 @@ export async function GET(request: NextRequest) {
     const empty = buildRoundDebrief(round, roundName, tribeName, members, [], [], globalRanks)
     if (!memberIds.length || !tournId) return NextResponse.json(empty)
 
-    // This round's fixtures + the tribe's predictions on them.
-    const { data: fxRows } = await (admin.from('fixtures') as any)
-      .select('id, home, away, home_score, away_score, pen_winner').eq('tournament_id', tournId).eq('round', round)
+    // This round's fixtures (or all group-stage fixtures) + the tribe's predictions.
+    let fxQuery = (admin.from('fixtures') as any)
+      .select('id, home, away, home_score, away_score, pen_winner').eq('tournament_id', tournId)
+    fxQuery = isGroupStage ? fxQuery.in('round', GROUP_ROUNDS) : fxQuery.eq('round', round)
+    const { data: fxRows } = await fxQuery
     const fixtures = (fxRows ?? []) as any[]
     if (!fixtures.length) return NextResponse.json(empty)
 
