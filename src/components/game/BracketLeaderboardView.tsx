@@ -312,6 +312,13 @@ function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnte
   const s1: 'done' | 'now' = hasBracket ? 'done' : 'now'
   const s2: 'done' | 'now' | 'locked' = hasBracket ? 'now' : 'locked'
 
+  // The one prominent next action. Before a bracket exists it's the (clearly-worded)
+  // "Pick your 2026 World Cup Winner"; once built, it flips to entering the challenge
+  // (a modal for signed-in players, else the bracket page's guest-entry flow).
+  const primary: { label: string; href: string | null; onClick: (() => void) | null } = !hasBracket
+    ? { label: 'Pick your 2026 World Cup Winner', href: bracketHref, onClick: null }
+    : { label: prize ? 'Enter to win 🏆' : `Enter the ${challengeName}`, href: es?.logged_in ? null : bracketHref, onClick: es?.logged_in ? onEnter : null }
+
   const circle = (state: 'done' | 'now' | 'locked', n: number) =>
     state === 'done'
       ? <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">✓</span>
@@ -334,7 +341,21 @@ function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnte
             {prize ? <>Three steps to go in the draw for <strong style={{ color: '#fcd34d' }}>{prize}</strong>.</> : 'Three quick steps — no account needed to start.'}
           </p>
         </div>
-        <div className="bg-white border border-t-0 border-gray-200 rounded-b-2xl divide-y divide-gray-100">
+        <div className="bg-white border border-t-0 border-gray-200 rounded-b-2xl">
+          {/* Prominent, plainly-worded CTA — kept high (above the step list) so it
+              sits above the fold on mobile. The steps below are supporting detail. */}
+          <div className="px-4 pt-4 pb-3.5 border-b border-gray-100">
+            {primary.onClick
+              ? <button onClick={primary.onClick}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-base font-extrabold px-5 py-4 rounded-xl shadow-md transition-all">
+                  <span>{primary.label}</span><span aria-hidden>→</span>
+                </button>
+              : <Link href={primary.href!}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-base font-extrabold px-5 py-4 rounded-xl shadow-md transition-all">
+                  <span>{primary.label}</span><span aria-hidden>→</span>
+                </Link>}
+          </div>
+          <div className="divide-y divide-gray-100">
           {/* Step 1 — build bracket */}
           <div className="flex items-center gap-3 px-4 py-3.5">
             {circle(s1, 1)}
@@ -342,7 +363,7 @@ function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnte
               <p className="text-sm font-semibold text-gray-900">Pick the World Cup 2026 winner</p>
               {s1 === 'done'
                 ? <p className="text-[11px] text-gray-500 mt-0.5">{champion ? <>You picked <strong className="text-gray-700">{champion}</strong> 🏆 · <Link href={bracketHref} className="text-emerald-700 underline">edit</Link></> : <>Bracket built · <Link href={bracketHref} className="text-emerald-700 underline">edit</Link></>}</p>
-                : <Link href={bracketHref} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Build your bracket →</Link>}
+                : <p className="text-[11px] text-gray-500 mt-0.5">Free · no account needed to start</p>}
             </div>
             {pill(s1)}
           </div>
@@ -352,9 +373,7 @@ function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnte
             <div className="flex-1 min-w-0">
               <p className={clsx('text-sm font-semibold', s2 === 'locked' ? 'text-gray-400' : 'text-gray-900')}>Enter the {challengeName}</p>
               {s2 === 'now'
-                ? (es?.logged_in
-                    ? <button onClick={onEnter} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Enter to win →</button>
-                    : <Link href={bracketHref} className="text-[12px] font-bold text-emerald-700 underline hover:text-emerald-800">Enter to win →</Link>)
+                ? <p className="text-[11px] text-gray-500 mt-0.5">Add your name &amp; email — no password needed</p>
                 : <p className="text-[11px] text-gray-400 mt-0.5">Finish your bracket first</p>}
             </div>
             {pill(s2)}
@@ -367,6 +386,7 @@ function OnboardingSteps({ es, cfg, champion, challengeName, bracketHref, onEnte
               <p className="text-[11px] text-gray-400 mt-0.5">Score points all tournament — your name appears here</p>
             </div>
             {pill('locked')}
+          </div>
           </div>
         </div>
       </div>
