@@ -5,24 +5,28 @@ import { clsx } from 'clsx'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 // Nudge surfaced on home / leaderboard / predict once a round is fully scored,
-// linking the tribe to its satirical Round Debrief. Gated by /api/round-debrief-card
-// (round complete + you're in a tribe). Dismiss is per-round and shared across
-// every surface so it's never naggy.
-export function RoundDebriefCard({ className, round = 'gs1', source = 'debrief' }: { className?: string; round?: string; source?: string }) {
+// linking the tribe to its satirical Round Debrief. Gated by /api/round-debrief-card,
+// which auto-resolves the latest fully-scored round (unless `round` is passed to pin
+// it), so the card advances through the tournament in step with the chat announcement.
+// Dismiss is per-round and shared across every surface so it's never naggy.
+export function RoundDebriefCard({ className, round, source = 'debrief' }: { className?: string; round?: string; source?: string }) {
   const { hasTribe, selectedTribeId } = useUserPrefs()
   const [info, setInfo]           = useState<{ round_code: string; round_name: string } | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
 
-  const dismissKey = `dismissed_debrief_${round}`
-  useEffect(() => { setDismissed(localStorage.getItem(dismissKey)) }, [dismissKey])
-
   useEffect(() => {
     if (!hasTribe || !selectedTribeId) { setInfo(null); return }
-    fetch(`/api/round-debrief-card?tribe_id=${selectedTribeId}&round=${round}`)
+    const qs = round ? `&round=${round}` : ''
+    fetch(`/api/round-debrief-card?tribe_id=${selectedTribeId}${qs}`)
       .then(r => r.json())
       .then(d => setInfo(d.show ? { round_code: d.round_code, round_name: d.round_name } : null))
       .catch(() => setInfo(null))
   }, [hasTribe, selectedTribeId, round])
+
+  // Dismiss keyed off the resolved round so each round's card can be dismissed once.
+  useEffect(() => {
+    if (info) setDismissed(localStorage.getItem(`dismissed_debrief_${info.round_code}`))
+  }, [info])
 
   if (!info || !selectedTribeId || dismissed === info.round_code) return null
 
@@ -35,7 +39,7 @@ export function RoundDebriefCard({ className, round = 'gs1', source = 'debrief' 
           className="underline font-semibold whitespace-nowrap">Read the dossier →</a>
       </div>
       <button
-        onClick={() => { setDismissed(info.round_code); localStorage.setItem(dismissKey, info.round_code) }}
+        onClick={() => { setDismissed(info.round_code); localStorage.setItem(`dismissed_debrief_${info.round_code}`, info.round_code) }}
         className="text-amber-400 hover:text-amber-600 text-base font-semibold flex-shrink-0 px-1 leading-none"
         aria-label="Dismiss">×</button>
     </div>
