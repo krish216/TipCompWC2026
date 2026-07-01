@@ -349,6 +349,19 @@ export default function BracketPage() {
   const picksRef         = useRef<Picks>({})
   const clearingRef      = useRef(false)
   const championBannerRef = useRef<HTMLDivElement>(null)
+  // The inline completion CTA card's visibility drives the persistent bottom "Enter"
+  // bar: we only float the bar once the inline card has scrolled out of view, so the
+  // user never sees two Enter affordances at once. Callback ref so it re-observes
+  // cleanly as the card mounts/unmounts.
+  const [completionCardVisible, setCompletionCardVisible] = useState(false)
+  const completionObsRef = useRef<IntersectionObserver | null>(null)
+  const completionCardRef = useCallback((node: HTMLDivElement | null) => {
+    completionObsRef.current?.disconnect()
+    if (!node) { setCompletionCardVisible(false); return }
+    const io = new IntersectionObserver(([e]) => setCompletionCardVisible(e.isIntersecting), { threshold: 0.01 })
+    io.observe(node)
+    completionObsRef.current = io
+  }, [])
   // Tracks whether the initial load has settled; prevents scroll-to-top on load
   const prevGroupsDone  = useRef(false)
   const prevThirdsCount = useRef(0)
@@ -713,6 +726,31 @@ export default function BracketPage() {
     ? (challenges.find(c => c.slug === targetedChallenge.slug) ?? targetedChallenge)
     : null
 
+  // The single, primary "enter this challenge" action for the persistent bottom bar,
+  // resolved from the same state the inline completion CTA uses. Guests get the first
+  // still-unentered challenge (their entries live in enteredMap); signed-in players
+  // get the sponsor challenge they arrived from (targetedLive) unless already in.
+  // null → nothing to prompt (no champion yet, wrong section, or already entered).
+  const stickyEnter: { label: string; prize?: string | null; onClick: () => void } | null = (() => {
+    if (!champion || showSection !== 'bracket') return null
+    if (!session) {
+      const next = ctaChallenges.find(c => !enteredMap[c.slug])
+      if (!next) return null
+      return {
+        label: `Enter ${next.sponsor?.name ? `${next.sponsor.name} · ` : ''}${next.name}`,
+        prize: next.sponsor?.prize ?? null,
+        onClick: () => { setGuestChallenge(next.slug); setShowGuestEnter(true) },
+      }
+    }
+    if (!targetedLive || targetedLive.locked) return null
+    if (targetedEntered ?? targetedLive.entered) return null
+    return {
+      label: `Enter ${targetedLive.sponsor?.name ? `${targetedLive.sponsor.name} · ` : ''}${targetedLive.name}`,
+      prize: targetedLive.sponsor?.prize ?? null,
+      onClick: () => setMemberEnterSlug(targetedLive.slug),
+    }
+  })()
+
   // Initialise scroll sentinels once loading is done (prevents spurious scroll on load)
   useEffect(() => {
     if (!loading) {
@@ -894,7 +932,7 @@ export default function BracketPage() {
 
       {/* Completion CTA — persistent card for guests once champion is picked */}
       {!session && champion && showSection === 'bracket' && (
-        <div className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+        <div ref={completionCardRef} className="mb-4 px-4 py-4 bg-emerald-50 border border-emerald-200 rounded-xl">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Flag team={champion} className="text-3xl rounded shadow-sm" />
             <span className="text-sm font-bold text-emerald-900">{champion}</span>
@@ -936,7 +974,7 @@ export default function BracketPage() {
             <a href={`/bracket/leaderboard/${targetedLive.slug}`} className="flex-shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">Leaderboard →</a>
           </div>
         ) : (
-          <div className="mb-4 px-4 py-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl shadow-sm">
+          <div ref={completionCardRef} className="mb-4 px-4 py-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl shadow-sm">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Flag team={champion} className="text-3xl rounded shadow-sm" />
               <span className="text-sm font-bold text-emerald-900">{champion}</span>
@@ -955,6 +993,29 @@ export default function BracketPage() {
             </button>
           </div>
         )
+      )}
+
+      {/* Persistent "Enter challenge" bar — floats above the bottom nav once the
+          bracket is complete, so the entry CTA is always reachable no matter how far
+          the player has scrolled down their bracket. Hidden while the inline
+          completion card is on screen (avoids two Enter affordances at once), and
+          once the challenge is entered. Mirrors the progress-bar offset/z-index. */}
+      {stickyEnter && !completionCardVisible && (
+        <div className="fixed bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] sm:bottom-0 left-0 right-0 z-30 bg-white border-t border-emerald-200 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+          <div className="max-w-2xl mx-auto px-3 py-2.5">
+            <button onClick={stickyEnter.onClick}
+              className="w-full flex items-center justify-between gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-bold px-4 py-3 rounded-xl transition-all">
+              <span className="flex items-center gap-2 min-w-0">
+                {champion && <Flag team={champion} className="text-lg rounded-sm flex-shrink-0" />}
+                <span className="truncate">{stickyEnter.label}</span>
+              </span>
+              <span aria-hidden className="flex-shrink-0">→</span>
+            </button>
+            {stickyEnter.prize && (
+              <p className="text-center text-[10px] font-semibold text-emerald-700 mt-1.5">🏆 Enter for a shot at {stickyEnter.prize}</p>
+            )}
+          </div>
+        </div>
       )}
 
       {showGuestEnter && selectedTournId && (
