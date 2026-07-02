@@ -8,7 +8,7 @@
 
 import { toSlug } from '@/lib/sponsors/campaigns'
 
-export type ChallengeTypeKey = 'bracket' | 'four_pick'
+export type ChallengeTypeKey = 'bracket' | 'four_pick' | 'match'
 
 interface ChallengeTypeDef {
   label:           string
@@ -20,6 +20,10 @@ interface ChallengeTypeDef {
 export const CHALLENGE_TYPES: Record<ChallengeTypeKey, ChallengeTypeDef> = {
   bracket:   { label: 'Bracket',    available: true,  slugPrefix: 'br', leaderboardPath: slug => `/bracket/leaderboard/${slug}` },
   four_pick: { label: 'Four Pick',  available: false, slugPrefix: '4p', leaderboardPath: slug => `/four-pick/leaderboard/${slug}` },
+  // Registered for routing/labels, but not offered in the generic (bracket) admin
+  // create form — a match challenge needs a fixture_id + lock, so it's created via
+  // scripts/create-match-challenge.js. Hence available:false (won't show in choosers).
+  match:     { label: 'Match',      available: false, slugPrefix: 'mt', leaderboardPath: slug => `/match/${slug}` },
 }
 
 // Types that are actually built → the only ones offered in create forms / accepted by the API.

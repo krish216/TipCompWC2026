@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase'
+import { getSessionUser } from '@/lib/supabase-server'
+import { resolveMatchChallenge, getFixture, lockAt, isLocked } from '@/lib/match/challenge'
+import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
+import { rankMatchEntries, isSettled, actualAdvancer } from '@/lib/match/score'
+
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+
+// GET /api/match/leaderboard?slug=<match-challenge-slug>
+// Public board for a single-match prediction challenge: the fixture, sponsor
+// co-branding, entry/lock timing, the ranked entrants (scored once the result is
+// in), and the current user's own entry.
+export async function GET(request: NextRequest) {
+  const slug = new URL(request.url).searchParams.get('slug') || ''
+  if (!slug) return NextResponse.json({ error: 'slug required' }, { status: 400 })
+
+  const admin = createAdminClient()
+  const challenge = await resolveMatchChallenge(admin, slug)
+  if (!challenge) return NextResponse.json({ challenge: null }, { status: 404 })
+
+  const fixture = challenge.fixture_id ? await getFixture(admin, challenge.fixture_id) : null
+  const cfg     = await resolveActiveCampaign(admin, { challengeType: 'match', challengeId: challenge.id })
+
+  const { data: rows } = await (admin.from('match_entries') as any)
+    .select('user_id, pred_home, pred_away, advances_team, entered_at, users(display_name, first_name)')
+    .eq('challenge_id', challenge.id)
+  const entries = (rows ?? []) as any[]
+
+  const fx = fixture
+    ? { home: fixture.home, away: fixture.away, home_score: fixture.home_score, away_score: fixture.away_score, pen_winner: fixture.pen_winner }
+    : { home: '', away: '', home_score: null, away_score: null, pen_winner: null }
+
+  const settled = isSettled(fx)
+  const ranked = rankMatchEntries(
+    entries.map(e => ({
+      user_id: e.user_id,
+      name: e.users?.display_name || e.users?.first_name || 'Anonymous',
+      pred_home: e.pred_home, pred_away: e.pred_away, advances_team: e.advances_team ?? null,
+      entered_at: e.entered_at,
+    })),
+    fx,
+  )
+
+  // Current user's entry (if signed in) so the page can show "you're in" + their pick.
+  const user = await getSessionUser().catch(() => null)
+  const mine = user ? entries.find(e => e.user_id === user.id) : null
+
+  // Keep everyone's picks hidden until entries lock (only reveal preds/points from
+  // then on) — so the board can't be scraped for others' predictions pre-kickoff.
+  const locked = isLocked(challenge, fixture)
+  const reveal = locked || settled
+  const board = ranked.map((e, i) => ({
+    rank:  i + 1,
+    name:  e.name,
+    is_me: !!(user && e.user_id === user.id),
+    ...(reveal ? {
+      pred:     `${e.pred_home}-${e.pred_away}`,
+      advances: e.advances_team,
+      points:   e.score.points,
+      exact:    e.score.exact,
+    } : {}),
+  }))
+
+  return NextResponse.json({
+    challenge: { slug: challenge.slug, name: challenge.name },
+    fixture: fixture && {
+      home: fixture.home, away: fixture.away, venue: fixture.venue, round: fixture.round,
+      kickoff_utc: fixture.kickoff_utc,
+      home_score: fixture.home_score, away_score: fixture.away_score,
+      advancer: settled ? actualAdvancer(fx) : null,
+    },
+    sponsor: cfg.enabled ? {
+      name: cfg.sponsor_name, logo: cfg.sponsor_logo, prize: cfg.prize, url: cfg.sponsor_url,
+      logo_tone: cfg.logo_tone, tagline: cfg.sponsor_tagline, logo_includes_name: cfg.logo_includes_name,
+    } : null,
+    has_prize: !!(cfg.enabled && cfg.prize),
+    lock_at:   lockAt(challenge, fixture),
+    locked,
+    settled,
+    entrants:  entries.length,
+    entries:   board,
+    logged_in: !!user,
+    me: mine ? {
+      pred: `${mine.pred_home}-${mine.pred_away}`,
+      pred_home: mine.pred_home, pred_away: mine.pred_away,
+      advances: mine.advances_team ?? null,
+    } : null,
+  })
+}

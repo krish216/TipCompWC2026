@@ -1,7 +1,7 @@
 // Sponsor Campaigns module — shared types.
 
 export type SponsorStatus = 'lead' | 'active' | 'archived'
-export type ChallengeType = 'bracket' | 'four_pick'
+export type ChallengeType = 'bracket' | 'four_pick' | 'match'
 export type LogoTone      = 'dark' | 'light'
 export type CampaignStatus = 'disabled' | 'scheduled' | 'live' | 'ended'
 
