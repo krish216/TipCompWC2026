@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import type { RoundId } from '@/types'
 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { linkify } from '@/lib/linkify'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Member {
@@ -61,15 +62,6 @@ const ROUND_LABELS: Partial<Record<RoundId, string>> = {
   qf: 'Quarter Finals', sf: 'Semi Finals', tp: 'Third Place', f: 'Final',
 }
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
-
-// Render plain-text chat content with clickable links (http/https only).
-function linkify(text: string): React.ReactNode {
-  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all">{part}</a>
-      : part
-  )
-}
 
 // ── Chat bubble ───────────────────────────────────────────────────────────────
 function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReact: (msgId: string, emoji: string) => void }) {

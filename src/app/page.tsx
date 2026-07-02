@@ -12,6 +12,7 @@ import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet, Flag } from '@/comp
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
+import { linkify } from '@/lib/linkify'
 
 // Default bonus-team lock (first WC2026 match). Overridden by app_settings.bonus_lock_at.
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
@@ -1295,7 +1296,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-900">{tournAnnouncement.title}</p>
             {tournAnnouncement.body && (
-              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{tournAnnouncement.body}</p>
+              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed whitespace-pre-line break-words">{linkify(tournAnnouncement.body)}</p>
             )}
           </div>
           <button
@@ -2781,7 +2782,7 @@ export default function HomePage() {
                           <p className="text-xs font-semibold text-gray-800 truncate">{a.title}</p>
                           <p className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{age}</p>
                         </div>
-                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{a.body}</p>
+                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed break-words">{linkify(a.body)}</p>
                       </div>
                     )
                   })}
