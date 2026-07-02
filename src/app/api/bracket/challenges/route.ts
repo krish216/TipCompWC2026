@@ -141,6 +141,19 @@ export async function POST(request: NextRequest) {
   const tid = (typeof b.tournament_id === 'string' && b.tournament_id) || await activeTournamentId(admin)
   if (!tid) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
 
+  // Match challenges need a fixture; entries lock 5 min before kickoff unless an
+  // explicit closes_at is given.
+  const LOCK_LEAD_MS = 5 * 60 * 1000
+  let fixtureId: number | null = null
+  let closesAt: string | null = b.closes_at || null
+  if (type === 'match') {
+    fixtureId = Number(b.fixture_id)
+    if (!Number.isInteger(fixtureId)) return NextResponse.json({ error: 'Pick a fixture for the match challenge.' }, { status: 422 })
+    const { data: fx } = await (admin.from('fixtures') as any).select('id, kickoff_utc, tournament_id').eq('id', fixtureId).maybeSingle()
+    if (!fx) return NextResponse.json({ error: 'Fixture not found.' }, { status: 422 })
+    if (!closesAt && (fx as any).kickoff_utc) closesAt = new Date(new Date((fx as any).kickoff_utc).getTime() - LOCK_LEAD_MS).toISOString()
+  }
+
   // Unique slug: base from the provided slug (or name), then -2, -3, … on clash.
   const base = toSlug(typeof b.slug === 'string' && b.slug.trim() ? b.slug : name)
   let slug = base
@@ -157,7 +170,8 @@ export async function POST(request: NextRequest) {
     slug,
     enabled:       b.enabled !== false,
     access:        b.access === 'invite' ? 'invite' : 'open',
-    closes_at:     b.closes_at || null,
+    closes_at:     closesAt,
+    ...(fixtureId != null ? { fixture_id: fixtureId } : {}),
   }).select('id, slug, name, enabled, type, access, closes_at').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

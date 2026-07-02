@@ -61,8 +61,8 @@ export default function ChallengesAdminPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <Link href="/admin/sponsors" className="text-sm text-emerald-600 hover:underline">← Sponsors</Link>
-          <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Bracket Challenges</h1>
-          <p className="text-sm text-gray-500">Create challenges (each with its own leaderboard) and attach a sponsor to each.</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Challenges</h1>
+          <p className="text-sm text-gray-500">Create bracket or single-match challenges (each with its own leaderboard) and attach a sponsor to each.</p>
         </div>
         <Link href="/admin" className="text-sm font-semibold text-emerald-600 hover:underline mt-1">Admin home →</Link>
       </div>
@@ -72,7 +72,7 @@ export default function ChallengesAdminPage() {
       {loading ? (
         <div className="flex justify-center py-12"><Spinner className="w-7 h-7" /></div>
       ) : challenges.length === 0 ? (
-        <Card><p className="text-center text-gray-400 py-8 text-sm">No bracket challenges yet — create one above.</p></Card>
+        <Card><p className="text-center text-gray-400 py-8 text-sm">No challenges yet — create one above.</p></Card>
       ) : (
         <div className="space-y-2.5">
           {challenges.map(c => (
@@ -94,6 +94,9 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [name, setName] = useState('')
   const [touchedName, setTouchedName] = useState(false)
   const [type, setType] = useState<string>(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket')
+  // Match challenges: pick an upcoming fixture; entries auto-lock 5 min before kickoff.
+  const [fixtures, setFixtures] = useState<{ id: number; home: string; away: string; kickoff_utc: string; round: string }[]>([])
+  const [fixtureId, setFixtureId] = useState<string>('')
   const [access, setAccess] = useState<'open' | 'invite'>('open')
   const [closesAt, setClosesAt] = useState<string | null>(null)   // blank → first R32 kick-off
   const [slug, setSlug] = useState('')          // blank → auto from name
@@ -105,28 +108,43 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
   const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
   const [endsAt, setEndsAt]     = useState<string | null>(null)   // blank → backend default (R32 lock)
 
-  // Name derives from sponsor + type unless the admin overrides it.
+  // Load upcoming fixtures once, when the admin switches to a match challenge.
+  useEffect(() => {
+    if (type !== 'match' || fixtures.length) return
+    fetch('/api/fixtures').then(r => r.json()).then(d => {
+      const now = Date.now()
+      const list = ((d?.data ?? []) as any[])
+        .filter(f => !f.result && f.kickoff_utc && new Date(f.kickoff_utc).getTime() > now)
+        .map(f => ({ id: f.id, home: f.home, away: f.away, kickoff_utc: f.kickoff_utc, round: f.round }))
+      setFixtures(list)
+    }).catch(() => {})
+  }, [type, fixtures.length])
+
+  // Name/slug derive from the fixture (match) or sponsor + type, unless overridden.
   const sponsorName = sponsors.find(s => s.id === sponsorId)?.name ?? null
-  const derivedName = deriveChallengeName(sponsorName, type)
+  const matchFx = type === 'match' ? fixtures.find(f => String(f.id) === fixtureId) : undefined
+  const derivedName = matchFx ? `${matchFx.home} v ${matchFx.away} · Pick the Score` : deriveChallengeName(sponsorName, type)
   const effName = touchedName && name.trim() ? name : derivedName
-  // Slug = <type-prefix>-<sponsor> (e.g. "br-gatedflow"); house challenges with no
-  // sponsor fall back to <prefix>-<name>.
-  const defaultSlug = deriveChallengeSlug(sponsorName || effName, type)
+  // Slug = <type-prefix>-<sponsor|teams> (e.g. "br-gatedflow", "mt-australia-egypt").
+  const defaultSlug = matchFx
+    ? deriveChallengeSlug(`${matchFx.home}-${matchFx.away}`, 'match')
+    : deriveChallengeSlug(sponsorName || effName, type)
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const reset = () => {
-    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setAccess('open'); setClosesAt(null); setSlug(''); setTouchedSlug(false)
+    setName(''); setTouchedName(false); setType(AVAILABLE_CHALLENGE_TYPES[0] ?? 'bracket'); setFixtureId(''); setAccess('open'); setClosesAt(null); setSlug(''); setTouchedSlug(false)
     setSponsorId(''); setPrize(''); setClickUrl(''); setStartsAt(new Date().toISOString()); setEndsAt(null)
     setOpen(false)
   }
 
   const create = async () => {
     if (!effName.trim()) { toast.error('Name required'); return }
+    if (type === 'match' && !fixtureId) { toast.error('Pick a fixture for the match challenge'); return }
     setBusy(true)
     try {
       const res = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: effName.trim(), type, access, closes_at: closesAt, slug: touchedSlug ? slug.trim() : defaultSlug }),
+        body: JSON.stringify({ name: effName.trim(), type, access, closes_at: closesAt, slug: touchedSlug ? slug.trim() : defaultSlug, ...(type === 'match' ? { fixture_id: Number(fixtureId) } : {}) }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
@@ -180,6 +198,20 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
             {AVAILABLE_CHALLENGE_TYPES.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
           </select>
         </div>
+        {type === 'match' && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Match fixture *</label>
+            <select value={fixtureId} onChange={e => setFixtureId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+              <option value="">{fixtures.length ? 'Pick a fixture…' : 'Loading fixtures…'}</option>
+              {fixtures.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.home} v {f.away} · {new Date(f.kickoff_utc).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -195,7 +227,12 @@ function NewChallengeForm({ sponsors, onCreated }: { sponsors: SponsorOpt[]; onC
       </div>
 
       <div className="sm:max-w-xs">
-        <DateField label="Entries close (blank → first R32 kick-off)" value={closesAt} onChange={setClosesAt} />
+        <DateField
+          label={type === 'match' ? 'Entries close (blank → 5 min before kick-off)' : 'Entries close (blank → first R32 kick-off)'}
+          value={closesAt} onChange={setClosesAt} />
+        {type === 'match' && !closesAt && matchFx && (
+          <p className="text-[11px] text-gray-400 mt-1">Auto-locks at {new Date(new Date(matchFx.kickoff_utc).getTime() - 5 * 60 * 1000).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST (5 min before kick-off).</p>
+        )}
       </div>
 
       {/* Sponsor campaign — attached in the same step */}
@@ -286,6 +323,8 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-900 truncate">{ch.name}</span>
+            <span className={clsx('text-[10px] uppercase font-bold px-1.5 py-0.5 rounded',
+              ch.type === 'match' ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700')}>{challengeTypeLabel(ch.type)}</span>
             {ch.access === 'invite' && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">invite</span>}
             {!ch.enabled && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">disabled</span>}
           </div>
