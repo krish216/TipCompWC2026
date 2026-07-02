@@ -86,7 +86,7 @@ export function MatchChallengeView({ slug }: { slug: string }) {
         <Predictor slug={slug} data={data} onEntered={load} />
       )}
 
-      <Leaderboard data={data} lockedNow={lockedNow} />
+      <Leaderboard data={data} />
     </div>
   )
 }
@@ -179,7 +179,8 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
   const [submitting, setSubmitting] = useState(false)
   const [postcode, setPostcode] = useState('')
   const [over18, setOver18]     = useState(false)
-  const [terms, setTerms]       = useState(false)
+  // Signed-in users already accepted the terms at sign-up → no need to re-accept.
+  const [terms, setTerms]       = useState(!!data.logged_in)
   const [mktg, setMktg]         = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -305,10 +306,12 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-400 focus:outline-none" />
           )}
 
-          <label className="flex items-start gap-2 text-[11px] text-gray-600">
-            <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5" />
-            <span>I accept the <a href="/terms" target="_blank" className="underline">terms</a>{data.has_prize ? ' & prize draw conditions' : ''}.</span>
-          </label>
+          {!data.logged_in && (
+            <label className="flex items-start gap-2 text-[11px] text-gray-600">
+              <input type="checkbox" checked={terms} onChange={e => setTerms(e.target.checked)} className="mt-0.5" />
+              <span>I accept the <a href="/terms" target="_blank" className="underline">terms</a>{data.has_prize ? ' & prize draw conditions' : ''}.</span>
+            </label>
+          )}
           {data.has_prize && (
             <>
               <label className="flex items-start gap-2 text-[11px] text-gray-600">
@@ -337,7 +340,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
 }
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
-function Leaderboard({ data, lockedNow }: { data: Data; lockedNow: boolean }) {
+function Leaderboard({ data }: { data: Data }) {
   const share = async () => {
     const url = `${window.location.origin}/match/${data.challenge.slug}`
     try { if (navigator.share) { await navigator.share({ title: data.challenge.name, url }); return } } catch { /* fall through */ }
@@ -346,7 +349,6 @@ function Leaderboard({ data, lockedNow }: { data: Data; lockedNow: boolean }) {
   const medal = (r: number) => (r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `${r}`)
   const firstName = (n: string) => (n || '').trim().split(/\s+/)[0] || n
   const fmtFgm = (m?: number | null) => (m == null ? '—' : m === 0 ? '0–0' : `${m}'`)
-  const reveal = data.settled || lockedNow
 
   return (
     <div>
@@ -363,28 +365,26 @@ function Leaderboard({ data, lockedNow }: { data: Data; lockedNow: boolean }) {
         </div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
-          {reveal && (
-            <div className="flex items-center gap-3 px-4 py-1.5 bg-gray-50 text-[10px] uppercase tracking-wide font-bold text-gray-400">
-              <span className="w-6 flex-shrink-0" />
-              <span className="flex-1">Name</span>
-              <span className="w-14 text-right flex-shrink-0">Pick</span>
-              <span className="w-12 text-right flex-shrink-0">1st goal</span>
-              {data.settled && <span className="w-8 text-right flex-shrink-0">Pts</span>}
-            </div>
-          )}
+          <div className="flex items-center gap-3 px-4 py-1.5 bg-gray-50 text-[10px] uppercase tracking-wide font-bold text-gray-400">
+            <span className="w-6 flex-shrink-0" />
+            <span className="flex-1">Name</span>
+            <span className="w-14 text-right flex-shrink-0">Pick</span>
+            <span className="w-12 text-right flex-shrink-0">1st goal</span>
+            {data.settled && <span className="w-8 text-right flex-shrink-0">Pts</span>}
+          </div>
           {data.entries.map(e => (
             <div key={`${e.rank}-${e.name}`} className={clsx('flex items-center gap-3 px-4 py-2.5', e.is_me && 'bg-emerald-50/60')}>
               <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">{data.settled ? medal(e.rank) : '·'}</span>
               <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{firstName(e.name)}{e.is_me && ' (you)'}</span>
-              {reveal && <span className={clsx('w-14 text-right text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-400')}>{e.pred}{e.exact ? ' ✓' : ''}</span>}
-              {reveal && <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>}
+              <span className={clsx('w-14 text-right text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-700')}>{e.pred}{e.exact ? ' ✓' : ''}</span>
+              <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>
               {data.settled && <span className="w-8 text-right text-sm font-black tabular-nums text-emerald-700 flex-shrink-0">{e.points}</span>}
             </div>
           ))}
         </div>
       )}
-      {!data.settled && !lockedNow && (
-        <p className="text-center text-[11px] text-gray-400 mt-2">Everyone’s picks stay hidden until entries lock. Scores land when the result’s in.</p>
+      {!data.settled && (
+        <p className="text-center text-[11px] text-gray-400 mt-2">Everyone’s picks are shown live · scores land when the result’s in.</p>
       )}
     </div>
   )

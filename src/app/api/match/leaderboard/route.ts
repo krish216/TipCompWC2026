@@ -48,21 +48,18 @@ export async function GET(request: NextRequest) {
   const user = await getSessionUser().catch(() => null)
   const mine = user ? entries.find(e => e.user_id === user.id) : null
 
-  // Keep everyone's picks hidden until entries lock (only reveal preds/points from
-  // then on) — so the board can't be scraped for others' predictions pre-kickoff.
+  // Everyone's picks are shown live (score + first-goal minute). Points stay 0 until
+  // the result is in (scoreMatchEntry returns 0 pre-settlement).
   const locked = isLocked(challenge, fixture)
-  const reveal = locked || settled
   const board = ranked.map((e, i) => ({
-    rank:  i + 1,
-    name:  e.name,
-    is_me: !!(user && e.user_id === user.id),
-    ...(reveal ? {
-      pred:     `${e.pred_home}-${e.pred_away}`,
-      advances: e.advances_team,
-      fgm:      e.first_goal_min ?? null,
-      points:   e.score.points,
-      exact:    e.score.exact,
-    } : {}),
+    rank:     i + 1,
+    name:     e.name,
+    is_me:    !!(user && e.user_id === user.id),
+    pred:     `${e.pred_home}-${e.pred_away}`,
+    advances: e.advances_team,
+    fgm:      e.first_goal_min ?? null,
+    points:   e.score.points,
+    exact:    e.score.exact,
   }))
 
   return NextResponse.json({
