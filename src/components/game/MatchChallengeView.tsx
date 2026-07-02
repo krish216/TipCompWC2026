@@ -252,15 +252,23 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
           </div>
         </div>
 
-        {/* Tie-breaker — closest predicted first-goal minute wins a dead heat */}
+        {/* Tie-breaker — closest predicted first-goal minute wins a dead heat.
+            Directly typeable (± only for small nudges) so picking e.g. 89' is quick. */}
         <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
           <p className="text-[11px] font-semibold text-amber-800 text-center mb-1.5">⏱️ Tie-breaker — what minute is the <strong>first goal</strong>?</p>
           <div className="flex items-center justify-center gap-2">
-            <button type="button" onClick={() => setFgm(Math.max(0, fgm - 1))} className="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 text-lg font-black active:scale-95">−</button>
-            <span className="w-16 text-center text-xl font-black tabular-nums">{fgm === 0 ? '0–0' : `${fgm}'`}</span>
-            <button type="button" onClick={() => setFgm(Math.min(120, fgm + 1))} className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-lg font-black active:scale-95">+</button>
+            <button type="button" onClick={() => setFgm(Math.max(0, fgm - 1))} aria-label="minute down" className="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 text-lg font-black active:scale-95">−</button>
+            <div className="flex items-center gap-1">
+              <input inputMode="numeric" pattern="[0-9]*"
+                value={fgm === 0 ? '0' : String(fgm)}
+                onChange={e => { const n = parseInt(e.target.value.replace(/\D/g, ''), 10); setFgm(Number.isFinite(n) ? Math.min(120, Math.max(0, n)) : 0) }}
+                onFocus={e => e.target.select()}
+                className="w-16 text-center text-xl font-black tabular-nums rounded-lg border border-amber-200 bg-white py-1 focus:border-amber-400 focus:outline-none" />
+              <span className="text-sm font-bold text-amber-700">min</span>
+            </div>
+            <button type="button" onClick={() => setFgm(Math.min(120, fgm + 1))} aria-label="minute up" className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-lg font-black active:scale-95">+</button>
           </div>
-          <p className="text-[10px] text-amber-600 text-center mt-1">Closest wins if scores tie · 0 = no goals</p>
+          <p className="text-[10px] text-amber-600 text-center mt-1">Type the minute · closest wins if scores tie · 0 = no goals</p>
         </div>
 
         {entered && (
