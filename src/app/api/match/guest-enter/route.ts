@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { establishSessionFor } from '@/lib/bracket/establish-session'
 import { enrolInTournament } from '@/lib/enrol-tournament'
 import { enterMatchChallenge } from '@/lib/match/enter'
+import { sendMatchEntryConfirmation } from '@/lib/match/entry-confirmation'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -86,6 +87,11 @@ export async function POST(request: NextRequest) {
   // ── Sign them straight in ────────────────────────────────────────────────────
   const signedIn = await establishSessionFor(admin, email)
   if (signedIn) {
+    // Confirmation email (first entry only) — the fallback branch below already emails
+    // a sign-in link, so we only send the receipt on the signed-in path.
+    if (entry.created) {
+      sendMatchEntryConfirmation(admin, { email, name: displayName, userId: userId!, slug: entry.challenge!.slug, origin }).catch(() => {})
+    }
     return NextResponse.json({ status: 'signed_in', redirect: next, message: `${inLine} You’re signed in — here’s the leaderboard.` })
   }
 

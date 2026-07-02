@@ -12,6 +12,7 @@ export interface MatchEntryResult {
   challenge?: MatchChallenge
   fixture?:  MatchFixture | null
   hasPrize?: boolean
+  created?:  boolean          // true = brand-new entry (drives the one-time confirmation email); false = an edit
   redirect?: string
 }
 
@@ -86,6 +87,11 @@ export async function enterMatchChallenge(
       return { ok: false, status: 422, error: 'Confirm you are 18 or older to enter the prize draw.', challenge, fixture, hasPrize }
   }
 
+  // Is this a first entry (→ send a confirmation) or an edit (→ stay quiet)?
+  const { data: existingRow } = await (admin.from('match_entries') as any)
+    .select('id').eq('challenge_id', challenge.id).eq('user_id', userId).maybeSingle()
+  const created = !existingRow
+
   const now = new Date().toISOString()
   const { error } = await (admin.from('match_entries') as any).upsert({
     challenge_id:      challenge.id,
@@ -105,5 +111,5 @@ export async function enterMatchChallenge(
   }, { onConflict: 'challenge_id,user_id' })
   if (error) return { ok: false, status: 500, error: error.message, challenge, fixture, hasPrize }
 
-  return { ok: true, status: 200, challenge, fixture, hasPrize, redirect: `/match/${challenge.slug}` }
+  return { ok: true, status: 200, challenge, fixture, hasPrize, created, redirect: `/match/${challenge.slug}` }
 }

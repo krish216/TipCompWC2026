@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { Flag, Spinner } from '@/components/ui'
 
@@ -107,18 +107,17 @@ function CountdownBanner({ now, koMs, lockMs, settled, fx }: {
   if (now === 0) return <div className="mb-4 h-[52px] rounded-xl bg-gray-100 animate-pulse" />
   if (now < lockMs) {
     return (
-      <div className="mb-4 rounded-xl bg-emerald-950 text-white px-4 py-3 text-center">
-        <p className="text-[11px] uppercase tracking-widest text-amber-300">Predictions lock in</p>
-        <p className="text-2xl font-black tabular-nums tracking-tight">{fmtCountdown(lockMs - now)}</p>
-        <p className="text-[10px] text-white/50 mt-0.5">Entries close 5 min before kick-off</p>
+      <div className="mb-4 rounded-xl bg-emerald-950 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 flex-wrap" title="Entries close 5 min before kick-off">
+        <span className="text-[11px] uppercase tracking-widest text-amber-300">Predictions lock in</span>
+        <span className="text-2xl font-black tabular-nums tracking-tight leading-none">{fmtCountdown(lockMs - now)}</span>
       </div>
     )
   }
   if (now < koMs) {
     return (
-      <div className="mb-4 rounded-xl bg-gray-800 text-white px-4 py-3 text-center">
-        <p className="text-[11px] uppercase tracking-widest text-gray-300">🔒 Locked · kick-off in</p>
-        <p className="text-2xl font-black tabular-nums tracking-tight">{fmtCountdown(koMs - now)}</p>
+      <div className="mb-4 rounded-xl bg-gray-800 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 flex-wrap">
+        <span className="text-[11px] uppercase tracking-widest text-gray-300">🔒 Locked · kick-off in</span>
+        <span className="text-2xl font-black tabular-nums tracking-tight leading-none">{fmtCountdown(koMs - now)}</span>
       </div>
     )
   }
@@ -184,6 +183,10 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
   const [mktg, setMktg]         = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Reveal the Enter CTA (below the fold) when the entry fields get focus — the
+  // on-screen keyboard otherwise hides it. Deferred to beat the browser's focus-scroll.
+  const submitRef = useRef<HTMLButtonElement>(null)
+  const revealCta = () => setTimeout(() => submitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
 
   const entered = !!data.me
   const prizeFieldsOk = !data.has_prize || (/^\d{4}$/.test(postcode) && over18 && mktg)
@@ -284,7 +287,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-400 focus:outline-none" />
               <div className="flex gap-2">
-                <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="Email"
+                <input value={email} onChange={e => setEmail(e.target.value)} onFocus={revealCta} type="email" placeholder="Email"
                   className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-400 focus:outline-none" />
                 <button type="button" onClick={sendCode} disabled={sending}
                   className="px-3 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold whitespace-nowrap disabled:opacity-50">
@@ -322,9 +325,9 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
           {error && <p className="text-xs text-red-600">{error}</p>}
           {msg && <p className="text-xs text-emerald-700 font-semibold">{msg}</p>}
 
-          <button type="button" onClick={submit} disabled={submitting || !terms || !prizeFieldsOk}
+          <button ref={submitRef} type="button" onClick={submit} disabled={submitting || !terms || !prizeFieldsOk}
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-base font-extrabold px-5 py-3.5 rounded-xl shadow-md transition-all disabled:opacity-50">
-            {submitting ? 'Submitting…' : entered ? 'Update my prediction' : data.has_prize ? 'Enter the prize draw →' : 'Lock in my prediction →'}
+            {submitting ? 'Submitting…' : entered ? 'Update my prediction' : 'Enter the Challenge →'}
           </button>
           {!data.logged_in && <p className="text-center text-[10px] text-gray-400">No account needed — we’ll save it to your email.</p>}
         </div>
@@ -341,6 +344,9 @@ function Leaderboard({ data, lockedNow }: { data: Data; lockedNow: boolean }) {
     try { await navigator.clipboard.writeText(url) } catch { /* noop */ }
   }
   const medal = (r: number) => (r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `${r}`)
+  const firstName = (n: string) => (n || '').trim().split(/\s+/)[0] || n
+  const fmtFgm = (m?: number | null) => (m == null ? '—' : m === 0 ? '0–0' : `${m}'`)
+  const reveal = data.settled || lockedNow
 
   return (
     <div>
@@ -357,11 +363,21 @@ function Leaderboard({ data, lockedNow }: { data: Data; lockedNow: boolean }) {
         </div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
+          {reveal && (
+            <div className="flex items-center gap-3 px-4 py-1.5 bg-gray-50 text-[10px] uppercase tracking-wide font-bold text-gray-400">
+              <span className="w-6 flex-shrink-0" />
+              <span className="flex-1">Name</span>
+              <span className="w-14 text-right flex-shrink-0">Pick</span>
+              <span className="w-12 text-right flex-shrink-0">1st goal</span>
+              {data.settled && <span className="w-8 text-right flex-shrink-0">Pts</span>}
+            </div>
+          )}
           {data.entries.map(e => (
             <div key={`${e.rank}-${e.name}`} className={clsx('flex items-center gap-3 px-4 py-2.5', e.is_me && 'bg-emerald-50/60')}>
               <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">{data.settled ? medal(e.rank) : '·'}</span>
-              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{e.name}{e.is_me && ' (you)'}</span>
-              {(data.settled || lockedNow) && <span className={clsx('text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-400')}>{e.pred}{e.exact ? ' ✓' : ''}</span>}
+              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{firstName(e.name)}{e.is_me && ' (you)'}</span>
+              {reveal && <span className={clsx('w-14 text-right text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-400')}>{e.pred}{e.exact ? ' ✓' : ''}</span>}
+              {reveal && <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>}
               {data.settled && <span className="w-8 text-right text-sm font-black tabular-nums text-emerald-700 flex-shrink-0">{e.points}</span>}
             </div>
           ))}

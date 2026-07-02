@@ -473,10 +473,14 @@ function AddCampaignToChallenge({ sponsorId, challengeId, onCreated }: { sponsor
 // Creates a challenge of a type the sponsor doesn't run yet, plus its first
 // campaign. Name derives from sponsor + type (one challenge per type).
 function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }: { sponsorId: string; sponsorName: string; usedTypes: Set<string>; onCreated: () => void }) {
-  const available = AVAILABLE_CHALLENGE_TYPES.filter(t => !usedTypes.has(t))
+  // Match challenges are per-fixture, so a sponsor can run several — always offer
+  // 'match'. Other types stay one-per-sponsor (filtered out once used).
+  const available = AVAILABLE_CHALLENGE_TYPES.filter(t => t === 'match' || !usedTypes.has(t))
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [type, setType] = useState<string>(available[0] ?? 'bracket')
+  const [fixtures, setFixtures] = useState<{ id: number; home: string; away: string; kickoff_utc: string }[]>([])
+  const [fixtureId, setFixtureId] = useState('')
   const [access, setAccess] = useState<'open' | 'invite'>('open')
   const [slug, setSlug] = useState('')
   const [touchedSlug, setTouchedSlug] = useState(false)
@@ -485,23 +489,39 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
   const [startsAt, setStartsAt] = useState<string | null>(new Date().toISOString())
   const [endsAt, setEndsAt] = useState<string | null>(null)
 
-  const name = deriveChallengeName(sponsorName, type)
-  // Slug = <type-prefix>-<sponsor>, e.g. "br-gatedflow" (globally unique by type).
-  const defaultSlug = deriveChallengeSlug(sponsorName, type)
+  // Load upcoming fixtures when creating a match challenge (for the fixture picker).
+  useEffect(() => {
+    if (type !== 'match' || fixtures.length) return
+    fetch('/api/fixtures').then(r => r.json()).then(d => {
+      const now = Date.now()
+      setFixtures(((d?.data ?? []) as any[])
+        .filter(f => !f.result && f.kickoff_utc && new Date(f.kickoff_utc).getTime() > now)
+        .map(f => ({ id: f.id, home: f.home, away: f.away, kickoff_utc: f.kickoff_utc })))
+    }).catch(() => {})
+  }, [type, fixtures.length])
+
+  // Name/slug derive from the fixture (match) or sponsor + type.
+  const matchFx = type === 'match' ? fixtures.find(f => String(f.id) === fixtureId) : undefined
+  const name = matchFx ? `${matchFx.home} v ${matchFx.away} · Pick the Score` : deriveChallengeName(sponsorName, type)
+  // Slug = <type-prefix>-<sponsor|teams>, e.g. "br-gatedflow", "mt-australia-egypt".
+  const defaultSlug = matchFx ? deriveChallengeSlug(`${matchFx.home}-${matchFx.away}`, 'match') : deriveChallengeSlug(sponsorName, type)
   const effectiveSlug = (touchedSlug && slug.trim() ? toSlug(slug) : defaultSlug) || '—'
 
   const create = async () => {
+    if (type === 'match' && !fixtureId) { toast.error('Pick a fixture for the match challenge'); return }
     setBusy(true)
     try {
       const cr = await fetch('/api/bracket/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, access, slug: touchedSlug ? slug.trim() : defaultSlug }),
+        body: JSON.stringify({ name, type, access, slug: touchedSlug ? slug.trim() : defaultSlug, ...(type === 'match' ? { fixture_id: Number(fixtureId) } : {}) }),
       })
       const cd = await cr.json().catch(() => ({}))
       if (!cr.ok) { toast.error(cd.error ?? 'Failed to create challenge'); return }
+      // For a match, run the sponsor campaign through to kickoff by default.
+      const campEnds = (type === 'match' && matchFx && !endsAt) ? matchFx.kickoff_utc : endsAt
       const camp = await fetch('/api/sponsors/campaigns', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: cd.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: endsAt }),
+        body: JSON.stringify({ sponsor_id: sponsorId, challenge_id: cd.challenge.id, prize, click_url: clickUrl, starts_at: startsAt, ends_at: campEnds }),
       })
       const campd = await camp.json().catch(() => ({}))
       if (!camp.ok) {
@@ -540,6 +560,21 @@ function NewChallengeForSponsor({ sponsorId, sponsorName, usedTypes, onCreated }
             {available.map(t => <option key={t} value={t}>{challengeTypeLabel(t)}</option>)}
           </select>
         </div>
+        {type === 'match' && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Match fixture</label>
+            <select value={fixtureId} onChange={e => setFixtureId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+              <option value="">{fixtures.length ? 'Pick a fixture…' : 'Loading fixtures…'}</option>
+              {fixtures.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.home} v {f.away} · {new Date(f.kickoff_utc).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST
+                </option>
+              ))}
+            </select>
+            {matchFx && <p className="text-[11px] text-gray-400 mt-1">Entries auto-lock 5 min before kick-off.</p>}
+          </div>
+        )}
         <div>
           <Field label="Slug" value={touchedSlug ? slug : ''} placeholder="auto from sponsor" onChange={v => { setSlug(v); setTouchedSlug(true) }} />
           <p className="text-[11px] text-gray-400 mt-1"><b className="text-gray-600">{leaderboardPathFor(type, effectiveSlug)}</b></p>
