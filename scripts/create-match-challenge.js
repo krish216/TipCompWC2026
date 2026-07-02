@@ -22,14 +22,14 @@ const CHALLENGE_SLUG = 'mt-socceroos-egypt'
 const CHALLENGE_NAME = 'Socceroos v Egypt · Pick the Score'
 const LOCK_LEAD_MIN  = 5
 const SPONSOR = {
-  slug:        'campsie-bowling-club',
-  name:        'Campsie Bowling Club',   // TODO confirm exact name
-  tagline:     'Open 4am · Socceroos live',        // TODO suburb/tagline
-  website_url: '',                                 // TODO their FB/site (optional)
+  slug:        'campsie-south-bowling-club',
+  name:        'Campsie South Bowling Club',
+  tagline:     'Open 4am · Socceroos live',
+  website_url: 'https://www.campsiesouth.com.au/',
   logo_url:    '',                                 // no logo → text treatment
   logo_tone:   'dark',
 }
-const PRIZE = '$100 bar tab'                        // TODO confirm the actual prize
+const PRIZE = '$100 bar tab'
 // ──────────────────────────────────────────────────────────────────────────────
 
 ;(async () => {
