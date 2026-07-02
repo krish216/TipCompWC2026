@@ -20,6 +20,7 @@ interface EnterBody {
   pred_home?: unknown
   pred_away?: unknown
   advances_team?: unknown
+  first_goal_min?: unknown
   postcode?: unknown
   phone?: unknown
   consent_terms?: unknown
@@ -59,6 +60,16 @@ export async function enterMatchChallenge(
   if (advances !== fixture.home && advances !== fixture.away)
     return { ok: false, status: 422, error: 'Pick who goes through.', challenge, fixture }
 
+  // Predicted minute of the first goal (0 = no goal) — the tie-break. Optional, but
+  // when given must be a sane minute; a missing value just forfeits the tie-break.
+  let firstGoalMin: number | null = null
+  if (body.first_goal_min !== undefined && body.first_goal_min !== null && body.first_goal_min !== '') {
+    const n = Number(body.first_goal_min)
+    if (!Number.isInteger(n) || n < 0 || n > 130)
+      return { ok: false, status: 422, error: 'First-goal minute must be 0–130 (0 = no goal).', challenge, fixture }
+    firstGoalMin = n
+  }
+
   if (body.consent_terms !== true)
     return { ok: false, status: 400, error: 'Please accept the terms to enter.', challenge, fixture }
 
@@ -83,6 +94,7 @@ export async function enterMatchChallenge(
     pred_home:         predHome,
     pred_away:         predAway,
     advances_team:     advances,
+    first_goal_min:    firstGoalMin,
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
     postcode:          postcode || null,
     consent_terms:     true,

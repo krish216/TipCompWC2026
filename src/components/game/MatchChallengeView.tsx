@@ -7,10 +7,10 @@ import { Flag, Spinner } from '@/components/ui'
 // Single-match prediction challenge: a countdown banner, the score predictor, a
 // guest-or-member entry flow, and the leaderboard — all on one shareable page.
 
-interface Entry { rank: number; name: string; pred: string; advances: string | null; points: number; exact: boolean; is_me: boolean }
+interface Entry { rank: number; name: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean }
 interface Data {
   challenge: { slug: string; name: string }
-  fixture: { home: string; away: string; venue: string | null; round: string | null; kickoff_utc: string; home_score: number | null; away_score: number | null; advancer: string | null } | null
+  fixture: { home: string; away: string; venue: string | null; round: string | null; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null; advancer: string | null } | null
   sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; tagline: string | null; logo_includes_name: boolean } | null
   has_prize: boolean
   lock_at: string | null
@@ -19,7 +19,7 @@ interface Data {
   entrants: number
   entries: Entry[]
   logged_in: boolean
-  me: { pred: string; pred_home: number; pred_away: number; advances: string | null } | null
+  me: { pred: string; pred_home: number; pred_away: number; advances: string | null; first_goal_min: number | null } | null
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -130,11 +130,12 @@ function CountdownBanner({ now, koMs, lockMs, settled, fx }: {
   )
 }
 
-function FinalResult({ fx }: { fx: { home: string; away: string; home_score: number | null; away_score: number | null; advancer: string | null } }) {
+function FinalResult({ fx }: { fx: { home: string; away: string; home_score: number | null; away_score: number | null; first_goal_min: number | null; advancer: string | null } }) {
   return (
     <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-900">
       Final: <strong>{fx.home} {fx.home_score}–{fx.away_score} {fx.away}</strong>
       {fx.advancer && <> · <strong>{fx.advancer}</strong> go through 🎉</>}
+      {typeof fx.first_goal_min === 'number' && <div className="text-[11px] text-emerald-700 mt-0.5">Tie-break — first goal: <strong>{fx.first_goal_min === 0 ? 'none (0–0)' : `${fx.first_goal_min}'`}</strong></div>}
     </div>
   )
 }
@@ -159,9 +160,10 @@ function Stepper({ label, team, value, onChange }: { label: string; team: string
 // ── Predictor + entry ─────────────────────────────────────────────────────────
 function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEntered: () => void }) {
   const fx = data.fixture!
-  const [ph, setPh] = useState(data.me?.pred_home ?? 1)
-  const [pa, setPa] = useState(data.me?.pred_away ?? 1)
+  const [ph, setPh] = useState(data.me?.pred_home ?? 4)
+  const [pa, setPa] = useState(data.me?.pred_away ?? 4)
   const [adv, setAdv] = useState<string>(data.me?.advances ?? (fx.home))
+  const [fgm, setFgm] = useState<number>(data.me?.first_goal_min ?? 15)   // predicted minute of the 1st goal
 
   // Keep "who advances" in step with a decisive scoreline; a draw leaves it to the user.
   useEffect(() => {
@@ -201,7 +203,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
   const submit = async () => {
     setError(null); setMsg(null)
     if (!terms) { setError('Please accept the terms to enter.'); return }
-    const payload: any = { slug, pred_home: ph, pred_away: pa, advances_team: adv, consent_terms: true, consent_marketing: mktg, consent_over18: over18, postcode }
+    const payload: any = { slug, pred_home: ph, pred_away: pa, advances_team: adv, first_goal_min: fgm, consent_terms: true, consent_marketing: mktg, consent_over18: over18, postcode }
     setSubmitting(true)
     try {
       if (data.logged_in) {
@@ -250,9 +252,20 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
           </div>
         </div>
 
+        {/* Tie-breaker — closest predicted first-goal minute wins a dead heat */}
+        <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-amber-800 text-center mb-1.5">⏱️ Tie-breaker — what minute is the <strong>first goal</strong>?</p>
+          <div className="flex items-center justify-center gap-2">
+            <button type="button" onClick={() => setFgm(Math.max(0, fgm - 1))} className="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 text-lg font-black active:scale-95">−</button>
+            <span className="w-16 text-center text-xl font-black tabular-nums">{fgm === 0 ? '0–0' : `${fgm}'`}</span>
+            <button type="button" onClick={() => setFgm(Math.min(120, fgm + 1))} className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-lg font-black active:scale-95">+</button>
+          </div>
+          <p className="text-[10px] text-amber-600 text-center mt-1">Closest wins if scores tie · 0 = no goals</p>
+        </div>
+
         {entered && (
           <p className="mt-3 text-center text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5">
-            ✓ You’re in with <strong>{data.me!.pred}</strong>{data.me!.advances ? ` · ${data.me!.advances} through` : ''}. Change it any time before lock.
+            ✓ You’re in with <strong>{data.me!.pred}</strong>{data.me!.advances ? ` · ${data.me!.advances} through` : ''}{typeof data.me!.first_goal_min === 'number' ? ` · 1st goal ${data.me!.first_goal_min === 0 ? '0–0' : `${data.me!.first_goal_min}'`}` : ''}. Change it any time before lock.
           </p>
         )}
 

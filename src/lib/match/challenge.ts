@@ -24,6 +24,7 @@ export interface MatchFixture {
   home_score:  number | null
   away_score:  number | null
   pen_winner:  string | null
+  first_goal_min: number | null
 }
 
 const COLS = 'id, slug, name, tournament_id, type, enabled, fixture_id, closes_at'
@@ -39,7 +40,7 @@ export async function resolveMatchChallenge(admin: any, slug: string): Promise<M
 
 export async function getFixture(admin: any, fixtureId: number): Promise<MatchFixture | null> {
   const { data } = await (admin.from('fixtures') as any)
-    .select('id, home, away, kickoff_utc, venue, round, home_score, away_score, pen_winner')
+    .select('id, home, away, kickoff_utc, venue, round, home_score, away_score, pen_winner, first_goal_min')
     .eq('id', fixtureId).maybeSingle()
   return (data as any) ?? null
 }

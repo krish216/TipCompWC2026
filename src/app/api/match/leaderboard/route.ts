@@ -24,13 +24,13 @@ export async function GET(request: NextRequest) {
   const cfg     = await resolveActiveCampaign(admin, { challengeType: 'match', challengeId: challenge.id })
 
   const { data: rows } = await (admin.from('match_entries') as any)
-    .select('user_id, pred_home, pred_away, advances_team, entered_at, users(display_name, first_name)')
+    .select('user_id, pred_home, pred_away, advances_team, first_goal_min, entered_at, users(display_name, first_name)')
     .eq('challenge_id', challenge.id)
   const entries = (rows ?? []) as any[]
 
   const fx = fixture
-    ? { home: fixture.home, away: fixture.away, home_score: fixture.home_score, away_score: fixture.away_score, pen_winner: fixture.pen_winner }
-    : { home: '', away: '', home_score: null, away_score: null, pen_winner: null }
+    ? { home: fixture.home, away: fixture.away, home_score: fixture.home_score, away_score: fixture.away_score, pen_winner: fixture.pen_winner, first_goal_min: fixture.first_goal_min }
+    : { home: '', away: '', home_score: null, away_score: null, pen_winner: null, first_goal_min: null }
 
   const settled = isSettled(fx)
   const ranked = rankMatchEntries(
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       user_id: e.user_id,
       name: e.users?.display_name || e.users?.first_name || 'Anonymous',
       pred_home: e.pred_home, pred_away: e.pred_away, advances_team: e.advances_team ?? null,
+      first_goal_min: e.first_goal_min ?? null,
       entered_at: e.entered_at,
     })),
     fx,
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
     ...(reveal ? {
       pred:     `${e.pred_home}-${e.pred_away}`,
       advances: e.advances_team,
+      fgm:      e.first_goal_min ?? null,
       points:   e.score.points,
       exact:    e.score.exact,
     } : {}),
@@ -69,6 +71,7 @@ export async function GET(request: NextRequest) {
       home: fixture.home, away: fixture.away, venue: fixture.venue, round: fixture.round,
       kickoff_utc: fixture.kickoff_utc,
       home_score: fixture.home_score, away_score: fixture.away_score,
+      first_goal_min: settled ? (fixture.first_goal_min ?? null) : null,
       advancer: settled ? actualAdvancer(fx) : null,
     },
     sponsor: cfg.enabled ? {
@@ -86,6 +89,7 @@ export async function GET(request: NextRequest) {
       pred: `${mine.pred_home}-${mine.pred_away}`,
       pred_home: mine.pred_home, pred_away: mine.pred_away,
       advances: mine.advances_team ?? null,
+      first_goal_min: mine.first_goal_min ?? null,
     } : null,
   })
 }

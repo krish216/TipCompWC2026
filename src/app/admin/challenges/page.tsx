@@ -14,6 +14,7 @@ interface ManagedChallenge {
   id: string; slug: string; name: string; type: string; access: string; closes_at: string | null; enabled: boolean; entrants: number
   sponsor: { id?: string; name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
+  fixture?: { id: number; home: string; away: string; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null } | null
 }
 interface SponsorOpt { id: string; name: string; logo_url: string | null }
 
@@ -283,8 +284,9 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
   const [saving, setSaving] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [loadingCamps, setLoadingCamps] = useState(false)
+  const [fgm, setFgm] = useState<string>(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : '')
 
-  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at) }, [ch.name, ch.slug, ch.closes_at])
+  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at); setFgm(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : '') }, [ch.name, ch.slug, ch.closes_at, ch.fixture?.first_goal_min])
 
   const loadCampaigns = useCallback(() => {
     setLoadingCamps(true)
@@ -369,6 +371,32 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
             </button>
             <button onClick={remove} className="px-4 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 ml-auto">Delete challenge</button>
           </div>
+
+          {/* Match result + tie-breaker (match challenges only) */}
+          {ch.type === 'match' && ch.fixture && (
+            <div className="pt-4 border-t border-gray-100">
+              <h3 className="text-sm font-bold text-gray-900 mb-2">Match &amp; tie-breaker</h3>
+              <p className="text-xs text-gray-500 mb-2">
+                {ch.fixture.home} v {ch.fixture.away} · {new Date(ch.fixture.kickoff_utc).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST
+                {ch.fixture.home_score != null
+                  ? <> · <strong className="text-gray-700">FT {ch.fixture.home_score}–{ch.fixture.away_score}</strong></>
+                  : <> · <span className="text-amber-600">no result yet</span></>}
+              </p>
+              <div className="flex items-end gap-2 flex-wrap">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Actual first-goal minute (0 = 0–0)</label>
+                  <input value={fgm} onChange={e => setFgm(e.target.value)} inputMode="numeric" placeholder="e.g. 23"
+                    className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none" />
+                </div>
+                <button disabled={saving}
+                  onClick={() => patch({ first_goal_min: fgm === '' ? null : Number(fgm) }, 'Tie-breaker saved')}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">Enter this once the match kicks off — it breaks ties among entrants on the same score (closest wins). Scores themselves are entered in the results admin.</p>
+            </div>
+          )}
 
           {/* Sponsor campaigns on THIS challenge */}
           <div className="pt-4 border-t border-gray-100">

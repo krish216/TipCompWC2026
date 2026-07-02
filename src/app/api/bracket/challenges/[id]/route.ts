@@ -26,6 +26,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     patch.slug = slug
   }
 
+  // Match challenges: record the actual first-goal minute (tie-breaker) on the
+  // linked fixture. Accepts a 0–130 int or null/'' to clear.
+  if ('first_goal_min' in b) {
+    const { data: ch } = await (admin.from('challenges') as any).select('fixture_id, type').eq('id', params.id).maybeSingle()
+    if (!(ch as any)?.fixture_id) return NextResponse.json({ error: 'This challenge has no fixture.' }, { status: 400 })
+    let fgm: number | null = null
+    if (b.first_goal_min !== null && b.first_goal_min !== '') {
+      const n = Number(b.first_goal_min)
+      if (!Number.isInteger(n) || n < 0 || n > 130) return NextResponse.json({ error: 'First-goal minute must be 0–130.' }, { status: 422 })
+      fgm = n
+    }
+    const { error: fxErr } = await (admin.from('fixtures') as any).update({ first_goal_min: fgm }).eq('id', (ch as any).fixture_id)
+    if (fxErr) return NextResponse.json({ error: fxErr.message }, { status: 500 })
+    if (!Object.keys(patch).length) return NextResponse.json({ ok: true, first_goal_min: fgm })
+  }
+
   if (!Object.keys(patch).length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const { data, error } = await (admin.from('challenges') as any)

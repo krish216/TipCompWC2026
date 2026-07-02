@@ -18,13 +18,15 @@ export interface MatchFixtureResult {
   away:        string
   home_score:  number | null
   away_score:  number | null
-  pen_winner?: string | null   // team name that won a penalty shootout (draw at FT/ET)
+  pen_winner?: string | null       // team name that won a penalty shootout (draw at FT/ET)
+  first_goal_min?: number | null   // actual minute of the first goal (0 = no goal), for the tie-break
 }
 
 export interface MatchPrediction {
   pred_home:     number
   pred_away:     number
   advances_team: string | null
+  first_goal_min?: number | null   // predicted minute of the first goal (tie-break)
 }
 
 const outcome = (h: number, a: number): 'H' | 'D' | 'A' => (h > a ? 'H' : a > h ? 'A' : 'D')
@@ -65,27 +67,39 @@ export function scoreMatchEntry(p: MatchPrediction, f: MatchFixtureResult): Matc
   return { points, exact, outcomeCorrect, advancerCorrect }
 }
 
-// Sort entries best-first. `entered_at` is an ISO string used only as the final
-// tiebreak (earliest entrant wins a dead heat). Returns a new sorted array.
+// Sort entries best-first. Tie-break cascade:
+//   1. points (exact > result+advancer)
+//   2. closest predicted first-goal minute to the actual (skill; only if the actual
+//      minute is known — a null prediction sorts last within this step)
+//   3. closest total goals, then closest goal-difference
+//   4. earliest entry (deterministic backstop; `entered_at` ISO string)
 export function rankMatchEntries<T extends MatchPrediction & { entered_at?: string | null }>(
   entries: T[],
   f: MatchFixtureResult,
 ): (T & { score: MatchScore })[] {
-  const gd = f.home_score != null && f.away_score != null ? f.home_score - f.away_score : null
+  const gd  = f.home_score != null && f.away_score != null ? f.home_score - f.away_score : null
   const tot = f.home_score != null && f.away_score != null ? f.home_score + f.away_score : null
+  const actualFgm = typeof f.first_goal_min === 'number' ? f.first_goal_min : null
+  // Distance of a prediction's first-goal minute from the actual; a missing
+  // prediction is pushed to the back of its tie group (Infinity).
+  const fgmDist = (e: MatchPrediction) =>
+    actualFgm == null ? 0 : (typeof e.first_goal_min === 'number' ? Math.abs(e.first_goal_min - actualFgm) : Infinity)
+
   return entries
     .map(e => ({ ...e, score: scoreMatchEntry(e, f) }))
     .sort((x, y) => {
       if (y.score.points !== x.score.points) return y.score.points - x.score.points
-      if (gd != null) {
-        const dx = Math.abs((x.pred_home - x.pred_away) - gd)
-        const dy = Math.abs((y.pred_home - y.pred_away) - gd)
-        if (dx !== dy) return dx - dy
-      }
+      const fx = fgmDist(x), fy = fgmDist(y)
+      if (fx !== fy) return fx - fy
       if (tot != null) {
         const tx = Math.abs((x.pred_home + x.pred_away) - tot)
         const ty = Math.abs((y.pred_home + y.pred_away) - tot)
         if (tx !== ty) return tx - ty
+      }
+      if (gd != null) {
+        const dx = Math.abs((x.pred_home - x.pred_away) - gd)
+        const dy = Math.abs((y.pred_home - y.pred_away) - gd)
+        if (dx !== dy) return dx - dy
       }
       return String(x.entered_at ?? '').localeCompare(String(y.entered_at ?? ''))
     })
