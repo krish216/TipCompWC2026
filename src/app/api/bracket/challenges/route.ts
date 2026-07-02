@@ -15,8 +15,10 @@ async function activeTournamentId(admin: any): Promise<string | null> {
   return (data as any)?.id ?? null
 }
 
-async function entrantCount(admin: any, challengeId: string): Promise<number> {
-  const { count } = await (admin.from('bracket_entries') as any)
+async function entrantCount(admin: any, challengeId: string, type = 'bracket'): Promise<number> {
+  // Match challenges keep their entries in match_entries; everything else in bracket_entries.
+  const table = type === 'match' ? 'match_entries' : 'bracket_entries'
+  const { count } = await (admin.from(table) as any)
     .select('id', { count: 'exact', head: true }).eq('challenge_id', challengeId)
   return count ?? 0
 }
@@ -68,14 +70,15 @@ export async function GET(request: NextRequest) {
     const tid = tournamentId ?? (await activeTournamentId(admin))
     if (!tid) return NextResponse.json({ challenges: [] })
 
+    // Admin list shows bracket AND match challenges (both use challenges + sponsor_campaigns).
     const { data: rows } = await (admin.from('challenges') as any)
       .select('id, slug, name, enabled, type, access, closes_at, created_at')
-      .eq('tournament_id', tid).eq('type', 'bracket')
+      .eq('tournament_id', tid).in('type', ['bracket', 'match'])
       .order('created_at', { ascending: true })
 
     const challenges = await Promise.all(((rows ?? []) as any[]).map(async ch => {
       const [entrants, ss] = await Promise.all([
-        entrantCount(admin, ch.id),
+        entrantCount(admin, ch.id, ch.type),
         sponsorState(admin, ch.id),
       ])
       return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, closes_at: ch.closes_at ?? null, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state }
