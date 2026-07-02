@@ -10,8 +10,11 @@ import { resolveMatchChallenge, getFixture } from '@/lib/match/challenge'
 
 const SITE = 'https://tribepicks.com'
 
-// slug → bespoke 1200×630 card at public/og/<file>. Empty for now (text preview).
-const OG_IMAGES: Record<string, string> = {}
+// slug → bespoke 1200×630 card at public/og/<file>. Anything not listed falls back
+// to a text preview (title + description only).
+const OG_IMAGES: Record<string, string> = {
+  'mt-socceroos-egypt': '/og/socceroos-egypt.png',
+}
 
 export async function matchMetadata(slug: string): Promise<Metadata> {
   const url = `${SITE}/match/${slug}`
