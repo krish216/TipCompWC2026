@@ -174,5 +174,6 @@ export async function GET(request: NextRequest) {
     scorecard,                              // signed-in entrant's per-slot picks vs results
     champion,                               // their champion pick + live status
     challenge:       { slug: challenge.slug, name: challenge.name },
+    sponsor:         sponsored ? { name: campaign.sponsor_name, logo: campaign.sponsor_logo, prize: campaign.prize, tagline: campaign.sponsor_tagline } : null,
   })
 }
