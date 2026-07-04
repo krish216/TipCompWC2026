@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const cfg     = await resolveActiveCampaign(admin, { challengeType: 'match', challengeId: challenge.id })
 
   const { data: rows } = await (admin.from('match_entries') as any)
-    .select('user_id, pred_home, pred_away, advances_team, first_goal_min, entered_at, users(display_name, first_name)')
+    .select('user_id, pred_home, pred_away, advances_team, first_goal_min, reveal_picks, entered_at, users(display_name, first_name)')
     .eq('challenge_id', challenge.id)
   const entries = (rows ?? []) as any[]
 
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       name: e.users?.display_name || e.users?.first_name || 'Anonymous',
       pred_home: e.pred_home, pred_away: e.pred_away, advances_team: e.advances_team ?? null,
       first_goal_min: e.first_goal_min ?? null,
+      reveal_picks: e.reveal_picks !== false,
       entered_at: e.entered_at,
     })),
     fx,
@@ -48,19 +49,26 @@ export async function GET(request: NextRequest) {
   const user = await getSessionUser().catch(() => null)
   const mine = user ? entries.find(e => e.user_id === user.id) : null
 
-  // Everyone's picks are shown live (score + first-goal minute). Points stay 0 until
-  // the result is in (scoreMatchEntry returns 0 pre-settlement).
+  // Picks show live (score + first-goal minute) UNLESS the entrant opted out — but a
+  // user always sees their own. Points stay 0 until the result is in.
   const locked = isLocked(challenge, fixture)
-  const board = ranked.map((e, i) => ({
-    rank:     i + 1,
-    name:     e.name,
-    is_me:    !!(user && e.user_id === user.id),
-    pred:     `${e.pred_home}-${e.pred_away}`,
-    advances: e.advances_team,
-    fgm:      e.first_goal_min ?? null,
-    points:   e.score.points,
-    exact:    e.score.exact,
-  }))
+  const board = ranked.map((e, i) => {
+    const isMe = !!(user && e.user_id === user.id)
+    const showPick = e.reveal_picks !== false || isMe
+    return {
+      rank:   i + 1,
+      name:   e.name,
+      is_me:  isMe,
+      hidden: !showPick,
+      points: e.score.points,
+      ...(showPick ? {
+        pred:     `${e.pred_home}-${e.pred_away}`,
+        advances: e.advances_team,
+        fgm:      e.first_goal_min ?? null,
+        exact:    e.score.exact,
+      } : {}),
+    }
+  })
 
   return NextResponse.json({
     challenge: { slug: challenge.slug, name: challenge.name },
@@ -87,6 +95,7 @@ export async function GET(request: NextRequest) {
       pred_home: mine.pred_home, pred_away: mine.pred_away,
       advances: mine.advances_team ?? null,
       first_goal_min: mine.first_goal_min ?? null,
+      reveal_picks: mine.reveal_picks !== false,
     } : null,
   })
 }

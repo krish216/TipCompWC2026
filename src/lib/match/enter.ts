@@ -22,6 +22,7 @@ interface EnterBody {
   pred_away?: unknown
   advances_team?: unknown
   first_goal_min?: unknown
+  reveal_picks?: unknown
   postcode?: unknown
   phone?: unknown
   consent_terms?: unknown
@@ -101,6 +102,7 @@ export async function enterMatchChallenge(
     pred_away:         predAway,
     advances_team:     advances,
     first_goal_min:    firstGoalMin,
+    reveal_picks:      body.reveal_picks === false ? false : true,   // opt-out: default shown
     phone:             typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
     postcode:          postcode || null,
     consent_terms:     true,

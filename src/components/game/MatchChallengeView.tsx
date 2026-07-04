@@ -7,7 +7,7 @@ import { Flag, Spinner } from '@/components/ui'
 // Single-match prediction challenge: a countdown banner, the score predictor, a
 // guest-or-member entry flow, and the leaderboard — all on one shareable page.
 
-interface Entry { rank: number; name: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean }
+interface Entry { rank: number; name: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean; hidden?: boolean }
 interface Data {
   challenge: { slug: string; name: string }
   fixture: { home: string; away: string; venue: string | null; round: string | null; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null; advancer: string | null } | null
@@ -19,7 +19,7 @@ interface Data {
   entrants: number
   entries: Entry[]
   logged_in: boolean
-  me: { pred: string; pred_home: number; pred_away: number; advances: string | null; first_goal_min: number | null } | null
+  me: { pred: string; pred_home: number; pred_away: number; advances: string | null; first_goal_min: number | null; reveal_picks: boolean } | null
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -163,6 +163,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
   const [pa, setPa] = useState(data.me?.pred_away ?? 4)
   const [adv, setAdv] = useState<string>(data.me?.advances ?? (fx.home))
   const [fgm, setFgm] = useState<number>(data.me?.first_goal_min ?? 15)   // predicted minute of the 1st goal
+  const [revealPicks, setRevealPicks] = useState<boolean>(data.me?.reveal_picks ?? true)   // opt-out: show pick on the board
 
   // Keep "who advances" in step with a decisive scoreline; a draw leaves it to the user.
   useEffect(() => {
@@ -207,7 +208,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
   const submit = async () => {
     setError(null); setMsg(null)
     if (!terms) { setError('Please accept the terms to enter.'); return }
-    const payload: any = { slug, pred_home: ph, pred_away: pa, advances_team: adv, first_goal_min: fgm, consent_terms: true, consent_marketing: mktg, consent_over18: over18, postcode }
+    const payload: any = { slug, pred_home: ph, pred_away: pa, advances_team: adv, first_goal_min: fgm, reveal_picks: revealPicks, consent_terms: true, consent_marketing: mktg, consent_over18: over18, postcode }
     setSubmitting(true)
     try {
       if (data.logged_in) {
@@ -275,9 +276,15 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
           <p className="text-[10px] text-amber-600 text-center mt-1">Type the minute · closest wins if scores tie · 0 = no goals</p>
         </div>
 
+        {/* Reveal toggle — opt-out; picks show on the board unless unticked */}
+        <label className="mt-3 flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+          <input type="checkbox" checked={revealPicks} onChange={e => setRevealPicks(e.target.checked)} className="mt-0.5" />
+          <span>👀 Show my score &amp; first-goal pick on the leaderboard. <span className="text-gray-400">{revealPicks ? 'Uncheck to keep it hidden until the match.' : 'Hidden — only you can see it.'}</span></span>
+        </label>
+
         {entered && (
           <p className="mt-3 text-center text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5">
-            ✓ You’re in with <strong>{data.me!.pred}</strong>{data.me!.advances ? ` · ${data.me!.advances} through` : ''}{typeof data.me!.first_goal_min === 'number' ? ` · 1st goal ${data.me!.first_goal_min === 0 ? '0–0' : `${data.me!.first_goal_min}'`}` : ''}. Change it any time before lock.
+            ✓ You’re in with <strong>{data.me!.pred}</strong>{data.me!.advances ? ` · ${data.me!.advances} through` : ''}{typeof data.me!.first_goal_min === 'number' ? ` · 1st goal ${data.me!.first_goal_min === 0 ? '0–0' : `${data.me!.first_goal_min}'`}` : ''}{data.me!.reveal_picks === false ? ' · 🙈 hidden' : ''}. Change it any time before lock.
           </p>
         )}
 
@@ -376,8 +383,14 @@ function Leaderboard({ data }: { data: Data }) {
             <div key={`${e.rank}-${e.name}`} className={clsx('flex items-center gap-3 px-4 py-2.5', e.is_me && 'bg-emerald-50/60')}>
               <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">{data.settled ? medal(e.rank) : '·'}</span>
               <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{firstName(e.name)}{e.is_me && ' (you)'}</span>
-              <span className={clsx('w-14 text-right text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-700')}>{e.pred}{e.exact ? ' ✓' : ''}</span>
-              <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>
+              {e.hidden ? (
+                <span className="w-[6.5rem] text-right text-[11px] text-gray-400 flex-shrink-0">🙈 hidden</span>
+              ) : (
+                <>
+                  <span className={clsx('w-14 text-right text-xs font-bold tabular-nums flex-shrink-0', e.exact ? 'text-emerald-600' : 'text-gray-700')}>{e.pred}{e.exact ? ' ✓' : ''}</span>
+                  <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>
+                </>
+              )}
               {data.settled && <span className="w-8 text-right text-sm font-black tabular-nums text-emerald-700 flex-shrink-0">{e.points}</span>}
             </div>
           ))}
