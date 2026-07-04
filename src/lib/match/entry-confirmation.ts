@@ -110,9 +110,10 @@ function buildHtml(v: {
   <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:22px;padding:6px 16px;">
     ${rows}
   </table>
-  <div style="text-align:center;margin-bottom:24px;">
+  <div style="text-align:center;margin-bottom:16px;">
     <a href="${v.leaderUrl}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">View the leaderboard →</a>
   </div>
+  <p style="margin:0 0 22px;font-size:13px;line-height:1.6;color:#6b7280;text-align:center;">See every challenge you’ve entered under <a href="https://tribepicks.com/tribe?tab=challenges" style="color:#047857;font-weight:600;text-decoration:underline;">My Tribe → Challenges</a>.</p>
   ${(v.sponsorLogo || v.sponsor) ? `
   <div style="text-align:center;margin-bottom:24px;padding-top:6px;border-top:1px solid #f1f5f9;">
     <p style="margin:16px 0 10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Brought to you by</p>

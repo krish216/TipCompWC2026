@@ -15,7 +15,13 @@ interface ManagedChallenge {
   sponsor: { id?: string; name: string; logo: string; prize: string; url: string; logo_tone: string; starts_at?: string | null; ends_at?: string | null } | null
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
   fixture?: { id: number; home: string; away: string; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null } | null
+  promote_surfaces?: string[]
 }
+
+const PROMO_SURFACES: { key: string; label: string }[] = [
+  { key: 'home',       label: 'Homepage' },
+  { key: 'scoreboard', label: 'Scoreboard' },
+]
 interface SponsorOpt { id: string; name: string; logo_url: string | null }
 
 const STATUS_BADGE: Record<CampaignStatus, string> = {
@@ -285,8 +291,10 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [loadingCamps, setLoadingCamps] = useState(false)
   const [fgm, setFgm] = useState<string>(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : '')
+  const [surfaces, setSurfaces] = useState<string[]>(ch.promote_surfaces ?? [])
 
-  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at); setFgm(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : '') }, [ch.name, ch.slug, ch.closes_at, ch.fixture?.first_goal_min])
+  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at); setFgm(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : ''); setSurfaces(ch.promote_surfaces ?? []) }, [ch.name, ch.slug, ch.closes_at, ch.fixture?.first_goal_min, ch.promote_surfaces])
+  const toggleSurface = (k: string) => setSurfaces(prev => prev.includes(k) ? prev.filter(s => s !== k) : [...prev, k])
 
   const loadCampaigns = useCallback(() => {
     setLoadingCamps(true)
@@ -354,9 +362,22 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
             </div>
             <DateField label="Entries close (blank → first R32 kick-off)" value={closesAt} onChange={setClosesAt} />
           </div>
+          {/* Advertise — promo card surfaces */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Advertise with a promo card on <span className="font-normal text-gray-400">(shown to people who haven’t entered)</span></label>
+            <div className="flex gap-2 flex-wrap">
+              {PROMO_SURFACES.map(s => (
+                <button key={s.key} type="button" onClick={() => toggleSurface(s.key)}
+                  className={clsx('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                    surfaces.includes(s.key) ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50')}>
+                  {surfaces.includes(s.key) ? '✓ ' : ''}{s.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button disabled={saving}
-              onClick={() => patch({ name: name.trim(), slug: slug.trim(), closes_at: closesAt }, 'Saved')}
+              onClick={() => patch({ name: name.trim(), slug: slug.trim(), closes_at: closesAt, promote_surfaces: surfaces }, 'Saved')}
               className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save details'}
             </button>

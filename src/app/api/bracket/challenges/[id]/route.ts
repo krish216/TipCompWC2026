@@ -17,6 +17,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if ('enabled' in b) patch.enabled = b.enabled !== false
   if (b.access === 'open' || b.access === 'invite') patch.access = b.access
   if ('closes_at' in b) patch.closes_at = b.closes_at || null
+  if (Array.isArray(b.promote_surfaces)) {
+    const allowed = new Set(['home', 'scoreboard'])
+    patch.promote_surfaces = [...new Set(b.promote_surfaces.map((s: any) => String(s)).filter((s: string) => allowed.has(s)))]
+  }
 
   if (typeof b.slug === 'string' && b.slug.trim()) {
     const slug = toSlug(b.slug)

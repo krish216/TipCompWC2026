@@ -285,6 +285,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
         {entered && (
           <p className="mt-3 text-center text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg py-1.5">
             ✓ You’re in with <strong>{data.me!.pred}</strong>{data.me!.advances ? ` · ${data.me!.advances} through` : ''}{typeof data.me!.first_goal_min === 'number' ? ` · 1st goal ${data.me!.first_goal_min === 0 ? '0–0' : `${data.me!.first_goal_min}'`}` : ''}{data.me!.reveal_picks === false ? ' · 🙈 hidden' : ''}. Change it any time before lock.
+            {' '}<a href="/tribe?tab=challenges" className="underline font-semibold whitespace-nowrap">Your challenges →</a>
           </p>
         )}
 

@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // Admin list shows bracket AND match challenges (both use challenges + sponsor_campaigns).
     const { data: rows } = await (admin.from('challenges') as any)
-      .select('id, slug, name, enabled, type, access, closes_at, fixture_id, created_at')
+      .select('id, slug, name, enabled, type, access, closes_at, fixture_id, promote_surfaces, created_at')
       .eq('tournament_id', tid).in('type', ['bracket', 'match'])
       .order('created_at', { ascending: true })
 
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           .select('id, home, away, kickoff_utc, home_score, away_score, first_goal_min').eq('id', ch.fixture_id).maybeSingle()
         fixture = fx ?? null
       }
-      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, closes_at: ch.closes_at ?? null, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state, fixture }
+      return { id: ch.id, slug: ch.slug, name: ch.name, type: ch.type, access: ch.access, closes_at: ch.closes_at ?? null, enabled: ch.enabled, entrants, sponsor: ss.sponsor, sponsor_state: ss.state, fixture, promote_surfaces: ch.promote_surfaces ?? [] }
     }))
     return NextResponse.json({ challenges, tournament_id: tid })
   }

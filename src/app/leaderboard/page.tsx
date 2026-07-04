@@ -7,6 +7,7 @@ import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
+import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
 import { TrophyStrip } from '@/components/game/TrophyStrip'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -421,6 +422,7 @@ export default function LeaderboardPage() {
       </div>
 
       <RoundDebriefCard className="mb-4" source="debrief_leaderboard" />
+      <ChallengePromoCard surface="scoreboard" className="mb-4" />
       <WeeklyReportCard className="mb-4" src="scoreboard" />
 
       {/* Medals & badges — free engagement strip */}
