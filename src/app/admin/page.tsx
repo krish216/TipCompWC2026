@@ -1240,6 +1240,18 @@ export default function AdminPage() {
             </Link>
           </div>
 
+          {/* Polls → ask signed-in users a quick question on the homepage */}
+          <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📊 Polls</h3>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Ask signed-in users a quick question on the homepage — football opinions or product feedback — and see live results.
+            </p>
+            <Link href="/admin/polls"
+              className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              Manage polls →
+            </Link>
+          </div>
+
           {/* Sync fixture times from provider */}
           <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🕒 Sync fixture times</h3>

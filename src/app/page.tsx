@@ -13,6 +13,7 @@ import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsCont
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
 import { linkify } from '@/lib/linkify'
+import { PollCard } from '@/components/game/PollCard'
 
 // Default bonus-team lock (first WC2026 match). Overridden by app_settings.bonus_lock_at.
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
@@ -1310,6 +1311,9 @@ export default function HomePage() {
           </button>
         </div>
       )}
+
+      {/* Quick poll — active topic poll for signed-in users, votes inline */}
+      {session && <PollCard className="mb-4" />}
 
       {/* Challenge picks hydration toast — persistent until dismissed */}
       {challengeToast && (
