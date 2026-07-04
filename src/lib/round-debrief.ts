@@ -20,7 +20,7 @@ export interface RoundDebriefData {
 
 type Member  = { user_id: string; name: string }
 type Fixture = { id: number; home: string; away: string; home_score: number | null; away_score: number | null; pen_winner?: string | null }
-type Pred    = { user_id: string; fixture_id: number; home: number; away: number; points_earned: number | null }
+type Pred    = { user_id: string; fixture_id: number; home: number; away: number; outcome?: string | null; points_earned: number | null }
 
 const outcome = (h: number, a: number): 'H' | 'D' | 'A' => (h > a ? 'H' : a > h ? 'A' : 'D')
 const winnerOf = (f: Fixture): string | null => {
@@ -126,7 +126,10 @@ export function buildRoundDebrief(
     if (!scoredIds.has(p.fixture_id) || !agg[p.user_id]) continue
     agg[p.user_id].tipped++
     agg[p.user_id].pts += Number(p.points_earned ?? 0)
-    if (outcome(p.home, p.away) === actual[p.fixture_id]) {
+    // Knockout picks are outcome-only (goal fields are 0-0), so trust the stored
+    // `outcome` when present; fall back to deriving it from goals (group stage).
+    const predOutcome = (p.outcome as 'H' | 'D' | 'A' | null) ?? outcome(p.home, p.away)
+    if (predOutcome === actual[p.fixture_id]) {
       agg[p.user_id].correct++
       fxRight[p.fixture_id]++
       ;(memberRightFx[p.user_id] ??= new Set()).add(p.fixture_id)

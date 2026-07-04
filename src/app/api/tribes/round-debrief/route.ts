@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     const fxIds = fixtures.map(f => f.id)
     const { data: predRows } = await (admin.from('predictions') as any)
-      .select('user_id, fixture_id, home, away, points_earned').in('user_id', memberIds).in('fixture_id', fxIds)
+      .select('user_id, fixture_id, home, away, outcome, points_earned').in('user_id', memberIds).in('fixture_id', fxIds)
 
     return NextResponse.json(buildRoundDebrief(round, roundName, tribeName, members, fixtures, (predRows ?? []) as any[], globalRanks))
   } catch (err: any) {
