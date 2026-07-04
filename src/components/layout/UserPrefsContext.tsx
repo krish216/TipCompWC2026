@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, getDefaultScoringConfig } from '@/types'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
+import { flagFor } from '@/lib/team-flags'
 
 export interface Tournament {
   id:             string
@@ -134,7 +135,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     } catch { /* non-critical — UI falls back to '🏳️' / 3-letter abbrev */ }
   }, [])
 
-  const flag = useCallback((name: string) => teamsMap[name]?.flag_emoji ?? '🏳️', [teamsMap])
+  // Prefer the DB flag; fall back to the alias-aware team-flags lib so knockout
+  // fixtures using alternate spellings (Cape Verde, Congo DR, United States…) still
+  // render a flag instead of 🏳️.
+  const flag = useCallback((name: string) => teamsMap[name]?.flag_emoji || flagFor(name), [teamsMap])
   const code = useCallback((name: string) => teamsMap[name]?.fifa_code  ?? name.slice(0, 3).toUpperCase(), [teamsMap])
 
   // Load comps for a given tournament — filtered server-side via ?tournament_id=

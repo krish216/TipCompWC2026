@@ -6,6 +6,7 @@
 // score. Runs on the 5-min results cron so teams self-populate as groups/rounds resolve.
 
 import { espnScoreboard } from '@/lib/match-results'
+import { canonicalTeamName } from '@/lib/team-flags'
 
 const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
 const DAY = 86_400_000
@@ -17,8 +18,11 @@ function espnFields(ev: any): { home: string; away: string; utc: string; venue: 
   if (!home || !away) return null
   const a = c.venue?.address
   return {
-    home: home.team?.displayName ?? '',
-    away: away.team?.displayName ?? '',
+    // Normalise ESPN names to our canonical spellings (e.g. 'United States' → 'USA',
+    // 'Bosnia-Herzegovina' → 'Bosnia and Herzegovina') so knockout fixtures match
+    // bonus/bracket picks. Non-team placeholders (e.g. 'Round of 32 11 Winner') pass through.
+    home: canonicalTeamName(home.team?.displayName ?? ''),
+    away: canonicalTeamName(away.team?.displayName ?? ''),
     utc:  new Date(ev.date).toISOString(),
     venue: `${c.venue?.fullName ?? 'TBD'}, ${a?.city ?? ''}`.replace(/, $/, ''),
   }

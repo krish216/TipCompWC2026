@@ -17,7 +17,10 @@ export const TEAM_FLAGS: Record<string, string> = {
 
 export function flagFor(name: string | null | undefined): string {
   if (!name) return '🏳️'
-  return TEAM_FLAGS[name] ?? '🏳️'
+  const n = name.trim()
+  // Direct hit, else normalise the alias (e.g. 'Cape Verde' → 'Cabo Verde',
+  // 'United States' → 'USA', 'Congo DR' → 'DR Congo') and try again.
+  return TEAM_FLAGS[n] ?? TEAM_FLAGS[canonicalTeamName(n)] ?? '🏳️'
 }
 
 // Team name → flag-icons code (ISO 3166-1 alpha-2, lowercase; gb-eng/gb-sct for
@@ -54,4 +57,20 @@ export function isoFor(name: string | null | undefined): string | null {
   if (!name) return null
   const n = name.trim()
   return TEAM_ISO[n] ?? TEAM_ISO_ALIASES[n] ?? null
+}
+
+// ISO code → canonical team name (reverse of TEAM_ISO). Unique — one entry per team.
+const ISO_TO_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(TEAM_ISO).map(([name, iso]) => [iso, name]),
+)
+
+// Normalise any known name/alias to the canonical name (e.g. 'United States' → 'USA',
+// 'Bosnia-Herzegovina' → 'Bosnia and Herzegovina', 'Türkiye' → 'Turkey'). Unknown
+// names (and non-team placeholders like 'Round of 32 11 Winner') pass through as-is.
+export function canonicalTeamName(name: string | null | undefined): string {
+  if (!name) return ''
+  const n = name.trim()
+  if (TEAM_ISO[n]) return n                       // already canonical
+  const iso = TEAM_ISO_ALIASES[n]                 // known alias?
+  return (iso && ISO_TO_NAME[iso]) ? ISO_TO_NAME[iso] : n
 }
