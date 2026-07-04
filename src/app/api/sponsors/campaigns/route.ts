@@ -76,12 +76,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `This challenge already belongs to ${otherSponsor.sponsors?.name ?? 'another sponsor'} — a challenge has one sponsor.` }, { status: 409 })
 
   // (b) A sponsor runs one challenge per type — extra promotions are campaigns on
-  //     the existing one, not a second same-type challenge.
-  const { data: sponsorCamps } = await (admin.from('sponsor_campaigns') as any)
-    .select('challenge_id, challenges(type)').eq('sponsor_id', b.sponsor_id)
-  const typeClash = ((sponsorCamps ?? []) as any[]).find(c => c.challenges?.type === chType && c.challenge_id !== challengeId)
-  if (typeClash)
-    return NextResponse.json({ error: `This sponsor already runs a ${challengeTypeLabel(chType)} challenge — add a campaign to that one instead.` }, { status: 409 })
+  //     the existing one, not a second same-type challenge. EXCEPTION: match
+  //     challenges are per-fixture, so a sponsor can back many (one per match).
+  if (chType !== 'match') {
+    const { data: sponsorCamps } = await (admin.from('sponsor_campaigns') as any)
+      .select('challenge_id, challenges(type)').eq('sponsor_id', b.sponsor_id)
+    const typeClash = ((sponsorCamps ?? []) as any[]).find(c => c.challenges?.type === chType && c.challenge_id !== challengeId)
+    if (typeClash)
+      return NextResponse.json({ error: `This sponsor already runs a ${challengeTypeLabel(chType)} challenge — add a campaign to that one instead.` }, { status: 409 })
+  }
 
   // Default the window when not supplied.
   let starts_at: string | null = b.starts_at ?? null
