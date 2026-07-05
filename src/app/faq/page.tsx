@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 
-const FAQS: { category: string; emoji: string; items: { q: string; a: string }[] }[] = [
+const FAQS: { category: string; emoji: string; items: { q: string; a: ReactNode }[] }[] = [
   {
     category: 'Bracket & Getting Started',
     emoji: '🏆',
@@ -14,7 +14,13 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
       },
       {
         q: 'Where is my bracket saved?',
-        a: 'When you create a free account, your bracket is automatically linked to your profile and saved permanently. You can then view, share, and compare it with your comp at any time.',
+        a: (
+          <>
+            When you create a free account, your bracket is automatically linked to your profile and saved permanently. Head to the{' '}
+            <a href="/bracket" className="text-emerald-600 underline hover:text-emerald-700">Bracket tab</a> any time to view or update it, and if you’ve entered it into a challenge, you’ll find that under{' '}
+            <a href="/tribe?tab=challenges" className="text-emerald-600 underline hover:text-emerald-700">My Tribe → Challenges</a>.
+          </>
+        ),
       },
       {
         q: 'Can I change my bracket picks?',
@@ -23,6 +29,19 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
       {
         q: 'What is the bracket challenge?',
         a: 'Before the tournament starts, you predict the winner of every knockout match all the way to the final. You earn points for each correct pick, with later-round picks worth more.',
+      },
+      {
+        q: 'What kinds of challenges are there?',
+        a: 'Two: the season-long bracket challenge (predict every knockout match to the final), and single-match challenges (predict one specific game\'s score). Many are sponsored, with real prizes — and both are free to enter.',
+      },
+      {
+        q: 'Where do I see the challenges I\'ve entered?',
+        a: (
+          <>
+            Go to{' '}
+            <a href="/tribe?tab=challenges" className="text-emerald-600 underline hover:text-emerald-700">My Tribe → Challenges</a>. You’ll find every challenge you’ve entered — bracket and single-match — with your picks, the sponsor and prize, and once results are in, how you ranked. You also get a confirmation email each time you enter, with a link straight there.
+          </>
+        ),
       },
     ],
   },
@@ -102,7 +121,13 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
     items: [
       {
         q: 'Is TribePicks free?',
-        a: 'The core TribePicks experience — tipping, bracket challenge, joining comps — is completely free. A Pro tier is available for comp organisers who want advanced features.',
+        a: (
+          <>
+            Yes — tipping, brackets, joining comps, and entering challenges (including sponsored prize draws) are all completely free. A one-off Pro upgrade adds extra features:{' '}
+            <a href="/pro/tipster" className="text-emerald-600 underline hover:text-emerald-700">Pro for Tipsters</a> unlocks your player stats — tip review, head-to-head, your tipster persona and an ad-free tournament — while{' '}
+            <a href="/pro/comp-chief" className="text-emerald-600 underline hover:text-emerald-700">Pro for Comp Chiefs</a> adds organiser tools like auto-reminders, email campaigns and payment tracking (and includes Tipster Pro).
+          </>
+        ),
       },
       {
         q: 'Is TribePicks affiliated with FIFA?',
@@ -116,7 +141,7 @@ const FAQS: { category: string; emoji: string; items: { q: string; a: string }[]
   },
 ]
 
-function AccordionItem({ q, a }: { q: string; a: string }) {
+function AccordionItem({ q, a }: { q: string; a: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="border-b border-gray-100 last:border-0">
