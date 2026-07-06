@@ -164,10 +164,11 @@ export const roundSlug = (code: string): string => ROUND_SLUG[code] ?? code
 export const roundFromSlug = (slug: string): string => SLUG_TO_ROUND[slug] ?? slug
 
 // Rounds that have at least one finished fixture, in play order — drives the recap
-// index and static params.
+// index and static params. Excludes the warm-up round ('wup'): it's not a real
+// competition round and doesn't make article-worthy recap content.
 export function playedRounds(fixtures: Fixture[]): string[] {
   const codes = new Set<string>()
-  for (const f of fixtures) if (f.home_score != null && f.away_score != null) codes.add(f.round)
+  for (const f of fixtures) if (f.round !== 'wup' && f.home_score != null && f.away_score != null) codes.add(f.round)
   const order = (r: string) => (r.startsWith('gs') ? Number(r.slice(2)) : 10 + (KO_ORDER[r] ?? 99))
   return [...codes].sort((a, b) => order(a) - order(b))
 }
