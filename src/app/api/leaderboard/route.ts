@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { tipsterFlag } from '@/lib/geo-flag'
 import type { RoundId } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -115,16 +116,18 @@ export async function GET(request: NextRequest) {
     // Profile fields (first_name, avatar_url, show_first_name) fetched live from users
     // so that profile updates in Settings are immediately reflected without waiting for
     // the next leaderboard view refresh (which only triggers on prediction scoring).
-    const profileMap: Record<string, { first_name: string | null; avatar_url: string | null; show_first_name: boolean }> = {}
+    const profileMap: Record<string, { first_name: string | null; avatar_url: string | null; show_first_name: boolean; country: string | null; timezone: string | null }> = {}
     if (userIds.length > 0) {
       const { data: profileRows } = await (adminClient.from('users') as any)
-        .select('id, first_name, avatar_url, show_first_name')
+        .select('id, first_name, avatar_url, show_first_name, country, timezone')
         .in('id', userIds)
       ;(profileRows ?? []).forEach((p: any) => {
         profileMap[p.id] = {
           first_name:      p.first_name      ?? null,
           avatar_url:      p.avatar_url      ?? null,
           show_first_name: p.show_first_name ?? true,
+          country:         p.country         ?? null,
+          timezone:        p.timezone        ?? null,
         }
       })
     }
@@ -328,6 +331,7 @@ export async function GET(request: NextRequest) {
       rank:                i + 1,
       is_me:               row.user_id === user.id,
       first_name:          resolveFirstName(row.user_id),
+      flag:                tipsterFlag(profileMap[row.user_id]?.country ?? row.country, profileMap[row.user_id]?.timezone),
       avatar_url:          profileMap[row.user_id]?.avatar_url  ?? null,
       comp_name:           compNameMap[row.user_id]             ?? null,
       tribe_id:            tribeInfoMap[row.user_id]?.tribe_id   ?? null,
@@ -366,6 +370,7 @@ export async function GET(request: NextRequest) {
           ...m, is_me: true,
           rank:                (ahead ?? 0) + 1,
           first_name:          profileMap[user.id]?.first_name  ?? null,
+          flag:                tipsterFlag(profileMap[user.id]?.country ?? m.country, profileMap[user.id]?.timezone),
           avatar_url:          profileMap[user.id]?.avatar_url  ?? null,
           comp_name:           compNameMap[user.id]             ?? null,
           tribe_id:            tribeInfoMap[user.id]?.tribe_id   ?? null,

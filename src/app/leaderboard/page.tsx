@@ -776,8 +776,8 @@ export default function LeaderboardPage() {
                               <Avatar name={entry.display_name} src={entry.avatar_url} size="xs" />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  {countryFlag(entry.country) && (
-                                    <span className="text-xs leading-none flex-shrink-0">{countryFlag(entry.country)}</span>
+                                  {(entry.flag || countryFlag(entry.country)) && (
+                                    <span className="text-xs leading-none flex-shrink-0">{entry.flag || countryFlag(entry.country)}</span>
                                   )}
                                   <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
                                     {entry.display_name}{isMe ? ' (you)' : ''}

@@ -141,6 +141,8 @@ export interface LeaderboardEntry {
   bonus_count: number; correct_count: number
   predictions_made: number; rank?: number
   round_breakdown?: Record<RoundId, number>
+  country?: string | null   // ISO2 profile country
+  flag?: string             // nationality flag emoji (country, else timezone-derived)
 }
 
 export interface ApiResponse<T> { data?: T; error?: string; status: number }
