@@ -12,6 +12,8 @@ export interface MatchChallenge {
   tournament_id: string
   fixture_id:    number | null
   closes_at:     string | null   // explicit lock time; null → derived from kickoff − LOCK_LEAD_MS
+  home_image_url: string | null  // optional custom team visuals (migration 147)
+  away_image_url: string | null
 }
 
 export interface MatchFixture {
@@ -33,7 +35,7 @@ export interface MatchFixture {
   live_updated_at: string | null   // last live refresh — used to detect stale data
 }
 
-const COLS = 'id, slug, name, tournament_id, type, enabled, fixture_id, closes_at'
+const COLS = 'id, slug, name, tournament_id, type, enabled, fixture_id, closes_at, home_image_url, away_image_url'
 
 // Resolve a match challenge by its slug. Returns null when the slug is missing or
 // isn't a match challenge (defensive — keeps the /match routes match-only).
@@ -41,7 +43,7 @@ export async function resolveMatchChallenge(admin: any, slug: string): Promise<M
   const { data } = await (admin.from('challenges') as any).select(COLS).eq('slug', slug).maybeSingle()
   const r = data as any
   if (!r || r.type !== 'match' || r.enabled === false) return null
-  return { id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id, fixture_id: r.fixture_id ?? null, closes_at: r.closes_at ?? null }
+  return { id: r.id, slug: r.slug, name: r.name, tournament_id: r.tournament_id, fixture_id: r.fixture_id ?? null, closes_at: r.closes_at ?? null, home_image_url: r.home_image_url ?? null, away_image_url: r.away_image_url ?? null }
 }
 
 export async function getFixture(admin: any, fixtureId: number): Promise<MatchFixture | null> {

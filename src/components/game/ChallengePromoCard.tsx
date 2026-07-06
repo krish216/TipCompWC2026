@@ -8,6 +8,7 @@ interface Promo {
   type: 'match' | 'bracket'
   name: string
   sponsor: { name: string; logo: string; prize: string; tagline: string | null } | null
+  team_images: { home: string; away: string } | null
   href: string
   cta: string
 }
@@ -54,6 +55,13 @@ export function ChallengePromoCard({ surface, className }: { surface: 'home' | '
             </div>
             <button onClick={() => dismiss(promo.slug)} aria-label="Dismiss" className="text-emerald-300 hover:text-emerald-500 text-lg leading-none flex-shrink-0 px-1">×</button>
           </div>
+          {promo.team_images && (
+            <div className="flex items-center justify-center gap-3 mt-2.5">
+              <img src={promo.team_images.home} alt="" className="w-12 h-12 rounded-lg object-cover shadow-sm" />
+              <span className="text-xs font-black text-gray-400">v</span>
+              <img src={promo.team_images.away} alt="" className="w-12 h-12 rounded-lg object-cover shadow-sm" />
+            </div>
+          )}
           <a href={promo.href}
             className="mt-2.5 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-all">
             {promo.cta}

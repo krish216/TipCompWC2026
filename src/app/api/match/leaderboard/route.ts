@@ -73,11 +73,14 @@ export async function GET(request: NextRequest) {
   const mine = user ? entries.find(e => e.user_id === user.id) : null
 
   // Picks show live (score + first-goal minute) UNLESS the entrant opted out — but a
-  // user always sees their own. Points stay 0 until the result is in.
+  // user always sees their own. The opt-out only hides a pick UNTIL KICK-OFF (as the
+  // toggle promises: "hidden until the match"); once the match starts, entries are
+  // locked so there's nothing left to copy — every pick is revealed.
   const locked = isLocked(challenge, fixture)
+  const kickedOff = !!fixture?.kickoff_utc && Date.now() >= new Date(fixture.kickoff_utc).getTime()
   const board = ranked.map((e, i) => {
     const isMe = !!(user && e.user_id === user.id)
-    const showPick = e.reveal_picks !== false || isMe
+    const showPick = kickedOff || e.reveal_picks !== false || isMe
     return {
       rank:   i + 1,
       name:   e.name,
@@ -96,6 +99,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     challenge: { slug: challenge.slug, name: challenge.name },
+    team_images: { home: challenge.home_image_url, away: challenge.away_image_url },
     fixture: fixture && {
       home: fixture.home, away: fixture.away, venue: fixture.venue, round: fixture.round,
       kickoff_utc: fixture.kickoff_utc,

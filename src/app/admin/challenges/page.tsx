@@ -16,6 +16,8 @@ interface ManagedChallenge {
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
   fixture?: { id: number; home: string; away: string; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null } | null
   promote_surfaces?: string[]
+  home_image_url?: string | null
+  away_image_url?: string | null
 }
 
 const PROMO_SURFACES: { key: string; label: string }[] = [
@@ -416,6 +418,15 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
                 </button>
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">Enter this once the match kicks off — it breaks ties among entrants on the same score (closest wins). Scores themselves are entered in the results admin.</p>
+
+              {/* Custom team visuals — replace the flag emojis on the hero, share card & board */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-900 mb-0.5">Team visuals <span className="font-normal text-gray-400 text-xs">(optional — replaces the flags on the hero, share card &amp; board)</span></h3>
+                <div className="grid sm:grid-cols-2 gap-3 mt-2">
+                  <TeamImageUploader challengeId={ch.id} side="home" teamName={ch.fixture.home} current={ch.home_image_url ?? null} onChanged={onChanged} />
+                  <TeamImageUploader challengeId={ch.id} side="away" teamName={ch.fixture.away} current={ch.away_image_url ?? null} onChanged={onChanged} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -439,6 +450,44 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
         </div>
       )}
     </Card>
+  )
+}
+
+// ── Team-visual uploader — custom image for one side of a match challenge ─────
+function TeamImageUploader({ challengeId, side, teamName, current, onChanged }: {
+  challengeId: string; side: 'home' | 'away'; teamName: string; current: string | null; onChanged: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState<string | null>(current)
+  useEffect(() => { setPreview(current) }, [current])
+
+  const upload = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return }
+    setBusy(true)
+    const fd = new FormData(); fd.append('file', file)
+    const res = await fetch(`/api/match/challenges/${challengeId}/team-image?side=${side}`, { method: 'POST', body: fd })
+    const d = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { toast.error(d.error ?? 'Upload failed'); return }
+    setPreview(d.url)
+    toast.success(`${teamName} image updated`)
+    onChanged()
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1 truncate">{teamName}</label>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-12 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {preview ? <img src={preview} alt={teamName} className="w-full h-full object-cover" /> : <span className="text-gray-300 text-lg">🏳️</span>}
+        </div>
+        <label className={clsx('px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer', busy ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100')}>
+          {busy ? 'Uploading…' : preview ? 'Replace' : 'Upload'}
+          <input type="file" accept="image/*" className="hidden" disabled={busy}
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
+        </label>
+      </div>
+    </div>
   )
 }
 

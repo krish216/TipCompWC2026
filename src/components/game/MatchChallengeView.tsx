@@ -10,6 +10,7 @@ import { Flag, Spinner } from '@/components/ui'
 interface Entry { rank: number; name: string; flag?: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean; hidden?: boolean }
 interface Data {
   challenge: { slug: string; name: string }
+  team_images?: { home: string | null; away: string | null }
   fixture: { home: string; away: string; venue: string | null; round: string | null; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null; advancer: string | null } | null
   sponsor: { name: string; logo: string; prize: string; url: string; logo_tone: string; tagline: string | null; logo_includes_name: boolean } | null
   has_prize: boolean
@@ -80,22 +81,26 @@ export function MatchChallengeView({ slug }: { slug: string }) {
               {data.sponsor.tagline ? `${data.sponsor.name} · ${data.sponsor.tagline}` : `Proudly hosted by ${data.sponsor.name}`}
             </p>
           )}
-          <div className="flex items-center justify-center gap-3 mb-1">
-            <span className="flex items-center gap-2"><Flag team={fx.home} className="text-2xl rounded shadow-sm" /><span className="text-lg font-black text-white">{fx.home}</span></span>
-            {data.live && data.live_score ? (
-              <span className="flex flex-col items-center">
-                <span className="text-2xl font-black text-white tabular-nums leading-none">{data.live_score.home}–{data.live_score.away}</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 mt-1 flex items-center gap-1">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Live{data.live_score.minute != null ? ` ${data.live_score.minute}'` : ''}
-                </span>
-              </span>
-            ) : data.settled && fx.home_score != null ? (
-              <span className="text-2xl font-black text-white tabular-nums">{fx.home_score}–{fx.away_score}</span>
-            ) : (
-              <span className="text-sm font-bold text-white/50">v</span>
-            )}
-            <span className="flex items-center gap-2"><span className="text-lg font-black text-white">{fx.away}</span><Flag team={fx.away} className="text-2xl rounded shadow-sm" /></span>
-          </div>
+          {data.team_images?.home && data.team_images?.away ? (
+            // Custom per-team visuals: large photo cards either side of the score.
+            <div className="flex items-center justify-center gap-2 sm:gap-4 mb-2">
+              <div className="flex flex-col items-center gap-1.5 flex-1 max-w-[140px]">
+                <img src={data.team_images.home} alt={fx.home} className="w-full h-24 sm:h-28 object-cover rounded-xl shadow-md" />
+                <span className="text-sm font-black text-white text-center leading-tight">{fx.home}</span>
+              </div>
+              <div className="flex-shrink-0 px-1"><ScoreSeparator data={data} fx={fx} /></div>
+              <div className="flex flex-col items-center gap-1.5 flex-1 max-w-[140px]">
+                <img src={data.team_images.away} alt={fx.away} className="w-full h-24 sm:h-28 object-cover rounded-xl shadow-md" />
+                <span className="text-sm font-black text-white text-center leading-tight">{fx.away}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-3 mb-1">
+              <span className="flex items-center gap-2"><Flag team={fx.home} className="text-2xl rounded shadow-sm" /><span className="text-lg font-black text-white">{fx.home}</span></span>
+              <ScoreSeparator data={data} fx={fx} />
+              <span className="flex items-center gap-2"><span className="text-lg font-black text-white">{fx.away}</span><Flag team={fx.away} className="text-2xl rounded shadow-sm" /></span>
+            </div>
+          )}
           <p className="text-[11px] text-white/60">{fx.venue}{fx.venue ? ' · ' : ''}{new Date(fx.kickoff_utc).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST</p>
           {data.has_prize && data.sponsor?.prize && (
             <p className="mt-2 inline-block bg-amber-400 text-emerald-950 text-sm font-extrabold px-3 py-1.5 rounded-lg">🏆 Win {data.sponsor.prize}</p>
@@ -114,6 +119,25 @@ export function MatchChallengeView({ slug }: { slug: string }) {
       <Leaderboard data={data} />
     </div>
   )
+}
+
+// The middle of the match hero: live score (with a LIVE tick), final score once
+// settled, or a plain "v" before kick-off. Shared by the flag and image-card layouts.
+function ScoreSeparator({ data, fx }: { data: Data; fx: { home_score: number | null; away_score: number | null } }) {
+  if (data.live && data.live_score) {
+    return (
+      <span className="flex flex-col items-center">
+        <span className="text-2xl font-black text-white tabular-nums leading-none">{data.live_score.home}–{data.live_score.away}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 mt-1 flex items-center gap-1">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Live{data.live_score.minute != null ? ` ${data.live_score.minute}'` : ''}
+        </span>
+      </span>
+    )
+  }
+  if (data.settled && fx.home_score != null) {
+    return <span className="text-2xl font-black text-white tabular-nums">{fx.home_score}–{fx.away_score}</span>
+  }
+  return <span className="text-sm font-bold text-white/50">v</span>
 }
 
 // ── Countdown banner ──────────────────────────────────────────────────────────
@@ -415,6 +439,16 @@ function Leaderboard({ data }: { data: Data }) {
         </p>
         <button onClick={share} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">Share ↗</button>
       </div>
+
+      {data.team_images?.home && data.team_images?.away && data.fixture && (
+        <div className="flex items-center justify-center gap-2 mb-2 text-xs font-bold text-gray-600">
+          <img src={data.team_images.home} alt={data.fixture.home} className="w-6 h-6 rounded object-cover" />
+          <span>{data.fixture.home}</span>
+          <span className="text-gray-300">v</span>
+          <span>{data.fixture.away}</span>
+          <img src={data.team_images.away} alt={data.fixture.away} className="w-6 h-6 rounded object-cover" />
+        </div>
+      )}
 
       {data.entries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">

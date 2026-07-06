@@ -23,12 +23,15 @@ export async function GET(request: NextRequest) {
   const slug = new URL(request.url).searchParams.get('slug') || ''
 
   let home = '', away = '', homeFlag = '⚽', awayFlag = '⚽'
+  let homeImg = '', awayImg = ''
   let sponsor = '', prize = '', challengeName = 'Match Challenge'
   try {
     const admin = createAdminClient()
     const challenge = await resolveMatchChallenge(admin, slug)
     if (challenge) {
       challengeName = challenge.name || challengeName
+      homeImg = challenge.home_image_url || ''
+      awayImg = challenge.away_image_url || ''
       const fixture = challenge.fixture_id ? await getFixture(admin, challenge.fixture_id) : null
       if (fixture) {
         home = fixture.home; away = fixture.away
@@ -63,13 +66,17 @@ export async function GET(request: NextRequest) {
         {/* Hero — teams, flags, and a blank scoreline motif */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-            <span style={{ fontSize: 110 }}>{homeFlag}</span>
+            {homeImg
+              ? <img src={homeImg} width={150} height={120} style={{ objectFit: 'cover', borderRadius: 18 }} />
+              : <span style={{ fontSize: 110 }}>{homeFlag}</span>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 22, background: 'rgba(255,255,255,0.12)', borderRadius: 28, padding: '14px 34px' }}>
               <span style={{ fontSize: 76, fontWeight: 800 }}>?</span>
               <span style={{ fontSize: 56, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>–</span>
               <span style={{ fontSize: 76, fontWeight: 800 }}>?</span>
             </div>
-            <span style={{ fontSize: 110 }}>{awayFlag}</span>
+            {awayImg
+              ? <img src={awayImg} width={150} height={120} style={{ objectFit: 'cover', borderRadius: 18 }} />
+              : <span style={{ fontSize: 110 }}>{awayFlag}</span>}
           </div>
           <span style={{ fontSize: 60, fontWeight: 800, letterSpacing: -1, marginTop: 30, textAlign: 'center' }}>{matchLabel}</span>
         </div>
