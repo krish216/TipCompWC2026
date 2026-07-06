@@ -21,7 +21,7 @@ const MAX_VISIBLE = 2
 // Dismissible promo cards advertising open challenges on a given surface
 // ('home' | 'scoreboard'). Server excludes challenges the user has already entered.
 // Shows up to MAX_VISIBLE not-dismissed at once; dismiss is per-challenge.
-export function ChallengePromoCard({ surface, className }: { surface: 'home' | 'scoreboard'; className?: string }) {
+export function ChallengePromoCard({ surface, className }: { surface: 'home' | 'scoreboard' | 'predict'; className?: string }) {
   const [promos, setPromos]       = useState<Promo[] | null>(null)
   const [dismissed, setDismissed] = useState<string[]>([])
 

@@ -16,6 +16,7 @@ interface ManagedChallenge {
   sponsor_state?: 'live' | 'scheduled' | 'ended' | 'none'
   fixture?: { id: number; home: string; away: string; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null } | null
   promote_surfaces?: string[]
+  target_timezones?: string[]
   home_image_url?: string | null
   away_image_url?: string | null
 }
@@ -23,6 +24,7 @@ interface ManagedChallenge {
 const PROMO_SURFACES: { key: string; label: string }[] = [
   { key: 'home',       label: 'Homepage' },
   { key: 'scoreboard', label: 'Scoreboard' },
+  { key: 'predict',    label: 'Prediction page' },
 ]
 interface SponsorOpt { id: string; name: string; logo_url: string | null }
 
@@ -294,8 +296,9 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
   const [loadingCamps, setLoadingCamps] = useState(false)
   const [fgm, setFgm] = useState<string>(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : '')
   const [surfaces, setSurfaces] = useState<string[]>(ch.promote_surfaces ?? [])
+  const [targetTz, setTargetTz] = useState<string>((ch.target_timezones ?? []).join(', '))
 
-  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at); setFgm(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : ''); setSurfaces(ch.promote_surfaces ?? []) }, [ch.name, ch.slug, ch.closes_at, ch.fixture?.first_goal_min, ch.promote_surfaces])
+  useEffect(() => { setName(ch.name); setSlug(ch.slug); setClosesAt(ch.closes_at); setFgm(ch.fixture?.first_goal_min != null ? String(ch.fixture.first_goal_min) : ''); setSurfaces(ch.promote_surfaces ?? []); setTargetTz((ch.target_timezones ?? []).join(', ')) }, [ch.name, ch.slug, ch.closes_at, ch.fixture?.first_goal_min, ch.promote_surfaces, ch.target_timezones])
   const toggleSurface = (k: string) => setSurfaces(prev => prev.includes(k) ? prev.filter(s => s !== k) : [...prev, k])
 
   const loadCampaigns = useCallback(() => {
@@ -376,10 +379,13 @@ function ChallengeRow({ ch, sponsors, expanded, onToggle, onChanged }: {
                 </button>
               ))}
             </div>
+            <label className="block text-xs font-medium text-gray-500 mb-1 mt-3">Only show to these timezones <span className="font-normal text-gray-400">(comma-separated IANA, e.g. Australia/Sydney — blank = everyone)</span></label>
+            <input value={targetTz} onChange={e => setTargetTz(e.target.value)} placeholder="Australia/Sydney"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button disabled={saving}
-              onClick={() => patch({ name: name.trim(), slug: slug.trim(), closes_at: closesAt, promote_surfaces: surfaces }, 'Saved')}
+              onClick={() => patch({ name: name.trim(), slug: slug.trim(), closes_at: closesAt, promote_surfaces: surfaces, target_timezones: targetTz.split(',').map(s => s.trim()).filter(Boolean) }, 'Saved')}
               className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save details'}
             </button>

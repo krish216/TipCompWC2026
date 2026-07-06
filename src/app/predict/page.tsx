@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
 import { AdSlot } from '@/components/ui/AdSlot'
@@ -822,6 +823,7 @@ export default function PredictPage() {
     <>
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
+      <ChallengePromoCard surface="predict" className="mb-3" />
       <BracketEntryPrompt variant="banner" />
 
       {/* Practice / onboarding mode banner */}

@@ -6,7 +6,7 @@ import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-const SURFACES = new Set(['home', 'scoreboard'])
+const SURFACES = new Set(['home', 'scoreboard', 'predict'])
 
 // GET /api/challenge-promos?surface=home|scoreboard
 // Open, enabled challenges the admin has flagged to advertise on this surface, with
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const nowIso = new Date().toISOString()
   const { data: rows } = await (admin.from('challenges') as any)
-    .select('id, slug, name, type, enabled, closes_at, promote_surfaces, home_image_url, away_image_url, fixture_id')
+    .select('id, slug, name, type, enabled, closes_at, promote_surfaces, home_image_url, away_image_url, fixture_id, target_timezones')
     .eq('tournament_id', (t as any).id).eq('enabled', true)
     .contains('promote_surfaces', [surface])
   let open = ((rows ?? []) as any[]).filter(c => !c.closes_at || c.closes_at > nowIso)
@@ -38,21 +38,28 @@ export async function GET(request: NextRequest) {
     if (!open.length) return NextResponse.json({ promos: [] })
   }
 
-  // Drop the ones this user has already entered.
+  // Drop the ones this user has already entered; also grab their timezone for
+  // geo-targeted promos below.
   const entered = new Set<string>()
+  let userTz: string | null = null
   const user = await getSessionUser().catch(() => null)
   if (user) {
     const ids = open.map(c => c.id)
-    const [{ data: me }, { data: be }] = await Promise.all([
+    const [{ data: me }, { data: be }, { data: u }] = await Promise.all([
       (admin.from('match_entries')   as any).select('challenge_id').eq('user_id', user.id).in('challenge_id', ids),
       (admin.from('bracket_entries') as any).select('challenge_id').eq('user_id', user.id).in('challenge_id', ids),
+      (admin.from('users')           as any).select('timezone').eq('id', user.id).maybeSingle(),
     ])
     for (const r of [...(me ?? []), ...(be ?? [])] as any[]) entered.add(r.challenge_id)
+    userTz = (u as any)?.timezone ?? null
   }
 
   const promos = []
   for (const c of open) {
     if (entered.has(c.id)) continue
+    // Geo-targeted promo: only for signed-in users whose timezone matches.
+    const targets = (c.target_timezones ?? []) as string[]
+    if (targets.length && (!userTz || !targets.includes(userTz))) continue
     const cfg = await resolveActiveCampaign(admin, { challengeType: c.type, challengeId: c.id })
     promos.push({
       slug: c.slug,
