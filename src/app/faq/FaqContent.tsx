@@ -161,7 +161,7 @@ function AccordionItem({ q, a }: { q: string; a: ReactNode }) {
   )
 }
 
-export default function FAQPage() {
+export default function FaqContent() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="mb-6">

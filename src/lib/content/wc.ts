@@ -26,10 +26,35 @@ export const ROUND_LABEL: Record<string, string> = {
   tp: 'Third-place play-off', final: 'Final',
 }
 
-export async function getActiveTournament() {
+export type TournamentRef = { id: string; name: string; slug: string }
+
+export async function getActiveTournament(): Promise<TournamentRef | null> {
   const admin = createAdminClient()
   const { data } = await admin.from('tournaments').select('id, name, slug').eq('is_active', true).maybeSingle()
   return (data as any) ?? null
+}
+
+// Resolve a tournament by its public slug (the URL segment). Content pages are
+// tournament-scoped (/[slug]/teams, /[slug]/groups) so each tournament has its own
+// stable URLs — the content at /wc2026/teams/arg never changes when the active
+// tournament changes.
+export async function getTournamentBySlug(slug: string): Promise<TournamentRef | null> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('tournaments').select('id, name, slug').eq('slug', slug).maybeSingle()
+  return (data as any) ?? null
+}
+
+// Every tournament that has public content (≥1 team) — drives the sitemap and static
+// params so past tournaments stay live as evergreen content.
+export async function getPublicTournaments(): Promise<TournamentRef[]> {
+  const admin = createAdminClient()
+  const { data: ts } = await admin.from('tournaments').select('id, name, slug').order('start_date', { ascending: false })
+  const out: TournamentRef[] = []
+  for (const t of ((ts ?? []) as any[])) {
+    const { count } = await admin.from('tournament_teams').select('id', { count: 'exact', head: true }).eq('tournament_id', t.id)
+    if ((count ?? 0) > 0) out.push({ id: t.id, name: t.name, slug: t.slug })
+  }
+  return out
 }
 
 export async function getTeamsAndFixtures(tournamentId: string): Promise<{ teams: Team[]; fixtures: Fixture[] }> {
@@ -125,4 +150,98 @@ export const fmtKick = (iso: string | null): string => {
 export const ordinal = (n: number): string => {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100
   return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+// ── Round recaps (public, no PII) ───────────────────────────────────────────────
+// SEO-friendly round-code ↔ URL-slug (e.g. r16 ↔ round-of-16). Unknown codes fall
+// back to the raw code so non-WC tournaments still work.
+export const ROUND_SLUG: Record<string, string> = {
+  gs1: 'matchday-1', gs2: 'matchday-2', gs3: 'matchday-3',
+  r32: 'round-of-32', r16: 'round-of-16', qf: 'quarter-finals', sf: 'semi-finals', tp: 'third-place', final: 'final',
+}
+const SLUG_TO_ROUND: Record<string, string> = Object.fromEntries(Object.entries(ROUND_SLUG).map(([c, s]) => [s, c]))
+export const roundSlug = (code: string): string => ROUND_SLUG[code] ?? code
+export const roundFromSlug = (slug: string): string => SLUG_TO_ROUND[slug] ?? slug
+
+// Rounds that have at least one finished fixture, in play order — drives the recap
+// index and static params.
+export function playedRounds(fixtures: Fixture[]): string[] {
+  const codes = new Set<string>()
+  for (const f of fixtures) if (f.home_score != null && f.away_score != null) codes.add(f.round)
+  const order = (r: string) => (r.startsWith('gs') ? Number(r.slice(2)) : 10 + (KO_ORDER[r] ?? 99))
+  return [...codes].sort((a, b) => order(a) - order(b))
+}
+
+export type PickStat = { h: number; d: number; a: number; total: number }
+export async function getPickStats(fixtureIds: number[]): Promise<Map<number, PickStat>> {
+  const map = new Map<number, PickStat>()
+  if (!fixtureIds.length) return map
+  const admin = createAdminClient()
+  const { data } = await admin.from('fixture_pick_stats').select('fixture_id, h, d, a, total').in('fixture_id', fixtureIds)
+  for (const r of ((data ?? []) as any[])) map.set(r.fixture_id, { h: r.h, d: r.d, a: r.a, total: r.total })
+  return map
+}
+
+export interface RecapFixture {
+  id: number; home: string; away: string; homeFlag: string; awayFlag: string
+  home_score: number; away_score: number; pen_winner: string | null
+  crowd: PickStat | null
+}
+export interface RoundRecap {
+  round_code: string; round_name: string
+  played: number; totalGoals: number
+  results: RecapFixture[]
+  upsets: { fx: RecapFixture; note: string }[]
+  topMatch: RecapFixture | null
+}
+
+const outcomeOf = (h: number, a: number): 'H' | 'D' | 'A' => (h > a ? 'H' : a > h ? 'A' : 'D')
+
+// Build a public recap for one round from results + crowd pick distribution. No member
+// data — only aggregate crowd percentages and scorelines.
+export function buildRoundRecap(round: string, teams: Team[], fixtures: Fixture[], picks: Map<number, PickStat>): RoundRecap {
+  const flagOf = (name: string) => teams.find(t => t.name === name)?.flag ?? flagFor(name)
+  const played = fixtures
+    .filter(f => f.round === round && f.home_score != null && f.away_score != null)
+    .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''))
+
+  const results: RecapFixture[] = played.map(f => ({
+    id: f.id, home: f.home, away: f.away, homeFlag: flagOf(f.home), awayFlag: flagOf(f.away),
+    home_score: f.home_score as number, away_score: f.away_score as number, pen_winner: f.pen_winner ?? null,
+    crowd: picks.get(f.id) ?? null,
+  }))
+
+  const totalGoals = results.reduce((s, f) => s + f.home_score + f.away_score, 0)
+
+  // "Against the crowd": the majority H/D/A pick didn't come in, and the crowd was
+  // reasonably confident (≥50% share, ≥20 tippers). Ranked by how lopsided they were.
+  const upsets: { fx: RecapFixture; note: string; share: number }[] = []
+  for (const f of results) {
+    if (!f.crowd || f.crowd.total < 20) continue
+    const { h, d, a, total } = f.crowd
+    const top = Math.max(h, d, a)
+    const share = top / total
+    const crowdPick: 'H' | 'D' | 'A' = h === top ? 'H' : d === top ? 'D' : 'A'
+    const actual = outcomeOf(f.home_score, f.away_score)
+    if (crowdPick !== actual && share >= 0.5) {
+      const backed = crowdPick === 'H' ? f.home : crowdPick === 'A' ? f.away : 'a draw'
+      const happened = actual === 'H' ? `${f.home} won` : actual === 'A' ? `${f.away} won` : 'it finished level'
+      upsets.push({ fx: f, share, note: `${Math.round(share * 100)}% of tippers backed ${backed}, but ${happened} ${f.home_score}–${f.away_score}.` })
+    }
+  }
+  upsets.sort((x, y) => y.share - x.share)
+
+  const topMatch = results.length
+    ? results.reduce((best, f) => (f.home_score + f.away_score) > (best.home_score + best.away_score) ? f : best)
+    : null
+
+  return {
+    round_code: round,
+    round_name: ROUND_LABEL[round] ?? round,
+    played: results.length,
+    totalGoals,
+    results,
+    upsets: upsets.map(({ fx, note }) => ({ fx, note })),
+    topMatch,
+  }
 }

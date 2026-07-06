@@ -129,13 +129,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
                   <a href="/teams" className="hover:text-gray-600 transition-colors">Teams</a>
                   <a href="/groups" className="hover:text-gray-600 transition-colors">Groups</a>
+                  <a href="/recaps" className="hover:text-gray-600 transition-colors">Recaps</a>
                   <a href="/faq" className="hover:text-gray-600 transition-colors">FAQ</a>
                   <a href="/rules/wc2026" className="hover:text-gray-600 transition-colors">Rules</a>
                   <a href="/privacy" className="hover:text-gray-600 underline transition-colors">Privacy</a>
                   <a href="mailto:tribepicks@gmail.com" className="hover:text-gray-600 transition-colors">Contact</a>
                 </nav>
-                {/* Disclaimer */}
-                <p className="text-center text-[11px] text-gray-400">TribePicks — unofficial fan competition, not affiliated with FIFA</p>
+                {/* Disclaimer — states clearly this is a free-to-play prediction game with
+                    no real-money betting/gambling (for reviewers, sponsors, and users). */}
+                <p className="text-center text-[11px] text-gray-400">
+                  TribePicks is a <strong className="font-semibold">free-to-play</strong> football prediction game — <strong className="font-semibold">no real-money betting or gambling</strong>. Unofficial fan competition, not affiliated with FIFA.
+                </p>
                 {/* Support button */}
                 {donateHref && (
                   <div className="flex justify-center">
