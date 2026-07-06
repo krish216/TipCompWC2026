@@ -7,7 +7,7 @@ import { Flag, Spinner } from '@/components/ui'
 // Single-match prediction challenge: a countdown banner, the score predictor, a
 // guest-or-member entry flow, and the leaderboard — all on one shareable page.
 
-interface Entry { rank: number; name: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean; hidden?: boolean }
+interface Entry { rank: number; name: string; flag?: string; pred?: string; advances?: string | null; fgm?: number | null; points?: number; exact?: boolean; is_me: boolean; hidden?: boolean }
 interface Data {
   challenge: { slug: string; name: string }
   fixture: { home: string; away: string; venue: string | null; round: string | null; kickoff_utc: string; home_score: number | null; away_score: number | null; first_goal_min: number | null; advancer: string | null } | null
@@ -16,6 +16,9 @@ interface Data {
   lock_at: string | null
   locked: boolean
   settled: boolean
+  live: boolean
+  provisional: boolean
+  live_score: { home: number; away: number; minute: number | null } | null
   entrants: number
   entries: Entry[]
   logged_in: boolean
@@ -45,6 +48,17 @@ export function MatchChallengeView({ slug }: { slug: string }) {
   useEffect(() => { load() }, [load])
   useEffect(() => { setNow(Date.now()); const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [])
 
+  // Once kick-off has passed and the result isn't final, poll the board so the live
+  // (provisional) score + ranking refresh. The cron updates at most every 5 min, so a
+  // 60s poll picks up changes promptly without hammering. Stops once settled.
+  const koPassed = !!data?.fixture && now > 0 && now >= new Date(data.fixture.kickoff_utc).getTime()
+  const pollActive = koPassed && !!data && !data.settled
+  useEffect(() => {
+    if (!pollActive) return
+    const t = setInterval(() => { load() }, 60_000)
+    return () => clearInterval(t)
+  }, [pollActive, load])
+
   if (err) return <div className="max-w-xl mx-auto px-4 py-20 text-center text-sm text-gray-500">Couldn’t load this challenge.</div>
   if (!data) return <div className="flex justify-center py-24"><Spinner className="w-7 h-7" /></div>
   if (!data.challenge || !data.fixture) return <div className="max-w-xl mx-auto px-4 py-20 text-center"><div className="text-4xl mb-3">⚽</div><p className="text-sm text-gray-500">This match challenge isn’t available.</p></div>
@@ -56,7 +70,7 @@ export function MatchChallengeView({ slug }: { slug: string }) {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-5 pb-28">
-      <CountdownBanner now={now} koMs={koMs} lockMs={lockMs} settled={data.settled} fx={fx} />
+      <CountdownBanner now={now} koMs={koMs} lockMs={lockMs} settled={data.settled} fx={fx} live={data.live} liveScore={data.live_score} firstGoalMin={fx.first_goal_min} />
 
       {/* Sponsor hero */}
       <div className="rounded-2xl overflow-hidden shadow-lg mb-4" style={{ background: 'linear-gradient(160deg,#0a2e1c 0%,#153d26 50%,#0d3320 100%)' }}>
@@ -68,7 +82,18 @@ export function MatchChallengeView({ slug }: { slug: string }) {
           )}
           <div className="flex items-center justify-center gap-3 mb-1">
             <span className="flex items-center gap-2"><Flag team={fx.home} className="text-2xl rounded shadow-sm" /><span className="text-lg font-black text-white">{fx.home}</span></span>
-            <span className="text-sm font-bold text-white/50">v</span>
+            {data.live && data.live_score ? (
+              <span className="flex flex-col items-center">
+                <span className="text-2xl font-black text-white tabular-nums leading-none">{data.live_score.home}–{data.live_score.away}</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 mt-1 flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />Live{data.live_score.minute != null ? ` ${data.live_score.minute}'` : ''}
+                </span>
+              </span>
+            ) : data.settled && fx.home_score != null ? (
+              <span className="text-2xl font-black text-white tabular-nums">{fx.home_score}–{fx.away_score}</span>
+            ) : (
+              <span className="text-sm font-bold text-white/50">v</span>
+            )}
             <span className="flex items-center gap-2"><span className="text-lg font-black text-white">{fx.away}</span><Flag team={fx.away} className="text-2xl rounded shadow-sm" /></span>
           </div>
           <p className="text-[11px] text-white/60">{fx.venue}{fx.venue ? ' · ' : ''}{new Date(fx.kickoff_utc).toLocaleString('en-AU', { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} AEST</p>
@@ -92,9 +117,11 @@ export function MatchChallengeView({ slug }: { slug: string }) {
 }
 
 // ── Countdown banner ──────────────────────────────────────────────────────────
-function CountdownBanner({ now, koMs, lockMs, settled, fx }: {
+function CountdownBanner({ now, koMs, lockMs, settled, fx, live, liveScore, firstGoalMin }: {
   now: number; koMs: number; lockMs: number; settled: boolean
   fx: { home: string; away: string; home_score: number | null; away_score: number | null }
+  live?: boolean; liveScore?: { home: number; away: number; minute: number | null } | null
+  firstGoalMin?: number | null
 }) {
   if (settled) {
     return (
@@ -118,6 +145,19 @@ function CountdownBanner({ now, koMs, lockMs, settled, fx }: {
       <div className="mb-4 rounded-xl bg-gray-800 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 flex-wrap">
         <span className="text-[11px] uppercase tracking-widest text-gray-300">🔒 Locked · kick-off in</span>
         <span className="text-2xl font-black tabular-nums tracking-tight leading-none">{fmtCountdown(koMs - now)}</span>
+      </div>
+    )
+  }
+  // Kick-off has passed. If the match is live, a slim status strip — the scoreline
+  // itself is shown prominently in the hero below, so we don't repeat it here.
+  if (live && liveScore) {
+    return (
+      <div className="mb-4 rounded-xl bg-gray-900 text-white px-4 py-2.5 text-center">
+        <p className="text-[11px] uppercase tracking-widest text-red-400 flex items-center justify-center gap-1.5">
+          <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" /> Live{liveScore.minute != null && <span className="text-white/60"> · {liveScore.minute}&apos;</span>}
+          {firstGoalMin != null && firstGoalMin > 0 && <span className="text-white/60"> · ⚽ 1st goal {firstGoalMin}&apos;</span>}
+        </p>
+        <p className="text-[10px] text-white/50 mt-0.5">Leaderboard below is provisional — final points count when the result is in</p>
       </div>
     )
   }
@@ -361,8 +401,17 @@ function Leaderboard({ data }: { data: Data }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-          {data.settled ? 'Final leaderboard' : `${data.entrants} ${data.entrants === 1 ? 'prediction' : 'predictions'} in`}
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+          {data.settled
+            ? 'Final leaderboard'
+            : data.live
+              ? <span className="text-red-500">🔴 Provisional standings</span>
+              : `${data.entrants} ${data.entrants === 1 ? 'prediction' : 'predictions'} in`}
+          {(data.settled || data.live) && data.fixture?.first_goal_min != null && (
+            <span className="normal-case tracking-normal text-[11px] font-semibold text-gray-500">
+              · ⚽ 1st goal {data.fixture.first_goal_min === 0 ? 'none (0–0)' : `${data.fixture.first_goal_min}'`}
+            </span>
+          )}
         </p>
         <button onClick={share} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">Share ↗</button>
       </div>
@@ -378,12 +427,12 @@ function Leaderboard({ data }: { data: Data }) {
             <span className="flex-1">Name</span>
             <span className="w-14 text-right flex-shrink-0">Pick</span>
             <span className="w-12 text-right flex-shrink-0">1st goal</span>
-            {data.settled && <span className="w-8 text-right flex-shrink-0">Pts</span>}
+            {(data.settled || data.live) && <span className="w-8 text-right flex-shrink-0">Pts</span>}
           </div>
           {data.entries.map(e => (
             <div key={`${e.rank}-${e.name}`} className={clsx('flex items-center gap-3 px-4 py-2.5', e.is_me && 'bg-emerald-50/60')}>
-              <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">{data.settled ? medal(e.rank) : '·'}</span>
-              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{firstName(e.name)}{e.is_me && ' (you)'}</span>
+              <span className="w-6 text-center text-sm font-bold text-gray-400 flex-shrink-0">{(data.settled || data.live) ? medal(e.rank) : '·'}</span>
+              <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{e.flag ? <span className="mr-1.5">{e.flag}</span> : null}{firstName(e.name)}{e.is_me && ' (you)'}</span>
               {e.hidden ? (
                 <span className="w-[6.5rem] text-right text-[11px] text-gray-400 flex-shrink-0">🙈 hidden</span>
               ) : (
@@ -392,13 +441,17 @@ function Leaderboard({ data }: { data: Data }) {
                   <span className="w-12 text-right text-[11px] tabular-nums text-gray-500 flex-shrink-0">{fmtFgm(e.fgm)}</span>
                 </>
               )}
-              {data.settled && <span className="w-8 text-right text-sm font-black tabular-nums text-emerald-700 flex-shrink-0">{e.points}</span>}
+              {(data.settled || data.live) && <span className={clsx('w-8 text-right text-sm font-black tabular-nums flex-shrink-0', data.live ? 'text-gray-400' : 'text-emerald-700')}>{e.points}</span>}
             </div>
           ))}
         </div>
       )}
       {!data.settled && (
-        <p className="text-center text-[11px] text-gray-400 mt-2">Everyone’s picks are shown live · scores land when the result’s in.</p>
+        <p className="text-center text-[11px] text-gray-400 mt-2">
+          {data.live
+            ? 'Provisional — ranked on the live score, refreshing ~every 5 min. Final points count at full-time.'
+            : 'Everyone’s picks are shown live · scores land when the result’s in.'}
+        </p>
       )}
     </div>
   )

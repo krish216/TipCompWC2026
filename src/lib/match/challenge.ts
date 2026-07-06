@@ -25,6 +25,12 @@ export interface MatchFixture {
   away_score:  number | null
   pen_winner:  string | null
   first_goal_min: number | null
+  // In-progress score, stored separately from the final result (migration 146).
+  live_home_score: number | null
+  live_away_score: number | null
+  live_status:     string | null   // 'in' | 'ht' | 'ft' | null
+  live_minute:     number | null
+  live_updated_at: string | null   // last live refresh — used to detect stale data
 }
 
 const COLS = 'id, slug, name, tournament_id, type, enabled, fixture_id, closes_at'
@@ -40,7 +46,7 @@ export async function resolveMatchChallenge(admin: any, slug: string): Promise<M
 
 export async function getFixture(admin: any, fixtureId: number): Promise<MatchFixture | null> {
   const { data } = await (admin.from('fixtures') as any)
-    .select('id, home, away, kickoff_utc, venue, round, home_score, away_score, pen_winner, first_goal_min')
+    .select('id, home, away, kickoff_utc, venue, round, home_score, away_score, pen_winner, first_goal_min, live_home_score, live_away_score, live_status, live_minute, live_updated_at')
     .eq('id', fixtureId).maybeSingle()
   return (data as any) ?? null
 }

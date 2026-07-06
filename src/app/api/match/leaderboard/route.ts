@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { resolveMatchChallenge, getFixture, lockAt, isLocked } from '@/lib/match/challenge'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
 import { rankMatchEntries, isSettled, actualAdvancer } from '@/lib/match/score'
+import { tipsterFlag } from '@/lib/geo-flag'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -24,19 +25,41 @@ export async function GET(request: NextRequest) {
   const cfg     = await resolveActiveCampaign(admin, { challengeType: 'match', challengeId: challenge.id })
 
   const { data: rows } = await (admin.from('match_entries') as any)
-    .select('user_id, pred_home, pred_away, advances_team, first_goal_min, reveal_picks, entered_at, users(display_name, first_name)')
+    .select('user_id, pred_home, pred_away, advances_team, first_goal_min, reveal_picks, entered_at, users(display_name, first_name, country, timezone)')
     .eq('challenge_id', challenge.id)
   const entries = (rows ?? []) as any[]
 
-  const fx = fixture
+  const finalFx = fixture
     ? { home: fixture.home, away: fixture.away, home_score: fixture.home_score, away_score: fixture.away_score, pen_winner: fixture.pen_winner, first_goal_min: fixture.first_goal_min }
     : { home: '', away: '', home_score: null, away_score: null, pen_winner: null, first_goal_min: null }
 
-  const settled = isSettled(fx)
+  const settled = isSettled(finalFx)
+
+  // Live/provisional: the match is in progress and we have a RECENT live scoreline
+  // (stored separately from the final result so the scoring trigger never fires
+  // mid-match). Guard on freshness — if the cron hasn't refreshed the live score in a
+  // while (lag/outage), don't present stale data as current; fall back to the neutral
+  // "in progress" state instead. 15 min ≈ 3 missed 5-min cron cycles.
+  const LIVE_STALE_MS = 15 * 60 * 1000
+  const liveFresh = !!fixture?.live_updated_at
+    && (Date.now() - new Date(fixture.live_updated_at).getTime()) < LIVE_STALE_MS
+  const live = !settled
+    && fixture?.live_status === 'in'
+    && fixture?.live_home_score != null
+    && fixture?.live_away_score != null
+    && liveFresh
+  const liveFx = live
+    ? { home: fixture!.home, away: fixture!.away, home_score: fixture!.live_home_score, away_score: fixture!.live_away_score, pen_winner: null, first_goal_min: fixture!.first_goal_min ?? null }
+    : null
+
+  // Score the board against: the final result if settled, else the live score if the
+  // match is in progress, else an empty result (everyone on 0, tie-break ordering).
+  const fx = settled ? finalFx : (liveFx ?? finalFx)
   const ranked = rankMatchEntries(
     entries.map(e => ({
       user_id: e.user_id,
       name: e.users?.display_name || e.users?.first_name || 'Anonymous',
+      flag: tipsterFlag(e.users?.country, e.users?.timezone),
       pred_home: e.pred_home, pred_away: e.pred_away, advances_team: e.advances_team ?? null,
       first_goal_min: e.first_goal_min ?? null,
       reveal_picks: e.reveal_picks !== false,
@@ -58,6 +81,7 @@ export async function GET(request: NextRequest) {
     return {
       rank:   i + 1,
       name:   e.name,
+      flag:   e.flag,
       is_me:  isMe,
       hidden: !showPick,
       points: e.score.points,
@@ -76,7 +100,8 @@ export async function GET(request: NextRequest) {
       home: fixture.home, away: fixture.away, venue: fixture.venue, round: fixture.round,
       kickoff_utc: fixture.kickoff_utc,
       home_score: fixture.home_score, away_score: fixture.away_score,
-      first_goal_min: settled ? (fixture.first_goal_min ?? null) : null,
+      // Actual first-goal minute — shown once settled, and live once the first goal lands.
+      first_goal_min: (settled || live) ? (fixture.first_goal_min ?? null) : null,
       advancer: settled ? actualAdvancer(fx) : null,
     },
     sponsor: cfg.enabled ? {
@@ -87,6 +112,11 @@ export async function GET(request: NextRequest) {
     lock_at:   lockAt(challenge, fixture),
     locked,
     settled,
+    // Live/provisional board: the ranking + points above reflect the in-progress
+    // score. Real points only count once `settled` is true.
+    live,
+    provisional: live,
+    live_score: live ? { home: fixture!.live_home_score, away: fixture!.live_away_score, minute: fixture!.live_minute ?? null } : null,
     entrants:  entries.length,
     entries:   board,
     logged_in: !!user,

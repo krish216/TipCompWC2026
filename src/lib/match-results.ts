@@ -82,12 +82,36 @@ export async function espnScoreboard(dates: string): Promise<any[]> {
 }
 
 export type EspnComp = { canon: string; name: string; score: number | null; shootout: number | null; winner: boolean }
+
+// Earliest in-play goal minute from an ESPN event's scoring plays. Excludes penalty
+// shootout goals (post-ET, not a match minute). Returns null when no goal yet.
+function firstGoalMinuteOf(comp: any): number | null {
+  let first: number | null = null
+  for (const d of (comp?.details ?? [])) {
+    if (!d?.scoringPlay || d?.shootout) continue
+    // displayValue is ESPN's own minute label, e.g. "23'" or "90'+6'" — its leading
+    // integer is the minute. Fall back to the numeric clock (seconds → minutes).
+    const disp = d?.clock?.displayValue != null ? parseInt(String(d.clock.displayValue), 10) : NaN
+    const m = Number.isFinite(disp) ? disp
+      : (typeof d?.clock?.value === 'number' ? Math.max(1, Math.round(d.clock.value / 60)) : NaN)
+    if (Number.isFinite(m)) first = first == null ? m : Math.min(first, m)
+  }
+  return first
+}
+
 /** Normalise an ESPN event: the two competitors (canon name + score + shootout +
- *  winner flag) and whether the match is completed. */
-export function parseEspnEvent(ev: any): { comps: EspnComp[]; completed: boolean; isShootout: boolean } | null {
+ *  winner flag), whether the match is completed, the play state ('pre' | 'in' |
+ *  'post'), the current match minute, and the earliest in-play goal minute. */
+export function parseEspnEvent(ev: any): { comps: EspnComp[]; completed: boolean; isShootout: boolean; state: 'pre' | 'in' | 'post'; minute: number | null; firstGoalMinute: number | null } | null {
   const comp = ev?.competitions?.[0]
   if (!comp) return null
-  const completed = !!(ev?.status?.type?.completed ?? comp?.status?.type?.completed)
+  const status    = ev?.status ?? comp?.status ?? {}
+  const completed = !!(status?.type?.completed)
+  const state     = (status?.type?.state ?? 'pre') as 'pre' | 'in' | 'post'
+  // Match clock: ESPN gives displayClock like "67'" (strip to an int); fall back to
+  // the numeric `clock` (seconds → minutes) when present.
+  const dc = status?.displayClock != null ? parseInt(String(status.displayClock).replace(/[^0-9]/g, ''), 10) : NaN
+  const minute = Number.isFinite(dc) ? dc : (typeof status?.clock === 'number' ? Math.floor(status.clock / 60) : null)
   const comps: EspnComp[] = (comp.competitors ?? []).map((c: any) => ({
     canon:    canonTeam(c.team?.displayName ?? c.team?.shortDisplayName ?? c.team?.name),
     name:     c.team?.displayName ?? c.team?.name ?? '',
@@ -96,7 +120,7 @@ export function parseEspnEvent(ev: any): { comps: EspnComp[]; completed: boolean
     winner:   !!c.winner,
   }))
   const isShootout = comps.some(c => c.shootout != null)
-  return { comps, completed, isShootout }
+  return { comps, completed, isShootout, state, minute, firstGoalMinute: firstGoalMinuteOf(comp) }
 }
 
 // ── Team-name normalisation ─────────────────────────────────────────────────────

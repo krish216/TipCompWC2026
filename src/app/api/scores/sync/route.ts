@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
   // can exceed that when a round completes, so scoring must commit first (each
   // fixture UPDATE autocommits) — a later timeout can't undo results already written.
   let updated = 0
+  let liveUpdated = 0
   let checked = 0
   const skipped: { fixture_id: number; reason: string }[] = []
   try {
@@ -75,7 +76,28 @@ export async function GET(request: NextRequest) {
         const ourHome = canonTeam(f.home), ourAway = canonTeam(f.away)
         const ev = byPair.get([ourHome, ourAway].sort().join('|'))
         if (!ev) { skipped.push({ fixture_id: f.id, reason: 'not found on ESPN (date/name)' }); continue }
-        if (!ev.completed) continue   // still in progress — retry next run
+
+        // Still in progress — capture the LIVE scoreline into the SEPARATE live_*
+        // columns (never home_score, which would fire final scoring) so the match
+        // challenge board can show a provisional "if it ended now" ranking. Then
+        // retry the final result next run.
+        if (!ev.completed) {
+          if (ev.state === 'in') {
+            const lh = ev.comps.find(c => c.canon === ourHome)?.score ?? null
+            const la = ev.comps.find(c => c.canon === ourAway)?.score ?? null
+            if (lh != null && la != null) {
+              await (supabase.from('fixtures') as any).update({
+                live_home_score: lh, live_away_score: la, live_status: 'in',
+                live_minute: ev.minute, live_updated_at: new Date().toISOString(),
+                // Actual first-goal minute once the first goal is scored — powers the
+                // provisional tie-break live; only set when known (never overwrite with null).
+                ...(ev.firstGoalMinute != null ? { first_goal_min: ev.firstGoalMinute } : {}),
+              }).eq('id', f.id).is('home_score', null)
+              liveUpdated++
+            }
+          }
+          continue
+        }
 
         const homeComp = ev.comps.find(c => c.canon === ourHome)
         const awayComp = ev.comps.find(c => c.canon === ourAway)
@@ -97,6 +119,12 @@ export async function GET(request: NextRequest) {
             pen_winner: penWinner,
             result_set_at: new Date().toISOString(),
             result_set_by: null, // null = automated
+            live_status: 'ft',    // final is in — stop the live/provisional board
+            // Actual first-goal minute for the tie-break: ESPN's if known, else 0 for a
+            // goalless match (0–0 = "no goal"); leave unset if goals but no play detail.
+            ...(ev.firstGoalMinute != null
+              ? { first_goal_min: ev.firstGoalMinute }
+              : ((homeComp.score ?? 0) + (awayComp.score ?? 0) === 0 ? { first_goal_min: 0 } : {})),
           })
           .eq('id', f.id)
           .is('home_score', null)   // never clobber a manual entry
@@ -128,5 +156,5 @@ export async function GET(request: NextRequest) {
   try { debriefs = await autoPostRoundDebriefs(supabase) }
   catch (e: any) { console.error('[scores/sync] auto-debrief failed:', e?.message ?? e) }
 
-  return NextResponse.json({ updated, checked, schedule, reminders, debriefs, skipped, source: 'espn', timestamp: now.toISOString() })
+  return NextResponse.json({ updated, liveUpdated, checked, schedule, reminders, debriefs, skipped, source: 'espn', timestamp: now.toISOString() })
 }
