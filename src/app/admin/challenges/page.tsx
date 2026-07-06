@@ -467,10 +467,29 @@ function TeamImageUploader({ challengeId, side, teamName, current, onChanged }: 
   const [preview, setPreview] = useState<string | null>(current)
   useEffect(() => { setPreview(current) }, [current])
 
+  // Downscale in the browser before upload: team visuals render small (hero card,
+  // OG share card ~150px, leaderboard), so a multi-MB source just slows the OG image
+  // render (crawler timeouts) and bloats the pages. Cap the longest edge at 900px and
+  // re-encode as JPEG. Falls back to the original if the canvas path fails.
+  const shrink = async (file: File): Promise<Blob> => {
+    try {
+      const bmp = await createImageBitmap(file)
+      const scale = Math.min(1, 900 / Math.max(bmp.width, bmp.height))
+      if (scale === 1 && file.size < 400 * 1024) return file   // already small enough
+      const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale)
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+      canvas.getContext('2d')!.drawImage(bmp, 0, 0, w, h)
+      const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.82))
+      return blob && blob.size < file.size ? blob : file
+    } catch { return file }
+  }
+
   const upload = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return }
+    if (file.size > 15 * 1024 * 1024) { toast.error('Image must be under 15 MB'); return }
     setBusy(true)
-    const fd = new FormData(); fd.append('file', file)
+    const blob = await shrink(file)
+    const fd = new FormData()
+    fd.append('file', new File([blob], blob.type === 'image/jpeg' ? 'team.jpg' : file.name, { type: blob.type }))
     const res = await fetch(`/api/match/challenges/${challengeId}/team-image?side=${side}`, { method: 'POST', body: fd })
     const d = await res.json().catch(() => ({}))
     setBusy(false)

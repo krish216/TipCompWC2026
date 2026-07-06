@@ -39,11 +39,17 @@ export async function matchMetadata(slug: string): Promise<Metadata> {
     ? `Free · predict the full-time score and win ${prize}. Locks 5 min before kick-off — no sign-up wall.`
     : `Free · predict the full-time score of ${match} and top the leaderboard. Locks 5 min before kick-off.`
 
+  // The composed card is cached hard by URL, so version it on the custom team images
+  // (their storage URLs carry a ?v=<ts>) — re-uploading a visual busts the cached card.
+  const ver = [challenge.home_image_url, challenge.away_image_url]
+    .map(u => (u?.match(/[?&]v=(\d+)/)?.[1] ?? ''))
+    .join('-')
+
   // Bespoke PNG if one exists, else the dynamic per-match card. Either way we always
   // have a large image, so the preview is a rich summary_large_image card.
   const image = OG_IMAGES[slug]
     ? `${SITE}${OG_IMAGES[slug]}`
-    : `${SITE}/api/match/og?slug=${encodeURIComponent(slug)}`
+    : `${SITE}/api/match/og?slug=${encodeURIComponent(slug)}${ver ? `&v=${ver}` : ''}`
 
   return {
     title,
