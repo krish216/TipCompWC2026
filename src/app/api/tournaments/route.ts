@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   let query = supabase
     .from('tournaments')
-    .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, created_at, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled, bracket_knockout_mode')
+    .select('id, name, description, slug, status, is_active, start_date, end_date, logo_url, teams, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, created_at, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled, bracket_knockout_mode, enrollment_open')
     .order('start_date', { ascending: false })
   if (slug) query = (query as any).eq('slug', slug)
   const { data, error } = await query

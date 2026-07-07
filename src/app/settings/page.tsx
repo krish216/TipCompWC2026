@@ -612,6 +612,11 @@ function TournamentEnrollments() {
                   className="text-[11px] font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-50 transition-colors flex-shrink-0">
                   Leave
                 </button>
+              ) : t.enrollment_open === false ? (
+                <span title="Enrollment opens soon"
+                  className="text-[11px] font-semibold text-gray-400 bg-gray-100 rounded-lg px-3 py-1 flex-shrink-0 cursor-not-allowed">
+                  Opens soon
+                </span>
               ) : (
                 <button onClick={() => enrol(t.id)} disabled={isSaving}
                   className="text-[11px] font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg px-3 py-1 transition-colors flex-shrink-0 flex items-center gap-1.5">
