@@ -6,7 +6,7 @@ import { flagFor } from '@/lib/team-flags'
 // crawler always sees substantial, current HTML. Read-only; safe to use the admin
 // client server-side (only the selected public columns are ever returned).
 
-export type Team = { name: string; code: string; flag: string; rank: number | null; group: string | null }
+export type Team = { name: string; code: string; flag: string; logo: string | null; rank: number | null; group: string | null }
 export type Fixture = {
   id: number; round: string; grp: string | null; home: string; away: string
   kickoff_utc: string | null; venue: string | null
@@ -60,7 +60,7 @@ export async function getPublicTournaments(): Promise<TournamentRef[]> {
 export async function getTeamsAndFixtures(tournamentId: string): Promise<{ teams: Team[]; fixtures: Fixture[] }> {
   const admin = createAdminClient()
   const [{ data: rawTeams }, { data: rawFx }] = await Promise.all([
-    admin.from('tournament_teams').select('name, fifa_code, flag_emoji, fifa_rank').eq('tournament_id', tournamentId),
+    admin.from('tournament_teams').select('name, fifa_code, flag_emoji, fifa_rank, logo_url').eq('tournament_id', tournamentId),
     admin.from('fixtures').select('id, round, grp, home, away, kickoff_utc, venue, home_score, away_score, pen_winner, bracket_slot').eq('tournament_id', tournamentId),
   ])
   const fixtures = ((rawFx ?? []) as any[]).map(f => ({ ...f })) as Fixture[]
@@ -78,6 +78,7 @@ export async function getTeamsAndFixtures(tournamentId: string): Promise<{ teams
     name: t.name,
     code: (t.fifa_code || t.name.slice(0, 3)).toLowerCase(),
     flag: t.flag_emoji || flagFor(t.name),
+    logo: t.logo_url ?? null,   // club crest (clubs) — takes precedence over the flag emoji in the UI
     rank: t.fifa_rank ?? null,
     group: groupOf.get(t.name) ?? null,
   })).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))

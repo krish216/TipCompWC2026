@@ -5,6 +5,7 @@ import {
   getTournamentBySlug, getPublicTournaments, getTeamsAndFixtures, standingsFor, teamFixtures, teamForm,
   reachedKnockouts, ordinal, fmtDate, fmtKick, ROUND_LABEL, type Team, type Fixture, type TournamentRef,
 } from '@/lib/content/wc'
+import { TeamBadge } from '@/components/game/TeamBadge'
 
 export const revalidate = 1800
 
@@ -89,7 +90,7 @@ export default async function TeamPage({ params }: { params: { tournament: strin
       </nav>
 
       <div className="flex items-center gap-3">
-        <span className="text-5xl leading-none">{team.flag}</span>
+        <TeamBadge flag={team.flag} logo={team.logo} name={team.name} size={56} />
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900">{team.name}</h1>
           <p className="text-sm text-gray-500">

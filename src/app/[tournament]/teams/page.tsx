@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getTournamentBySlug, getPublicTournaments, getTeamsAndFixtures, groupLetters, reachedKnockouts, ordinal } from '@/lib/content/wc'
+import { TeamBadge } from '@/components/game/TeamBadge'
 
 export const revalidate = 1800
 
@@ -76,12 +77,12 @@ export default async function TeamsPage({ params }: { params: { tournament: stri
   )
 }
 
-function TeamRow({ base, tm, qualified }: { base: string; tm: { code: string; name: string; flag: string; rank: number | null }; qualified: boolean }) {
+function TeamRow({ base, tm, qualified }: { base: string; tm: { code: string; name: string; flag: string; logo: string | null; rank: number | null }; qualified: boolean }) {
   return (
     <li>
       <Link href={`${base}/teams/${tm.code}`}
         className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 hover:border-emerald-300 hover:bg-emerald-50/40 transition-colors">
-        <span className="text-2xl leading-none">{tm.flag}</span>
+        <TeamBadge flag={tm.flag} logo={tm.logo} name={tm.name} size={28} />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-gray-900 truncate">{tm.name}</span>
           {tm.rank != null && <span className="block text-[11px] text-gray-500">Ranked {ordinal(tm.rank)}</span>}
