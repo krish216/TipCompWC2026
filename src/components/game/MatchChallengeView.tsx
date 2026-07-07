@@ -343,7 +343,7 @@ function Predictor({ slug, data, onEntered }: { slug: string; data: Data; onEnte
         {/* Reveal toggle — opt-out; picks show on the board unless unticked */}
         <label className="mt-3 flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
           <input type="checkbox" checked={revealPicks} onChange={e => setRevealPicks(e.target.checked)} className="mt-0.5" />
-          <span>👀 Show my score &amp; first-goal pick on the leaderboard. <span className="text-gray-400">{revealPicks ? 'Uncheck to keep it hidden until the match.' : 'Hidden — only you can see it.'}</span></span>
+          <span>👀 Show my score &amp; first-goal pick on the leaderboard. <span className="text-gray-400">{revealPicks ? 'Uncheck to keep it hidden until predictions lock.' : 'Hidden until predictions lock — only you can see it until then.'}</span></span>
         </label>
 
         {entered && (
