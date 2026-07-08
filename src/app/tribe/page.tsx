@@ -877,70 +877,6 @@ function NoTribePanel({
 
 
 
-// ── Your entered sponsor challenges (Match + Bracket) ────────────────────────
-const statusPill = (label: string, tone: 'open' | 'locked' | 'live' | 'final') => (
-  <span className={clsx('text-[10px] uppercase font-bold px-1.5 py-0.5 rounded flex-shrink-0',
-    tone === 'final' ? 'bg-emerald-100 text-emerald-700'
-    : tone === 'live' ? 'bg-sky-100 text-sky-700'
-    : tone === 'locked' ? 'bg-amber-100 text-amber-700'
-    : 'bg-gray-100 text-gray-500')}>{label}</span>
-)
-
-function MatchEntryCard({ slug, name }: { slug: string; name: string }) {
-  const [d, setD] = useState<any>(null)
-  useEffect(() => { fetch(`/api/match/leaderboard?slug=${encodeURIComponent(slug)}`).then(r => r.json()).then(setD).catch(() => {}) }, [slug])
-  if (!d) return null
-  const me = ((d.entries ?? []) as any[]).find(e => e.is_me)
-  const [label, tone] = d.settled ? ['Final', 'final'] : d.locked ? ['Locked', 'locked'] : ['Open', 'open'] as const
-  const fgm = d.me?.first_goal_min
-  return (
-    <a href={`/match/${slug}`} className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-emerald-300 transition-colors">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-bold text-gray-900 truncate">🎯 {name}</span>
-        {statusPill(label as string, tone as any)}
-      </div>
-      {d.sponsor?.name && <p className="text-[11px] font-semibold text-amber-700 mt-0.5">🤝 {d.sponsor.name}{d.sponsor.tagline ? ` ${d.sponsor.tagline}` : ''}{d.sponsor.prize ? ` · win ${d.sponsor.prize}` : ''}</p>}
-      {d.me && <p className="text-xs text-gray-500 mt-1">Your pick <strong className="text-gray-700">{d.me.pred}</strong>{d.me.advances ? ` · ${d.me.advances} through` : ''}{typeof fgm === 'number' ? ` · 1st goal ${fgm === 0 ? '0–0' : `${fgm}'`}` : ''}{d.me.reveal_picks === false ? ' · 🙈 hidden' : ''}</p>}
-      {d.settled && d.fixture && <p className="text-xs text-emerald-700 mt-0.5">Result {d.fixture.home} {d.fixture.home_score}–{d.fixture.away_score} {d.fixture.away} · {me?.points ?? 0} pt{me?.points === 1 ? '' : 's'}</p>}
-      <p className="text-xs font-semibold text-gray-700 mt-0.5">{d.settled && me?.rank ? `Ranked ${me.rank} of ${d.entrants}` : `${d.entrants} entrant${d.entrants === 1 ? '' : 's'}${d.settled ? '' : ' so far'}`}</p>
-    </a>
-  )
-}
-
-function BracketEntryCard({ slug, name }: { slug: string; name: string }) {
-  const [d, setD] = useState<any>(null)
-  useEffect(() => { fetch(`/api/bracket/leaderboard?challenge=${encodeURIComponent(slug)}`).then(r => r.json()).then(setD).catch(() => {}) }, [slug])
-  if (!d) return null
-  const champ = d.champion
-  const [label, tone] = champ?.status === 'won' ? ['Won 🏆', 'final'] : d.scoring_started ? ['Live', 'live'] : ['Open', 'open'] as const
-  return (
-    <a href={`/bracket/leaderboard/${slug}`} className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-emerald-300 transition-colors">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-bold text-gray-900 truncate">🏆 {name}</span>
-        {statusPill(label as string, tone as any)}
-      </div>
-      {d.sponsor?.name && <p className="text-[11px] font-semibold text-amber-700 mt-0.5">🤝 {d.sponsor.name}{d.sponsor.tagline ? ` ${d.sponsor.tagline}` : ''}{d.sponsor.prize ? ` · win ${d.sponsor.prize}` : ''}</p>}
-      {champ && <p className="text-xs text-gray-500 mt-1">Champion pick <strong className="text-gray-700">{champ.team}</strong>{champ.status === 'out' ? ' · knocked out ❌' : champ.status === 'won' ? ' · lifted the trophy 🎉' : ' · still in'}</p>}
-      <p className="text-xs font-semibold text-gray-700 mt-0.5">{d.scoring_started && d.me?.rank ? `Ranked ${d.me.rank} of ${d.total_entrants}` : `${d.total_entrants} entrant${d.total_entrants === 1 ? '' : 's'}`}</p>
-    </a>
-  )
-}
-
-function MyChallengeEntries() {
-  const [list, setList] = useState<{ type: string; slug: string; name: string }[] | null>(null)
-  useEffect(() => { fetch('/api/my-challenges').then(r => r.json()).then(d => setList(d.challenges ?? [])).catch(() => setList([])) }, [])
-  if (!list || !list.length) return null
-  return (
-    <div className="mb-5">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 px-1">Your challenges</h3>
-      <div className="space-y-2">
-        {list.map(c => c.type === 'match'
-          ? <MatchEntryCard key={c.slug} slug={c.slug} name={c.name} />
-          : <BracketEntryCard key={c.slug} slug={c.slug} name={c.name} />)}
-      </div>
-    </div>
-  )
-}
 
 // ── Challenge Results ─────────────────────────────────────────────────────────
 function ChallengeResultsTab({ compId }: { compId: string | null }) {
@@ -1210,7 +1146,7 @@ export default function TribePage() {
   const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = [
     { id: 'leaderboard', label: 'Standings',  icon: '🏅' },
     { id: 'picks',       label: 'Tip Sheets', icon: '⚽' },
-    { id: 'challenges',  label: 'Challenges', icon: '🎯' },
+    // { id: 'challenges', label: 'Challenges', icon: '🎯' },  // hidden — tournament challenges now live on /challenges; comp challenges are off (comp-admin ChallengesTab disabled). Render block + ChallengeResultsTab retained for one-line revival.
     { id: 'chat',        label: 'Chat',       icon: '💬' },
   ]
 
@@ -1422,12 +1358,10 @@ export default function TribePage() {
           />
         )}
 
-        {/* Challenges */}
+        {/* Challenges — comp-specific challenge results. Your tournament challenge
+            entries + results now live on the Challenges hub (/challenges). */}
         {tab === 'challenges' && (
-          <>
-            <MyChallengeEntries />
-            <ChallengeResultsTab compId={(tribe as any).comp_id ?? null} />
-          </>
+          <ChallengeResultsTab compId={(tribe as any).comp_id ?? null} />
         )}
 
         {/* Chat */}

@@ -186,8 +186,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
         ...(selectedCompId ? [{ href: '/predict', label: 'My Tips' }] : []),
         { href: '/leaderboard', label: 'ScoreBoard' },
         { href: '/tribe',       label: 'My Tribe'   },
-        // Bracket Challenge — live for all players.
-        { href: '/bracket', label: 'Bracket' },
+        // Challenges hub — flagship (bracket/predictor) + match challenges, per tournament.
+        { href: '/challenges', label: 'Challenges' },
       ]
 
   // Mobile bottom tab items
@@ -203,8 +203,8 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
         { href: '/predict',     icon: '🎯', label: 'My Tips', disabled: !selectedCompId },
         { href: '/leaderboard', icon: '🏆', label: 'Scores',  disabled: false           },
         { href: '/tribe',       icon: '👥', label: 'Tribe',   disabled: false           },
-        // Bracket Challenge — live for all players.
-        { href: '/bracket', icon: '🥊', label: 'Bracket', disabled: false },
+        // Challenges hub — flagship (bracket/predictor) + match challenges, per tournament.
+        { href: '/challenges', icon: '🏅', label: 'Challenges', disabled: false },
         ...(isCompAdmin && selectedCompId
           ? [{ href: '/comp-admin', icon: '⚙️', label: 'Manage', disabled: false }]
           : []),
