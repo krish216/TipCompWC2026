@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const fields = 'id,tournament_id,round_code,round_name,round_order,tab_group,tab_label,is_knockout,predict_mode,result_pts,exact_bonus,margin_bonus,pen_bonus,fav_team_2x,include_in_scoring'
+  const fields = 'id,tournament_id,round_code,round_name,round_order,tab_group,tab_label,is_knockout,predict_mode,result_pts,exact_bonus,margin_bonus,pen_bonus,fav_team_2x,fav_exact_bonus,include_in_scoring'
   const url = supabaseUrl + '/rest/v1/tournament_rounds?tournament_id=eq.' + tournamentId + '&order=round_order&select=' + fields
   const res = await fetch(url, {
     headers: { 'apikey': serviceKey ?? '', 'Authorization': 'Bearer ' + (serviceKey ?? '') },

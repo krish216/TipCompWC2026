@@ -67,6 +67,11 @@ export function MatchRow({
   const isExactRound   = cfg.exact_score_rounds.includes(round)
   const isOutcomeRound = cfg.outcome_rounds.includes(round)
   const isKnockout     = cfg.knockout_rounds.includes(round)
+  // EPL "focus pick": in an H/D/A round, your bonus team's match instead takes an
+  // exact scoreline for bonus points. Gated on the tournament switch (false for WC).
+  const favExactBonus  = cfg.fav_exact_bonus ?? 0
+  const isFocusPick     = isOutcomeRound && isFavourite && !!cfg.fav_exact_focus && favExactBonus > 0
+  const showOutcomeInput = isOutcomeRound && !isFocusPick
   const penWinner      = (prediction as any)?.pen_winner ?? null
   // Derive outcome: use stored outcome or infer from scores for outcome rounds
   const rawOutcome = (prediction as any)?.outcome ?? null
@@ -132,7 +137,9 @@ export function MatchRow({
         // fold in the pen bonus — it's only reachable on a draw → shoot-out, so it's
         // upside surfaced via the pen picker, not a guaranteed at-stake figure.
         const base = isExactRound ? sc.result_pts + sc.exact_bonus : sc.result_pts
-        return isFavourite && cfg.fav_team_rounds.includes(round) ? base * 2 : base
+        const doubled = isFavourite && cfg.fav_team_rounds.includes(round) ? base * 2 : base
+        // Focus pick: base result pts + the exact-score bonus you can earn on your team.
+        return doubled + (isFocusPick ? favExactBonus : 0)
       })()
     : null
 
@@ -243,7 +250,7 @@ export function MatchRow({
               <span className="text-[13px] font-semibold text-gray-500">⏳ Teams to be confirmed</span>
               <span className="text-[11px] text-gray-400 mt-0.5">Tip opens once the matchup is set</span>
             </div>
-          ) : isOutcomeRound ? (
+          ) : showOutcomeInput ? (
             <>
               {/* Three outcome radio buttons filling the space */}
               <div className={clsx(
@@ -315,8 +322,13 @@ export function MatchRow({
               )}
             </>
           ) : (
-            /* Exact score inputs (tp, f) */
+            /* Exact score inputs — score rounds (tp, f) and the EPL bonus-team focus pick */
             <>
+              {isFocusPick && !result && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 mb-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full">
+                  ⭐ Focus pick — exact score for +{favExactBonus}
+                </span>
+              )}
               <div className="flex items-center gap-2">
                 <input type="number" min={0} max={20}
                   value={localHome} disabled={inputDisabled}

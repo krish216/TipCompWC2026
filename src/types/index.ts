@@ -36,6 +36,7 @@ export interface RoundConfig {
   margin_bonus:        number
   pen_bonus:           number
   fav_team_2x:         boolean
+  fav_exact_bonus?:    number    // bonus for nailing the EXACT score of your bonus team's match (EPL focus pick); 0/undefined = off
   include_in_scoring:  boolean   // when false: zero points, hidden from leaderboard breakdown and Tribe Picks
 }
 
@@ -48,6 +49,9 @@ export interface TournamentScoringConfig {
   pen_bonus_rounds:    RoundId[]   // pen_bonus > 0
   margin_bonus_rounds: RoundId[]   // margin_bonus > 0
   fav_team_rounds:     RoundId[]   // fav_team_2x === true
+  fav_exact_rounds:    RoundId[]   // fav_exact_bonus > 0 (bonus-team exact focus pick)
+  fav_exact_focus:     boolean     // any round runs the exact focus-pick bonus (EPL); false for WC
+  fav_exact_bonus:     number      // the reward amount (0 when off)
 }
 
 /** Build a TournamentScoringConfig from an array of RoundConfig rows from the DB.
@@ -63,6 +67,9 @@ export function buildScoringConfig(rows: RoundConfig[]): TournamentScoringConfig
     pen_bonus_rounds:    rows.filter(r => r.pen_bonus > 0).map(r => r.round_code),
     margin_bonus_rounds: rows.filter(r => r.margin_bonus > 0).map(r => r.round_code),
     fav_team_rounds:     rows.filter(r => r.fav_team_2x).map(r => r.round_code),
+    fav_exact_rounds:    rows.filter(r => (r.fav_exact_bonus ?? 0) > 0).map(r => r.round_code),
+    fav_exact_focus:     rows.some(r => (r.fav_exact_bonus ?? 0) > 0),
+    fav_exact_bonus:     Math.max(0, ...rows.map(r => r.fav_exact_bonus ?? 0)),
   }
 }
 
@@ -214,7 +221,12 @@ export function calcPoints(
       && !!result.pen_winner
       && !!pred.pen_winner
       && pred.pen_winner === result.pen_winner
+    // EPL focus pick: your bonus team's match takes an exact scoreline for a bonus.
+    const focusExact = !!cfg.fav_exact_focus && isFavourite && (cfg.fav_exact_bonus ?? 0) > 0
+      && pred.home != null && pred.away != null && pred.home >= 0 && pred.away >= 0
+      && pred.home === result.home && pred.away === result.away
     // fav_team_2x applies to base result_pts only (pen bonus always flat)
     return rc.result_pts * multiplier + (penCorrect ? rc.pen_bonus : 0)
+      + (focusExact ? (cfg.fav_exact_bonus ?? 0) : 0)
   }
 }

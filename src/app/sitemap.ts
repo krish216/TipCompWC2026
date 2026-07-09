@@ -25,6 +25,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const t of tournaments) {
       const { teams, fixtures } = await getTeamsAndFixtures(t.id)
       if (!teams.length) continue
+      const rounds = playedRounds(fixtures)
+      // Only list a tournament once it has real match data. Pre-season tournaments are
+      // all templated shells (no results/recaps) — indexing them dilutes the site with
+      // thin pages, so keep them out of the sitemap (and they're noindex'd too).
+      if (!rounds.length) continue
       contentPages.push({ url: `${base}/${t.slug}/teams`, changeFrequency: cf, priority: 0.8 })
       for (const tm of teams) contentPages.push({ url: `${base}/${t.slug}/teams/${tm.code}`, changeFrequency: cf, priority: 0.6 })
       const groups = groupLetters(teams)
@@ -32,11 +37,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         contentPages.push({ url: `${base}/${t.slug}/groups`, changeFrequency: cf, priority: 0.8 })
         for (const g of groups) contentPages.push({ url: `${base}/${t.slug}/groups/${g.toLowerCase()}`, changeFrequency: cf, priority: 0.6 })
       }
-      const rounds = playedRounds(fixtures)
-      if (rounds.length) {
-        contentPages.push({ url: `${base}/${t.slug}/recaps`, changeFrequency: cf, priority: 0.7 })
-        for (const r of rounds) contentPages.push({ url: `${base}/${t.slug}/recaps/${roundSlug(r)}`, changeFrequency: 'weekly', priority: 0.6 })
-      }
+      contentPages.push({ url: `${base}/${t.slug}/recaps`, changeFrequency: cf, priority: 0.7 })
+      for (const r of rounds) contentPages.push({ url: `${base}/${t.slug}/recaps/${roundSlug(r)}`, changeFrequency: 'weekly', priority: 0.6 })
     }
     return [...staticPages, ...contentPages]
   } catch {

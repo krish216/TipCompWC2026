@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const [{ count: predictorQs }, { data: brackets }, { data: matches }] = await Promise.all([
     (admin.from('standings_quarters') as any).select('id', { count: 'exact', head: true }).eq('tournament_id', t.id),
     (admin.from('challenges') as any).select('id, slug').eq('tournament_id', t.id).eq('type', 'bracket').eq('enabled', true).limit(1),
-    (admin.from('challenges') as any).select('id, slug, name, fixture_id').eq('tournament_id', t.id).eq('type', 'match').eq('enabled', true),
+    (admin.from('challenges') as any).select('id, slug, name, fixture_id, home_image_url, away_image_url').eq('tournament_id', t.id).eq('type', 'match').eq('enabled', true),
   ])
   const rawMatches = (matches ?? []) as any[]
   const bracketId = brackets?.[0]?.id
@@ -77,11 +77,15 @@ export async function GET(request: NextRequest) {
     if (done && !entered) continue  // hide finished challenges the user sat out
     const cfg = await resolveActiveCampaign(admin, { challengeType: 'match', challengeId: m.id })
     const result = done ? await matchResult(admin, m.id, fxById.get(m.fixture_id), user!.id) : null
+    const fx = m.fixture_id ? fxById.get(m.fixture_id) : null
     matchOut.push({
       slug: m.slug, name: m.name, href: `/match/${m.slug}`,
       sponsor: cfg.enabled ? { name: cfg.sponsor_name, prize: cfg.prize } : null,
       state: done ? 'completed' : 'open',
       entered, result,
+      // Custom team visuals (migration 147), with the fixture's teams as flag fallback.
+      home_image: m.home_image_url ?? null, away_image: m.away_image_url ?? null,
+      home_team: fx?.home ?? null, away_team: fx?.away ?? null,
     })
   }
   // Open first, completed last.

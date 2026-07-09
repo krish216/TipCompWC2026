@@ -34,6 +34,19 @@ export async function getActiveTournament(): Promise<TournamentRef | null> {
   return (data as any) ?? null
 }
 
+// Whether a tournament has real match data yet (≥1 fixture with a result). Used to
+// gate search indexing: a pre-season tournament is all templated shells (no results,
+// no recaps) and reads as thin / low-value content, so we noindex it until it has
+// played matches, and keep it out of the sitemap.
+export async function tournamentHasResults(tournamentId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { count } = await admin.from('fixtures')
+    .select('id', { count: 'exact', head: true })
+    .eq('tournament_id', tournamentId)
+    .not('home_score', 'is', null)
+  return (count ?? 0) > 0
+}
+
 // Resolve a tournament by its public slug (the URL segment). Content pages are
 // tournament-scoped (/[slug]/teams, /[slug]/groups) so each tournament has its own
 // stable URLs — the content at /wc2026/teams/arg never changes when the active

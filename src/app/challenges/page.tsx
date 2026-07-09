@@ -4,9 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
+import { Flag } from '@/components/ui/Flag'
 
 interface MatchResult { final: string; pred: string; points: number; exact: boolean; rank: number; total: number }
-interface MatchC { slug: string; name: string; href: string; sponsor: { name: string; prize: string } | null; state: 'open' | 'completed'; entered: boolean; result: MatchResult | null }
+interface MatchC {
+  slug: string; name: string; href: string; sponsor: { name: string; prize: string } | null
+  state: 'open' | 'completed'; entered: boolean; result: MatchResult | null
+  home_image: string | null; away_image: string | null; home_team: string | null; away_team: string | null
+}
 interface Hub {
   tournament: { slug: string; name: string } | null
   flagship: { type: 'predictor' | 'bracket'; href: string; label: string; blurb: string; entered: boolean } | null
@@ -121,6 +126,13 @@ export default function ChallengesHub() {
   )
 }
 
+// A team's visual on a match card: the sponsor's custom image if set, else its flag.
+function TeamViz({ image, team }: { image: string | null; team: string | null }) {
+  if (image) return <img src={image} alt={team ?? ''} className="w-9 h-9 rounded-lg object-cover border border-black/5" />
+  if (team)  return <Flag team={team} className="text-[26px] rounded shadow-sm" />
+  return null
+}
+
 // ── Match challenge card ────────────────────────────────────────────────────────
 function MatchCard({ m }: { m: MatchC }) {
   const done = m.state === 'completed'
@@ -135,8 +147,15 @@ function MatchCard({ m }: { m: MatchC }) {
             ? 'border-emerald-300 bg-emerald-50/70 hover:border-emerald-400'
             : 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white hover:border-emerald-300')
       }>
-      <div className="flex items-start justify-between gap-3">
-        <p className={'text-sm font-bold ' + (done ? 'text-gray-600' : 'text-gray-900')}>{m.name}</p>
+      <div className="flex items-center gap-3">
+        {(m.home_team || m.away_team || m.home_image || m.away_image) && (
+          <div className={'flex items-center gap-1.5 flex-shrink-0 ' + (done ? 'opacity-60' : '')}>
+            <TeamViz image={m.home_image} team={m.home_team} />
+            <span className="text-[10px] font-bold text-gray-400">v</span>
+            <TeamViz image={m.away_image} team={m.away_team} />
+          </div>
+        )}
+        <p className={'flex-1 min-w-0 text-sm font-bold ' + (done ? 'text-gray-600' : 'text-gray-900')}>{m.name}</p>
         {!done && m.entered && <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ Entered</span>}
       </div>
       {m.sponsor?.name && (

@@ -147,16 +147,17 @@ function AccordionItem({ q, a }: { q: string; a: ReactNode }) {
     <div className="border-b border-gray-100 last:border-0">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
         className="w-full text-left flex items-center justify-between gap-3 py-3.5 px-4 hover:bg-gray-50 transition-colors"
       >
         <span className="text-sm font-medium text-gray-800">{q}</span>
         <span className={clsx('text-gray-400 transition-transform flex-shrink-0 text-xs', open && 'rotate-180')}>▼</span>
       </button>
-      {open && (
-        <div className="px-4 pb-4">
-          <p className="text-sm text-gray-600 leading-relaxed">{a}</p>
-        </div>
-      )}
+      {/* Always render the answer into the DOM (crawlable in the SSR HTML), just
+          collapse it visually when closed — conditional mounting hid it from search. */}
+      <div className={clsx('px-4 pb-4', !open && 'hidden')}>
+        <p className="text-sm text-gray-600 leading-relaxed">{a}</p>
+      </div>
     </div>
   )
 }
