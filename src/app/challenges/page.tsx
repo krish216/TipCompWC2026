@@ -49,7 +49,9 @@ export default function ChallengesHub() {
     return t
   }, [hub])
 
-  const active = tab ?? tabs[0] ?? null
+  // Land on Match by default (the actionable, time-sensitive challenges); fall back to
+  // the flagship tab when there are no open match challenges.
+  const active = tab ?? (tabs.includes('match') ? 'match' : tabs[0]) ?? null
 
   if (loading) return <div className="flex justify-center py-24"><Spinner className="w-7 h-7" /></div>
 
