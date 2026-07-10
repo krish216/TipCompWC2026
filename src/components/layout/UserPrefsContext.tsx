@@ -179,10 +179,12 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         ? prefCompId
         : comps[0]?.id ?? null
       setSelectedCompId(startComp)
-      // Keep the per-tournament comp memory in sync with whatever's selected now — runs
-      // on initial load, switch and refresh, so it also seeds selected_comp_id for users
-      // who chose a comp before this feature existed. Fire-and-forget.
-      if (startComp) {
+      // Persist the per-tournament comp memory only when auto-select landed on a comp
+      // DIFFERENT from the one requested (a genuine change). The common "restored the
+      // requested comp" case needs no write — it already matches the stored value
+      // (seeded by pickComp, the switch restore, or the migration-154 backfill). Avoids
+      // a write on every page load.
+      if (startComp && startComp !== prefCompId) {
         fetch('/api/user-tournaments', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tournament_id: tournId, selected_comp_id: startComp }),
