@@ -179,6 +179,15 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         ? prefCompId
         : comps[0]?.id ?? null
       setSelectedCompId(startComp)
+      // Keep the per-tournament comp memory in sync with whatever's selected now — runs
+      // on initial load, switch and refresh, so it also seeds selected_comp_id for users
+      // who chose a comp before this feature existed. Fire-and-forget.
+      if (startComp) {
+        fetch('/api/user-tournaments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: tournId, selected_comp_id: startComp }),
+        }).catch(() => { /* non-critical */ })
+      }
       return comps
     } catch (e) {
       console.error('[loadComps] error:', e)
