@@ -4,7 +4,8 @@ import { createAdminClient } from '@/lib/supabase'
 export const dynamic = 'force-dynamic'
 
 // GET /api/tournament-teams?tournament_id=<id>
-// Public — no auth required. Returns team name, fifa_code, flag_emoji.
+// Public — no auth required. Returns team name, fifa_code, flag_emoji, plus the club
+// crest (logo_url) + short_name for league tournaments whose teams aren't countries.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const tournamentId = searchParams.get('tournament_id')
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const adminClient = createAdminClient()
   const { data, error } = await (adminClient.from('tournament_teams') as any)
-    .select('name, fifa_code, flag_emoji')
+    .select('name, fifa_code, flag_emoji, logo_url, short_name')
     .eq('tournament_id', tournamentId)
     .order('name')
 

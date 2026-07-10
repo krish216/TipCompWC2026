@@ -42,7 +42,7 @@ type PredictCacheEntry = {
   roundLocks:         Record<string, boolean>
   tippingClosed:      Record<string, boolean>
   favouriteTeam:      string | null
-  teamsList:          { name: string; fifa_code: string; flag_emoji: string }[]
+  teamsList:          { name: string; fifa_code: string; flag_emoji: string; logo_url?: string | null }[]
   firstWinCelebrated: boolean | null
 }
 const predictCache = new Map<string, PredictCacheEntry>()
@@ -88,7 +88,7 @@ export default function PredictPage() {
       } catch { /* keep the default lock */ }
     })()
   }, [supabase])
-  const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string}[]>([])
+  const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string; logo_url?:string|null}[]>([])
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
@@ -488,6 +488,14 @@ export default function PredictPage() {
   // isn't in here is still a placeholder slot ("Winner Group A") and can't be tipped.
   // Empty until teamsList loads → fixtureHasPlaceholder falls back to its name heuristic.
   const knownTeams = useMemo(() => knownTeamSet(teamsList.map(t => t.name)), [teamsList])
+  // Club crests for league tournaments (EPL). National teams have no logo_url → the
+  // MatchRow falls back to the country flag.
+  const teamLogos = useMemo(() => {
+    const m = new Map<string, string>()
+    teamsList.forEach(t => { if (t.logo_url) m.set(t.name, t.logo_url) })
+    return m
+  }, [teamsList])
+  const logoFor = useCallback((team: string) => teamLogos.get(team) ?? null, [teamLogos])
 
   const isLocked = useCallback((f: Fixture) => {
     if (fixtureHasPlaceholder(f, knownTeams)) return true  // teams not confirmed yet — never tippable
@@ -749,6 +757,7 @@ export default function PredictPage() {
       locked={isLocked(f)}
       teamsTbd={fixtureHasPlaceholder(f, knownTeams)}
       knownTeams={knownTeams}
+      logoFor={logoFor}
       committed={isCommitted(f.id)}
       saving={saving.has(f.id)}
       celebrating={celebrating.has(f.id)}

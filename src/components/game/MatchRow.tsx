@@ -20,6 +20,7 @@ interface Props {
   locked?:     boolean
   teamsTbd?:   boolean        // knockout slot whose teams aren't confirmed yet — not tippable
   knownTeams?: Set<string>    // canonical real-team tokens, for per-side TBD labelling
+  logoFor?:    (team: string) => string | null   // club crest for league teams; null → country flag
   committed?:  boolean        // user has voluntarily locked in this prediction (final)
   saving?:     boolean
   isFavourite?: boolean
@@ -39,7 +40,7 @@ interface Props {
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, teamsTbd = false, knownTeams, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
+  locked = false, teamsTbd = false, knownTeams, logoFor, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
@@ -161,6 +162,14 @@ export function MatchRow({
     celebrating && 'ring-2 ring-green-300 shadow-md scale-[1.01]',
   )
 
+  // Club crest when the tournament provides one (leagues), else the country flag (WC).
+  const teamViz = (team: string) => {
+    const logo = logoFor?.(team)
+    return logo
+      ? <img src={logo} alt={team} className="w-9 h-9 object-contain rounded shadow-sm" />
+      : <Flag team={team} className="text-4xl rounded shadow-sm" />
+  }
+
   return (
     <div className={cardClass}>
 
@@ -233,7 +242,7 @@ export function MatchRow({
 
         {/* Home team */}
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-          <Flag team={fixture.home} className="text-4xl rounded shadow-sm" />
+          {teamViz(fixture.home)}
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
             result && !noTip && resultOutcome === 'H' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700',
@@ -366,7 +375,7 @@ export function MatchRow({
 
         {/* Away team */}
         <div className="flex flex-col items-center gap-1 w-14 flex-shrink-0">
-          <Flag team={fixture.away} className="text-4xl rounded shadow-sm" />
+          {teamViz(fixture.away)}
           <span className={clsx(
             'text-[11px] font-semibold text-center leading-tight h-7 flex items-center justify-center',
             result && !noTip && resultOutcome === 'A' ? 'text-gray-900' : result && !noTip ? 'text-gray-400' : 'text-gray-700',
