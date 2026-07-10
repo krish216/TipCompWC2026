@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
 import { Flag } from '@/components/ui/Flag'
+import { CountdownBanner } from '@/components/game/CountdownBanner'
 
 interface MatchResult { final: string; pred: string; points: number; exact: boolean; rank: number; total: number }
 interface MatchC {
@@ -62,6 +63,7 @@ export default function ChallengesHub() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6 pb-24">
+      <CountdownBanner />
       <h1 className="text-2xl font-black text-gray-900">Challenges</h1>
       {hub?.tournament && <p className="text-sm text-gray-500 mt-0.5">{hub.tournament.name}</p>}
 

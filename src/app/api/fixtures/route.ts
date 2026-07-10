@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { isPlaceholder } from '@/lib/cascade-knockout'
+
+// Per-user/tournament, so never shared-cached. Freshness is conditional: while any
+// fixture still holds a placeholder team ("Quarterfinal 2 Winner"), the next round is
+// mid-seeding, so serve no-store to catch each seed on load. Once every team is
+// resolved the data is stable — allow a short private cache to save refetches.
+export const dynamic = 'force-dynamic'
 
 // GET /api/fixtures — returns fixtures for the player's active tournament
 // Falls back to the app-wide active tournament if user has no preference
@@ -83,5 +90,12 @@ export async function GET(request: NextRequest) {
       : null,
   }))
 
-  return NextResponse.json({ data: fixtures, tournament_id: activeTournamentId })
+  // TBD present → still seeding, keep fresh; all teams resolved → brief private cache.
+  const hasTBD = fixtures.some(f => isPlaceholder(f.home) || isPlaceholder(f.away))
+  const cache = hasTBD ? 'no-store, must-revalidate' : 'private, max-age=60, must-revalidate'
+
+  return NextResponse.json(
+    { data: fixtures, tournament_id: activeTournamentId },
+    { headers: { 'Cache-Control': cache } },
+  )
 }

@@ -9,6 +9,7 @@ import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { TrophyStrip } from '@/components/game/TrophyStrip'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -402,6 +403,7 @@ export default function LeaderboardPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-36 sm:pb-24">
 
+      <CountdownBanner />
       <BracketEntryPrompt variant="card" />
 
       {/* Page header + comp selector in one row */}

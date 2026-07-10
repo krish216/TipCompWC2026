@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import type { RoundId } from '@/types'
 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
+import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { linkify } from '@/lib/linkify'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1154,6 +1155,8 @@ export default function TribePage() {
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 16px 40px' }}>
+
+      <div className="pt-4"><CountdownBanner /></div>
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <div style={{

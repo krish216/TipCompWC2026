@@ -2330,27 +2330,9 @@ export default function HomePage() {
                   'text-gray-500'
                 return (
                   <>
-                    {activeTournaments.length > 1 && (
-                      <div className="flex flex-wrap gap-2 mb-1.5">
-                        {activeTournaments.map(t => {
-                          const isSel = selectedTournId === t.id
-                          return (
-                            <button key={t.id} onClick={() => !isSel && pickTournament(t.id)}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                                isSel
-                                  ? 'bg-green-600 text-white shadow-sm'
-                                  : 'bg-white border border-gray-200 text-gray-500 hover:border-green-400'
-                              }`}>
-                              {t.logo_url
-                                ? <img src={t.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover flex-shrink-0" />
-                                : <span>⚽</span>}
-                              {t.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {activeTournaments.length === 1 && selectedTourn && (
+                    {/* Tournament switching now lives in the CountdownBanner (a global
+                        switcher). Keep just a tournament-name label for context here. */}
+                    {selectedTourn && (
                       <p className="text-xs text-gray-400 mb-0.5 flex items-center gap-1.5">
                         {selectedTourn.logo_url
                           ? <img src={selectedTourn.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover flex-shrink-0" />

@@ -5,6 +5,13 @@ import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, get
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { flagFor } from '@/lib/team-flags'
 
+// Emails allowed to preview not-yet-active tournaments (e.g. EPL) in their switcher,
+// so they can trial the new tournament before launch. This does NOT flip is_active —
+// EPL stays inactive globally, so every single-active-tournament lookup elsewhere is
+// unaffected. Temporary until the multi-active-tournament refactor lands.
+const TOURNAMENT_PREVIEW_EMAILS = ['paws@petzbff.com.au']
+const PREVIEW_TOURNAMENT_SLUGS  = ['epl-2026-27']
+
 export interface Tournament {
   id:             string
   name:           string
@@ -191,13 +198,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setAdminComps([])
     if (!session) { setLoading(false); return }
     ;(async () => {
-      // 1+2. Fetch tournaments and user preferences in parallel
+      // 1+2. Fetch tournaments and user preferences in parallel.
+      // Preview users see active tournaments PLUS the allow-listed preview slugs (EPL);
+      // everyone else sees only active ones. is_active is never changed here.
+      const canPreview = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
+      const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium'
+      let tournQuery = supabase.from('tournaments').select(TOURN_COLS)
+      tournQuery = canPreview
+        ? tournQuery.or(`is_active.eq.true,slug.in.(${PREVIEW_TOURNAMENT_SLUGS.join(',')})`)
+        : tournQuery.eq('is_active', true)
+
       const [tournRes, { data: prefs }] = await Promise.all([
-        supabase
-          .from('tournaments')
-          .select('id, name, slug, status, is_active, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium')
-          .eq('is_active', true)
-          .order('start_date', { ascending: true }),
+        tournQuery.order('start_date', { ascending: true }),
         supabase
           .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
       ])

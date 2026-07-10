@@ -17,7 +17,7 @@ const FEEDS: [string, string, string][] = [
   ['tp', 'sf:1', 'sf:2'], // third-place play-off: the LOSERS of the two semi-finals
 ]
 
-const isPlaceholder = (s: string | null | undefined): boolean =>
+export const isPlaceholder = (s: string | null | undefined): boolean =>
   !s || /\b(group|winner|place|3rd|runner|tbd|tbc)\b/i.test(s)
 const real = (s: string | null | undefined): string | null => (isPlaceholder(s) ? null : (s as string))
 
