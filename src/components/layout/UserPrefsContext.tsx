@@ -33,6 +33,8 @@ export interface Tournament {
   max_bonus_pts?:                 number | null
   enforce_premium?:               boolean
   allow_retroactive_predictions?: boolean
+  warmup_comp_code?:              string | null
+  warmup_tribe_code?:             string | null
 }
 
 export interface Comp {
@@ -213,7 +215,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       // Preview users see active tournaments PLUS the allow-listed preview slugs (EPL);
       // everyone else sees only active ones. is_active is never changed here.
       const canPreview = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
-      const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium'
+      const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
       let tournQuery = supabase.from('tournaments').select(TOURN_COLS)
       tournQuery = canPreview
         ? tournQuery.or(`is_active.eq.true,slug.in.(${PREVIEW_TOURNAMENT_SLUGS.join(',')})`)

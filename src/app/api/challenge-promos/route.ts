@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
   if (!SURFACES.has(surface)) return NextResponse.json({ promos: [] })
 
   const admin = createAdminClient()
-  const t = await getPrimaryTournament(admin)
+  // Scope to the caller's selected tournament when supplied (so a user switched into a
+  // different tournament sees its challenges), else the primary/default tournament.
+  const paramTid = new URL(request.url).searchParams.get('tournament_id')
+  const t = paramTid ? { id: paramTid } : await getPrimaryTournament(admin)
   if (!t) return NextResponse.json({ promos: [] })
 
   const nowIso = new Date().toISOString()

@@ -62,7 +62,11 @@ export function CountdownBanner() {
   const kickoff    = kickoffOf(selectedTourn)
   const name       = selectedTourn?.name ?? WC.name
   const matches    = selectedTourn?.total_matches ?? WC.matches
-  const firstMatch = selectedTourn?.first_match ?? WC.first
+  // Don't borrow WC's first-match line for another tournament that has none — fall back
+  // to a kickoff date instead.
+  const firstMatch = selectedTourn
+    ? (selectedTourn.first_match ?? `Season kicks off ${kickoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`)
+    : WC.first
   // Per-tournament logo; only fall back to the WC crest when there's no tournament at all.
   const logo       = selectedTourn?.logo_url ?? (selectedTourn ? null : WC.logo)
   const canSwitch  = tournaments.length > 1

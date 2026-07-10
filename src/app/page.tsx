@@ -1198,24 +1198,31 @@ export default function HomePage() {
   }
 
   const joinWarmUpComp = async () => {
+    // Per-tournament warm-up comp (+ optional tribe) — from the tournaments config, so
+    // switching tournaments joins the right default comp, not the hardcoded WC one.
+    const compCode  = selectedTourn?.warmup_comp_code
+    const tribeCode = selectedTourn?.warmup_tribe_code
+    if (!compCode) { setWarmUpError('Warm-Up Comp not available for this tournament.'); return }
     setJoiningWarmUp(true); setWarmUpError(null)
     try {
-      const { data: comp, error: cErr } = await fetch('/api/comps?code=WCEH3GB9').then(r => r.json())
+      const { data: comp, error: cErr } = await fetch(`/api/comps?code=${encodeURIComponent(compCode)}`).then(r => r.json())
       if (cErr || !comp) { setWarmUpError('Warm-Up Comp not available — please try again'); return }
       const { success, error: jErr } = await fetch('/api/comp-admins/self-register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comp_id: comp.id, invite_code: 'WCEH3GB9' }),
+        body: JSON.stringify({ comp_id: comp.id, invite_code: compCode }),
       }).then(r => r.json())
       if (!success) { setWarmUpError(jErr ?? 'Failed to join — please try again'); return }
-      // Auto-join the warm-up tribe (comp membership now established); 409 = already a member, ignore
-      const tribeRes = await fetch('/api/tribes', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invite_code: 'VZ3JEZRA' }),
-      })
-      if (!tribeRes.ok && tribeRes.status !== 409) {
-        const { error: tErr } = await tribeRes.json().catch(() => ({}))
-        setWarmUpError(tErr ?? 'Joined comp but failed to join tribe')
-        return
+      // Auto-join the warm-up tribe when the tournament defines one; 409 = already a member.
+      if (tribeCode) {
+        const tribeRes = await fetch('/api/tribes', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invite_code: tribeCode }),
+        })
+        if (!tribeRes.ok && tribeRes.status !== 409) {
+          const { error: tErr } = await tribeRes.json().catch(() => ({}))
+          setWarmUpError(tErr ?? 'Joined comp but failed to join tribe')
+          return
+        }
       }
       await pickComp({ id: comp.id, name: comp.name, logo_url: comp.logo_url ?? null } as any)
       await refreshComps(comp.id)
@@ -1869,9 +1876,11 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {/* Warm-Up Comp + Browse open comps — hidden when user already has invites */}
+                  {/* Warm-Up Comp + Browse open comps — hidden when user already has invites,
+                      and only when this tournament actually has a warm-up comp configured. */}
                   {pendingInvites.length === 0 && (
                     <>
+                      {selectedTourn?.warmup_comp_code && (
                       <div className="mb-2 rounded-xl border-2 border-green-300 bg-green-50 overflow-hidden">
                         <div className="flex items-center gap-3 p-3">
                           <span className="text-2xl flex-shrink-0">⚽</span>
@@ -1892,6 +1901,7 @@ export default function HomePage() {
                           <p className="px-3 pb-2 text-[11px] text-red-600">{warmUpError}</p>
                         )}
                       </div>
+                      )}
 
                       {openCompCount !== null && openCompCount > 0 && (
                         <Link href="/explore"

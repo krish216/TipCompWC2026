@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
+import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 
 interface Promo {
   slug: string
@@ -22,14 +23,17 @@ const MAX_VISIBLE = 2
 // ('home' | 'scoreboard'). Server excludes challenges the user has already entered.
 // Shows up to MAX_VISIBLE not-dismissed at once; dismiss is per-challenge.
 export function ChallengePromoCard({ surface, className }: { surface: 'home' | 'scoreboard' | 'predict'; className?: string }) {
+  const { selectedTournId } = useUserPrefs()
   const [promos, setPromos]       = useState<Promo[] | null>(null)
   const [dismissed, setDismissed] = useState<string[]>([])
 
   useEffect(() => { try { setDismissed(JSON.parse(localStorage.getItem('dismissed_promos') || '[]')) } catch { /* ignore */ } }, [])
   useEffect(() => {
-    fetch(`/api/challenge-promos?surface=${surface}`).then(r => r.json())
+    // Follow the user's selected tournament so promos match the tournament they're in.
+    const qs = selectedTournId ? `&tournament_id=${encodeURIComponent(selectedTournId)}` : ''
+    fetch(`/api/challenge-promos?surface=${surface}${qs}`).then(r => r.json())
       .then(d => setPromos(d.promos ?? [])).catch(() => setPromos([]))
-  }, [surface])
+  }, [surface, selectedTournId])
 
   if (!promos) return null
   const visible = promos.filter(p => !dismissed.includes(p.slug)).slice(0, MAX_VISIBLE)
