@@ -1,6 +1,8 @@
 // Poll helpers — shared by the public poll API and the admin manager. All reads go
 // through the service-role admin client (RLS is defense-in-depth for direct access).
 
+import { getPrimaryTournament } from '@/lib/content/wc'
+
 export interface PollView {
   id: string
   topic: string
@@ -29,7 +31,7 @@ export async function tallyPoll(admin: any, pollId: string, optionCount: number)
 export async function userTournamentId(admin: any, userId: string): Promise<string | null> {
   const { data: u } = await (admin.from('users') as any).select('tournament_id').eq('id', userId).maybeSingle()
   if ((u as any)?.tournament_id) return (u as any).tournament_id
-  const { data: t } = await (admin.from('tournaments') as any).select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   return (t as any)?.id ?? null
 }
 

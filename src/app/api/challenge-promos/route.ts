@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { resolveActiveCampaign } from '@/lib/sponsors/resolver'
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (!SURFACES.has(surface)) return NextResponse.json({ promos: [] })
 
   const admin = createAdminClient()
-  const { data: t } = await (admin.from('tournaments') as any).select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   if (!t) return NextResponse.json({ promos: [] })
 
   const nowIso = new Date().toISOString()

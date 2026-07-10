@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
   const origin = new URL(request.url).origin
 
   // Active tournament
-  const { data: t } = await (admin.from('tournaments') as any).select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   const tournId = (t as any)?.id
   if (!tournId) return NextResponse.json({ error: 'No active tournament' }, { status: 400 })
 

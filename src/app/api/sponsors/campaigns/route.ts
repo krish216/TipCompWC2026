@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { requireAdmin } from '@/lib/sponsors/auth'
 import { defaultWindow, overlappingCampaign } from '@/lib/sponsors/campaigns'
 import { challengeTypeLabel } from '@/lib/challenges/registry'
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
   const challengeType: ChallengeType = b.challenge_type === 'four_pick' ? 'four_pick' : 'bracket'
   if (!challengeId) {
     if (!tournamentId) {
-      const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+      const t = await getPrimaryTournament(admin)
       tournamentId = (t as any)?.id ?? null
     }
     if (!tournamentId) return NextResponse.json({ error: 'No active tournament; pass challenge_id or tournament_id' }, { status: 400 })

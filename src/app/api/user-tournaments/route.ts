@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { tournament_id, favourite_team } = await request.json().catch(() => ({}))
+  const body = await request.json().catch(() => ({}))
+  const { tournament_id, favourite_team, selected_comp_id } = body
   if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
 
   // Verify the tournament exists and is not completed
@@ -39,8 +40,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Bonus team is locked — the tournament has started.' }, { status: 409 })
   }
 
+  // Only write the fields actually supplied, so a comp-only update never clobbers the
+  // bonus team (and vice versa). onConflict upsert leaves omitted columns untouched.
   const row: any = { user_id: user.id, tournament_id }
-  if (!locked) row.favourite_team = favourite_team || null   // only writable before lock
+  if (!locked && 'favourite_team' in body) row.favourite_team = favourite_team || null
+  if ('selected_comp_id' in body)          row.selected_comp_id = selected_comp_id ?? null
 
   const { error } = await (supabase.from('user_tournaments') as any)
     .upsert(row, { onConflict: 'user_id,tournament_id' })

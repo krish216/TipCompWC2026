@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { createAdminClient } from '@/lib/supabase'
 import { resolveBracketChallenge, challengeClosesAt, ensureGlobalEntry } from '@/lib/bracket/challenge'
 import { sendBracketClaimEmail } from '@/lib/bracket/guest-claim-email'
@@ -28,7 +29,7 @@ export const fetchCache = 'force-no-store'
 const SLOT_RE = /^(grp:[A-L]:[123]|third:[A-L]|r32:(1[0-6]|[1-9])|r16:[1-8]|qf:[1-4]|sf:[12]|final|tp)$/
 
 async function activeTournamentId(admin: any): Promise<string | null> {
-  const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const data = await getPrimaryTournament(admin)
   return (data as any)?.id ?? null
 }
 

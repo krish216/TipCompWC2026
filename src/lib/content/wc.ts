@@ -28,10 +28,23 @@ export const ROUND_LABEL: Record<string, string> = {
 
 export type TournamentRef = { id: string; name: string; slug: string }
 
-export async function getActiveTournament(): Promise<TournamentRef | null> {
-  const admin = createAdminClient()
-  const { data } = await admin.from('tournaments').select('id, name, slug').eq('is_active', true).maybeSingle()
+// The deterministic "current" tournament — safe when SEVERAL tournaments are active at
+// once (WC→EPL handover, multi-tournament switcher). Prefers the flagged is_primary,
+// then the most-recently-started. `.limit(1).maybeSingle()` never errors on multiple
+// rows, unlike the bare `.eq('is_active',true).maybeSingle()` this replaces everywhere.
+export async function getPrimaryTournament(admin: any): Promise<TournamentRef | null> {
+  const { data } = await admin.from('tournaments')
+    .select('id, name, slug')
+    .eq('is_active', true)
+    .order('is_primary', { ascending: false })
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   return (data as any) ?? null
+}
+
+export async function getActiveTournament(): Promise<TournamentRef | null> {
+  return getPrimaryTournament(createAdminClient())
 }
 
 // Whether a tournament has real match data yet (≥1 fixture with a result). Used to

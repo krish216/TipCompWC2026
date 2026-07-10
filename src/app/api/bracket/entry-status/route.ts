@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
@@ -22,7 +23,7 @@ export async function GET() {
 
   const admin = createAdminClient()
   // Active tournament (scope the entry check to the current tournament).
-  const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   const tid = (t as any)?.id ?? null
 
   // Air-tight "has entered": ANY bracket_entries row for this user (this tournament)

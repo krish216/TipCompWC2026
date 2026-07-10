@@ -6,6 +6,8 @@
 // leaderboard URL), or, when none is given, the tournament's *default* bracket
 // challenge so the legacy slug-less routes keep working.
 
+import { getPrimaryTournament } from '@/lib/content/wc'
+
 export interface BracketChallenge {
   id:            string
   slug:          string
@@ -33,7 +35,7 @@ export async function challengeClosesAt(admin: any, challenge: { tournament_id: 
 }
 
 async function activeTournamentId(admin: any): Promise<string | null> {
-  const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const data = await getPrimaryTournament(admin)
   return (data as any)?.id ?? null
 }
 

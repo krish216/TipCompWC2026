@@ -284,14 +284,18 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       setEnforcePremium(t?.enforce_premium ?? false)
       return prev
     })
+    // Per-tournament state: premium/ad-free flags + the comp last used in THIS tournament,
+    // so switching restores where you were instead of clearing the comp selection.
+    let rememberedComp: string | null = null
     if (session) {
-      ;(async () => {
-        try {
-          const { data } = await supabase.from('user_tournaments').select('is_premium, is_ad_free').eq('user_id', session.user.id).eq('tournament_id', id).maybeSingle()
-          setIsPremiumOrg(!!(data as any)?.is_premium)
-          setIsAdFreeOrg(!!(data as any)?.is_ad_free)
-        } catch { /* non-critical */ }
-      })()
+      try {
+        const { data } = await supabase.from('user_tournaments')
+          .select('is_premium, is_ad_free, selected_comp_id')
+          .eq('user_id', session.user.id).eq('tournament_id', id).maybeSingle()
+        setIsPremiumOrg(!!(data as any)?.is_premium)
+        setIsAdFreeOrg(!!(data as any)?.is_ad_free)
+        rememberedComp = (data as any)?.selected_comp_id ?? null
+      } catch { /* non-critical */ }
     }
     // Reload round configs for new tournament
     try {
@@ -309,10 +313,11 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       }
     } catch { /* use default */ }
     loadTeams(id)
-    if (session) await loadComps(id, session.user.id, null)
+    // loadComps selects rememberedComp if it's still one of the user's comps, else none.
+    if (session) await loadComps(id, session.user.id, rememberedComp)
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: id, comp_id: null }),
+      body: JSON.stringify({ tournament_id: id, comp_id: rememberedComp }),
     })
   }, [loadComps])
 
@@ -331,7 +336,14 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comp_id: comp.id }),
     })
-  }, [])
+    // Remember this comp for the current tournament, so switching away and back restores it.
+    if (selectedTournId) {
+      fetch('/api/user-tournaments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: selectedTournId, selected_comp_id: comp.id }),
+      }).catch(() => { /* non-critical */ })
+    }
+  }, [selectedTournId])
 
   // refreshComps — re-fetches comps for the current tournament (called after joining/creating)
   // Pass preferredCompId to ensure the newly joined/created comp stays selected

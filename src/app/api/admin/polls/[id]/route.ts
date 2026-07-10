@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { requireAdmin } from '@/lib/sponsors/auth'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (b.audience === 'all' || b.audience === 'tournament') {
     patch.audience = b.audience
     if (b.audience === 'tournament') {
-      const { data: t } = await (admin.from('tournaments') as any).select('id').eq('is_active', true).maybeSingle()
+      const t = await getPrimaryTournament(admin)
       patch.tournament_id = (t as any)?.id ?? null
     }
   }

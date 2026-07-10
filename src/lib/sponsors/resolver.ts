@@ -8,6 +8,7 @@
 // app_settings.bracket_sponsor_* fallback has been retired.
 
 import { ChallengeType, LogoTone, ResolvedSponsorConfig } from './types'
+import { getPrimaryTournament } from '@/lib/content/wc'
 
 const EMPTY: ResolvedSponsorConfig = {
   enabled: false, sponsor_name: '', sponsor_logo: '', prize: '', prize_1: '', prize_2: '', prize_3: '', sponsor_url: '', logo_tone: 'dark',
@@ -32,7 +33,7 @@ export async function resolveActiveCampaign(
     if (!challengeId) {
       let tid = opts.tournamentId ?? null
       if (!tid) {
-        const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+        const t = await getPrimaryTournament(admin)
         tid = (t as any)?.id ?? null
       }
       if (!tid) return EMPTY

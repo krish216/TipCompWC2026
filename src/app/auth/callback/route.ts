@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       // every leaderboard. Idempotent; the welcome email is guarded (sent once,
       // and suppressed for bracket guests).
       try {
-        const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+        const t = await getPrimaryTournament(admin)
         const tid = (t as any)?.id
         if (tid) {
           await (admin.from('user_tournaments') as any)

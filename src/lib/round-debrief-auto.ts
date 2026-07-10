@@ -1,4 +1,5 @@
 import { createNotifications } from '@/lib/notifications'
+import { getPrimaryTournament } from '@/lib/content/wc'
 
 // Auto Round Debrief — posts the satirical per-round tribe wrap-up automatically
 // once a knockout round is fully scored, off the 5-min scores cron. Group-stage
@@ -63,7 +64,7 @@ export async function postRoundDebriefToTribes(
 // now fully scored. Idempotent — safe to call every cron tick.
 export async function autoPostRoundDebriefs(admin: any): Promise<{ rounds: string[]; posted: number; notified: number }> {
   const out = { rounds: [] as string[], posted: 0, notified: 0 }
-  const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   if (!t) return out
 
   for (const [round, label] of KO_ROUNDS) {

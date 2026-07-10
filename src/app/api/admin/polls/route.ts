@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { requireAdmin } from '@/lib/sponsors/auth'
 import { tallyPoll } from '@/lib/polls'
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   const audience = b.audience === 'tournament' ? 'tournament' : 'all'
   let tournamentId: string | null = typeof b.tournament_id === 'string' && b.tournament_id ? b.tournament_id : null
   if (audience === 'tournament' && !tournamentId) {
-    const { data: t } = await (admin.from('tournaments') as any).select('id').eq('is_active', true).maybeSingle()
+    const t = await getPrimaryTournament(admin)
     tournamentId = (t as any)?.id ?? null
   }
 

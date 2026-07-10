@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { SCORED_SLOTS } from '@/lib/bracket-scoring'
@@ -17,7 +18,7 @@ async function requireAdmin(admin: any) {
 }
 
 async function activeTournamentId(admin: any): Promise<string | null> {
-  const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const data = await getPrimaryTournament(admin)
   return (data as any)?.id ?? null
 }
 

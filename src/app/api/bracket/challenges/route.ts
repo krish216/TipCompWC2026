@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/sponsors/auth'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
 async function activeTournamentId(admin: any): Promise<string | null> {
-  const { data } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const data = await getPrimaryTournament(admin)
   return (data as any)?.id ?? null
 }
 

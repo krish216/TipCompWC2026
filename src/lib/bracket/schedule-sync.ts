@@ -6,6 +6,7 @@
 // score. Runs on the 5-min results cron so teams self-populate as groups/rounds resolve.
 
 import { espnScoreboard } from '@/lib/match-results'
+import { getPrimaryTournament } from '@/lib/content/wc'
 import { canonicalTeamName } from '@/lib/team-flags'
 
 const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
@@ -29,7 +30,7 @@ function espnFields(ev: any): { home: string; away: string; utc: string; venue: 
 }
 
 export async function refreshKnockoutSchedule(admin: any): Promise<{ updated: number; checked: number }> {
-  const { data: t } = await admin.from('tournaments').select('id').eq('is_active', true).maybeSingle()
+  const t = await getPrimaryTournament(admin)
   const tid = (t as any)?.id
   if (!tid) return { updated: 0, checked: 0 }
 
