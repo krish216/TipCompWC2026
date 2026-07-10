@@ -3257,7 +3257,7 @@ export default function HomePage() {
               {finalStr && t?.final_venue && <span>🏆 Final: {finalStr}, {t.final_venue}</span>}
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <Link href="/rules/wc2026" className="text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1">
+              <Link href={`/rules/${selectedTourn?.slug ?? 'wc2026'}`} className="text-xs font-medium text-green-700 hover:text-green-800 flex items-center gap-1">
                 📖 View scoring rules &amp; how to play →
               </Link>
             </div>
