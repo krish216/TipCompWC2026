@@ -10,6 +10,7 @@ import type { RoundId } from '@/types'
 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { TipsterPopover } from '@/components/game/TipsterPopover'
 import { linkify } from '@/lib/linkify'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -87,11 +88,18 @@ function ChatBubble({ msg, myId, onReact }: { msg: Message; myId: string; onReac
     )
   }
 
+  // Human author with a real id → tapping the avatar/name opens their trophy-cabinet card.
+  const authorId = !isMe && !msg.is_system ? msg.user_id : null
+
   return (
     <div className={clsx('group flex gap-2 items-end', isMe && 'flex-row-reverse')}>
-      {!isMe && <Avatar name={displayName} size="xs" className="flex-shrink-0 mb-0.5" />}
+      {!isMe && (authorId
+        ? <TipsterPopover userId={authorId} className="flex-shrink-0 mb-0.5"><Avatar name={displayName} size="xs" /></TipsterPopover>
+        : <Avatar name={displayName} size="xs" className="flex-shrink-0 mb-0.5" />)}
       <div className={clsx('max-w-[75%]', isMe && 'items-end flex flex-col')}>
-        {!isMe && <p className="text-[10px] text-gray-400 mb-0.5 ml-1">{displayName}</p>}
+        {!isMe && (authorId
+          ? <TipsterPopover userId={authorId} className="text-[10px] text-gray-400 mb-0.5 ml-1 hover:text-gray-600 hover:underline">{displayName}</TipsterPopover>
+          : <p className="text-[10px] text-gray-400 mb-0.5 ml-1">{displayName}</p>)}
         <div className="relative">
           <div className={clsx(
             'px-3 py-2 rounded-xl text-sm leading-relaxed',

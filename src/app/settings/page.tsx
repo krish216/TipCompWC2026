@@ -74,6 +74,7 @@ export default function SettingsPage() {
   const [firstName,      setFirstName]      = useState('')
   const [lastName,       setLastName]       = useState('')
   const [showFirstName,  setShowFirstName]  = useState(true)
+  const [hideTipster,    setHideTipster]    = useState(false)
   const [country,       setCountry]       = useState('')
   const [timezone,      setTimezone]      = useState('UTC')
   const [savedCountry,  setSavedCountry]  = useState('')
@@ -130,6 +131,9 @@ export default function SettingsPage() {
       // Socials — tolerant fetch (migration 162). Missing column → stays empty.
       const socRes = await (supabase.from('users') as any).select('socials').eq('id', session.user.id).maybeSingle()
       if (!socRes.error) { const s = (socRes.data as any)?.socials ?? {}; setSocials(s); setSavedSocials(JSON.stringify(s)) }
+      // Tipster cabinet opt-out — tolerant fetch (migration 167). Missing column → stays visible.
+      const hideRes = await (supabase.from('users') as any).select('hide_tipster_profile').eq('id', session.user.id).maybeSingle()
+      if (!hideRes.error) setHideTipster(!!(hideRes.data as any)?.hide_tipster_profile)
       if (prefRes.data) setPrefs({
         push_enabled:  (prefRes.data as any).push_enabled,
         email_enabled: (prefRes.data as any).email_enabled,
@@ -414,6 +418,31 @@ export default function SettingsPage() {
               <span className="text-emerald-600 font-bold">→</span>
             </a>
           )}
+
+          {/* Public trophy cabinet — self-link (hidden when opted out) + opt-out toggle */}
+          {session && !hideTipster && (
+            <a href={`/tipster/${session.user.id}`} target="_blank" rel="noopener noreferrer"
+              className="mt-2 flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors">
+              <span className="text-sm font-semibold text-amber-800">🏆 View your trophy cabinet</span>
+              <span className="text-amber-600 font-bold">→</span>
+            </a>
+          )}
+          {session && hideTipster && (
+            <p className="mt-2 text-xs text-gray-400">Your trophy cabinet is hidden from others.</p>
+          )}
+          <div className="mt-2">
+            <Toggle
+              label="Hide my trophy cabinet"
+              description="Your public trophy cabinet shows the medals and ranks you've earned. Turn this on to hide it from everyone."
+              enabled={hideTipster}
+              onChange={async v => {
+                setHideTipster(v)
+                await (supabase.from('users') as any)
+                  .update({ hide_tipster_profile: v })
+                  .eq('id', session!.user.id)
+              }}
+            />
+          </div>
 
           <p className="text-xs text-gray-400 mt-3">
             Signed in as <span className="font-medium">{session?.user.email}</span>

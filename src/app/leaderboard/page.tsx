@@ -2,6 +2,7 @@
 // v3 — roundview type fix
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
 import { AdSlot } from '@/components/ui/AdSlot'
@@ -742,7 +743,7 @@ export default function LeaderboardPage() {
                                         <span className="text-xs leading-none flex-shrink-0">{countryFlag(entry.country)}</span>
                                       )}
                                       <span className={clsx('text-xs font-medium truncate max-w-[100px]', isMe && 'text-green-700')}>
-                                        {entry.display_name}{isMe && ' (you)'}
+                                        <Link href={`/tipster/${entry.user_id}`} onClick={e => e.stopPropagation()} className="hover:underline">{entry.display_name}</Link>{isMe && ' (you)'}
                                       </span>
                                       {isMe && (
                                         <ShareButton compact payload={{
@@ -840,7 +841,7 @@ export default function LeaderboardPage() {
                                     <span className="text-xs leading-none flex-shrink-0">{entry.flag || countryFlag(entry.country)}</span>
                                   )}
                                   <p className={clsx('text-xs font-medium truncate', isMe && 'text-green-700')}>
-                                    {entry.display_name}{isMe ? ' (you)' : ''}
+                                    <Link href={`/tipster/${entry.user_id}`} onClick={e => e.stopPropagation()} className="hover:underline">{entry.display_name}</Link>{isMe ? ' (you)' : ''}
                                   </p>
                                   {isMe && (
                                     <ShareButton compact payload={{

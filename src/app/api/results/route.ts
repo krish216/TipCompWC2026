@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
 import { cascadeKnockoutTeams } from '@/lib/cascade-knockout'
+import { refreshChallengeRanksForFixture } from '@/lib/challenge-rank'
 import { z } from 'zod'
 
 // Knockout rounds whose result advances a team into the next round's fixture.
@@ -90,6 +91,17 @@ export async function POST(request: NextRequest) {
     catch (e: any) { console.error('[results] knockout cascade failed:', e?.message ?? e) }
   }
 
+  // Refresh stored challenge ranks touched by this result — the match challenge on this
+  // fixture, plus bracket challenges when a knockout result lands (reuses the live scoring).
+  // Awaited best-effort: the result is already saved, so a hiccup must not fail the request.
+  try {
+    await refreshChallengeRanksForFixture(admin, {
+      fixtureId:    fixture_id,
+      tournamentId: (data as any)?.tournament_id ?? null,
+      round:        (data as any)?.round ?? null,
+    })
+  } catch (e: any) { console.error('[results] challenge-rank refresh failed:', e?.message ?? e) }
+
   // DB trigger scores all predictions automatically — just return the count
   const { count } = await admin
     .from('predictions')
@@ -163,6 +175,12 @@ export async function DELETE(request: NextRequest) {
       .update({ points_earned: null, standard_points: 0, bonus_points: 0 })
       .eq('fixture_id', fixture_id)
 
+    // Clear stored match-challenge ranks for this fixture (no longer settled). Bracket ranks
+    // recover on the nightly refresh / next knockout result.
+    await (admin.from('match_entries') as any)
+      .update({ final_rank: null, final_points: null, field_size: null, ranked_at: null })
+      .eq('fixture_id', fixture_id)
+
   } else {
     // ── All results ─────────────────────────────────────────────────────────
     await (admin.from('fixtures') as any)
@@ -172,6 +190,13 @@ export async function DELETE(request: NextRequest) {
     await (admin.from('predictions') as any)
       .update({ points_earned: null, standard_points: 0, bonus_points: 0 })
       .not('points_earned', 'is', null)  // only rows that have been scored
+
+    // Wipe all stored challenge ranks — nothing is settled any more.
+    for (const t of ['match_entries', 'bracket_entries']) {
+      await (admin.from(t) as any)
+        .update({ final_rank: null, final_points: null, field_size: null, ranked_at: null })
+        .not('final_rank', 'is', null)
+    }
   }
 
   return NextResponse.json({ success: true })
