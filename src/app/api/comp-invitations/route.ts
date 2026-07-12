@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveCompChiefContact, chiefFromLine } from '@/lib/comp-chief'
 import { Resend } from 'resend'
 
 const FROM     = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
@@ -79,8 +80,12 @@ export async function POST(request: NextRequest) {
 
   // Get comp + tournament details for the invite email
   const { data: comp } = await (admin.from('comps') as any)
-    .select('id, name, invite_code, tournament_id').eq('id', comp_id).single()
+    .select('id, name, invite_code, tournament_id, created_by, owner_name, owner_email').eq('id', comp_id).single()
   if (!comp) return NextResponse.json({ error: 'Comp not found' }, { status: 404 })
+
+  // Chief attribution — the invite comes "from" the Chief, replies reach the Chief.
+  const chief     = await resolveCompChiefContact(admin, comp as any)
+  const fromChief = chiefFromLine(chief.name, FROM)
 
   let tournamentName = 'the tournament'
   if ((comp as any).tournament_id) {
@@ -125,15 +130,16 @@ export async function POST(request: NextRequest) {
       const recipientName = (registeredUser as any)?.display_name ?? 'there'
       const inviteCode    = (comp as any).invite_code
       const joinLink      = `${APP_URL}/join?code=${inviteCode}&email=${encodeURIComponent(email)}`
-      const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: inviteCode, join_link: joinLink, tournament_name: tournamentName }
+      const tokens = { name: recipientName, comp_name: (comp as any).name, join_code: inviteCode, join_link: joinLink, tournament_name: tournamentName, chief_name: chief.name }
       const emailSubject = subject
-        ? subject.replace(/\{comp_name\}/g, tokens.comp_name).replace(/\{tournament_name\}/g, tokens.tournament_name)
-        : `You've been invited to join ${tokens.comp_name}`
+        ? subject.replace(/\{comp_name\}/g, tokens.comp_name).replace(/\{tournament_name\}/g, tokens.tournament_name).replace(/\{chief_name\}/g, tokens.chief_name)
+        : `${chief.name} invited you to join ${tokens.comp_name}`
       const emailHtml = bodyTemplate
         ? buildTemplateHtml(bodyTemplate, tokens)
-        : buildInviteHtml({ recipientName, compName: tokens.comp_name, inviteCode, joinLink, tournamentName })
+        : buildInviteHtml({ recipientName, compName: tokens.comp_name, chiefName: chief.name, inviteCode, joinLink, tournamentName })
       await resend.emails.send({
-        from: FROM, to: email, subject: emailSubject, html: emailHtml,
+        from: fromChief, to: email, subject: emailSubject, html: emailHtml,
+        ...(chief.email ? { reply_to: chief.email } : {}),
       }).catch(() => { /* non-fatal — invitation row already created */ })
     }
 
@@ -153,10 +159,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ results, invited, already, already_member: alreadyMember })
 }
 
-function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tournamentName }: {
-  recipientName: string; compName: string; inviteCode: string
+function buildInviteHtml({ recipientName, compName, chiefName, inviteCode, joinLink, tournamentName }: {
+  recipientName: string; compName: string; chiefName: string; inviteCode: string
   joinLink: string; tournamentName: string
 }): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const chief = esc(chiefName)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -170,7 +178,7 @@ function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tourna
   <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111827;">Hi ${recipientName},</p>
 
   <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#374151;">
-    You've been invited to join <strong>${compName}</strong> — a prediction comp for the <strong>${tournamentName}</strong>. Tap the button below to create your free account and join in one click.
+    <strong>${chief}</strong> has invited you to join <strong>${compName}</strong> — a prediction comp for the <strong>${tournamentName}</strong>. Tap the button below to create your free account and join in one click.
   </p>
 
   <!-- Primary CTA -->
@@ -212,11 +220,11 @@ function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tourna
   </div>
 
   <p style="margin:0 0 24px;font-size:14px;color:#374151;">Good luck! 🏆</p>
-  <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">The <strong>${compName}</strong> team</p>
+  <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">🧑‍✈️ ${chief}, your Comp Chief</p>
 
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">
-    This invite was sent by your comp admin via <a href="${APP_URL}" style="color:#9ca3af;">TribePicks</a>.
+    Sent by ${chief} via <a href="${APP_URL}" style="color:#9ca3af;">TribePicks</a>.
     The join link uses your comp's invite code which does not expire.
   </p>
 </body>
@@ -225,7 +233,7 @@ function buildInviteHtml({ recipientName, compName, inviteCode, joinLink, tourna
 
 function buildTemplateHtml(
   template: string,
-  tokens: { name: string; comp_name: string; join_code: string; join_link: string; tournament_name: string }
+  tokens: { name: string; comp_name: string; join_code: string; join_link: string; tournament_name: string; chief_name: string }
 ): string {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -238,6 +246,7 @@ function buildTemplateHtml(
     .replace(/\{join_code\}/g,       esc(tokens.join_code))
     .replace(/\{join_link\}/g,       JOIN_PLACEHOLDER)
     .replace(/\{tournament_name\}/g, esc(tokens.tournament_name))
+    .replace(/\{chief_name\}/g,      esc(tokens.chief_name))
 
   // Full-width CTA button — used when {join_link} is on its own line
   const joinBtn =

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
-import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { MatchRow } from '@/components/game/MatchRow'
@@ -25,7 +25,7 @@ import { useTimezone } from '@/hooks/useTimezone'
 type PredMap    = Record<number, { home: number; away: number; outcome?: 'H'|'D'|'A'|null; pen_winner?: string|null; locked_at?: string|null; standard_points?: number|null; bonus_points?: number|null }>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string|null; result_outcome?: string|null }>
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
-import { buildRoundTabs, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
+import { buildRoundTabs, buildMonthRail, monthKeyForTab, getScoringForTab, type RoundTabConfig } from './round-tab-utils'
 import { TipsheetShareButton, type TipsheetFixture } from '@/components/game/ShareCard'
 type RoundTab = string
 
@@ -67,12 +67,22 @@ export default function PredictPage() {
   }, [scoringConfig])
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
 
+  // Month overlay — only week-structured tournaments (EPL) populate month_key, so this
+  // is [] for WC and the rail stays hidden. The matchweek stays the primary unit; months
+  // are a quick-jump + "where am I in the season" cue.
+  const monthRail = useMemo(
+    () => buildMonthRail(ROUND_TABS.filter(t => t !== 'wup'), scoringConfig),
+    [ROUND_TABS, scoringConfig]
+  )
+
   const [fixtures,      setFixtures]      = useState<FixtureMap>({})
   const [predictions,   setPredictions]   = useState<PredMap>({})
   const [results,       setResults]       = useState<ResultMap>({})
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState<Set<number>>(new Set())
   const [activeRound,   setActiveRound]   = useState<RoundTab>('gs') // updated to ROUND_TABS[0] after hydration
+  const activeMonthKey = monthKeyForTab(activeRound, scoringConfig)
+  const roundStripRef  = useRef<HTMLDivElement>(null)
   const [favouriteTeam, setFavouriteTeam] = useState<string | null>(null)
   const [savingFav,     setSavingFav]     = useState(false)
   // Bonus-team lock override (app_settings.bonus_lock_at, ms). Lets us reopen the
@@ -497,6 +507,19 @@ export default function PredictPage() {
   }, [teamsList])
   const logoFor = useCallback((team: string) => teamLogos.get(team) ?? null, [teamLogos])
 
+  // Map team name → team-page code, matching content/wc.ts: (fifa_code || name[:3]).toLowerCase().
+  // Lets the crest on each match link to /{tournament}/teams/{code}.
+  const teamCodes = useMemo(() => {
+    const m = new Map<string, string>()
+    teamsList.forEach(t => m.set(t.name, (t.fifa_code || t.name.slice(0, 3)).toLowerCase()))
+    return m
+  }, [teamsList])
+  const tournamentSlug = (selectedTourn as any)?.slug as string | undefined
+  const teamHref = useCallback((team: string) => {
+    const code = teamCodes.get(team)
+    return code && tournamentSlug ? `/${tournamentSlug}/teams/${code}` : null
+  }, [teamCodes, tournamentSlug])
+
   const isLocked = useCallback((f: Fixture) => {
     if (fixtureHasPlaceholder(f, knownTeams)) return true  // teams not confirmed yet — never tippable
     if (!isRoundOpen(f.round)) return true  // round lock always enforced
@@ -561,6 +584,13 @@ export default function PredictPage() {
       setActiveRound(currentRoundTab)
     }
   }, [loading, currentRoundTab])
+
+  // Keep the active matchweek chip in view as the selection moves (38 tabs for EPL
+  // overflow the strip). No-op when the tab is already visible / not overflowing.
+  useEffect(() => {
+    const el = roundStripRef.current?.querySelector(`[data-tab="${CSS.escape(activeRound)}"]`)
+    ;(el as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeRound])
 
   // Per-tab prediction counts
   const roundPredCounts = useMemo(() => {
@@ -758,6 +788,7 @@ export default function PredictPage() {
       teamsTbd={fixtureHasPlaceholder(f, knownTeams)}
       knownTeams={knownTeams}
       logoFor={logoFor}
+      teamHref={teamHref}
       committed={isCommitted(f.id)}
       saving={saving.has(f.id)}
       celebrating={celebrating.has(f.id)}
@@ -833,7 +864,7 @@ export default function PredictPage() {
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
       <ChallengePromoCard surface="predict" className="mb-3" />
-      <BracketEntryPrompt variant="banner" />
+      <FlagshipChallengePrompt variant="banner" />
 
       {/* Practice / onboarding mode banner */}
       {allowRetroactivePredictions && (
@@ -869,8 +900,34 @@ export default function PredictPage() {
         />
       )}
 
+      {/* Month overlay rail — week-structured tournaments only (EPL). Quick-jump to the
+          first matchweek of a month; highlights the month of the active matchweek. */}
+      {monthRail.length > 1 && (
+        <div className="mb-2 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1.5 min-w-max">
+            {monthRail.map(m => {
+              const isActive = m.key === activeMonthKey
+              return (
+                <button
+                  key={m.key}
+                  onClick={() => setActiveRound(m.firstTab)}
+                  className={clsx(
+                    'px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors whitespace-nowrap',
+                    isActive
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  )}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
-      <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+      <div ref={roundStripRef} className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
           {/* Warm-up tab hidden — the pre-tournament practice round is over. */}
           {ROUND_TABS.filter(tab => tab !== 'wup').map(tab => {
@@ -883,6 +940,7 @@ export default function PredictPage() {
             return (
               <button
                 key={tab}
+                data-tab={tab}
                 onClick={() => setActiveRound(tab)}
                 className={clsx(
                   'relative flex flex-col items-center justify-center',

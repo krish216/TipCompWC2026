@@ -26,7 +26,16 @@ export const ROUND_LABEL: Record<string, string> = {
   tp: 'Third-place play-off', final: 'Final',
 }
 
-export type TournamentRef = { id: string; name: string; slug: string }
+export type TournamentRef = { id: string; name: string; slug: string; format?: 'league' | 'knockout' }
+
+// Whether a tournament is a league (matchweeks / table predictor) vs a knockout (bracket).
+// Prefers the explicit tournaments.format column (migration 159); falls back to the
+// round-level knockout flag so callers stay correct before the migration is applied.
+export function isLeagueTournament(format: string | null | undefined, fallbackIsKnockout: boolean): boolean {
+  if (format === 'league')   return true
+  if (format === 'knockout') return false
+  return !fallbackIsKnockout
+}
 
 // The deterministic "current" tournament — safe when SEVERAL tournaments are active at
 // once (WC→EPL handover, multi-tournament switcher). Prefers the flagged is_primary,
@@ -66,7 +75,9 @@ export async function tournamentHasResults(tournamentId: string): Promise<boolea
 // tournament changes.
 export async function getTournamentBySlug(slug: string): Promise<TournamentRef | null> {
   const admin = createAdminClient()
-  const { data } = await admin.from('tournaments').select('id, name, slug').eq('slug', slug).maybeSingle()
+  // select('*') so `format` (migration 159) flows through without erroring on DBs where
+  // the column isn't applied yet — PostgREST would 42703 on an explicit missing column.
+  const { data } = await admin.from('tournaments').select('*').eq('slug', slug).maybeSingle()
   return (data as any) ?? null
 }
 
@@ -110,6 +121,22 @@ export async function getTeamsAndFixtures(tournamentId: string): Promise<{ teams
   })).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
 
   return { teams, fixtures }
+}
+
+// Round metadata straight from tournament_rounds — the per-tournament source of truth.
+// `labels` maps round_code → human name (e.g. 'r32' → 'Matchweek 32' for EPL, avoiding
+// the WC 'Round of 32' collision). `isKnockout` is true when the tournament has any
+// single-elimination round (WC) and false for a league (EPL) — used to switch team-page
+// copy/CTA between bracket and table-predictor framing.
+export async function getRoundMeta(tournamentId: string): Promise<{ labels: Record<string, string>; isKnockout: boolean }> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('tournament_rounds')
+    .select('round_code, round_name, is_knockout')
+    .eq('tournament_id', tournamentId)
+  const rows = (data ?? []) as any[]
+  const labels: Record<string, string> = {}
+  for (const r of rows) labels[r.round_code] = r.round_name ?? r.round_code
+  return { labels, isKnockout: rows.some(r => r.is_knockout) }
 }
 
 // Group-stage table for one group, computed from played fixtures.

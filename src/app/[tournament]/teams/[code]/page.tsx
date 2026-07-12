@@ -2,7 +2,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import {
-  getTournamentBySlug, getPublicTournaments, getTeamsAndFixtures, standingsFor, teamFixtures, teamForm,
+  getTournamentBySlug, getPublicTournaments, getTeamsAndFixtures, getRoundMeta, isLeagueTournament,
+  standingsFor, teamFixtures, teamForm,
   reachedKnockouts, ordinal, fmtDate, fmtKick, ROUND_LABEL, type Team, type Fixture, type TournamentRef,
 } from '@/lib/content/wc'
 import { TeamBadge } from '@/components/game/TeamBadge'
@@ -19,13 +20,20 @@ export async function generateStaticParams() {
   return out
 }
 
-async function load(slug: string, code: string): Promise<{ t: TournamentRef; team: Team; teams: Team[]; fixtures: Fixture[] } | null> {
+async function load(slug: string, code: string): Promise<{ t: TournamentRef; team: Team; teams: Team[]; fixtures: Fixture[]; roundLabels: Record<string, string>; isLeague: boolean } | null> {
   const t = await getTournamentBySlug(slug)
   if (!t) return null
-  const { teams, fixtures } = await getTeamsAndFixtures(t.id)
+  const [{ teams, fixtures }, roundMeta] = await Promise.all([getTeamsAndFixtures(t.id), getRoundMeta(t.id)])
   const team = teams.find(tm => tm.code === code.toLowerCase())
-  return team ? { t, team, teams, fixtures } : null
+  const isLeague = isLeagueTournament((t as any).format, roundMeta.isKnockout)
+  return team ? { t, team, teams, fixtures, roundLabels: roundMeta.labels, isLeague } : null
 }
+
+// A round's display label. Leagues use the per-tournament names from tournament_rounds
+// (e.g. 'Matchweek 32'); knockouts prefer the hand-polished WC map ('Round of 32',
+// 'Matchday 1') over the terser DB round_name ('Group Stage1'). Raw code as last resort.
+const roundLabel = (round: string, labels: Record<string, string>, isLeague: boolean): string =>
+  isLeague ? (labels[round] ?? round) : (ROUND_LABEL[round] ?? labels[round] ?? round)
 
 // ── Derived team stats (all facts come straight from the match data) ────────────
 interface Played { us: number; them: number; opp: string; r: 'W' | 'D' | 'L'; margin: number }
@@ -39,7 +47,7 @@ interface TeamStats {
   reachedKO: boolean; form: ('W' | 'D' | 'L')[]
 }
 
-function computeStats(team: Team, fixtures: Fixture[], table: { team: string; points: number }[]): TeamStats {
+function computeStats(team: Team, fixtures: Fixture[], table: { team: string; points: number }[], roundLabels: Record<string, string> = {}, isLeague = false): TeamStats {
   const fxs = teamFixtures(team.name, fixtures)
   const results: Played[] = fxs
     .filter(f => f.home_score != null && f.away_score != null)
@@ -83,9 +91,9 @@ function computeStats(team: Team, fixtures: Fixture[], table: { team: string; po
     heaviestLoss: losses.length ? losses.reduce((a, b) => (b.margin < a.margin ? b : a)) : undefined,
     highestScoring: results.length ? results.reduce((a, b) => (b.us + b.them > a.us + a.them ? b : a)) : undefined,
     streak,
-    next: nextFx ? { opp: nextFx.home === team.name ? nextFx.away : nextFx.home, home: nextFx.home === team.name, round: ROUND_LABEL[nextFx.round] ?? nextFx.round, kickoff: nextFx.kickoff_utc } : undefined,
+    next: nextFx ? { opp: nextFx.home === team.name ? nextFx.away : nextFx.home, home: nextFx.home === team.name, round: roundLabel(nextFx.round, roundLabels, isLeague), kickoff: nextFx.kickoff_utc } : undefined,
     pos: idx >= 0 ? idx + 1 : undefined, groupSize: table.length || undefined, points: idx >= 0 ? table[idx].points : undefined,
-    reachedKO: reachedKnockouts(team.name, fixtures),
+    reachedKO: !isLeague && reachedKnockouts(team.name, fixtures),
     form: teamForm(team.name, fixtures).slice(-6) as ('W' | 'D' | 'L')[],
   }
 }
@@ -93,19 +101,21 @@ function computeStats(team: Team, fixtures: Fixture[], table: { team: string; po
 export async function generateMetadata({ params }: { params: { tournament: string; code: string } }): Promise<Metadata> {
   const data = await load(params.tournament, params.code)
   if (!data) return { title: 'Team | TribePicks' }
-  const { t, team, teams, fixtures } = data
-  const s = computeStats(team, fixtures, team.group ? standingsFor(team.group, teams, fixtures) : [])
+  const { t, team, teams, fixtures, roundLabels, isLeague } = data
+  const s = computeStats(team, fixtures, team.group ? standingsFor(team.group, teams, fixtures) : [], roundLabels, isLeague)
   const rankBit = team.rank != null ? `Ranked ${ordinal(team.rank)}. ` : ''
   const recordBit = s.played ? `${s.w}W-${s.d}D-${s.l}L, ${s.gf} scored. ` : ''
+  const outlook = isLeague ? 'form guide and season outlook' : 'form guide and knockout outlook'
+  const hook = isLeague ? `Predict where ${team.name} finish` : `Predict ${team.name}'s run`
   return {
     title: `${team.name} at ${t.name} — fixtures, results & form | TribePicks`,
-    description: `${team.name} at ${t.name}${team.group ? ` in Group ${team.group}` : ''}. ${rankBit}${recordBit}Fixtures, results, form guide and knockout outlook. Predict ${team.name}'s run free on TribePicks.`,
+    description: `${team.name} at ${t.name}${team.group ? ` in Group ${team.group}` : ''}. ${rankBit}${recordBit}Fixtures, results, ${outlook}. ${hook} free on TribePicks.`,
     alternates: { canonical: `https://tribepicks.com/${t.slug}/teams/${team.code}` },
   }
 }
 
 // ── Editorial narrative — varies by each team's actual data ──────────────────────
-function narrative(tName: string, team: Team, s: TeamStats): string[] {
+function narrative(tName: string, team: Team, s: TeamStats, isLeague: boolean): string[] {
   const paras: string[] = []
   const rankTier = team.rank == null ? ''
     : team.rank <= 5 ? 'one of the pre-tournament favourites'
@@ -143,14 +153,18 @@ function narrative(tName: string, team: Team, s: TeamStats): string[] {
   let p3 = ''
   if (s.reachedKO) p3 += `Having come through the group, ${team.name} are into the knockout rounds, where one bad night ends it all. `
   if (s.next) {
-    p3 += `Next up, ${team.name} ${s.next.home ? 'host' : 'take on'} ${s.next.opp} in the ${s.next.round} (${fmtDate(s.next.kickoff)}).`
-  } else if (s.played && !s.reachedKO) {
+    p3 += `Next up, ${team.name} ${s.next.home ? 'host' : 'take on'} ${s.next.opp} in ${isLeague ? '' : 'the '}${s.next.round} (${fmtDate(s.next.kickoff)}).`
+  } else if (s.played && !isLeague && !s.reachedKO) {
     p3 += `Their group programme is complete — follow the rest of the bracket to see how the tournament unfolds.`
+  } else if (s.played && isLeague) {
+    p3 += `The season is done — the full fixture record sits below.`
   }
   if (p3) paras.push(p3.trim())
 
   // 4 — Prediction hook
-  paras.push(`Fancy ${team.name} to go far at ${tName}? Put them in your free bracket, predict their route to the final, and track how the crowd rates their chances.`)
+  paras.push(isLeague
+    ? `Fancy ${team.name} for a big season at ${tName}? Predict where they'll finish — call the top 5 and bottom 3 in the Table Predictor, free on TribePicks, and track how the crowd rates their chances.`
+    : `Fancy ${team.name} to go far at ${tName}? Put them in your free bracket, predict their route to the final, and track how the crowd rates their chances.`)
   return paras
 }
 
@@ -161,12 +175,12 @@ const FORM_TONE: Record<string, string> = {
 export default async function TeamPage({ params }: { params: { tournament: string; code: string } }) {
   const data = await load(params.tournament, params.code)
   if (!data) notFound()
-  const { t, team, teams, fixtures } = data
+  const { t, team, teams, fixtures, roundLabels, isLeague } = data
   const base = `/${t.slug}`
   const fxs = teamFixtures(team.name, fixtures)
   const table = team.group ? standingsFor(team.group, teams, fixtures) : []
-  const s = computeStats(team, fixtures, table)
-  const paras = narrative(t.name, team, s)
+  const s = computeStats(team, fixtures, table, roundLabels, isLeague)
+  const paras = narrative(t.name, team, s, isLeague)
 
   const stat = (label: string, value: string) => (
     <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white px-2 py-2.5">
@@ -233,7 +247,7 @@ export default async function TeamPage({ params }: { params: { tournament: strin
               const res = played ? (us! > them! ? 'W' : us! < them! ? 'L' : 'D') : null
               return (
                 <li key={f.id} className="flex items-center gap-3 px-3 py-2.5 bg-white">
-                  <span className="text-[10px] font-semibold text-gray-400 w-20 flex-shrink-0">{ROUND_LABEL[f.round] ?? f.round}</span>
+                  <span className="text-[10px] font-semibold text-gray-400 w-24 flex-shrink-0">{roundLabel(f.round, roundLabels, isLeague)}</span>
                   <span className="min-w-0 flex-1 text-sm text-gray-800 truncate">{f.home === team.name ? 'vs' : 'at'} {opp}</span>
                   {played ? (
                     <span className={`text-sm font-bold ${res === 'W' ? 'text-emerald-600' : res === 'L' ? 'text-rose-500' : 'text-gray-500'}`}>{us}–{them} {res}</span>
@@ -279,8 +293,17 @@ export default async function TeamPage({ params }: { params: { tournament: strin
 
       <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5 text-center">
         <p className="text-sm font-bold text-emerald-900">Backing {team.name}?</p>
-        <p className="text-xs text-emerald-700 mt-1 mb-3">Put them in your bracket and predict their run — free to play.</p>
-        <Link href="/bracket" className="inline-block px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">🏆 Play free</Link>
+        {isLeague ? (
+          <>
+            <p className="text-xs text-emerald-700 mt-1 mb-3">Predict where they finish — call the top 5 &amp; bottom 3 in the Table Predictor, free to play.</p>
+            <Link href={`${base}/predictor`} className="inline-block px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">🪜 Play free</Link>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-emerald-700 mt-1 mb-3">Put them in your bracket and predict their run — free to play.</p>
+            <Link href="/bracket" className="inline-block px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">🏆 Play free</Link>
+          </>
+        )}
       </div>
 
       <p className="mt-6 text-xs text-gray-400"><Link href={`${base}/teams`} className="hover:text-gray-600">← All {t.name} teams</Link></p>

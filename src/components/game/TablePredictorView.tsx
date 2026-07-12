@@ -139,7 +139,10 @@ function Picker({ slug, q, teams, loggedIn, open, onSaved }: { slug: string; q: 
         {teams.map(tm => {
           const inTop = top.includes(tm.name), inBottom = bottom.includes(tm.name)
           return (
-            <li key={tm.code} className="flex items-center gap-3 px-3 py-2">
+            <li key={tm.code} className={clsx(
+              'flex items-center gap-3 px-3 py-2 transition-colors',
+              inTop ? 'bg-emerald-50' : inBottom ? 'bg-rose-50' : 'bg-white'
+            )}>
               <TeamBadge flag={tm.flag} logo={tm.logo} name={tm.name} size={22} />
               <span className="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">{tm.name}</span>
               <button onClick={() => assign(tm.name, 'top')} disabled={!inTop && top.length >= q.top_n}

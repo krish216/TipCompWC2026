@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
-import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet, Flag } from '@/components/ui'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
@@ -2227,7 +2227,7 @@ export default function HomePage() {
               )}
 
               {/* Bracket Challenge nudge — self-gates: only non-entrants, before lock */}
-              <BracketEntryPrompt variant="card" />
+              <FlagshipChallengePrompt variant="card" />
 
               {/* Bonus team nudge — shown to tipsters who haven't picked one yet */}
               {step3Done && !showAllSet && teamsList.length > 0 && !favouriteTeam && !bonusLocked && (

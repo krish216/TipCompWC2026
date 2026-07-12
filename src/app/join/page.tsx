@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
+import { CompChiefBadge } from '@/components/game/CompChiefBadge'
+import { GroupChatLink } from '@/components/game/GroupChatLink'
 
 type Phase = 'init' | 'joining' | 'done' | 'error'
+type Chief = { id: string | null; name: string; avatar_url: string | null; verified?: boolean }
 
 function JoinInner() {
   const { session } = useSupabase()
@@ -18,6 +21,7 @@ function JoinInner() {
   const [phase,         setPhase]         = useState<Phase>('init')
   const [compName,      setCompName]      = useState<string | null>(null)
   const [compId,        setCompId]        = useState<string | null>(null)
+  const [chief,         setChief]         = useState<Chief | null>(null)
   const [tribeAssigned, setTribeAssigned] = useState(false)
   const [errMsg,        setErrMsg]        = useState<string | null>(null)
   const ran = useRef(false)
@@ -51,6 +55,8 @@ function JoinInner() {
       const comp = lookupRes.data
       setCompName(comp.name)
       setCompId(comp.id)
+      // Who runs this comp — shown on the "You're in" screen so the tipster knows their Chief.
+      fetch(`/api/comps/chief?comp_id=${comp.id}`).then(r => r.json()).then(d => setChief(d.chief ?? null)).catch(() => {})
 
       const { success, error: joinErr, tribe_assigned } = await fetch('/api/comp-admins/self-register', {
         method: 'POST',
@@ -98,6 +104,7 @@ function JoinInner() {
             <div className="text-6xl mb-4">🎉</div>
             <h1 className="text-xl font-bold text-gray-900 mb-1">You're in!</h1>
             {compName && <p className="text-sm font-semibold text-green-700">{compName}</p>}
+            {chief && <div className="flex justify-center mt-2"><CompChiefBadge name={chief.name} avatarUrl={chief.avatar_url} verified={chief.verified} href={chief.id ? `/chief/${chief.id}` : null} variant="card" /></div>}
           </div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 text-center">What to do next</p>
           <div className="space-y-3">
@@ -120,6 +127,9 @@ function JoinInner() {
               <span className="text-lg text-gray-400 group-hover:translate-x-0.5 transition-transform">→</span>
             </Link>
           </div>
+          {compId && (
+            <div className="flex justify-center mt-5"><GroupChatLink compId={compId} /></div>
+          )}
           {!tribeAssigned && (
             <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
           )}

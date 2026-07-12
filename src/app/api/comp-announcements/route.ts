@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
+import { resolveCompChiefContact, chiefFromLine } from '@/lib/comp-chief'
 import { Resend } from 'resend'
 
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
@@ -71,6 +72,13 @@ export async function POST(request: NextRequest) {
     .select('comp_id').eq('user_id', user.id).eq('comp_id', comp_id).single()
   if (!adminRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  // Resolve the Chief once — drives email "from"/reply-to attribution AND the {chief_name}
+  // token in both emailed and in-app announcement copy.
+  const { data: comp } = await (adminClient.from('comps') as any)
+    .select('name, created_by, owner_name, owner_email').eq('id', comp_id).single()
+  const compName = (comp as any)?.name ?? 'Your comp'
+  const chief    = await resolveCompChiefContact(adminClient, (comp as any) ?? {})
+
   // ── 1. Persist to comp_announcements table ──────────────────────────────────
   let persistedId: string | null = null
   if (persist) {
@@ -87,9 +95,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email service not configured — set RESEND_API_KEY' }, { status: 503 })
     }
 
-    const { data: comp } = await (adminClient.from('comps') as any)
-      .select('name').eq('id', comp_id).single()
-    const compName = (comp as any)?.name ?? 'Your comp'
+    // Chief attribution — inbox "from" + reply-to go to the Chief, not generic TribePicks.
+    const fromChief = chiefFromLine(chief.name, FROM)
 
     // Resolve display names so {name} personalises per recipient (matched
     // case-insensitively; recipients with no account fall back to "there").
@@ -109,8 +116,9 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < recipients.length; i += BATCH) {
       const slice    = (recipients as string[]).slice(i, i + BATCH)
       const messages = slice.map((to: string) => ({
-        from: FROM, to, subject,
-        html: buildHtml(compName, personalise(trimmedBody, nameFor(to), true)),
+        from: fromChief, to, subject,
+        ...(chief.email ? { reply_to: chief.email } : {}),
+        html: buildHtml(compName, chief.name, personalise(trimmedBody, nameFor(to), chief.name, true)),
       }))
       const { error } = await resend.batch.send(messages)
       if (error) return NextResponse.json({ error: (error as any).message ?? 'Send failed' }, { status: 500 })
@@ -126,7 +134,7 @@ export async function POST(request: NextRequest) {
         if (!rows.length) return
         await createNotifications(rows.map((u: any) => {
           const nm      = (u.display_name || u.first_name || '').trim() || 'there'
-          const preview = personalise(msgBody.trim(), nm).split('\n').find((l: string) => l.trim()) ?? ''
+          const preview = personalise(msgBody.trim(), nm, chief.name).split('\n').find((l: string) => l.trim()) ?? ''
           return {
             user_id: u.id as string,
             type:    'comp_announcement' as const,
@@ -153,7 +161,7 @@ export async function POST(request: NextRequest) {
         for (const u of (us ?? []) as any[]) nameById[u.id] = (u.display_name || u.first_name || '').trim()
         await createNotifications(userIds.map((uid: string) => {
           const nm      = nameById[uid] || 'there'
-          const preview = personalise(msgBody.trim(), nm).split('\n').find((l: string) => l.trim()) ?? ''
+          const preview = personalise(msgBody.trim(), nm, chief.name).split('\n').find((l: string) => l.trim()) ?? ''
           return {
             user_id: uid,
             type:    'comp_announcement' as const,
@@ -173,13 +181,15 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 }
 
-// Replace {name} with the recipient's name. For email the name is HTML-escaped
-// (it's user-supplied); the plain-text notification path passes raw.
-function personalise(text: string, name: string, forHtml = false): string {
-  return text.replace(/\{name\}/g, forHtml ? escapeHtml(name) : name)
+// Replace {name} (recipient) and {chief_name} (Comp-Chief). For email both are
+// HTML-escaped (user-supplied); the plain-text notification path passes raw.
+function personalise(text: string, name: string, chiefName = '', forHtml = false): string {
+  return text
+    .replace(/\{name\}/g, forHtml ? escapeHtml(name) : name)
+    .replace(/\{chief_name\}/g, forHtml ? escapeHtml(chiefName) : chiefName)
 }
 
-function buildHtml(compName: string, body: string): string {
+function buildHtml(compName: string, chiefName: string, body: string): string {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
   const lines  = body
     .split('\n')
@@ -190,14 +200,14 @@ function buildHtml(compName: string, body: string): string {
 <head><meta charset="utf-8"/></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#ffffff;">
   <div style="margin-bottom:20px;">
-    <p style="margin:0;font-size:20px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">TribePicks</p>
-    <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">${compName}</p>
+    <p style="margin:0;font-size:20px;font-weight:900;color:#065f46;letter-spacing:-0.5px;">${escapeHtml(compName)}</p>
+    <p style="margin:3px 0 0;font-size:12px;color:#6b7280;">🧑‍✈️ Run by ${escapeHtml(chiefName)}</p>
   </div>
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;"/>
   ${lines}
   <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;"/>
   <p style="font-size:11px;color:#9ca3af;margin:0;">
-    Message sent by your comp admin via <a href="${appUrl}" style="color:#6b7280;">TribePicks</a>.
+    Sent by ${escapeHtml(chiefName)}, your Comp Chief, via <a href="${appUrl}" style="color:#6b7280;">TribePicks</a>.
     &nbsp;·&nbsp;
     <a href="${appUrl}/settings" style="color:#9ca3af;">Manage notifications</a>
   </p>

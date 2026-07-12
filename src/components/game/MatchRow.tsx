@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { ShareButton } from '@/components/game/ShareCard'
 import { clsx } from 'clsx'
 import { PointsBadge } from '@/components/ui'
@@ -21,6 +22,7 @@ interface Props {
   teamsTbd?:   boolean        // knockout slot whose teams aren't confirmed yet — not tippable
   knownTeams?: Set<string>    // canonical real-team tokens, for per-side TBD labelling
   logoFor?:    (team: string) => string | null   // club crest for league teams; null → country flag
+  teamHref?:   (team: string) => string | null   // link to the team's content page; null → not linked (e.g. TBD)
   committed?:  boolean        // user has voluntarily locked in this prediction (final)
   saving?:     boolean
   isFavourite?: boolean
@@ -40,7 +42,7 @@ interface Props {
 
 export function MatchRow({
   fixture, round, prediction, result,
-  locked = false, teamsTbd = false, knownTeams, logoFor, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
+  locked = false, teamsTbd = false, knownTeams, logoFor, teamHref, committed = false, saving = false, celebrating = false, isFavourite = false, challenge,
   timezone = 'UTC', scoringConfig, retroactive = false,
   onPredict, onOutcome, onPenWinner, onFocusScore, onBlurScore, onLockIn, onViewTipsheet,
 }: Props) {
@@ -163,11 +165,20 @@ export function MatchRow({
   )
 
   // Club crest when the tournament provides one (leagues), else the country flag (WC).
+  // When a team page exists (and the team is confirmed, not a TBD slot), make the crest
+  // tap through to it.
   const teamViz = (team: string) => {
     const logo = logoFor?.(team)
-    return logo
+    const viz = logo
       ? <img src={logo} alt={team} className="w-9 h-9 object-contain rounded shadow-sm" />
       : <Flag team={team} className="text-4xl rounded shadow-sm" />
+    const href = isUnknownTeam(team, knownTeams) ? null : teamHref?.(team)
+    return href
+      ? <Link href={href} aria-label={`View ${team} team page`}
+          className="rounded transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400">
+          {viz}
+        </Link>
+      : viz
   }
 
   return (

@@ -5,6 +5,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner, Card, RemoveAdsButton } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { TIMEZONES, COUNTRIES, COUNTRY_CODE_MAP, getTimezonesForCountry } from '@/lib/timezone'
+import { SOCIALS, cleanSocials, normalizeSocial } from '@/lib/socials'
 import toast from 'react-hot-toast'
 
 interface NotifPrefs {
@@ -78,6 +79,13 @@ export default function SettingsPage() {
   const [savedCountry,  setSavedCountry]  = useState('')
   const [savedTimezone, setSavedTimezone] = useState('UTC')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [tagline,       setTagline]       = useState('')
+  const [bio,           setBio]           = useState('')
+  const [savedBio,      setSavedBio]      = useState('')     // JSON of {tagline, bio}
+  const [savingBio,     setSavingBio]     = useState(false)
+  const [socials,       setSocials]       = useState<Record<string, string>>({})
+  const [savedSocials,  setSavedSocials]  = useState('{}')
+  const [savingSocials, setSavingSocials] = useState(false)
   const [prefs,         setPrefs]         = useState<NotifPrefs>({ push_enabled: true, email_enabled: true, tribe_nudges: false })
   const [loading,       setLoading]       = useState(true)
   const [savingName,    setSavingName]    = useState(false)
@@ -110,6 +118,18 @@ export default function SettingsPage() {
         setCountry(ct); setSavedCountry(ct)
         setTimezone(tz); setSavedTimezone(tz)
       }
+      // Bio — separate tolerant fetch so Settings still loads if migration 160 (users.bio)
+      // hasn't been applied yet (missing column → error is ignored, bio stays empty).
+      // Separate tolerant fetches: bio (migration 160, applied) and tagline (165, may not be)
+      // — kept apart so a missing tagline column doesn't also block bio from loading.
+      const bioRes = await (supabase.from('users') as any).select('bio').eq('id', session.user.id).maybeSingle()
+      const b = !bioRes.error ? ((bioRes.data as any)?.bio ?? '') : ''
+      const tagRes = await (supabase.from('users') as any).select('tagline').eq('id', session.user.id).maybeSingle()
+      const t = !tagRes.error ? ((tagRes.data as any)?.tagline ?? '') : ''
+      setBio(b); setTagline(t); setSavedBio(JSON.stringify({ t, b }))
+      // Socials — tolerant fetch (migration 162). Missing column → stays empty.
+      const socRes = await (supabase.from('users') as any).select('socials').eq('id', session.user.id).maybeSingle()
+      if (!socRes.error) { const s = (socRes.data as any)?.socials ?? {}; setSocials(s); setSavedSocials(JSON.stringify(s)) }
       if (prefRes.data) setPrefs({
         push_enabled:  (prefRes.data as any).push_enabled,
         email_enabled: (prefRes.data as any).email_enabled,
@@ -130,6 +150,37 @@ export default function SettingsPage() {
     setSavingName(false)
     if (error) toast.error('Failed to save name')
     else toast.success('Display name updated')
+  }
+
+  const saveBio = async () => {
+    if (!session) return
+    setSavingBio(true)
+    let { error } = await (supabase.from('users') as any)
+      .update({ tagline: tagline.trim() || null, bio: bio.trim() || null })
+      .eq('id', session.user.id)
+    if (error) {
+      // tagline column may not exist yet (migration 165) — save the bio on its own.
+      const r = await (supabase.from('users') as any).update({ bio: bio.trim() || null }).eq('id', session.user.id)
+      error = r.error
+    }
+    setSavingBio(false)
+    if (error) toast.error('Couldn’t save')
+    else { setSavedBio(JSON.stringify({ t: tagline.trim(), b: bio.trim() })); toast.success('Profile updated') }
+  }
+
+  const saveSocials = async () => {
+    if (!session) return
+    // Drop blanks + anything that fails host-validation before storing.
+    const cleaned = cleanSocials(socials)
+    const invalid = SOCIALS.filter(d => (socials[d.key] ?? '').trim() && !normalizeSocial(d.key, socials[d.key]))
+    if (invalid.length) { toast.error(`Check your ${invalid.map(d => d.label).join(', ')} link`); return }
+    setSavingSocials(true)
+    const { error } = await (supabase.from('users') as any)
+      .update({ socials: cleaned })
+      .eq('id', session.user.id)
+    setSavingSocials(false)
+    if (error) { toast.error('Couldn’t save links'); return }
+    setSocials(cleaned); setSavedSocials(JSON.stringify(cleaned)); toast.success('Links updated')
   }
 
   const saveProfile = async () => {
@@ -228,13 +279,16 @@ export default function SettingsPage() {
                   const file = e.target.files?.[0]; if (!file || !session) return
                   if (file.size > 2 * 1024 * 1024) { toast.error('Photo must be under 2MB'); return }
                   setUploadingAvatar(true)
-                  const ext  = file.name.split('.').pop()
+                  const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
                   const path = `${session.user.id}/avatar.${ext}`
                   const { data: uploaded, error } = await supabase.storage
                     .from('org-logos').upload(path, file, { upsert: true })
                   if (error) { toast.error('Upload failed'); setUploadingAvatar(false); return }
                   const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path)
-                  const url = urlData.publicUrl
+                  // The file path is stable (avatar.<ext>, upserted), so the public URL is
+                  // byte-identical every upload → the browser/CDN would keep serving the
+                  // cached old image. A version param busts that so the new photo shows.
+                  const url = `${urlData.publicUrl}?v=${Date.now()}`
                   await (supabase.from('users') as any).update({ avatar_url: url }).eq('id', session.user.id)
                   setAvatar(url)
                   setUploadingAvatar(false)
@@ -289,6 +343,78 @@ export default function SettingsPage() {
               }}
             />
           </div>
+
+          {/* Comp-Chief headline + bio — shown on your public Chief profile */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label className="block text-sm font-medium text-gray-800 mb-1">Headline &amp; bio</label>
+            <p className="text-xs text-gray-500 mb-2">Shown on your public Chief profile, so people vetting your open comps know who you are.</p>
+            <input
+              type="text"
+              value={tagline}
+              onChange={e => setTagline(e.target.value.slice(0, 80))}
+              placeholder="One-line headline — e.g. Melbourne footy tragic, comp organiser since 2019"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white mb-2"
+            />
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value.slice(0, 280))}
+              rows={3}
+              placeholder="A little more about you — e.g. Running friendly prediction comps for the five-a-side crew. Winner buys the coffees."
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white resize-none"
+            />
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[11px] text-gray-400">{bio.length}/280</span>
+              <button
+                onClick={saveBio}
+                disabled={savingBio || JSON.stringify({ t: tagline.trim(), b: bio.trim() }) === savedBio}
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg flex items-center gap-2 transition-colors">
+                {savingBio && <Spinner className="w-3.5 h-3.5 text-white" />}
+                Save
+              </button>
+            </div>
+          </div>
+
+          {/* Social links — shown on your public Chief profile */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label className="block text-sm font-medium text-gray-800 mb-1">Your links</label>
+            <p className="text-xs text-gray-500 mb-3">Optional. Shown on your public Chief profile so people can find and trust you. Leave blank to hide.</p>
+            <div className="space-y-2">
+              {SOCIALS.map(def => {
+                const val = socials[def.key] ?? ''
+                const bad = !!val.trim() && !normalizeSocial(def.key, val)
+                return (
+                  <div key={def.key} className="flex items-center gap-2">
+                    <span className="flex-shrink-0 w-16 text-xs font-semibold text-gray-500">{def.label}</span>
+                    <input
+                      type="url"
+                      value={val}
+                      onChange={e => setSocials(s => ({ ...s, [def.key]: e.target.value }))}
+                      placeholder={def.placeholder}
+                      className={`flex-1 min-w-0 px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 bg-white ${bad ? 'border-red-300 focus:ring-red-300' : 'border-gray-300 focus:ring-green-400'}`}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex justify-end mt-2.5">
+              <button
+                onClick={saveSocials}
+                disabled={savingSocials || JSON.stringify(cleanSocials(socials)) === savedSocials}
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg flex items-center gap-2 transition-colors">
+                {savingSocials && <Spinner className="w-3.5 h-3.5 text-white" />}
+                Save links
+              </button>
+            </div>
+          </div>
+
+          {session && (
+            <a href={`/chief/${session.user.id}`} target="_blank" rel="noopener noreferrer"
+              className="mt-4 flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+              <span className="text-sm font-semibold text-emerald-800">🧑‍✈️ View your public Chief profile</span>
+              <span className="text-emerald-600 font-bold">→</span>
+            </a>
+          )}
+
           <p className="text-xs text-gray-400 mt-3">
             Signed in as <span className="font-medium">{session?.user.email}</span>
           </p>

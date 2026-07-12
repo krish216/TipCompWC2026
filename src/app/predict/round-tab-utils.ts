@@ -61,6 +61,46 @@ export function buildRoundTabs(cfg: TournamentScoringConfig): RoundTabConfig {
   return { tabs, tabLabel, tabToRounds }
 }
 
+export interface MonthRailEntry {
+  key:      string        // month_key (e.g. 'aug')
+  label:    string        // month_label (e.g. 'Aug')
+  tabs:     RoundTab[]     // matchweek tabs that fall in this month, in order
+  firstTab: RoundTab       // first matchweek of the month — the jump target
+}
+
+/**
+ * Build the month "overlay" rail for week-structured tournaments (e.g. EPL).
+ *
+ * Given the ordered tab list, groups tabs by the month_key of their round and
+ * returns one entry per month (in first-appearance order). Returns [] when no
+ * round carries a month_key (e.g. WC) — callers use that to hide the rail.
+ */
+export function buildMonthRail(tabs: RoundTab[], cfg: TournamentScoringConfig): MonthRailEntry[] {
+  const out: MonthRailEntry[] = []
+  const idx: Record<string, number> = {}
+  for (const tab of tabs) {
+    // tab === round_code for week tournaments; fall back to any round in the tab group.
+    const r = cfg.rounds[tab as RoundId]
+      ?? Object.values(cfg.rounds).find(x => (x.tab_group ?? x.round_code) === tab)
+    const mk = (r as any)?.month_key as string | undefined
+    if (!mk) continue
+    if (idx[mk] == null) {
+      idx[mk] = out.length
+      out.push({ key: mk, label: (r as any)?.month_label ?? mk, tabs: [tab], firstTab: tab })
+    } else {
+      out[idx[mk]].tabs.push(tab)
+    }
+  }
+  return out
+}
+
+/** The month_key of a given tab, or null when the tab has no month overlay. */
+export function monthKeyForTab(tab: RoundTab, cfg: TournamentScoringConfig): string | null {
+  const r = cfg.rounds[tab as RoundId]
+    ?? Object.values(cfg.rounds).find(x => (x.tab_group ?? x.round_code) === tab)
+  return ((r as any)?.month_key as string | undefined) ?? null
+}
+
 export function getScoringForTab(tab: RoundTab, cfg?: TournamentScoringConfig) {
   const c = cfg ?? getDefaultScoringConfig()
   const directRound = c.rounds[tab as RoundId]

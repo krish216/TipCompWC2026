@@ -8,7 +8,7 @@ import { AdSlot } from '@/components/ui/AdSlot'
 import { WeeklyReportCard } from '@/components/game/WeeklyReportCard'
 import { RoundDebriefCard } from '@/components/game/RoundDebriefCard'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
-import { BracketEntryPrompt } from '@/components/game/BracketEntryPrompt'
+import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { TrophyStrip } from '@/components/game/TrophyStrip'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -16,6 +16,9 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
 import { ShareButton } from '@/components/game/ShareCard'
 import { getDefaultScoringConfig } from '@/types'
+import { buildMonthRail, monthKeyForTab } from '@/app/predict/round-tab-utils'
+import { CompChiefBadge } from '@/components/game/CompChiefBadge'
+import { GroupChatLink } from '@/components/game/GroupChatLink'
 
 type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = string
@@ -57,11 +60,15 @@ export default function LeaderboardPage() {
     const rounds = Object.values(scoringConfig.rounds)
       .filter(r => (r as any).include_in_scoring !== false)   // hide non-scoring rounds (e.g. warm-up)
       .sort((a, b) => (a.round_order ?? 0) - (b.round_order ?? 0))
-    const tabGroups: Record<string, { label: string; rounds: string[]; maxOrder: number }> = {}
+    const tabGroups: Record<string, { label: string; short: string; rounds: string[]; maxOrder: number }> = {}
     for (const r of rounds) {
       const tab = (r as any).tab_group ?? r.round_code
       const label = (r as any).tab_label ?? r.round_name
-      if (!tabGroups[tab]) tabGroups[tab] = { label, rounds: [], maxOrder: 0 }
+      // Week-structured tournaments (EPL) carry month_key and already use a compact
+      // tab_label ('MW5'), so use it verbatim. Legacy tournaments (WC) have verbose
+      // tab_labels ('Round of 32'), so keep the old compact tab_group uppercase ('R32').
+      const short = (r as any).month_key ? label : tab.toUpperCase()
+      if (!tabGroups[tab]) tabGroups[tab] = { label, short, rounds: [], maxOrder: 0 }
       tabGroups[tab].rounds.push(r.round_code)
       tabGroups[tab].maxOrder = Math.max(tabGroups[tab].maxOrder, r.round_order ?? 0)
     }
@@ -71,7 +78,7 @@ export default function LeaderboardPage() {
       ...sortedTabs.map(([tab, g]) => ({
         id:         tab as RoundView,
         label:      'After ' + g.label,
-        shortLabel: 'After ' + tab.toUpperCase(), // tab = tab_group from DB (e.g. 'gs' → 'After GS')
+        shortLabel: 'After ' + g.short, // 'MW5' → 'After MW5' (EPL); 'R32' → 'After R32' (WC)
       })),
     ]
     const snapshotToRounds: Record<string, RoundId[]> = {}
@@ -98,9 +105,34 @@ export default function LeaderboardPage() {
 
   const [userComps,       setUserComps]       = useState<{id:string;name:string}[]>([])
   const [selectedComp,    setSelectedComp]    = useState<string | null>(null)
+  const [compChief,       setCompChief]       = useState<{ id: string | null; name: string; avatar_url: string | null; verified?: boolean } | null>(null)
   const [scope,           setScope]           = useState<Scope>('comp')
   const [compTribeCount,  setCompTribeCount]  = useState<number | null>(null)
   const [roundView, setRoundView] = useState<RoundView>('all')
+
+  // Month overlay for the snapshot pills — populated only for week-structured
+  // tournaments (EPL); [] for WC so the rail stays hidden.
+  const monthRail = useMemo(
+    () => buildMonthRail(ROUND_SNAPSHOTS.filter(s => s.id !== 'all').map(s => s.id), scoringConfig),
+    [ROUND_SNAPSHOTS, scoringConfig]
+  )
+  const activeMonthKey = monthKeyForTab(roundView, scoringConfig)
+  const snapStripRef   = useRef<HTMLDivElement>(null)
+
+  // Who runs the selected comp — shown in the comp header so members see their Chief.
+  useEffect(() => {
+    if (!selectedComp) { setCompChief(null); return }
+    let alive = true
+    fetch(`/api/comps/chief?comp_id=${selectedComp}`).then(r => r.json())
+      .then(d => { if (alive) setCompChief(d.chief ?? null) }).catch(() => {})
+    return () => { alive = false }
+  }, [selectedComp])
+
+  // Keep the active snapshot pill in view as the selection moves (39 pills for EPL).
+  useEffect(() => {
+    const el = snapStripRef.current?.querySelector(`[data-snap="${CSS.escape(roundView)}"]`)
+    ;(el as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [roundView])
   // Knockout-only phase lens (R32 onward) — gated by the tournament feature flag,
   // surfaced by the leaderboard API. When on, we rank on the leaderboard_knockout MV
   // and pin roundView to 'all' (the snapshot tabs don't apply to the knockout lens).
@@ -404,7 +436,7 @@ export default function LeaderboardPage() {
     <div className="max-w-3xl mx-auto px-4 py-4 pb-36 sm:pb-24">
 
       <CountdownBanner />
-      <BracketEntryPrompt variant="card" />
+      <FlagshipChallengePrompt variant="card" />
 
       {/* Page header + comp selector in one row */}
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -418,10 +450,14 @@ export default function LeaderboardPage() {
             <div className="min-w-0">
               <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Viewing</p>
               <p className="text-xs font-bold text-gray-900 truncate">{userComps[0].name}</p>
+              {compChief && <CompChiefBadge name={compChief.name} avatarUrl={compChief.avatar_url} verified={compChief.verified} href={compChief.id ? `/chief/${compChief.id}` : null} className="mt-0.5" />}
             </div>
           </div>
         )}
       </div>
+      {selectedComp && scope === 'comp' && (
+        <div className="mb-4"><GroupChatLink compId={selectedComp} /></div>
+      )}
 
       <RoundDebriefCard className="mb-4" source="debrief_leaderboard" />
       <ChallengePromoCard surface="scoreboard" className="mb-4" />
@@ -470,6 +506,7 @@ export default function LeaderboardPage() {
               </button>
             ))}
           </div>
+          {compChief && <CompChiefBadge name={compChief.name} avatarUrl={compChief.avatar_url} verified={compChief.verified} href={compChief.id ? `/chief/${compChief.id}` : null} className="mt-2" />}
         </div>
       )}
 
@@ -558,15 +595,36 @@ export default function LeaderboardPage() {
             <p className="text-[11px] text-gray-500 mb-3 -mt-1 px-1">Knockouts only — group-stage points excluded, so everyone starts level from the Round of 32.</p>
           )}
 
+          {/* Month overlay rail — week-structured tournaments only (EPL). Jumps the
+              snapshot pills to the first matchweek of a month. */}
+          {monthRail.length > 1 && (
+            <div className={clsx('mb-2 -mx-4 px-4 overflow-x-auto scrollbar-hide', (scope === 'global' || phase === 'knockout') && 'hidden')}>
+              <div className="flex gap-1.5 min-w-max">
+                {monthRail.map(m => {
+                  const isActive = m.key === activeMonthKey
+                  return (
+                    <button key={m.key} onClick={() => { setRoundView(m.firstTab); setSortRound(null) }}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors whitespace-nowrap',
+                        isActive ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      )}>
+                      {m.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Round snapshot pills — hidden on global scope (no round breakdown returned)
               and in the knockout lens (per-round snapshots don't apply there). */}
-          <div className={clsx('mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide', (scope === 'global' || phase === 'knockout') && 'hidden')}>
+          <div ref={snapStripRef} className={clsx('mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide', (scope === 'global' || phase === 'knockout') && 'hidden')}>
             <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
               {ROUND_SNAPSHOTS.map(r => {
                 const isActive = roundView === r.id
                 const isLive   = r.id === liveSnapshotId
                 return (
-                  <button key={r.id} onClick={() => { setRoundView(r.id); setSortRound(null) }}
+                  <button key={r.id} data-snap={r.id} onClick={() => { setRoundView(r.id); setSortRound(null) }}
                     className={clsx(
                       'relative flex flex-col items-center justify-center',
                       'px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap',

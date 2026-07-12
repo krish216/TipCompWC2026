@@ -7,7 +7,11 @@ import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, Upgrade
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { WeeklyIntelligenceReport } from '@/components/comp-admin/WeeklyIntelligenceReport'
+import { WhatsAppShareButton } from '@/components/game/WhatsAppShareButton'
 import toast from 'react-hot-toast'
+
+// Public base for shareable links (recipients open prod, never localhost).
+const SITE_URL = 'https://tribepicks.com'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tipster {
@@ -116,6 +120,30 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
   const [search,        setSearch]        = useState('')
   const bodyRef       = useRef<HTMLTextAreaElement>(null)
   const emailInputRef = useRef<HTMLInputElement>(null)
+
+  // Community group-chat link (WhatsApp/Telegram/Discord) — loaded from the members-only
+  // endpoint (an admin qualifies) so it works regardless of which columns the comp fetch selects.
+  const [groupUrl,    setGroupUrl]    = useState('')
+  const [savedGroup,  setSavedGroup]  = useState('')
+  const [savingGroup, setSavingGroup] = useState(false)
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/comps/group-chat?comp_id=${comp.id}`).then(r => r.json())
+      .then(d => { if (alive) { setGroupUrl(d.url ?? ''); setSavedGroup(d.url ?? '') } }).catch(() => {})
+    return () => { alive = false }
+  }, [comp.id])
+  const saveGroupChat = async () => {
+    setSavingGroup(true)
+    const res = await fetch('/api/comps/group-chat', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, url: groupUrl.trim() }),
+    })
+    const d = await res.json().catch(() => ({}))
+    setSavingGroup(false)
+    if (!res.ok) { toast.error(d.error ?? 'Couldn’t save link'); return }
+    setGroupUrl(d.url ?? ''); setSavedGroup(d.url ?? '')
+    toast.success(d.url ? 'Group chat link saved' : 'Group chat link removed')
+  }
 
   // Merged view: tipsters (joined) + invitations (pending/registered)
   // A person appears once: joined tipsters take precedence over invitations
@@ -255,6 +283,72 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /><b>Invited</b> — email sent, no app account yet</span>
       </div>
 
+      {/* Recruiting momentum — feedback loop that pairs with the share tools below */}
+      {(() => {
+        const now = Date.now()
+        const ts = tipsters.map(t => (t.joined_at ? Date.parse(t.joined_at) : NaN)).filter(n => !isNaN(n))
+        const week = ts.filter(t => t > now - 7 * 864e5).length
+        const month = ts.filter(t => t > now - 30 * 864e5).length
+        return (
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 mb-2">📈 Recruiting</p>
+            <div className="flex items-center gap-5">
+              <div><span className="text-2xl font-black text-emerald-800 tabular-nums">{week}</span><span className="text-[11px] text-emerald-700 ml-1.5">this week</span></div>
+              <div><span className="text-2xl font-black text-emerald-800 tabular-nums">{month}</span><span className="text-[11px] text-emerald-700 ml-1.5">this month</span></div>
+              <div><span className="text-2xl font-black text-emerald-800 tabular-nums">{ts.length}</span><span className="text-[11px] text-emerald-700 ml-1.5">total</span></div>
+            </div>
+            <p className="text-[11px] text-emerald-600 mt-1.5">{week > 0 ? 'Nice momentum — keep sharing your link below to grow the tribe.' : 'Share your join link below to bring in new tipsters.'}</p>
+          </div>
+        )
+      })()}
+
+      {/* Share your join link — free, one-tap WhatsApp recruit (no email needed) */}
+      <Section title="Share your join link" sub="Recruit tipsters via WhatsApp or any chat — no email required">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <code className="flex-1 min-w-0 truncate px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-700">
+              {SITE_URL}/join?code={comp.invite_code}
+            </code>
+            <button
+              onClick={() => { navigator.clipboard?.writeText(`${SITE_URL}/join?code=${comp.invite_code}`); toast.success('Join link copied') }}
+              className="flex-shrink-0 px-3 py-2 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              🔗 Copy
+            </button>
+            <WhatsAppShareButton
+              className="flex-shrink-0 py-2"
+              title="Invite tipsters on WhatsApp"
+              hint="Edit the invite, then pick a chat or group in WhatsApp."
+              message={`🏆 Join my ${comp.name} tipping comp on TribePicks!\nFree to play — pick your winners each round. Get in here 👇\n${SITE_URL}/join?code=${comp.invite_code}`}
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* Community group chat — members-only join link */}
+      <Section title="Group chat" sub="Add your WhatsApp / Telegram / Discord invite so members can join the banter">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="url"
+              value={groupUrl}
+              onChange={e => setGroupUrl(e.target.value)}
+              placeholder="https://chat.whatsapp.com/…"
+              className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+            />
+            <button
+              onClick={saveGroupChat}
+              disabled={savingGroup || groupUrl.trim() === savedGroup.trim()}
+              className="flex-shrink-0 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-colors flex items-center gap-1.5">
+              {savingGroup && <Spinner className="w-3.5 h-3.5 text-white" />}
+              Save
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">
+            Shown to your members only (never on public pages). Paste a WhatsApp, Telegram or Discord invite link.
+          </p>
+        </div>
+      </Section>
+
       {/* Invite by email — 3-step stepper */}
       <Section title="Invite by email">
         {/* Step progress bar */}
@@ -297,7 +391,7 @@ function TipstersTab({ comp, tipsters, setTipsters, invitations, setInvitations,
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Insert variable</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {['{name}','{comp_name}','{join_code}','{tournament_name}'].map(tok => (
+                  {['{name}','{comp_name}','{chief_name}','{join_code}','{tournament_name}'].map(tok => (
                     <button key={tok} onClick={() => insertToken(tok)}
                       className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-mono font-semibold rounded-lg transition-colors border border-gray-200">
                       {tok}
@@ -1030,6 +1124,20 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
 
   return (
     <div>
+      {/* ── WhatsApp nudge (free) ───────────────────────────────────────────── */}
+      <Section title="Nudge your tribe on WhatsApp" sub="Free — drop a reminder in your tribe's group chat with a tap">
+        <div className="p-4 flex items-center gap-3">
+          <p className="flex-1 text-xs text-gray-500">Reminders in the group chat get tips in. Edit the message, then pick your tribe group.</p>
+          <WhatsAppShareButton
+            className="flex-shrink-0 py-2"
+            label="WhatsApp my tribe"
+            title="Nudge your tribe on WhatsApp"
+            hint="Edit the reminder, then pick your tribe group in WhatsApp."
+            message={`🏆 ${comp.name} — get your tips in before the next round locks! ⏳\nPredict here 👇\n${SITE_URL}/predict`}
+          />
+        </div>
+      </Section>
+
       {/* ── Announce (primary) ──────────────────────────────────────────────── */}
       <Section title="New announcement" sub="Posted to the in-app feed for all comp members">
         <div className="p-4 space-y-3">
@@ -1373,6 +1481,22 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   const [ocTeamPicker,    setOcTeamPicker]    = useState(false)
   const [ocSaving,        setOcSaving]        = useState(false)
   const [ocError,         setOcError]         = useState<string | null>(null)
+  const { supabase: featSupabase } = useSupabase()
+  const [featured,        setFeatured]        = useState<boolean>(comp?.featured ?? false)
+  // Load the real value tolerantly (selectedComp may not select `featured`; column may
+  // not exist pre-migration 164 → error ignored, stays false).
+  useEffect(() => {
+    (featSupabase.from('comps') as any).select('featured').eq('id', comp.id).maybeSingle()
+      .then(({ data, error }: any) => { if (!error && data) setFeatured(!!data.featured) })
+  }, [comp.id])
+  const saveFeatured = async (v: boolean) => {
+    setFeatured(v)
+    await fetch('/api/comps/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comp_id: comp.id, featured: v }),
+    }).then(r => { if (!r.ok) { setFeatured(!v); toast.error('Couldn’t update') } else toast.success(v ? 'Featured on your profile' : 'Removed from your profile') })
+      .catch(() => { setFeatured(!v); toast.error('Couldn’t update') })
+  }
   const [teamsList,       setTeamsList]       = useState<{ name: string; fifa_code: string; flag_emoji: string }[]>([])
 
   useEffect(() => {
@@ -1539,6 +1663,21 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
         </span>
         <span className="text-xs text-gray-500">Current plan</span>
       </div>
+
+      {/* ── Feature on Chief profile ──────────────────────── */}
+      <Section title="Chief profile">
+        <div className="p-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800">Feature this comp on my public profile</p>
+            <p className="text-xs text-gray-500 mt-0.5">Show this comp on your Chief profile so people can find and join it — handy for a private comp you&apos;d like to open up to your audience.</p>
+          </div>
+          <button
+            role="switch" aria-checked={featured} onClick={() => saveFeatured(!featured)}
+            className={clsx('relative flex-shrink-0 w-11 h-6 rounded-full transition-colors', featured ? 'bg-emerald-600' : 'bg-gray-300')}>
+            <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform', featured && 'translate-x-5')} />
+          </button>
+        </div>
+      </Section>
 
       {/* ── Participation fee ─────────────────────────────── */}
       <Section title="Participation fee" sub="Require tipsters to pay an entry fee to compete">
