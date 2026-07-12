@@ -15,14 +15,21 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const v = (searchParams.get('v') || '').toLowerCase()
   const u = searchParams.get('u') || ''
+  const s = (searchParams.get('s') || '').toLowerCase()   // campaign channel: 'tipster' | 'chief'
 
   if (VALID.has(v) && u) {
     try {
       const admin = createAdminClient()
+      // Always record the vote (the core signal) — kept tolerant of the source column (169)
+      // not being applied yet.
       await (admin.from('epl_interest') as any).upsert(
         { user_id: u, response: v, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
       )
+      // Best-effort channel tag — which campaign drove this response.
+      if (s === 'tipster' || s === 'chief') {
+        try { await (admin.from('epl_interest') as any).update({ source: s }).eq('user_id', u) } catch { /* column not applied yet */ }
+      }
     } catch { /* missing table / bad id → skip; still confirm to the user */ }
   }
 
