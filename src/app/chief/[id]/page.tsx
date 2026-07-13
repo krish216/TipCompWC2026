@@ -120,6 +120,7 @@ export default async function ChiefProfilePage({ params }: { params: { id: strin
                 </svg>
               </span>
             )}
+            {d.country && <span className="text-xl leading-none flex-shrink-0" aria-label="country">{flagEmoji(d.country)}</span>}
           </h1>
           <p className="text-sm text-gray-500 flex flex-wrap items-center gap-1.5">
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-white px-2 py-0.5 rounded-full shadow-sm"
@@ -139,7 +140,6 @@ export default async function ChiefProfilePage({ params }: { params: { id: strin
               )
             })()}
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🧑‍✈️ Comp Chief</span>
-            {d.country && <span>{flagEmoji(d.country)}</span>}
           </p>
           <div className="mt-1.5">
             <InlineEditableText field="tagline" value={d.tagline} maxLength={80} className="text-sm text-gray-600"

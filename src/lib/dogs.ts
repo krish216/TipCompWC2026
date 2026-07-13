@@ -45,3 +45,10 @@ export function feederTier(cents: number): FeederTier | null {
 }
 
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`
+
+// Community campaign goal for the "feed the pack" progress bar. Adjust freely.
+export const FEED_CAMPAIGN = { goalCents: 100000, label: 'Fund what’s next (EPL)' }
+
+// Charity split — set once a rescue + share % is confirmed and will actually be remitted.
+// null keeps the copy a soft "a slice goes to dog rescues" (no hard, unfulfilled % claim).
+export const FEED_CHARITY: { name: string; splitPct: number } | null = null

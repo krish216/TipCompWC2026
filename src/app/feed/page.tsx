@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { DOGS, feederTier, dollars, dogBySlug } from '@/lib/dogs'
+import { DOGS, feederTier, dollars, dogBySlug, FEED_CAMPAIGN, FEED_CHARITY } from '@/lib/dogs'
 import { DogAvatar } from '@/components/game/DogAvatar'
 import { FeedPanel } from '@/components/game/FeedPanel'
+import { WhatsAppShareButton } from '@/components/game/WhatsAppShareButton'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -11,13 +12,20 @@ export const metadata: Metadata = {
   description: 'Feed the TribePicks pack for good luck — it keeps the game free, funds what’s next, and sends a slice to dog rescues.',
 }
 
-export default async function FeedPage() {
+export default async function FeedPage({ searchParams }: { searchParams: { fed?: string } }) {
   const user = await getSessionUser()
+  const admin = createAdminClient()
+
+  // Community total — powers the campaign progress bar (all donations, everyone).
+  let communityCents = 0
+  try {
+    const { data: all } = await (admin.from('donations') as any).select('amount_cents')
+    for (const d of ((all ?? []) as any[])) communityCents += d.amount_cents ?? 0
+  } catch { /* donations table absent → 0 */ }
 
   let totalFed = 0, luckyDog: string | null = null
   const met = new Set<string>()
   if (user) {
-    const admin = createAdminClient()
     const { data } = await (admin.from('donations') as any)
       .select('amount_cents, dog_slug, created_at').eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -28,6 +36,8 @@ export default async function FeedPage() {
   }
   const tier = feederTier(totalFed)
   const lucky = dogBySlug(luckyDog)
+  const justFed = searchParams?.fed === '1' && !!lucky
+  const goalPct = Math.min(100, Math.round((communityCents / FEED_CAMPAIGN.goalCents) * 100))
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
@@ -38,6 +48,34 @@ export default async function FeedPage() {
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
           Drop a treat for good luck. It keeps TribePicks <strong>free &amp; ad-light</strong>, funds
           what’s next (<strong>EPL · NBA · Champions League</strong>), and a slice goes to <strong>dog rescues</strong>.
+        </p>
+      </div>
+
+      {/* Keepsake — celebrate a fresh feed (after Stripe returns to /feed?fed=1) */}
+      {justFed && lucky && (
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+          <DogAvatar photo={lucky.photo} name={lucky.name} className="w-16 h-16 rounded-full mx-auto border-2 border-emerald-200" />
+          <p className="text-base font-black text-emerald-900 mt-2">🎉 You fed {lucky.name}!</p>
+          <p className="text-sm text-emerald-700">{lucky.name}’s got your back this round — good luck! 🐾</p>
+          <div className="mt-3 flex justify-center">
+            <WhatsAppShareButton label="Share the love 🐾"
+              message={`I just fed ${lucky.name} on TribePicks for good luck 🐾 Predict the football, feed the pack → https://tribepicks.com/feed`} />
+          </div>
+        </div>
+      )}
+
+      {/* Community goal */}
+      <div className="mt-6 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="font-bold text-gray-900">🐾 {FEED_CAMPAIGN.label}</span>
+          <span className="text-gray-500 tabular-nums">{dollars(communityCents)} / {dollars(FEED_CAMPAIGN.goalCents)}</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all" style={{ width: `${goalPct}%` }} />
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1.5">
+          The pack has been fed {dollars(communityCents)} so far — every treat keeps TribePicks free and funds what’s next
+          {FEED_CHARITY ? <>, with {FEED_CHARITY.splitPct}% to <strong>{FEED_CHARITY.name}</strong></> : <> (a slice goes to dog rescues)</>}.
         </p>
       </div>
 
