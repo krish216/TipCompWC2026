@@ -10,6 +10,7 @@ import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
 import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
+import { EplPollBanner } from '@/components/layout/EplPollBanner'
 import { FeedbackButton } from '@/components/layout/FeedbackButton'
 import { NpsPulse } from '@/components/game/NpsPulse'
 import { RefCapture } from '@/components/layout/RefCapture'
@@ -110,6 +111,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Navbar isAdmin={isAdmin} />
             </Suspense>
             <EmailVerificationBanner />
+            <EplPollBanner />
             {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}
