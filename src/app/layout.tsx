@@ -11,6 +11,7 @@ import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
 import { EplPollBanner } from '@/components/layout/EplPollBanner'
+import { FeedCtaLink } from '@/components/game/FeedCtaLink'
 import { FeedbackButton } from '@/components/layout/FeedbackButton'
 import { NpsPulse } from '@/components/game/NpsPulse'
 import { RefCapture } from '@/components/layout/RefCapture'
@@ -133,10 +134,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </p>
                 {/* Support button */}
                 <div className="flex justify-center">
-                  <a href="/feed"
+                  <FeedCtaLink source="footer"
                     className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors">
                     🐾 Feed the doggies
-                  </a>
+                  </FeedCtaLink>
                 </div>
                 {/* Bottom row — social icons */}
                 <div className="flex items-center justify-center gap-4">

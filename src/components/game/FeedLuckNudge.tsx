@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { track } from '@vercel/analytics'
 import { DOGS, dogBySlug, type Dog } from '@/lib/dogs'
 import { DogAvatar } from '@/components/game/DogAvatar'
 
@@ -48,7 +49,8 @@ export function FeedLuckNudge({ className }: { className?: string }) {
         <p className="text-sm font-semibold text-amber-900 leading-snug">
           {hasLucky ? `🍀 ${dog.name}’s got your back this round — good luck!` : 'Feed our hungry doggies for Good Luck 🐾'}
         </p>
-        <a href="/feed" className="text-xs font-bold text-amber-700 hover:text-amber-900">{hasLucky ? 'Feed again →' : 'Feed the pack →'}</a>
+        <a href="/feed" onClick={() => track('feed_cta_click', { source: 'predict_nudge', state: hasLucky ? 'lucky' : 'new' })}
+          className="text-xs font-bold text-amber-700 hover:text-amber-900">{hasLucky ? 'Feed again →' : 'Feed the pack →'}</a>
       </div>
       <button onClick={dismiss} aria-label="Dismiss" className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0">×</button>
     </div>

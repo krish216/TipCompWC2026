@@ -10,6 +10,7 @@ import { InlineEditableText } from '@/components/game/InlineEditableText'
 import { TipsterOwnerBar } from '@/components/game/TipsterOwnerBar'
 import { DOGS, dogBySlug } from '@/lib/dogs'
 import { DogAvatar } from '@/components/game/DogAvatar'
+import { FeedCtaLink } from '@/components/game/FeedCtaLink'
 
 export const revalidate = 600
 
@@ -245,10 +246,10 @@ export default async function TipsterProfilePage({ params }: { params: { id: str
         </div>
       )}
 
-      {/* Feed the pack — gentle, on-theme donation nudge */}
-      <Link href="/feed" className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
+      {/* Feed the pack — gentle, on-theme donation nudge (click-through tracked) */}
+      <FeedCtaLink source="cabinet" className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
         🐾 Feed the pack for good luck →
-      </Link>
+      </FeedCtaLink>
 
       <p className="mt-8 text-xs text-gray-400"><Link href="/leaderboard" className="hover:text-gray-600">← Back to the leaderboard</Link></p>
     </main>

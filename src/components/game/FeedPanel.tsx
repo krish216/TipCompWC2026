@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { track } from '@vercel/analytics'
 import { DOGS, BOWLS, dollars } from '@/lib/dogs'
 import { DogAvatar } from '@/components/game/DogAvatar'
 import { Spinner } from '@/components/ui'
@@ -18,6 +19,7 @@ export function FeedPanel({ signedIn, initialDog }: { signedIn: boolean; initial
 
   const feed = async () => {
     setBusy(true)
+    track('feed_checkout_start', { dog, bowl, cents: chosen.cents })
     try {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
