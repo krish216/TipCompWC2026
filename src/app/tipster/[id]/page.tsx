@@ -8,6 +8,8 @@ import { getTipsterStats, type TipsterStatsSummary, type TrophyGroup } from '@/l
 import { OwnerViewProvider } from '@/components/game/OwnerViewContext'
 import { InlineEditableText } from '@/components/game/InlineEditableText'
 import { TipsterOwnerBar } from '@/components/game/TipsterOwnerBar'
+import { DOGS, dogBySlug } from '@/lib/dogs'
+import { DogAvatar } from '@/components/game/DogAvatar'
 
 export const revalidate = 600
 
@@ -225,6 +227,23 @@ export default async function TipsterProfilePage({ params }: { params: { id: str
         </div>
         <span className="text-emerald-600 font-bold flex-shrink-0">→</span>
       </Link>
+
+      {/* Collect the pack — the doggies this tipster has fed */}
+      {s.fedDogs.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-500 mb-2">🐕 Pack fed · {s.fedDogs.length}/{DOGS.length}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {s.fedDogs.map(slug => {
+              const d = dogBySlug(slug); if (!d) return null
+              const isLucky = slug === s.luckyDog
+              return <DogAvatar key={slug} photo={d.photo} name={d.name + (isLucky ? ' · 🍀 lucky' : '')} className={`w-9 h-9 rounded-full border-2 ${isLucky ? 'border-amber-400' : 'border-white'}`} />
+            })}
+          </div>
+          {s.luckyDog && dogBySlug(s.luckyDog) && (
+            <p className="text-[12px] text-amber-700 mt-2">🍀 Lucky doggie: <strong>{dogBySlug(s.luckyDog)!.name}</strong></p>
+          )}
+        </div>
+      )}
 
       {/* Feed the pack — gentle, on-theme donation nudge */}
       <Link href="/feed" className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">

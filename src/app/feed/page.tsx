@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { DOGS, feederTier, dollars } from '@/lib/dogs'
+import { DOGS, feederTier, dollars, dogBySlug } from '@/lib/dogs'
 import { DogAvatar } from '@/components/game/DogAvatar'
 import { FeedPanel } from '@/components/game/FeedPanel'
 
@@ -14,18 +14,20 @@ export const metadata: Metadata = {
 export default async function FeedPage() {
   const user = await getSessionUser()
 
-  let totalFed = 0
+  let totalFed = 0, luckyDog: string | null = null
   const met = new Set<string>()
   if (user) {
     const admin = createAdminClient()
     const { data } = await (admin.from('donations') as any)
-      .select('amount_cents, dog_slug').eq('user_id', user.id)
+      .select('amount_cents, dog_slug, created_at').eq('user_id', user.id)
+      .order('created_at', { ascending: false })
     for (const d of ((data ?? []) as any[])) {
       totalFed += d.amount_cents ?? 0
-      if (d.dog_slug) met.add(d.dog_slug)
+      if (d.dog_slug) { if (!luckyDog) luckyDog = d.dog_slug; met.add(d.dog_slug) }   // newest-first → lucky
     }
   }
   const tier = feederTier(totalFed)
+  const lucky = dogBySlug(luckyDog)
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
@@ -47,6 +49,7 @@ export default async function FeedPage() {
             <p className="text-sm font-bold text-amber-900 mt-0.5">
               {tier ? <>{tier.icon} {tier.label}</> : 'Not fed yet — say hello 🐾'}
             </p>
+            {lucky && <p className="text-[12px] text-amber-700 mt-1">🍀 Lucky doggie: <strong>{lucky.name}</strong> — rooting for you this round</p>}
           </div>
           <div className="text-right">
             <p className="text-lg font-black text-amber-900 tabular-nums leading-none">{dollars(totalFed)}</p>
@@ -66,12 +69,15 @@ export default async function FeedPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {DOGS.map(d => {
             const fed = met.has(d.slug)
+            const isLucky = d.slug === luckyDog
             return (
-              <div key={d.slug} className={`flex items-center gap-3 rounded-2xl border p-3 ${fed ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+              <div key={d.slug} className={`flex items-center gap-3 rounded-2xl border p-3 ${isLucky ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : fed ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
                 <DogAvatar photo={d.photo} name={d.name} className="w-14 h-14 rounded-2xl flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                    {d.name}{fed && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">✓ fed</span>}
+                  <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                    {d.name}
+                    {isLucky && <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full">🍀 lucky</span>}
+                    {fed && !isLucky && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">✓ fed</span>}
                   </p>
                   <p className="text-[12px] text-gray-500 leading-snug">{d.blurb}</p>
                 </div>

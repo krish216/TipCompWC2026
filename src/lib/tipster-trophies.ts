@@ -47,6 +47,8 @@ export interface TipsterStatsSummary {
   coverageMade:      number
   coverageDecided:   number
   founding:          boolean
+  fedDogs:           string[]     // distinct doggie slugs fed (collect the pack)
+  luckyDog:          string | null // most recently fed doggie
   lean:              TipsterLean  // competitive → performance leads; community → participation leads
   showRank:          boolean      // only surface the global rank pin in the headline when it flatters
   nuggets:           TipsterNugget[]  // positive performance highlights to pepper a community headline
@@ -112,6 +114,7 @@ export async function getTipsterStats(admin: any, userId: string): Promise<Tipst
   const empty: TipsterStatsSummary = {
     hasRecord: false, tournamentsPlayed: 0, roundsCompleted: 0, challengesPlayed: 0, challengePodiums: 0, challengeWins: 0, bonusPoints: 0, totalPoints: 0,
     coveragePct: null, coverageMade: 0, coverageDecided: 0, founding: false,
+    fedDogs: [], luckyDog: null,
     lean: 'community', showRank: false, nuggets: [],
     title: { label: 'Tipster', emoji: '⚽' }, bestRank: null, trophies: [], tournaments: [],
   }
@@ -162,12 +165,19 @@ export async function getTipsterStats(admin: any, userId: string): Promise<Tipst
     challengesPlayed = ids.size
   } catch { /* challenge tables absent → 0 */ }
 
-  // 3d. Feeder status — cumulative donations ("Feed the doggies"). A generosity/support badge,
-  //     never a performance one. Tolerant if the donations table isn't present.
-  let fedCents = 0
+  // 3d. Feeder status + collected pack — cumulative donations ("Feed the doggies"). A
+  //     generosity/support signal, never performance. select('*') so dog_slug (migration 170)
+  //     flows through tolerantly. luckyDog = latest fed; fedDogs = distinct dogs fed.
+  let fedCents = 0, luckyDog: string | null = null
+  const fedDogs: string[] = []
   try {
-    const { data: dons } = await (admin.from('donations') as any).select('amount_cents').eq('user_id', userId)
-    for (const d of ((dons ?? []) as any[])) fedCents += d.amount_cents ?? 0
+    const { data: dons } = await (admin.from('donations') as any)
+      .select('*').eq('user_id', userId).order('created_at', { ascending: false })
+    const seen = new Set<string>()
+    for (const d of ((dons ?? []) as any[])) {
+      fedCents += d.amount_cents ?? 0
+      if (d.dog_slug) { if (!luckyDog) luckyDog = d.dog_slug; if (!seen.has(d.dog_slug)) { seen.add(d.dog_slug); fedDogs.push(d.dog_slug) } }
+    }
   } catch { /* donations table absent → 0 */ }
 
   // 3b. Total scoring rounds per tournament (Ever-Present denominator) — tolerant: if the
@@ -291,6 +301,7 @@ export async function getTipsterStats(admin: any, userId: string): Promise<Tipst
   return {
     hasRecord: true, tournamentsPlayed, roundsCompleted, challengesPlayed, challengePodiums, challengeWins, bonusPoints, totalPoints,
     coveragePct, coverageMade, coverageDecided, founding,
+    fedDogs, luckyDog,
     lean, showRank, nuggets: nuggets.slice(0, 2),
     title: titleFor(lean, { bestTopPct, bonusPoints, bestCoveragePct, founding, tournamentsPlayed }),
     bestRank, trophies, tournaments,
