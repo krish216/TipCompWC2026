@@ -13,6 +13,8 @@
 // breakdown — no full predictions scan). Comp-level podiums / champion / matchweek-winner are
 // Phase 2 performance additions (they need per-comp rollups); absent for now, not shown locked.
 
+import { feederTier } from '@/lib/dogs'
+
 export type TrophyGroup = 'participation' | 'performance'
 
 export interface TipsterTrophy {
@@ -160,6 +162,14 @@ export async function getTipsterStats(admin: any, userId: string): Promise<Tipst
     challengesPlayed = ids.size
   } catch { /* challenge tables absent → 0 */ }
 
+  // 3d. Feeder status — cumulative donations ("Feed the doggies"). A generosity/support badge,
+  //     never a performance one. Tolerant if the donations table isn't present.
+  let fedCents = 0
+  try {
+    const { data: dons } = await (admin.from('donations') as any).select('amount_cents').eq('user_id', userId)
+    for (const d of ((dons ?? []) as any[])) fedCents += d.amount_cents ?? 0
+  } catch { /* donations table absent → 0 */ }
+
   // 3b. Total scoring rounds per tournament (Ever-Present denominator) — tolerant: if the
   //     tournament_rounds shape differs, Ever-Present just can't be earned this pass.
   const totalRoundsByTournament = new Map<string, number>()
@@ -249,6 +259,9 @@ export async function getTipsterStats(admin: any, userId: string): Promise<Tipst
   else                             trophies.push({ key: 'next-globe', label: 'Multi-Tournament', desc: 'Play a 2nd tournament', icon: '🌍', earned: false, group: 'participation', progress: { have: tournamentsPlayed, need: 2 } })
   // Permanent heritage badge — being here for the very first tournament.
   if (founding) trophies.push({ key: 'founding', label: 'Founding Tipster', desc: "Tipped in TribePicks' first tournament", icon: '⭐', earned: true, group: 'participation' })
+  // Supporter — fed the doggies (generosity, not skill; never a performance/scoring badge).
+  const ft = feederTier(fedCents)
+  if (ft) trophies.push({ key: 'feeder', label: ft.label, desc: 'Fed the TribePicks doggies 🐾', icon: ft.icon, earned: true, group: 'participation' })
 
   // ── PERFORMANCE — you did well (finishes, ranks, bonus points) ──
   // Best finish percentile (highest earned tier, else the next one to chase).

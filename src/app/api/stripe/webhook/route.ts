@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
           currency:              session.currency ?? 'aud',
           stripe_session_id:     session.id,
           stripe_payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+          dog_slug:              session.metadata?.dog_slug ?? null,   // which doggie was fed (migration 170)
         },
         { onConflict: 'stripe_session_id', ignoreDuplicates: true },  // idempotent across Stripe retries
       )

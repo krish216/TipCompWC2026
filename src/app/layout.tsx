@@ -60,19 +60,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     provider_refresh_token: null,
   }
 
-  // Donation link (Stripe Payment Link, "customers choose what to pay"). Defaults to the
-  // live link; DONATE_URL env overrides it without a code change. When a user is signed in
-  // we pass client_reference_id (their id) and prefilled_email so the webhook can attribute
-  // the donation back to them.
-  const donateBase = process.env.DONATE_URL || 'https://buy.stripe.com/4gM3cubaUccifOg0igebu00'
-  let donateHref: string | null = null
-  if (donateBase) {
-    const params = new URLSearchParams()
-    if (session?.user?.id)    params.set('client_reference_id', session.user.id)
-    if (session?.user?.email) params.set('prefilled_email', session.user.email)
-    const qs = params.toString()
-    donateHref = qs ? `${donateBase}?${qs}` : donateBase
-  }
+  // Donations now flow through the gamified /feed page ("Feed the doggies") → the donation
+  // Checkout Session (kind:'donation') → the Stripe webhook → the donations table.
 
   // Check both admin roles using service-role client (bypasses RLS)
   let isAdmin    = false
@@ -143,17 +132,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   TribePicks is a <strong className="font-semibold">free-to-play</strong> football prediction game — <strong className="font-semibold">no real-money betting or gambling</strong>. Unofficial fan competition, not affiliated with FIFA.
                 </p>
                 {/* Support button */}
-                {donateHref && (
-                  <div className="flex justify-center">
-                    <a href={donateHref} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors">
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                      </svg>
-                      Support TribePicks
-                    </a>
-                  </div>
-                )}
+                <div className="flex justify-center">
+                  <a href="/feed"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors">
+                    🐾 Feed the doggies
+                  </a>
+                </div>
                 {/* Bottom row — social icons */}
                 <div className="flex items-center justify-center gap-4">
                   {/* Facebook */}

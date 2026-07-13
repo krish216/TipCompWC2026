@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { dogBySlug } from '@/lib/dogs'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,45 @@ export async function POST(request: NextRequest) {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { tournament_id, kind } = await request.json()
+    const body = await request.json()
+    const kind = body.kind
+
+    // ── Donation ("Feed the doggies") — variable amount, NO tournament_id so the webhook
+    // routes it to the donations table; grants no entitlement. Attributed via both
+    // client_reference_id and metadata.user_id.
+    if (kind === 'donation') {
+      const amount = Math.round(Number(body.amount_cents))
+      if (!Number.isFinite(amount) || amount < 100 || amount > 500000) {
+        return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+      }
+      const dog = dogBySlug(typeof body.dog_slug === 'string' ? body.dog_slug : null)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'aud',
+            unit_amount: amount,
+            product_data: {
+              name: 'TribePicks · Feed the doggies 🐾',
+              description: dog ? `A treat for ${dog.name} — keeps TribePicks free & funds what’s next` : 'Keeps TribePicks free & funds what’s next',
+            },
+          },
+          quantity: 1,
+        }],
+        automatic_tax: { enabled: true },
+        billing_address_collection: 'auto',
+        customer_email: user.email,
+        client_reference_id: user.id,
+        metadata: { user_id: user.id, kind: 'donation', ...(dog ? { dog_slug: dog.slug } : {}) },
+        success_url: `${appUrl}/feed?fed=1`,
+        cancel_url:  `${appUrl}/feed`,
+      })
+      return NextResponse.json({ url: session.url })
+    }
+
+    const tournament_id = body.tournament_id
     if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
     const adFree = kind === 'ad_free'
 
