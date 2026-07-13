@@ -47,7 +47,10 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
         <h1 className="text-2xl font-black text-gray-900">Feed the doggies</h1>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
           Drop a treat for good luck. It keeps TribePicks <strong>free &amp; ad-light</strong>, funds
-          what’s next (<strong>EPL · NBA · Champions League</strong>), and a slice goes to <strong>dog rescues</strong>.
+          what’s next (<strong>EPL · NBA · Champions League</strong>), and{' '}
+          {FEED_CHARITY
+            ? <><strong>{FEED_CHARITY.splitPct}%</strong> is donated to <strong>{FEED_CHARITY.name}</strong>.</>
+            : <>a slice goes to <strong>dog rescues</strong>.</>}
         </p>
       </div>
 

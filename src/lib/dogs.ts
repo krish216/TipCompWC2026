@@ -49,6 +49,6 @@ export const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 
 // Community campaign goal for the "feed the pack" progress bar. Adjust freely.
 export const FEED_CAMPAIGN = { goalCents: 100000, label: 'Fund what’s next (EPL)' }
 
-// Charity split — set once a rescue + share % is confirmed and will actually be remitted.
-// null keeps the copy a soft "a slice goes to dog rescues" (no hard, unfulfilled % claim).
-export const FEED_CHARITY: { name: string; splitPct: number } | null = null
+// Charity split — a PUBLIC commitment: 15% of every feed is donated to the RSPCA. This must be
+// actually remitted (keep receipts). null would revert to a soft "a slice goes to dog rescues".
+export const FEED_CHARITY: { name: string; splitPct: number } | null = { name: 'the RSPCA Adoption Centre', splitPct: 15 }
