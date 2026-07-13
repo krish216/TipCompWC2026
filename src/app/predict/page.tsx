@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -863,6 +864,7 @@ export default function PredictPage() {
     <>
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
+      <FeedLuckNudge className="mb-3" />
       <ChallengePromoCard surface="predict" className="mb-3" />
       <FlagshipChallengePrompt variant="banner" />
 
