@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: 'Feed the TribePicks pack for good luck — it keeps the game free, funds what’s next, and sends a slice to dog rescues.',
 }
 
-export default async function FeedPage({ searchParams }: { searchParams: { fed?: string } }) {
+export default async function FeedPage({ searchParams }: { searchParams: { fed?: string; dog?: string } }) {
   const user = await getSessionUser()
   const admin = createAdminClient()
 
@@ -36,7 +36,10 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
   }
   const tier = feederTier(totalFed)
   const lucky = dogBySlug(luckyDog)
-  const justFed = searchParams?.fed === '1' && !!lucky
+  // Thank-you shows on every return from checkout. Prefer the dog from the URL (instant, no
+  // webhook wait); fall back to the latest recorded feed; generic if neither is known yet.
+  const justFed = searchParams?.fed === '1'
+  const keepsakeDog = dogBySlug(searchParams?.dog ?? null) ?? lucky
   const goalPct = Math.min(100, Math.round((communityCents / FEED_CAMPAIGN.goalCents) * 100))
 
   return (
@@ -54,15 +57,26 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
         </p>
       </div>
 
-      {/* Keepsake — celebrate a fresh feed (after Stripe returns to /feed?fed=1) */}
-      {justFed && lucky && (
+      {/* Thank-you keepsake — after Stripe returns to /feed?fed=1 (always shown; personalised
+          when we know the dog, warm-generic while the webhook catches up) */}
+      {justFed && (
         <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-          <DogAvatar photo={lucky.photo} name={lucky.name} className="w-16 h-16 rounded-full mx-auto border-2 border-emerald-200" />
-          <p className="text-base font-black text-emerald-900 mt-2">🎉 You fed {lucky.name}!</p>
-          <p className="text-sm text-emerald-700">{lucky.name}’s got your back this round — good luck! 🐾</p>
+          {keepsakeDog ? (
+            <>
+              <DogAvatar photo={keepsakeDog.photo} name={keepsakeDog.name} className="w-16 h-16 rounded-full mx-auto border-2 border-emerald-200" />
+              <p className="text-base font-black text-emerald-900 mt-2">🎉 You fed {keepsakeDog.name}! Thank you 🐾</p>
+              <p className="text-sm text-emerald-700">{keepsakeDog.name}’s got your back this round — good luck!</p>
+            </>
+          ) : (
+            <>
+              <div className="text-4xl">🎉</div>
+              <p className="text-base font-black text-emerald-900 mt-1">Thanks for feeding the pack! 🐾</p>
+              <p className="text-sm text-emerald-700">Your treat’s on its way to a very happy doggie.</p>
+            </>
+          )}
           <div className="mt-3 flex justify-center">
             <WhatsAppShareButton label="Share the love 🐾"
-              message={`I just fed ${lucky.name} on TribePicks for good luck 🐾 Predict the football, feed the pack → https://tribepicks.com/feed`} />
+              message={`I just fed ${keepsakeDog ? keepsakeDog.name : 'the pack'} on TribePicks for good luck 🐾 Predict the football, feed the pack → https://tribepicks.com/feed`} />
           </div>
         </div>
       )}

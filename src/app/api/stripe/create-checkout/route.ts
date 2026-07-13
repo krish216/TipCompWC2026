@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
         customer_email: user.email,
         client_reference_id: user.id,
         metadata: { user_id: user.id, kind: 'donation', ...(dog ? { dog_slug: dog.slug } : {}) },
-        success_url: `${appUrl}/feed?fed=1`,
+        // Carry the dog slug so the thank-you renders instantly, before the webhook records it.
+        success_url: `${appUrl}/feed?fed=1${dog ? `&dog=${dog.slug}` : ''}`,
         cancel_url:  `${appUrl}/feed`,
       })
       return NextResponse.json({ url: session.url })
