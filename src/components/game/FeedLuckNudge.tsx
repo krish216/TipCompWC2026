@@ -46,7 +46,7 @@ export function FeedLuckNudge({ className }: { className?: string }) {
       <DogAvatar photo={dog.photo} name={dog.name} className="w-10 h-10 rounded-full flex-shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-amber-900 leading-snug">
-          {hasLucky ? `🍀 ${dog.name}’s got your back this round — good luck!` : `Feeling lucky? Feed ${dog.name} before kickoff 🐾`}
+          {hasLucky ? `🍀 ${dog.name}’s got your back this round — good luck!` : 'Feed our hungry doggies for Good Luck 🐾'}
         </p>
         <a href="/feed" className="text-xs font-bold text-amber-700 hover:text-amber-900">{hasLucky ? 'Feed again →' : 'Feed the pack →'}</a>
       </div>

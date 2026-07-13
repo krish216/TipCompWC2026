@@ -753,6 +753,19 @@ export default function PredictPage() {
     })?.id ?? null
   }, [visibleFixtures, results, predictions, roundLocks, allowRetroactivePredictions])
 
+  // "Feed the doggies" luck card sits inline between the two semi-finals, and between the
+  // Final and Third-Place fixtures — the big knockout moments. Insert after the earlier of each
+  // pair (only when both are on screen for this round).
+  const feedCardAfterIds = useMemo(() => {
+    const ids = new Set<number>()
+    const pair = (rounds: string[]) =>
+      visibleFixtures.filter(f => rounds.includes(f.round)).slice()
+        .sort((a, b) => (a.kickoff_utc < b.kickoff_utc ? -1 : 1))
+    const semis = pair(['sf']);        if (semis.length >= 2)  ids.add(semis[0].id)
+    const finals = pair(['f', 'tp']);  if (finals.length >= 2) ids.add(finals[0].id)
+    return ids
+  }, [visibleFixtures])
+
   // Keep ref current so triggerCelebration's setTimeout closure always reads the latest value
   useEffect(() => { nextUnpredictedIdRef.current = nextUnpredictedId }, [nextUnpredictedId])
 
@@ -864,7 +877,6 @@ export default function PredictPage() {
     <>
     <div className="max-w-3xl mx-auto px-4 py-4 print:hidden">
       <CountdownBanner />
-      <FeedLuckNudge className="mb-3" />
       <ChallengePromoCard surface="predict" className="mb-3" />
       <FlagshipChallengePrompt variant="banner" />
 
@@ -1164,6 +1176,7 @@ export default function PredictPage() {
                   </div>
                 )}
                 {renderMatchRow(f)}
+                {feedCardAfterIds.has(f.id) && <FeedLuckNudge className="my-3" />}
                 {f.id === firstCorrectFixtureId && firstWinCelebrated === false && (
                   <div className="mt-1.5 mb-2 flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-800">
                     <span className="text-sm flex-shrink-0">🎯</span>
