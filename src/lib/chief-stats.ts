@@ -28,9 +28,6 @@ function tierFor(tipsters: number, seasons: number): ChiefTier {
   return { key: 'rookie', label: 'Rookie Chief', color: '#5C6B62' }
 }
 
-// Chiefs who joined in TribePicks' first year wear the Founding Chief honour.
-const FOUNDING_BEFORE = Date.parse('2022-07-01')
-
 const TIPSTER_MILESTONES: { n: number; key: string; label: string }[] = [
   { n: 50,  key: 'half',   label: 'Half-Century' },
   { n: 100, key: 'cent',   label: 'Century Club' },
@@ -38,7 +35,7 @@ const TIPSTER_MILESTONES: { n: number; key: string; label: string }[] = [
   { n: 500, key: 'five',   label: 'Five Hundred' },
 ]
 
-export async function getChiefStats(admin: any, userId: string, createdAt: string | null): Promise<ChiefStats> {
+export async function getChiefStats(admin: any, userId: string): Promise<ChiefStats> {
   // All comps this person runs (aggregate stats span private comps too; the profile lists
   // only open ones separately).
   // select('*') so `featured` (migration 164) flows through without erroring pre-apply.
@@ -75,7 +72,14 @@ export async function getChiefStats(admin: any, userId: string, createdAt: strin
   const hiddenTipsters = Math.max(0, tipstersLed - shownMembers.size)
   const hitCap      = compRows.some(c => c.member_cap != null && (memberByComp.get(c.id)?.size ?? 0) >= c.member_cap)
   const ranDerby    = compRows.some(c => c.comp_category === 'team_fans')
-  const founding    = !!createdAt && Date.parse(createdAt) < FOUNDING_BEFORE
+  // Founding Chief — ran a comp in TribePicks' first tournament (the inaugural one, WC2026).
+  // Mirrors the Founding Tipster badge. Tolerant: no founding if is_inaugural isn't applied.
+  let inauguralIds = new Set<string>()
+  try {
+    const { data: inaug } = await (admin.from('tournaments') as any).select('id').eq('is_inaugural', true)
+    inauguralIds = new Set(((inaug ?? []) as any[]).map(t => t.id))
+  } catch { /* is_inaugural (migration 167) not applied → no founding */ }
+  const founding    = compRows.some(c => c.tournament_id && inauguralIds.has(c.tournament_id))
 
   // ── Honours ─────────────────────────────────────────────────────────────
   const honours: ChiefHonour[] = []
@@ -87,7 +91,7 @@ export async function getChiefStats(admin: any, userId: string, createdAt: strin
   if (seasons >= 3) honours.push({ key: 'veteran',  label: 'Seasoned Chief', desc: `Active across ${seasons} tournaments`, icon: '🗓️', earned: true })
   else if (seasons >= 2) honours.push({ key: 'multi', label: 'Multi-Season', desc: 'Ran comps in 2+ tournaments', icon: '🗓️', earned: true })
 
-  if (founding) honours.push({ key: 'founding', label: 'Founding Chief', desc: 'Joined in the first year', icon: '⚓', earned: true })
+  if (founding) honours.push({ key: 'founding', label: 'Founding Chief', desc: "Ran a comp in TribePicks' first tournament", icon: '⚓', earned: true })
   if (hitCap)   honours.push({ key: 'fullhouse', label: 'Full House',     desc: 'A comp hit its cap',        icon: '🏟️', earned: true })
   if (ranDerby) honours.push({ key: 'derby',     label: 'Derby Maker',    desc: 'Ran a team-fans comp',      icon: '🔥', earned: true })
 

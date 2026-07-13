@@ -54,7 +54,7 @@ async function load(id: string): Promise<ChiefData | null> {
     // shown for context but must NOT be clickable (its /c/[slug] would 404 / can't be joined).
     joinable: c.visibility === 'open' && c.is_discoverable,
   }))
-  const stats = await getChiefStats(admin, u.id, u.created_at ?? null)
+  const stats = await getChiefStats(admin, u.id)
 
   // Relative rank from the nightly chief_scores view — tolerant: null when the view isn't
   // applied/refreshed yet, or the Chief is below the eligibility floor (<5 active tipsters).
