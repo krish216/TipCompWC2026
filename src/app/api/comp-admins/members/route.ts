@@ -3,8 +3,8 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 // GET /api/comp-admins/members?comp_id= — list a comp's members for its admins.
-// Rebuilt after migration 044 dropped users.tribe_id / users.org_id: membership now comes from
-// user_comps, tribe status from tribe_members, and predictions from the leaderboard view.
+// Rebuilt after migration 044 dropped the legacy users membership columns: membership now comes
+// from user_comps, tribe status from tribe_members, and predictions from the leaderboard view.
 export async function GET(request: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

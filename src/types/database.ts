@@ -4,20 +4,10 @@ export interface Database {
   public: {
     Tables: {
       users: {
-        // tribe_id was dropped in migration 044 (membership → tribe_members). org_id also dropped.
+        // legacy membership columns were dropped in migration 044 (membership → tribe_members).
         Row:    { id: string; email: string; display_name: string; avatar_url: string | null; favourite_team: string | null; country: string | null; timezone: string | null; created_at: string; updated_at: string }
         Insert: { id: string; email: string; display_name: string; avatar_url?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
         Update: { email?: string; display_name?: string; avatar_url?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
-      }
-      organisations: {
-        Row:    { id: string; name: string; slug: string; invite_code: string; created_by: string | null; created_at: string }
-        Insert: { name: string; slug: string; created_by?: string | null }
-        Update: { name?: string; slug?: string }
-      }
-      org_admins: {
-        Row:    { org_id: string; user_id: string; granted_at: string }
-        Insert: { org_id: string; user_id: string }
-        Update: never
       }
       tribes: {
         Row:    { id: string; name: string; invite_code: string; created_by: string; created_at: string }
