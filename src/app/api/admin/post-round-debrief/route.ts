@@ -39,14 +39,10 @@ export async function POST(request: NextRequest) {
   let posted = 0, notified = 0, skipped = 0
 
   for (const tribe of (tribes ?? []) as any[]) {
-    // Member ids (union of tribe_members + users.tribe_id)
-    const [{ data: tm }, { data: us }] = await Promise.all([
-      (admin.from('tribe_members') as any).select('user_id').eq('tribe_id', tribe.id),
-      (admin.from('users') as any).select('id').eq('tribe_id', tribe.id),
-    ])
+    // Member ids via tribe_members (users.tribe_id was dropped in migration 044).
+    const { data: tm } = await (admin.from('tribe_members') as any).select('user_id').eq('tribe_id', tribe.id)
     const ids = new Set<string>()
     ;(tm ?? []).forEach((r: any) => r.user_id && ids.add(r.user_id))
-    ;(us ?? []).forEach((r: any) => r.id && ids.add(r.id))
     if (ids.size < MIN_MEMBERS) { skipped++; continue }
 
     // Tracked redirect → logs the click in report_link_clicks, then forwards to the

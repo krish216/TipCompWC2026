@@ -4,9 +4,10 @@ export interface Database {
   public: {
     Tables: {
       users: {
-        Row:    { id: string; email: string; display_name: string; avatar_url: string | null; tribe_id: string | null; favourite_team: string | null; country: string | null; timezone: string | null; org_id: string | null; created_at: string; updated_at: string }
-        Insert: { id: string; email: string; display_name: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null; org_id?: string | null }
-        Update: { email?: string; display_name?: string; avatar_url?: string | null; tribe_id?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null; org_id?: string | null }
+        // tribe_id was dropped in migration 044 (membership → tribe_members). org_id also dropped.
+        Row:    { id: string; email: string; display_name: string; avatar_url: string | null; favourite_team: string | null; country: string | null; timezone: string | null; created_at: string; updated_at: string }
+        Insert: { id: string; email: string; display_name: string; avatar_url?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
+        Update: { email?: string; display_name?: string; avatar_url?: string | null; favourite_team?: string | null; country?: string | null; timezone?: string | null }
       }
       organisations: {
         Row:    { id: string; name: string; slug: string; invite_code: string; created_by: string | null; created_at: string }

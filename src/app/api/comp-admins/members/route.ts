@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!orgAdmin && !tournamentAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data, error } = await adminClient
-    .from('users').select('id, display_name, email, tribe_id').eq('org_id', orgId).order('display_name')
+    .from('users').select('id, display_name, email').eq('org_id', orgId).order('display_name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ data: (data ?? []) as any[] })
 }

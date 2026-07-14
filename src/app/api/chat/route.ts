@@ -22,13 +22,10 @@ export async function GET(request: NextRequest) {
 
   if (!tribe_id) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
 
-  // Verify tribe membership
-  const [{ data: tmRow }, { data: userRow }] = await Promise.all([
-    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle(),
-    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
-  ])
-  const isMember = !!(tmRow as any)?.tribe_id || (userRow as any)?.tribe_id === tribe_id
-  if (!isMember) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+  // Verify tribe membership — via tribe_members (users.tribe_id was dropped in migration 044).
+  const { data: tmRow } = await supabase.from('tribe_members')
+    .select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle()
+  if (!(tmRow as any)?.tribe_id) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
 
   let query = (supabase
     .from('chat_messages') as any)
@@ -84,13 +81,10 @@ export async function POST(request: NextRequest) {
 
   const { tribe_id, content, round_code } = parsed.data
 
-  // Verify membership
-  const [{ data: tmRow2 }, { data: userRow2 }] = await Promise.all([
-    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle(),
-    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
-  ])
-  const isMember2 = !!(tmRow2 as any)?.tribe_id || (userRow2 as any)?.tribe_id === tribe_id
-  if (!isMember2) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+  // Verify membership — via tribe_members (users.tribe_id was dropped in migration 044).
+  const { data: tmRow2 } = await supabase.from('tribe_members')
+    .select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribe_id).maybeSingle()
+  if (!(tmRow2 as any)?.tribe_id) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
 
   const { data, error } = await (supabase
     .from('chat_messages') as any)

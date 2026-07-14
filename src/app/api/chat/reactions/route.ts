@@ -18,12 +18,10 @@ export async function POST(request: NextRequest) {
     .select('tribe_id').eq('id', message_id).single()
   if (!msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 })
 
-  const [{ data: tmRow }, { data: userRow }] = await Promise.all([
-    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', (msg as any).tribe_id).maybeSingle(),
-    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
-  ])
-  const isMember = !!(tmRow as any)?.tribe_id || (userRow as any)?.tribe_id === (msg as any).tribe_id
-  if (!isMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Membership via tribe_members (users.tribe_id was dropped in migration 044).
+  const { data: tmRow } = await supabase.from('tribe_members')
+    .select('tribe_id').eq('user_id', user.id).eq('tribe_id', (msg as any).tribe_id).maybeSingle()
+  if (!(tmRow as any)?.tribe_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Check if already reacted
   const { data: existing } = await (supabase.from('chat_reactions') as any)

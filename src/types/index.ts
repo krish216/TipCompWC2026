@@ -130,7 +130,7 @@ export interface Prediction {
 
 export interface User {
   id: string; email: string; display_name: string
-  avatar_url?: string; tribe_id?: string; created_at: string
+  avatar_url?: string; created_at: string   // tribe_id dropped in migration 044 — use tribe_members
 }
 export interface Tribe {
   id: string; name: string; invite_code: string

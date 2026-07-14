@@ -28,13 +28,10 @@ export async function postRoundDebriefToTribes(
   const { data: tribes } = await admin.from('tribes').select('id, name').eq('tournament_id', tournamentId)
   let posted = 0, notified = 0, skipped = 0
   for (const tribe of (tribes ?? []) as any[]) {
-    const [{ data: tm }, { data: us }] = await Promise.all([
-      admin.from('tribe_members').select('user_id').eq('tribe_id', tribe.id),
-      admin.from('users').select('id').eq('tribe_id', tribe.id),
-    ])
+    // Members via tribe_members (users.tribe_id was dropped in migration 044).
+    const { data: tm } = await admin.from('tribe_members').select('user_id').eq('tribe_id', tribe.id)
     const ids = new Set<string>()
     ;(tm ?? []).forEach((r: any) => r.user_id && ids.add(r.user_id))
-    ;(us ?? []).forEach((r: any) => r.id && ids.add(r.id))
     if (ids.size < MIN_MEMBERS) { skipped++; continue }
 
     const { data: sys } = await admin.from('chat_messages').select('content')

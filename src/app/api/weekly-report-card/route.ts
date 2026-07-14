@@ -31,14 +31,11 @@ export async function GET(request: NextRequest) {
     .select('value').eq('key', 'weekly_report_card').maybeSingle()
   if ((flag as any)?.value !== 'on') return NextResponse.json({ show: false })
 
-  // Membership (mirrors /api/chat check).
+  // Membership (mirrors /api/chat check) — via tribe_members (users.tribe_id was dropped in 044).
   const supabase = createServerSupabaseClient()
-  const [{ data: tmRow }, { data: userRow }] = await Promise.all([
-    supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribeId).maybeSingle(),
-    supabase.from('users').select('tribe_id').eq('id', user.id).single(),
-  ])
-  const isMember = !!(tmRow as any)?.tribe_id || (userRow as any)?.tribe_id === tribeId
-  if (!isMember) return NextResponse.json({ show: false })
+  const { data: tmRow } = await supabase.from('tribe_members')
+    .select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribeId).maybeSingle()
+  if (!(tmRow as any)?.tribe_id) return NextResponse.json({ show: false })
 
   const { count } = await (admin.from('tribe_members') as any)
     .select('user_id', { count: 'exact', head: true }).eq('tribe_id', tribeId)

@@ -22,16 +22,11 @@ export function reportLink(siteUrl: string, tribeId: string): string {
   return `${siteUrl}/api/r/report?tribe_id=${tribeId}`
 }
 
-// All member user_ids of a tribe — union of tribe_members and users.tribe_id, so
-// nobody is missed regardless of which membership record they have.
+// All member user_ids of a tribe — from tribe_members (users.tribe_id was dropped in 044).
 async function tribeMemberIds(admin: any, tribeId: string): Promise<string[]> {
-  const [{ data: tm }, { data: us }] = await Promise.all([
-    admin.from('tribe_members').select('user_id').eq('tribe_id', tribeId),
-    admin.from('users').select('id').eq('tribe_id', tribeId),
-  ])
+  const { data: tm } = await admin.from('tribe_members').select('user_id').eq('tribe_id', tribeId)
   const set = new Set<string>()
   for (const r of (tm ?? [])) if (r.user_id) set.add(r.user_id)
-  for (const r of (us ?? [])) if (r.id) set.add(r.id)
   return [...set]
 }
 

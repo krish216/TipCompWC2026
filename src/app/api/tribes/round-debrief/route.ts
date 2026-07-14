@@ -19,13 +19,10 @@ export async function GET(request: NextRequest) {
     const round   = url.searchParams.get('round') || 'gs1'
     if (!tribeId) return NextResponse.json({ error: 'tribe_id required' }, { status: 400 })
 
-    // Members-only gate (mirrors /api/tribes/report).
-    const [{ data: tmRow }, { data: userRow }] = await Promise.all([
-      supabase.from('tribe_members').select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribeId).maybeSingle(),
-      supabase.from('users').select('tribe_id').eq('id', user.id).single(),
-    ])
-    const isMember = !!(tmRow as any)?.tribe_id || (userRow as any)?.tribe_id === tribeId
-    if (!isMember) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+    // Members-only gate (mirrors /api/tribes/report) — via tribe_members (users.tribe_id dropped in 044).
+    const { data: tmRow } = await supabase.from('tribe_members')
+      .select('tribe_id').eq('user_id', user.id).eq('tribe_id', tribeId).maybeSingle()
+    if (!(tmRow as any)?.tribe_id) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
 
     const admin = createAdminClient()
     const { data: tribe } = await (admin.from('tribes') as any).select('id, name, tournament_id').eq('id', tribeId).single()
