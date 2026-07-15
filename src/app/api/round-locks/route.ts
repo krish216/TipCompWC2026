@@ -70,11 +70,12 @@ export async function POST(request: NextRequest) {
       updates.tipping_closed = tipping_closed
     }
 
-    // Rows are always seeded when a tournament is created — use UPDATE, not upsert
+    // Upsert (not plain UPDATE): rows are seeded at tournament creation, but rounds added
+    // later (e.g. a warm-up round via migration) have no row yet — a bare UPDATE would match
+    // 0 rows and silently fail. The (tournament_id, round_code) pair is validated above and
+    // uniquely constrained, so upsert self-heals a missing row.
     const { error } = await (adminClient.from('round_locks') as any)
-      .update(updates)
-      .eq('tournament_id', tournament_id)
-      .eq('round_code', round)
+      .upsert({ tournament_id, round_code: round, ...updates }, { onConflict: 'tournament_id,round_code' })
 
     if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
     return NextResponse.json({ success: true, round, is_open, tipping_closed })
