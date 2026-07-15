@@ -1,4 +1,6 @@
 import type { RoundDebriefData } from '@/lib/round-debrief'
+import { FeedCtaLink } from '@/components/game/FeedCtaLink'
+import { FEED_CHARITY } from '@/lib/dogs'
 
 // Presentation for the satirical Round Debrief — same "Office of Competitive
 // Integrity" dossier styling as the Weekly Intelligence Report.
@@ -7,6 +9,38 @@ function Stamp() {
     <span className="inline-block border-2 border-red-500/70 text-red-500/80 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm -rotate-6 select-none">
       Classified
     </span>
+  )
+}
+
+// Rounds whose debrief carries the "Feed the Doggies" fundraiser appeal. The semi-finals
+// are the emotional peak with the tournament nearly done — the natural moment to ask.
+// Extendable (e.g. add 'f' for the final) without touching render logic.
+const FUNDRAISER_ROUNDS = new Set(['sf'])
+
+// Fundraiser appeal appended to the debrief on qualifying rounds. In-universe "HQ directive"
+// voice, but a genuine ask: why donating matters (keeps TribePicks free, funds what's next,
+// and sends a slice to charity). Click-through is tracked via FeedCtaLink (source-tagged).
+function FundingDirective() {
+  const charityLine = FEED_CHARITY ? ` and ${FEED_CHARITY.splitPct}% goes to ${FEED_CHARITY.name}` : ''
+  return (
+    <div className="border-2 border-dashed border-amber-500/70 bg-amber-50 rounded-md px-3.5 py-3 space-y-2">
+      <p className="text-[11px] uppercase tracking-widest text-amber-700 flex items-center gap-1.5">
+        <span className="text-sm">🐾</span> Directive from HQ — keep the operation fed
+      </p>
+      <p className="text-gray-700 leading-relaxed">
+        The tournament is in its final act — and TribePicks has run <strong>100% free</strong> the
+        whole way. Keeping it free, and building <strong>what&rsquo;s next (the Premier League)</strong>,
+        runs entirely on goodwill. A quick <strong>Feed the Doggies</strong> is how you chip in: it
+        keeps TribePicks free for everyone, funds the next competition{charityLine} — real bowls for
+        real rescue dogs. Our mascots insist it&rsquo;s worth a point of good luck for the final. 🍀
+      </p>
+      <FeedCtaLink
+        source="round_debrief_sf"
+        className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold px-3 py-1.5 rounded-md transition-colors no-underline"
+      >
+        🦴 Feed the doggies →
+      </FeedCtaLink>
+    </div>
   )
 }
 
@@ -70,6 +104,9 @@ export function RoundDebrief({ data }: { data: RoundDebriefData }) {
             </div>
           </>
         )}
+
+        {/* Semis-only: Feed the Doggies fundraiser appeal (see FUNDRAISER_ROUNDS). */}
+        {FUNDRAISER_ROUNDS.has(data.round_code) && data.played && <FundingDirective />}
       </div>
 
       <div className="border-t-2 border-gray-800 px-4 py-2 text-[10px] text-gray-500 flex items-center justify-between">

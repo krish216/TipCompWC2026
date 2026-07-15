@@ -51,4 +51,4 @@ export const FEED_CAMPAIGN = { goalCents: 100000, label: 'Fund what’s next (EP
 
 // Charity split — a PUBLIC commitment: 15% of every feed is donated to the RSPCA. This must be
 // actually remitted (keep receipts). null would revert to a soft "a slice goes to dog rescues".
-export const FEED_CHARITY: { name: string; splitPct: number } | null = { name: 'the RSPCA Adoption Centre', splitPct: 15 }
+export const FEED_CHARITY: { name: string; splitPct: number } | null = { name: 'the RSPCA (Pet Adoption Centre)', splitPct: 15 }
