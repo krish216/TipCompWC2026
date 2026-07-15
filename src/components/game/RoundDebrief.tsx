@@ -71,6 +71,9 @@ export function RoundDebrief({ data }: { data: RoundDebriefData }) {
 
       {/* Body */}
       <div className="px-4 py-4 space-y-4">
+        {/* Semis-only: Feed the Doggies fundraiser appeal, shown up top (see FUNDRAISER_ROUNDS). */}
+        {FUNDRAISER_ROUNDS.has(data.round_code) && data.played && <FundingDirective />}
+
         {!data.played ? (
           <p className="text-gray-600">⏳ Results pending. This dossier unlocks once {data.round_name} is fully scored.</p>
         ) : data.awards.length === 0 ? (
@@ -104,9 +107,6 @@ export function RoundDebrief({ data }: { data: RoundDebriefData }) {
             </div>
           </>
         )}
-
-        {/* Semis-only: Feed the Doggies fundraiser appeal (see FUNDRAISER_ROUNDS). */}
-        {FUNDRAISER_ROUNDS.has(data.round_code) && data.played && <FundingDirective />}
       </div>
 
       <div className="border-t-2 border-gray-800 px-4 py-2 text-[10px] text-gray-500 flex items-center justify-between">
