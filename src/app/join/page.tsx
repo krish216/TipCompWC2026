@@ -133,6 +133,10 @@ function JoinInner() {
           {!tribeAssigned && (
             <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
           )}
+          <p className="text-[11px] text-gray-400 text-center mt-5 leading-relaxed">
+            🔀 In more than one competition? Switch anytime from the{' '}
+            <span className="font-semibold text-gray-500">tournament banner</span> at the top of the app.
+          </p>
         </div>
       </div>
     )

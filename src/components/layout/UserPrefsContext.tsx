@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, getDefaultScoringConfig } from '@/types'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { flagFor } from '@/lib/team-flags'
@@ -93,6 +93,10 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const [tournsComps,       setTournsComps]       = useState<Comp[]>([])
   const [selectedTournId,   setSelectedTournId]   = useState<string | null>(null)
   const [selectedCompId,    setSelectedCompId]    = useState<string | null>(null)
+  // Live mirror of the current selection so pickTournament can persist the OUTGOING
+  // tournament's comp without a stale closure (its deps don't include these).
+  const selectionRef = useRef<{ tournId: string | null; compId: string | null }>({ tournId: null, compId: null })
+  useEffect(() => { selectionRef.current = { tournId: selectedTournId, compId: selectedCompId } }, [selectedTournId, selectedCompId])
   const [loading,           setLoading]           = useState(true)
   const [roundConfigs,      setRoundConfigs]      = useState<RoundConfig[]>([])
   const [scoringConfig,     setScoringConfig]     = useState<TournamentScoringConfig>(getDefaultScoringConfig)
@@ -219,19 +223,31 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const emailAllow = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
       const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
 
-      const [{ data: prefs }, adminRes] = await Promise.all([
+      const [{ data: prefs }, adminRes, { data: myComps }] = await Promise.all([
         supabase.from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
         emailAllow
           ? Promise.resolve({ is_admin: true })
           : fetch('/api/admin').then(r => r.json()).catch(() => ({ is_admin: false })),
+        // Tournaments the user belongs to a comp in — so a member of a not-yet-active
+        // tournament's comp (e.g. the EPL co-design cohort) can see and play it. This is
+        // visibility only: they already joined a comp, so it grants no new join/enrol path.
+        supabase.from('user_comps').select('comps(tournament_id)').eq('user_id', session.user.id),
       ])
       const canPreview = emailAllow || !!(adminRes as any)?.is_admin
+      const memberTournIds = Array.from(new Set(
+        ((myComps ?? []) as any[])
+          .map(r => (Array.isArray(r.comps) ? r.comps[0] : r.comps)?.tournament_id)
+          .filter(Boolean)
+      )) as string[]
 
-      let tournQuery = supabase.from('tournaments').select(TOURN_COLS)
-      tournQuery = canPreview
-        ? tournQuery.or(`is_active.eq.true,slug.in.(${PREVIEW_TOURNAMENT_SLUGS.join(',')})`)
-        : tournQuery.eq('is_active', true)
-      const tournRes = await tournQuery.order('start_date', { ascending: true })
+      // Visible tournaments: active always; preview slugs for admins/allow-list; plus any
+      // tournament the user is a member of a comp in. is_active is never changed here.
+      const orParts = ['is_active.eq.true']
+      if (canPreview)            orParts.push(`slug.in.(${PREVIEW_TOURNAMENT_SLUGS.join(',')})`)
+      if (memberTournIds.length) orParts.push(`id.in.(${memberTournIds.join(',')})`)
+      const tournRes = await supabase.from('tournaments').select(TOURN_COLS)
+        .or(orParts.join(','))
+        .order('start_date', { ascending: true })
       const activeTourns = (tournRes.data ?? []) as Tournament[]
       setActiveTournaments(activeTourns)
       const prefTournId = (prefs as any)?.tournament_id ?? null
@@ -294,6 +310,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   }, [session?.user.id])
 
   const pickTournament = useCallback(async (id: string) => {
+    // Persist where we're leaving: save the outgoing tournament's current comp as its
+    // per-tournament memory, so returning restores it (covers auto-selected comps that
+    // pickComp never explicitly saved).
+    const leaving = selectionRef.current
+    if (session && leaving.tournId && leaving.compId && leaving.tournId !== id) {
+      fetch('/api/user-tournaments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: leaving.tournId, selected_comp_id: leaving.compId }),
+      }).catch(() => { /* non-critical */ })
+    }
     setSelectedTournId(id)
     setSelectedCompId(null)
     setTournsComps([])

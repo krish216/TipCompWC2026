@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   // Verify the invite code matches the org
   const { data: org } = await supabase
     .from('comps')
-    .select('id, invite_code, name, email_domain')
+    .select('id, invite_code, name, email_domain, tournament_id')
     .eq('id', comp_id)
     .eq('invite_code', invite_code.toUpperCase())
     .neq('slug', 'public')
@@ -72,6 +72,22 @@ export async function POST(request: NextRequest) {
     } else {
       tribeAssigned = true // already in a tribe — counts as assigned
     }
+  }
+
+  // Default the joiner's app to this comp's tournament + comp, so the invite link lands
+  // them here (e.g. the EPL co-design cohort opens straight on EPL, not the still-active
+  // World Cup). They can switch tournaments anytime from the banner switcher.
+  const compTournId = (org as any).tournament_id ?? null
+  if (compTournId) {
+    await (adminClient.from('user_preferences') as any).upsert(
+      { user_id: user.id, tournament_id: compTournId, comp_id },
+      { onConflict: 'user_id' }
+    )
+    // Per-tournament comp memory, so switching away and back restores this comp.
+    await (adminClient.from('user_tournaments') as any).upsert(
+      { user_id: user.id, tournament_id: compTournId, selected_comp_id: comp_id },
+      { onConflict: 'user_id,tournament_id' }
+    )
   }
 
   return NextResponse.json({ success: true, comp_name: (org as any).name, tribe_assigned: tribeAssigned })
