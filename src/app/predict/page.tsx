@@ -54,6 +54,9 @@ export default function PredictPage() {
   const { selectedTourn, selectedTournId, selectedTribeId, isAdFree, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
+  // Warm-up (Round 0) is a practice-mode-only tab — and never for the World Cup, whose
+  // warm-up is over and which must never enter practice mode.
+  const warmupVisible = allowRetroactivePredictions && (selectedTourn as any)?.slug !== 'wc2026'
 
   // Build round tabs dynamically from tournament_rounds (via scoringConfig).
   // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
@@ -63,9 +66,11 @@ export default function PredictPage() {
   useEffect(() => {
     const next = buildRoundTabs(scoringConfig)
     setRoundTabState(next)
-    // Keep activeRound in sync — if current tab doesn't exist in new config, use first
-    setActiveRound(prev => next.tabs.includes(prev) ? prev : (next.tabs[0] ?? 'gs'))
-  }, [scoringConfig])
+    // Keep activeRound on a VISIBLE tab: the warm-up is hidden unless Practice Mode is on,
+    // so never leave it selected (or fall onto an absent tab) when it isn't shown.
+    const visible = next.tabs.filter(t => t !== 'wup' || warmupVisible)
+    setActiveRound(prev => visible.includes(prev) ? prev : (visible[0] ?? next.tabs[0] ?? 'gs'))
+  }, [scoringConfig, warmupVisible])
   const { tabs: ROUND_TABS, tabLabel: ROUND_TAB_LABEL, tabToRounds: TAB_TO_ROUNDS } = roundTabState
 
   // Month overlay — only week-structured tournaments (EPL) populate month_key, so this
@@ -943,8 +948,8 @@ export default function PredictPage() {
       {/* Round tabs — horizontal scroll, segmented, DB-driven via tab_group/tab_label/MAX(round_order) */}
       <div ref={roundStripRef} className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-0 min-w-max border border-gray-200 rounded-xl overflow-hidden bg-gray-100 p-1">
-          {/* Warm-up tab hidden — the pre-tournament practice round is over. */}
-          {ROUND_TABS.filter(tab => tab !== 'wup').map(tab => {
+          {/* Warm-up (Round 0) shows only while Practice Mode is on (and never for WC). */}
+          {ROUND_TABS.filter(tab => tab !== 'wup' || warmupVisible).map(tab => {
             const cnt      = roundPredCounts[tab]
             const pts      = roundPoints[tab]
             const isActive = activeRound === tab

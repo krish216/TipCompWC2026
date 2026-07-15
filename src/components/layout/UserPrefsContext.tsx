@@ -5,10 +5,11 @@ import { type RoundConfig, buildScoringConfig, type TournamentScoringConfig, get
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { flagFor } from '@/lib/team-flags'
 
-// Emails allowed to preview not-yet-active tournaments (e.g. EPL) in their switcher,
-// so they can trial the new tournament before launch. This does NOT flip is_active —
-// EPL stays inactive globally, so every single-active-tournament lookup elsewhere is
-// unaffected. Temporary until the multi-active-tournament refactor lands.
+// Users allowed to preview not-yet-active tournaments (e.g. EPL) in their switcher, so
+// they can trial the new tournament before launch. Global (tournament) admins qualify
+// automatically via the is_admin check below; these explicit emails cover non-admin
+// partners. This does NOT flip is_active — EPL stays inactive globally, so every
+// single-active-tournament lookup elsewhere is unaffected.
 const TOURNAMENT_PREVIEW_EMAILS = ['paws@petzbff.com.au']
 const PREVIEW_TOURNAMENT_SLUGS  = ['epl-2026-27']
 
@@ -211,21 +212,26 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     setAdminComps([])
     if (!session) { setLoading(false); return }
     ;(async () => {
-      // 1+2. Fetch tournaments and user preferences in parallel.
-      // Preview users see active tournaments PLUS the allow-listed preview slugs (EPL);
-      // everyone else sees only active ones. is_active is never changed here.
-      const canPreview = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
+      // 1+2. Fetch user preferences + admin status in parallel, then the tournaments.
+      // Preview users (global/tournament admins, plus the allow-listed emails) see active
+      // tournaments PLUS the preview slugs (EPL); everyone else sees only active ones.
+      // is_active is never changed here — the public still sees only active tournaments.
+      const emailAllow = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
       const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
+
+      const [{ data: prefs }, adminRes] = await Promise.all([
+        supabase.from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
+        emailAllow
+          ? Promise.resolve({ is_admin: true })
+          : fetch('/api/admin').then(r => r.json()).catch(() => ({ is_admin: false })),
+      ])
+      const canPreview = emailAllow || !!(adminRes as any)?.is_admin
+
       let tournQuery = supabase.from('tournaments').select(TOURN_COLS)
       tournQuery = canPreview
         ? tournQuery.or(`is_active.eq.true,slug.in.(${PREVIEW_TOURNAMENT_SLUGS.join(',')})`)
         : tournQuery.eq('is_active', true)
-
-      const [tournRes, { data: prefs }] = await Promise.all([
-        tournQuery.order('start_date', { ascending: true }),
-        supabase
-          .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
-      ])
+      const tournRes = await tournQuery.order('start_date', { ascending: true })
       const activeTourns = (tournRes.data ?? []) as Tournament[]
       setActiveTournaments(activeTourns)
       const prefTournId = (prefs as any)?.tournament_id ?? null

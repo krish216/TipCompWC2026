@@ -583,6 +583,11 @@ export default function AdminPage() {
 
   const handleToggleRetroactive = async () => {
     if (!tournamentData) return
+    // The World Cup must never enter Practice Mode (it's live/finished, not a warm-up).
+    if (tournamentData.slug === 'wc2026' && !tournamentData.allow_retroactive_predictions) {
+      toast.error('Practice Mode is disabled for the World Cup.')
+      return
+    }
     const next = !tournamentData.allow_retroactive_predictions
     setTogglingRetroactive(true)
     const res = await fetch('/api/tournaments', {
@@ -1442,11 +1447,15 @@ export default function AdminPage() {
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
                 <div>
                   <p className="text-xs font-semibold text-gray-800">🧪 Practice Mode</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Lets tipsters predict any match — including those with results. Use for testing and onboarding.</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {tournamentData?.slug === 'wc2026'
+                      ? 'Disabled for the World Cup — it’s a live tournament, not a warm-up sandbox.'
+                      : 'Lets tipsters predict any match — including those with results, and shows the Warm-Up tab. Use for testing and onboarding.'}
+                  </p>
                 </div>
                 <button
                   onClick={handleToggleRetroactive}
-                  disabled={togglingRetroactive || !tournamentData}
+                  disabled={togglingRetroactive || !tournamentData || (tournamentData?.slug === 'wc2026' && !tournamentData?.allow_retroactive_predictions)}
                   className={clsx(
                     'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
                     tournamentData?.allow_retroactive_predictions ? 'bg-blue-500' : 'bg-gray-200'

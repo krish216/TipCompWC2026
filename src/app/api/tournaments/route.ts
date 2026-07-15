@@ -80,6 +80,17 @@ export async function PATCH(request: NextRequest) {
   if (start_date  !== undefined) updates.start_date  = start_date
   if (end_date    !== undefined) updates.end_date    = end_date
 
+  // Guard: the World Cup must never enter Practice Mode (retroactive predictions). It's a
+  // live/finished tournament, not a warm-up sandbox — enabling it would reopen locked
+  // picks and resurface the (long-over) warm-up tab.
+  if (updates.allow_retroactive_predictions === true) {
+    const { data: tRow } = await (adminClient.from('tournaments') as any)
+      .select('slug').eq('id', id).maybeSingle()
+    if ((tRow as any)?.slug === 'wc2026') {
+      return NextResponse.json({ error: 'Practice Mode cannot be enabled for the World Cup.' }, { status: 400 })
+    }
+  }
+
   if (Object.keys(updates).length > 0) {
     const { error } = await (adminClient.from('tournaments') as any)
       .update(updates).eq('id', id)
