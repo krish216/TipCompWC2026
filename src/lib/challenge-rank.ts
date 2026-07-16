@@ -51,9 +51,10 @@ async function rankBracketChallenge(admin: any, ch: any): Promise<number> {
   }
   const finalGoals = goalTotal('f'), tpGoals = goalTotal('tp')
 
-  const { data: entries } = await (admin.from('bracket_entries') as any)
-    .select('id, user_id, final_goals, tp_goals, entered_at').eq('challenge_id', ch.id)
-  if (!entries || entries.length === 0) return 0
+  const { data: entriesRaw } = await (admin.from('bracket_entries') as any)
+    .select('id, user_id, final_goals, tp_goals, entered_at, excluded').eq('challenge_id', ch.id)
+  const entries = ((entriesRaw ?? []) as any[]).filter(e => !e.excluded)   // omit ineligible entrants
+  if (entries.length === 0) return 0
 
   // Each entrant's picks (slot_key → team) for this tournament.
   const userIds = (entries as any[]).map(e => e.user_id)

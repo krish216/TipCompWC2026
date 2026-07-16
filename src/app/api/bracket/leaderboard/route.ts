@@ -62,13 +62,13 @@ export async function GET(request: NextRequest) {
   const entries: any[] = []
   for (let from = 0; ; from += 1000) {
     const { data } = await (admin.from('bracket_entries') as any)
-      .select('user_id, final_goals, tp_goals, entered_at').eq('challenge_id', challenge.id).range(from, from + 999)
+      .select('user_id, final_goals, tp_goals, entered_at, excluded').eq('challenge_id', challenge.id).range(from, from + 999)
     if (!data?.length) break
     entries.push(...data)
     if (data.length < 1000) break
   }
   const entryByUser: Record<string, any> = {}
-  for (const e of entries) entryByUser[e.user_id] = e
+  for (const e of entries) if (!e.excluded) entryByUser[e.user_id] = e   // omit ineligible entrants
   const userIds = Object.keys(entryByUser)
   if (!userIds.length) {
     return NextResponse.json({
