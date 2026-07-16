@@ -251,7 +251,6 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       const activeTourns = (tournRes.data ?? []) as Tournament[]
       setActiveTournaments(activeTourns)
       const prefTournId = (prefs as any)?.tournament_id ?? null
-      const prefCompId  = (prefs as any)?.comp_id ?? null
 
       // Resolve starting tournament
       const startTournId = prefTournId && activeTourns.some(t => t.id === prefTournId)
@@ -265,16 +264,23 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         const startTourn = activeTourns.find(t => t.id === startTournId)
         setEnforcePremium(startTourn?.enforce_premium ?? false)
 
-        // Fire teams (non-blocking), round configs, comps, admin check, and premium status in parallel
+        // Per-tournament state (the source of truth): the comp last used in THIS tournament +
+        // premium/ad-free flags. The comp seed comes from user_tournaments.selected_comp_id,
+        // NOT the global user_preferences.comp_id (which may belong to another tournament).
+        const { data: utStart } = await supabase.from('user_tournaments')
+          .select('selected_comp_id, is_premium, is_ad_free')
+          .eq('user_id', session.user.id).eq('tournament_id', startTournId).maybeSingle()
+        setIsPremiumOrg(!!(utStart as any)?.is_premium)
+        setIsAdFreeOrg(!!(utStart as any)?.is_ad_free)
+        const startComp = (utStart as any)?.selected_comp_id ?? null
+
+        // Fire teams (non-blocking), round configs, comps + admin check in parallel
         loadTeams(startTournId)
-        const [roundsData, resolvedComps, adminData, premiumRow] = await Promise.all([
+        const [roundsData, resolvedComps, adminData] = await Promise.all([
           fetch(`/api/tournament-rounds?tournament_id=${startTournId}`).then(r => r.json()).catch(() => ({ data: [] })),
-          loadComps(startTournId, session.user.id, prefCompId),
+          loadComps(startTournId, session.user.id, startComp),
           fetch('/api/comp-admins').then(r => r.json()).catch(() => ({})),
-          supabase.from('user_tournaments').select('is_premium, is_ad_free').eq('user_id', session.user.id).eq('tournament_id', startTournId).maybeSingle(),
         ])
-        setIsPremiumOrg(!!(premiumRow.data as any)?.is_premium)
-        setIsAdFreeOrg(!!(premiumRow.data as any)?.is_ad_free)
 
         const rows: RoundConfig[] = roundsData.data ?? []
         setRoundConfigs(rows)
@@ -291,12 +297,9 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
           setScoringConfig(buildScoringConfig(merged))
         }
 
-        if (!prefCompId && resolvedComps.length > 0) {
-          fetch('/api/user-preferences', {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ comp_id: resolvedComps[0].id }),
-          })
-        }
+        // (Per-tournament comp memory is persisted inside loadComps via user_tournaments;
+        // we no longer write a global user_preferences.comp_id.)
+        void resolvedComps
 
         if (adminData.is_comp_admin && adminData.comps?.length) {
           setAdminCompIds(new Set((adminData.comps as any[]).map((c: any) => c.id)))
@@ -360,9 +363,11 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     loadTeams(id)
     // loadComps selects rememberedComp if it's still one of the user's comps, else none.
     if (session) await loadComps(id, session.user.id, rememberedComp)
+    // Persist ONLY the selected tournament globally; the comp is per-tournament memory
+    // (user_tournaments.selected_comp_id), written by loadComps / pickComp.
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: id, comp_id: rememberedComp }),
+      body: JSON.stringify({ tournament_id: id }),
     })
   }, [loadComps])
 
@@ -377,11 +382,8 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
         setAdminComps(d.comps)
       }
     }).catch(() => {})
-    await fetch('/api/user-preferences', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ comp_id: comp.id }),
-    })
-    // Remember this comp for the current tournament, so switching away and back restores it.
+    // Persist the comp as THIS tournament's selection (per-tournament, in user_tournaments) —
+    // never a global user_preferences.comp_id — so switching away and back restores it.
     if (selectedTournId) {
       fetch('/api/user-tournaments', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

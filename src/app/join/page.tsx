@@ -73,8 +73,11 @@ function JoinInner() {
       // "You're in" tipping prompt and go to homepage where the onboarding flow
       // and email verification banner will guide them.
       if (!email) {
-        router.replace(`/?joined=${encodeURIComponent(comp.name)}&comp_id=${encodeURIComponent(comp.id)}`)
-        router.refresh()
+        // Full navigation (not router.replace) so the client UserPrefsContext RE-INITIALISES
+        // and picks up this just-joined comp membership. Otherwise activeTournaments — built
+        // at login, before the join — won't include the comp's tournament, so selectedTourn
+        // stays null and the banner/announcements fall back to the old (active) tournament.
+        window.location.href = `/?joined=${encodeURIComponent(comp.name)}&comp_id=${encodeURIComponent(comp.id)}`
         return
       }
 
@@ -121,8 +124,8 @@ function JoinInner() {
               className="flex items-center gap-3 px-4 py-3.5 bg-white border border-gray-200 hover:border-gray-300 text-gray-800 rounded-xl transition-colors group">
               <span className="text-2xl flex-shrink-0">⭐</span>
               <div className="flex-1">
-                <p className="text-sm font-bold">Pick your Bonus Team</p>
-                <p className="text-xs text-gray-500">2× points on their Group Stage matches</p>
+                <p className="text-sm font-bold">Pick your team</p>
+                <p className="text-xs text-gray-500">Your bonus pick — extra points when it counts</p>
               </div>
               <span className="text-lg text-gray-400 group-hover:translate-x-0.5 transition-transform">→</span>
             </Link>

@@ -21,15 +21,38 @@ export async function GET(request: NextRequest) {
     const noBreakdown    = scope === 'global' || searchParams.get('no_breakdown')     === 'true'
     const noTabBreakdown = scope === 'global' || searchParams.get('no_tab_breakdown') === 'true'
 
-    // Resolve comp + tournament from user_preferences
-    const { data: prefs } = await supabase
-      .from('user_preferences').select('comp_id, tournament_id').eq('user_id', user.id).single()
-    const compId = (prefs as any)?.comp_id ?? null
-    let tournamentId = searchParams.get('tournament_id') ?? (prefs as any)?.tournament_id ?? null
+    // Resolve the tournament first: explicit ?tournament_id= > the user's selected
+    // tournament (user_preferences) > the app-active tournament.
+    let tournamentId = searchParams.get('tournament_id') ?? null
+    if (!tournamentId) {
+      const { data: prefs } = await supabase
+        .from('user_preferences').select('tournament_id').eq('user_id', user.id).single()
+      tournamentId = (prefs as any)?.tournament_id ?? null
+    }
+    if (!tournamentId) {
+      const { data: active } = await supabase
+        .from('tournaments').select('id').eq('is_active', true)
+        .order('start_date', { ascending: true }).limit(1)
+      tournamentId = (active as any)?.[0]?.id ?? null
+    }
+    if (!tournamentId) {
+      const { data: setting } = await supabase
+        .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
+      tournamentId = (setting as any)?.value ?? null
+    }
 
-    // effectiveCompId in outer scope — used for both scope filtering and tribe lookup
+    // Resolve the comp PER-TOURNAMENT: an explicit ?comp_id= wins; otherwise the user's
+    // selected comp FOR THIS tournament (user_tournaments.selected_comp_id) — never the
+    // global user_preferences.comp_id, which can belong to a different tournament (that
+    // bug showed EPL comp members on the World Cup board).
     const explicitCompId  = searchParams.get('comp_id')
-    const effectiveCompId = explicitCompId ?? compId
+    let effectiveCompId: string | null = explicitCompId ?? null
+    if (!effectiveCompId && tournamentId) {
+      const { data: ut } = await supabase
+        .from('user_tournaments').select('selected_comp_id')
+        .eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle()
+      effectiveCompId = (ut as any)?.selected_comp_id ?? null
+    }
 
     // Resolve tribe scoped to the user's selected comp
     let tribeId: string | null = null
@@ -44,18 +67,6 @@ export async function GET(request: NextRequest) {
       const { data: tribeRows } = await (adminClient.from('tribe_members') as any)
         .select('tribe_id').eq('user_id', user.id).limit(1)
       tribeId = (tribeRows?.[0] as any)?.tribe_id ?? null
-    }
-
-    if (!tournamentId) {
-      const { data: active } = await supabase
-        .from('tournaments').select('id').eq('is_active', true)
-        .order('start_date', { ascending: true }).limit(1)
-      tournamentId = (active as any)?.[0]?.id ?? null
-    }
-    if (!tournamentId) {
-      const { data: setting } = await supabase
-        .from('app_settings').select('value').eq('key', 'active_tournament_id').single()
-      tournamentId = (setting as any)?.value ?? null
     }
 
     if (scope === 'tribe' && !tribeId) {

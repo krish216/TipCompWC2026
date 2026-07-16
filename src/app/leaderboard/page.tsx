@@ -55,7 +55,7 @@ const lbCache = new Map<string, LbCacheEntry>()
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig } = useUserPrefs()
+  const { scoringConfig, selectedTournId } = useUserPrefs()
 
   const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
@@ -149,10 +149,15 @@ export default function LeaderboardPage() {
   const [sortRound,  setSortRound]  = useState<string | null>(null)
   const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchLeaderboard = async (sc: Scope, tournId?: string | null) => {
+  // Live mirror of the selected comp so fetchLeaderboard can pass it without a stale closure.
+  const selectedCompRef = useRef<string | null>(selectedComp)
+  useEffect(() => { selectedCompRef.current = selectedComp }, [selectedComp])
+
+  const fetchLeaderboard = async (sc: Scope, tournId?: string | null, compArg?: string | null) => {
     setError(null)
-    const tid = tournId ?? activeTournamentId
-    const cacheKey = `${session?.user?.id ?? ''}:${sc}:${tid ?? ''}:${phase}`
+    const tid  = tournId ?? activeTournamentId
+    const comp = compArg !== undefined ? compArg : selectedCompRef.current
+    const cacheKey = `${session?.user?.id ?? ''}:${sc}:${tid ?? ''}:${comp ?? ''}:${phase}`
     // Seed instantly from cache (no spinner) when we've shown this scope before —
     // remounts and realtime updates revalidate silently. Cold loads show the spinner.
     const cached = lbCache.get(cacheKey)
@@ -166,7 +171,8 @@ export default function LeaderboardPage() {
       setLoading(true); setMessage(null)
     }
     try {
-      const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}${phase === 'knockout' ? '&phase=knockout' : ''}`
+      const compParam = sc === 'comp' && comp ? `&comp_id=${comp}` : ''
+      const url = `/api/leaderboard?scope=${sc}&limit=100${tid ? `&tournament_id=${tid}` : ''}${compParam}${phase === 'knockout' ? '&phase=knockout' : ''}`
       const res  = await fetch(url)
       const json = await res.json().catch(() => ({}))
       // Whether this tournament offers the knockout lens (drives the toggle visibility).
@@ -204,42 +210,39 @@ export default function LeaderboardPage() {
     ;(async () => {
       const { data: userRow } = await supabase
         .from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).single()
-      const tid   = (userRow as any)?.tournament_id ?? null
-      const cid   = (userRow as any)?.comp_id ?? null
+      // Prefer the context's selected tournament (updated synchronously on a banner switch)
+      // over user_preferences (persisted async by pickTournament, so it can lag right after
+      // a switch and leave the table on the old tournament).
+      const tid   = selectedTournId ?? (userRow as any)?.tournament_id ?? null
       setActiveTournamentId(tid)
 
-      // Fetch only comps this user has JOINED (from user_tournaments → comp)
-      const utRes  = await fetch('/api/user-tournaments')
-      const utData = await utRes.json()
-      const enrolledTournIds = new Set((utData.data ?? []).map((ut: any) => ut.tournament_id))
-
-      // Get comps for the active tournament that the user is a member of
-      const compSet: {id:string;name:string}[] = []
-      if (cid) {
-        // Primary comp — fetch details
-        const { data: myCompRow } = await supabase
-          .from('comps').select('id, name').eq('id', cid).single()
-        if (myCompRow) compSet.push(myCompRow as any)
-      }
-      // If enrolled in multiple tournaments, check for comps in each
-      // For now, show comps for active tournament where user is a member
-      if (tid && compSet.length === 0) {
-        const res  = await fetch(`/api/comps?tournament_id=${tid}`)
-        const data = await res.json()
-        const allComps = (data.data ?? []) as any[]
-        // Only include comps where the user is actually a member
-        compSet.push(...allComps.filter((c: any) => c.id === cid))
-      }
+      // The user's comps for THIS tournament — from user_comps filtered by each comp's own
+      // tournament, NOT user_preferences.comp_id (a single global value that can belong to a
+      // different tournament: the EPL comp was still showing "VIEWING EPL Co-Design" while
+      // viewing the World Cup). comps is public-read and user_comps_self allows self-reads,
+      // so this client query is fine.
+      const { data: myComps } = await supabase
+        .from('user_comps').select('comps(id, name, tournament_id)').eq('user_id', session.user.id)
+      const compSet = ((myComps ?? []) as any[])
+        .map(r => (Array.isArray(r.comps) ? r.comps[0] : r.comps))
+        .filter((c: any) => c && c.tournament_id === tid)
+        .map((c: any) => ({ id: c.id as string, name: c.name as string }))
       setUserComps(compSet)
       const firstComp = compSet[0] ?? null
-      if (firstComp && !selectedComp) setSelectedComp(firstComp.id)
+      // Keep the current comp only if it's still valid for THIS tournament; otherwise select
+      // the first, so switching tournaments re-selects that tournament's comp instead of
+      // sticking with the previous one (e.g. "Warm-Up Comp WC2026" while viewing EPL).
+      const cur      = selectedCompRef.current
+      const nextComp = (cur && compSet.some(c => c.id === cur)) ? cur : (firstComp?.id ?? null)
+      setSelectedComp(nextComp)
 
-      fetchLeaderboard(scope, tid)
+      fetchLeaderboard(scope, tid, nextComp)
     })()
     // Key on user id (stable primitive), not the session object, so browser focus /
-    // token refresh don't re-trigger a full reload.
+    // token refresh don't re-trigger a full reload. selectedTournId is included so a
+    // tournament switch reloads the comps + leaderboard (not just the round tabs).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id, scope])
+  }, [session?.user?.id, scope, selectedTournId])
 
   // Re-fetch when the phase lens (all ⇄ knockout) changes. Guarded so it doesn't
   // double-fetch on first mount (the main loader above already fetches).
@@ -488,7 +491,7 @@ export default function LeaderboardPage() {
                 onClick={() => {
                   setSelectedComp(c.id)
                   setEntries([]); setMyEntry(null)
-                  fetchLeaderboard(scope)
+                  fetchLeaderboard(scope, undefined, c.id)
                 }}
                 className={clsx(
                   'flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold',

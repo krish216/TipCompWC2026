@@ -8,6 +8,22 @@
  * authoritative and tournament-specific (not a hardcoded constant).
  */
 export async function isBonusTeamLocked(client: any, tournamentId: string): Promise<boolean> {
+  // The lock only guards the fav_team_2x advantage (WC): without it, a late change could
+  // point a 2× multiplier at already-known results. Tournaments with no fav_team_2x round
+  // don't need it and stay unlocked, so anyone joining mid-season can still pick.
+  // EPL's favourite team instead drives an EXACT-focus bonus (fav_exact_bonus): it only
+  // pays when you entered the exact score for that team's match, and exact picks lock at
+  // kickoff — so a late or changed favourite can't manufacture a bonus (an H/D/A tap won't
+  // match an exact score). That mechanic is self-gating, hence needs no lock.
+  const { data: bonusRound } = await client
+    .from('tournament_rounds')
+    .select('round_code')
+    .eq('tournament_id', tournamentId)
+    .eq('fav_team_2x', true)
+    .limit(1)
+    .maybeSingle()
+  if (!bonusRound) return false
+
   // Admin override (app_settings.bonus_lock_at = ISO timestamp). Lets us re-open the
   // bonus-team picker — e.g. extend the bonus to the Round of 32 and give everyone a
   // fresh pick beforehand. When set it fully replaces the default; clear it to

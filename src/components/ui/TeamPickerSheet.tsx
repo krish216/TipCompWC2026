@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Flag } from '@/components/ui/Flag'
+import { TeamBadge } from '@/components/game/TeamBadge'
 
 interface Team {
   name:       string
   fifa_code:  string
   flag_emoji: string
+  logo_url?:  string | null   // club crest (EPL); when absent the flag emoji is used
 }
 
 interface Props {
@@ -92,7 +93,7 @@ export function TeamPickerSheet({ open, onClose, teams, value, onSelect, title =
                       title={t.name}
                       className={`flex flex-col items-center gap-0.5 rounded-xl p-2 transition-colors
                         ${isSelected ? 'bg-sky-100 ring-2 ring-sky-500' : 'hover:bg-gray-100 active:bg-gray-200'}`}>
-                      <Flag team={t.name} className="text-2xl rounded-sm" />
+                      <TeamBadge flag={t.flag_emoji} logo={t.logo_url} name={t.name} size={28} className="rounded-sm" />
                       <span className={`text-[9px] font-semibold leading-tight text-center truncate w-full
                         ${isSelected ? 'text-sky-700' : 'text-gray-500'}`}>
                         {t.fifa_code}
@@ -109,7 +110,7 @@ export function TeamPickerSheet({ open, onClose, teams, value, onSelect, title =
         {value && (
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
             <span className="text-xs text-gray-600">
-              Selected: {selected && <Flag team={selected.name} className="text-base mr-1 rounded-sm" />}<strong>{selected?.name}</strong>
+              Selected: {selected && <TeamBadge flag={selected.flag_emoji} logo={selected.logo_url} name={selected.name} size={16} className="mr-1 rounded-sm" />}<strong>{selected?.name}</strong>
             </span>
             <button type="button" onClick={() => { onSelect(''); onClose() }}
               className="text-xs text-red-500 hover:text-red-700 font-medium">

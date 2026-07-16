@@ -18,6 +18,7 @@ import { RoundScoreBar } from '@/components/game/RoundScoreBar'
 import { RoundScoringCheatSheet } from '@/components/game/RoundScoringCheatSheet'
 import { EmptyState, Spinner } from '@/components/ui'
 import { FavTeamPicker } from '@/components/ui/FavTeamPicker'
+import toast from 'react-hot-toast'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { calcPoints, getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } from '@/types'
 import { fixtureHasPlaceholder, knownTeamSet } from '@/lib/placeholder'
@@ -182,9 +183,14 @@ export default function PredictPage() {
         setLoading(true)
       }
       try {
+        // Scope fixtures + predictions to the SELECTED tournament. Without this they resolve
+        // server-side from user_preferences, which is racy right after a switch and falls
+        // back to the app-active tournament (the World Cup) — showing WC fixtures on the EPL
+        // page. round-locks/teams already pass it; do the same here.
+        const tq = selectedTournId ? `?tournament_id=${selectedTournId}` : ''
         const [fxRes, predRes, resRes, locksRes, userRes, teamsRes, prefsRes] = await Promise.all([
-          fetch('/api/fixtures'),
-          fetch('/api/predictions'),
+          fetch(`/api/fixtures${tq}`),
+          fetch(`/api/predictions${tq}`),
           fetch('/api/results'),
           fetch(selectedTournId ? `/api/round-locks?tournament_id=${selectedTournId}` : '/api/round-locks'),
           fetch('/api/user-tournaments'),
@@ -230,14 +236,15 @@ export default function PredictPage() {
         setRoundLocks(locks)
         setTippingClosed(tipClosed)
 
-        // User tournament prefs (favourite team)
+        // User tournament prefs (favourite team) — for the CURRENTLY SELECTED tournament,
+        // not data[0]. /api/user-tournaments returns every enrollment, so blindly taking the
+        // first row loaded the wrong tournament's favourite (e.g. the WC row's null over the
+        // EPL club), wiping the pick on every load.
         let fav: string | null = cached?.favouriteTeam ?? null
         const userTournData = (await userRes.json().catch(() => ({}))) as any
-        if (userTournData?.data?.length) {
-          const ut = userTournData.data[0]
-          fav = (ut as any).favourite_team ?? null
-          setFavouriteTeam(fav)
-        }
+        const utRow = ((userTournData?.data ?? []) as any[]).find(u => u.tournament_id === selectedTournId) ?? null
+        fav = utRow?.favourite_team ?? null
+        setFavouriteTeam(fav)
 
         // Teams list for fav picker
         let teams = cached?.teamsList ?? []
@@ -857,15 +864,31 @@ export default function PredictPage() {
   const tournamentStarted = Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
 
   const saveFavTeam = async (team: string) => {
-    if (!selectedTournId || tournamentStarted) return
+    // EPL's exact-focus club never locks; only WC's 2× bonus team freezes at kickoff.
+    if (!selectedTournId || (!scoringConfig.fav_exact_focus && tournamentStarted)) return
+    const prev = favouriteTeam
     setSavingFav(true)
-    setFavouriteTeam(team || null)
-    await fetch('/api/user-tournaments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
-    })
-    setSavingFav(false)
+    setFavouriteTeam(team || null)   // optimistic
+    try {
+      const res = await fetch('/api/user-tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'save failed')
+      // Keep the predict cache in sync so a remount renders the new pick instantly.
+      if (session?.user?.id) {
+        const ck = `${session.user.id}:${selectedTournId}`
+        const c  = predictCache.get(ck)
+        if (c) predictCache.set(ck, { ...c, favouriteTeam: team || null })
+      }
+      if (team) toast.success(`${scoringConfig.fav_exact_focus ? 'Club' : 'Bonus team'} set: ${team}`)
+    } catch {
+      setFavouriteTeam(prev)         // revert optimistic on failure
+      toast.error('Could not save your pick — please try again')
+    } finally {
+      setSavingFav(false)
+    }
   }
 
   if (loading) return (
@@ -875,8 +898,13 @@ export default function PredictPage() {
   )
 
   const activeRoundId: RoundId = (TAB_TO_ROUNDS[activeRound]?.[0] ?? activeRound) as RoundId
-  const anyFavRoundOpen = scoringConfig.fav_team_rounds.length > 0 &&
-    scoringConfig.fav_team_rounds.some(r => isRoundOpen(r as RoundId))
+  // WC: the bonus-team pick is available while a fav_team_2x round is open. EPL: the
+  // exact-focus club pick is season-long and never locks, so it's available whenever any
+  // round is open (including the warm-up).
+  const anyFavRoundOpen = scoringConfig.fav_exact_focus
+    ? ROUND_TABS.some(r => isRoundOpen(r as RoundId))
+    : (scoringConfig.fav_team_rounds.length > 0 &&
+       scoringConfig.fav_team_rounds.some(r => isRoundOpen(r as RoundId)))
 
   return (
     <>
@@ -913,9 +941,11 @@ export default function PredictPage() {
         <FavTeamPicker
           teams={teamsList}
           value={favouriteTeam}
-          disabled={savingFav || tournamentStarted}
+          // EPL's exact-focus club never locks; only WC's 2× bonus team freezes at kickoff.
+          disabled={savingFav || (!scoringConfig.fav_exact_focus && tournamentStarted)}
           saving={savingFav}
           onSelect={saveFavTeam}
+          favExactFocus={scoringConfig.fav_exact_focus}
         />
       )}
 

@@ -9,6 +9,8 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet, Flag } from '@/components/ui'
+import { TeamBadge } from '@/components/game/TeamBadge'
+import toast from 'react-hot-toast'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
@@ -639,6 +641,16 @@ export default function HomePage() {
       // After either path, re-fetch pending invites to clear the already-joined invitation.
       ;(async () => {
         if (joinedCompId) {
+          // Joining a comp should land you on that comp's TOURNAMENT, not stay on whatever
+          // the context defaulted to at login (e.g. an EPL comp while the World Cup is the
+          // active default). Look up the comp's tournament and switch to it first, then
+          // select the comp. comps is public-read, so this client lookup is fine.
+          let compTournId: string | null = null
+          try {
+            const { data } = await supabase.from('comps').select('tournament_id').eq('id', joinedCompId).maybeSingle()
+            compTournId = (data as any)?.tournament_id ?? null
+          } catch { /* non-critical — fall back to just selecting the comp */ }
+          if (compTournId && compTournId !== selectedTournId) await pickTournament(compTournId)
           await pickComp({ id: joinedCompId, name: decodeURIComponent(joined) })
         } else {
           await refreshComps()
@@ -849,9 +861,12 @@ export default function HomePage() {
   const [annDismissed,      setAnnDismissed]      = useState(false)
   const [confirmAction,    setConfirmAction]    = useState<{ compId: string; action: 'leave' | 'delete'; name: string } | null>(null)
   const [compActionBusy,   setCompActionBusy]   = useState(false)
-  const [teamsList,        setTeamsList]        = useState<{ name: string; fifa_code: string; flag_emoji: string }[]>([])
+  const [teamsList,        setTeamsList]        = useState<{ name: string; fifa_code: string; flag_emoji: string; logo_url?: string | null }[]>([])
+  const [favPickerOpen,    setFavPickerOpen]    = useState(false)
   const [favouriteTeam,    setFavouriteTeam]    = useState<string | null>(null)
   const [savingFav,        setSavingFav]        = useState(false)
+  // The picked club/bonus-team's badge data (crest for EPL clubs, flag for WC teams).
+  const favTeamEntry = teamsList.find(t => t.name === favouriteTeam) ?? null
   // Bonus-team lock (app_settings.bonus_lock_at, ms). Past this, picking is closed —
   // hide the home-page nudges. Mirrors predict/page.tsx. null → not yet loaded / no lock.
   const [bonusLockAt,      setBonusLockAt]      = useState<number | null>(null)
@@ -877,7 +892,9 @@ export default function HomePage() {
   const step2Done = !contextLoading && selectedCompId !== null
   const step3Done = hasTribe === true
   // Bonus picking closed → stop nudging users to pick a bonus team.
-  const bonusLocked = Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
+  // Only WC's 2× bonus team freezes at kickoff; EPL's exact-focus club never locks, so its
+  // pick stays available all season (fav_team_rounds is empty for exact-focus tournaments).
+  const bonusLocked = scoringConfig.fav_team_rounds.length > 0 && Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
 
   // ── Load on session ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1169,14 +1186,23 @@ export default function HomePage() {
 
   const saveFavTeam = async (team: string) => {
     if (!selectedTournId) return
+    const prev = favouriteTeam
     setSavingFav(true)
-    setFavouriteTeam(team || null)
-    await fetch('/api/user-tournaments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
-    }).catch(() => {})
-    setSavingFav(false)
+    setFavouriteTeam(team || null)   // optimistic
+    try {
+      const res = await fetch('/api/user-tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'save failed')
+      if (team) toast.success(`${scoringConfig.fav_exact_focus ? 'Club' : 'Bonus team'} set: ${team}`)
+    } catch (e: any) {
+      setFavouriteTeam(prev)         // revert on failure so the UI matches reality
+      toast.error(e?.message === 'save failed' ? 'Could not save your pick — please try again' : (e?.message || 'Could not save your pick'))
+    } finally {
+      setSavingFav(false)
+    }
   }
 
   const saveDisplayName = async () => {
@@ -2077,24 +2103,24 @@ export default function HomePage() {
                         </div>
                         {teamsList.length > 0 && !bonusLocked && (
                           <div className="mb-3">
-                            <p className="text-xs font-semibold text-green-100 mb-1.5">⭐ Pick your Bonus Team</p>
+                            <p className="text-xs font-semibold text-green-100 mb-1.5">{scoringConfig.fav_exact_focus ? '⚽ Pick your club' : '⭐ Pick your Bonus Team'}</p>
                             <div className="flex items-center gap-2">
-                              <select
-                                value={favouriteTeam ?? ''}
-                                onChange={e => saveFavTeam(e.target.value)}
-                                disabled={savingFav}
-                                className="text-xs font-medium rounded-lg border border-white/20 bg-white/15 text-white px-2 py-1.5 focus:outline-none flex-1">
-                                <option value="">Pick a team…</option>
-                                {teamsList.map(t => (
-                                  <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
-                                ))}
-                              </select>
+                              <button type="button" onClick={() => setFavPickerOpen(true)} disabled={savingFav}
+                                className="flex-1 flex items-center gap-2 text-xs font-medium rounded-lg border border-white/20 bg-white/15 text-white px-2.5 py-2 hover:bg-white/25 transition-colors disabled:opacity-60">
+                                {(() => {
+                                  const fav = teamsList.find(t => t.name === favouriteTeam)
+                                  return fav
+                                    ? <><TeamBadge flag={fav.flag_emoji} logo={fav.logo_url} name={fav.name} size={18} className="rounded-sm" /><span>{fav.name}</span></>
+                                    : <span className="text-white/80">{scoringConfig.fav_exact_focus ? 'Pick your club…' : 'Pick a team…'}</span>
+                                })()}
+                                <span className="ml-auto text-white/60 text-xs">▼</span>
+                              </button>
                               {favouriteTeam && (
-                                <span className="text-xs text-green-200 flex-shrink-0">2× pts ✓</span>
+                                <span className="text-xs text-green-200 flex-shrink-0">{scoringConfig.fav_exact_focus ? 'set ✓' : '2× pts ✓'}</span>
                               )}
                             </div>
                             {!favouriteTeam && (
-                              <p className="text-[11px] text-green-300/70 mt-1">2× base points on their remaining matches (GS3 + Round of 32)</p>
+                              <p className="text-[11px] text-green-300/70 mt-1">{scoringConfig.fav_exact_focus ? 'Call its exact score each matchweek to bank bonus points' : '2× base points on their remaining matches (GS3 + Round of 32)'}</p>
                             )}
                           </div>
                         )}
@@ -2163,6 +2189,12 @@ export default function HomePage() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">{displayName}</span>
+                        {favTeamEntry && (
+                          <TeamBadge
+                            flag={favTeamEntry.flag_emoji} logo={favTeamEntry.logo_url} name={favTeamEntry.name}
+                            size={18} className="rounded-sm flex-shrink-0"
+                          />
+                        )}
                         <button
                           onClick={() => { setNameInput(displayName ?? ''); setNameError(null); setEditingName(true) }}
                           className="text-[11px] font-medium text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-1.5 py-0.5 rounded transition-colors"
@@ -2234,21 +2266,31 @@ export default function HomePage() {
                 <div className="mb-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-3 flex items-start gap-2.5">
                   <span className="text-base flex-shrink-0 mt-0.5">⭐</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-purple-800 mb-1.5">Pick your Bonus Team</p>
-                    <select
-                      value=""
-                      onChange={e => saveFavTeam(e.target.value)}
-                      disabled={savingFav}
-                      className="text-xs font-medium rounded-lg border border-purple-300 bg-white text-purple-800 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 w-full">
-                      <option value="">Choose a team…</option>
-                      {teamsList.map(t => (
-                        <option key={t.name} value={t.name}>{t.flag_emoji} {t.name}</option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-purple-600 mt-1">Earn 2× base points on their remaining matches (GS3 + Round of 32)</p>
+                    <p className="text-xs font-semibold text-purple-800 mb-1.5">{scoringConfig.fav_exact_focus ? 'Pick your club' : 'Pick your Bonus Team'}</p>
+                    <button type="button" onClick={() => setFavPickerOpen(true)} disabled={savingFav}
+                      className="w-full flex items-center gap-2 text-xs font-medium rounded-lg border border-purple-300 bg-white text-purple-800 px-2.5 py-2 hover:bg-purple-50 transition-colors disabled:opacity-60">
+                      <span className="text-purple-400">＋</span>
+                      <span>{scoringConfig.fav_exact_focus ? 'Pick your club…' : 'Choose a team…'}</span>
+                      <span className="ml-auto text-purple-400 text-xs">▼</span>
+                    </button>
+                    <p className="text-[11px] text-purple-600 mt-1">{scoringConfig.fav_exact_focus ? 'Call its exact score each matchweek to bank bonus points' : 'Earn 2× base points on their remaining matches (GS3 + Round of 32)'}</p>
                   </div>
                 </div>
               )}
+
+              {/* Shared favourite/club picker sheet — crest-capable, opened by the onboarding
+                  card and the nudge above. Renders unconditionally (self-hides when closed). */}
+              <TeamPickerSheet
+                open={favPickerOpen}
+                onClose={() => setFavPickerOpen(false)}
+                teams={teamsList}
+                value={favouriteTeam}
+                onSelect={(t) => { saveFavTeam(t); setFavPickerOpen(false) }}
+                title={scoringConfig.fav_exact_focus ? 'Pick your club' : 'Choose your Bonus Points team'}
+                subtitle={scoringConfig.fav_exact_focus
+                  ? 'Each matchweek, call your club’s exact score. Nail it and bank bonus points.'
+                  : 'Earn 2× base pts when you correctly predict their result — in GS3 + the Round of 32'}
+              />
 
 
               {/* Pending invitations from other comps */}
