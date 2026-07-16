@@ -7,9 +7,24 @@ import { FeedPanel } from '@/components/game/FeedPanel'
 import { WhatsAppShareButton } from '@/components/game/WhatsAppShareButton'
 
 export const dynamic = 'force-dynamic'
+const FEED_OG_DESC = 'Feed the TribePicks pack for good luck — it keeps the game free, funds what’s next, and sends a slice to dog rescues.'
 export const metadata: Metadata = {
   title: 'Feed the doggies 🐾 | TribePicks',
-  description: 'Feed the TribePicks pack for good luck — it keeps the game free, funds what’s next, and sends a slice to dog rescues.',
+  description: FEED_OG_DESC,
+  // og:image is supplied automatically by ./opengraph-image.tsx. Set the text fields
+  // explicitly so email clients and social cards show a proper title + blurb.
+  openGraph: {
+    title: 'Feed the doggies 🐾',
+    description: FEED_OG_DESC,
+    url: 'https://tribepicks.com/feed',
+    siteName: 'TribePicks',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Feed the doggies 🐾',
+    description: FEED_OG_DESC,
+  },
 }
 
 export default async function FeedPage({ searchParams }: { searchParams: { fed?: string; dog?: string } }) {

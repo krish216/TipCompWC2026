@@ -20,6 +20,7 @@ import { getDefaultScoringConfig } from '@/types'
 import { buildMonthRail, monthKeyForTab } from '@/app/predict/round-tab-utils'
 import { CompChiefBadge } from '@/components/game/CompChiefBadge'
 import { GroupChatLink } from '@/components/game/GroupChatLink'
+import { TrustpilotPrompt } from '@/components/game/TrustpilotPrompt'
 
 type Scope     = 'tribe' | 'comp' | 'global'
 type RoundView = string
@@ -55,7 +56,7 @@ const lbCache = new Map<string, LbCacheEntry>()
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, selectedTournId } = useUserPrefs()
+  const { scoringConfig, selectedTournId, selectedCompId } = useUserPrefs()
 
   const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
@@ -152,6 +153,11 @@ export default function LeaderboardPage() {
   // Live mirror of the selected comp so fetchLeaderboard can pass it without a stale closure.
   const selectedCompRef = useRef<string | null>(selectedComp)
   useEffect(() => { selectedCompRef.current = selectedComp }, [selectedComp])
+  // The homepage's comp choice (persisted per-tournament in user_tournaments.selected_comp_id)
+  // seeds what the ScoreBoard opens on. Read via a ref so the loader can use the latest value
+  // without adding it to the effect deps (which would re-fire the fetch).
+  const ctxCompRef = useRef<string | null>(selectedCompId)
+  useEffect(() => { ctxCompRef.current = selectedCompId }, [selectedCompId])
 
   const fetchLeaderboard = async (sc: Scope, tournId?: string | null, compArg?: string | null) => {
     setError(null)
@@ -232,15 +238,25 @@ export default function LeaderboardPage() {
       // Keep the current comp only if it's still valid for THIS tournament; otherwise select
       // the first, so switching tournaments re-selects that tournament's comp instead of
       // sticking with the previous one (e.g. "Warm-Up Comp WC2026" while viewing EPL).
+      // Comp resolution, in priority order:
+      //   1. the ScoreBoard's own local override, if still valid for THIS tournament (so a
+      //      dropdown pick survives scope/phase re-fetches);
+      //   2. otherwise the homepage's comp for this tournament (ctxCompRef) — the homepage
+      //      selection DRIVES what the ScoreBoard opens on;
+      //   3. otherwise the first comp.
+      // The ScoreBoard's dropdown remains LOCAL — picking here never writes back to the
+      // homepage's comp (that direction is intentionally one-way: home → board).
       const cur      = selectedCompRef.current
-      const nextComp = (cur && compSet.some(c => c.id === cur)) ? cur : (firstComp?.id ?? null)
+      const ctx      = ctxCompRef.current
+      const valid    = (id: string | null) => !!id && compSet.some(c => c.id === id)
+      const nextComp = valid(cur) ? cur : valid(ctx) ? ctx : (firstComp?.id ?? null)
       setSelectedComp(nextComp)
 
       fetchLeaderboard(scope, tid, nextComp)
     })()
     // Key on user id (stable primitive), not the session object, so browser focus /
-    // token refresh don't re-trigger a full reload. selectedTournId is included so a
-    // tournament switch reloads the comps + leaderboard (not just the round tabs).
+    // token refresh don't re-trigger a full reload. selectedTournId reloads on a tournament
+    // switch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, scope, selectedTournId])
 
@@ -448,14 +464,29 @@ export default function LeaderboardPage() {
           <h1 className="text-lg font-semibold text-gray-900">ScoreBoard</h1>
           <p className="text-xs text-gray-500 mt-0.5">Live · updates when results confirmed</p>
         </div>
-        {userComps.length === 1 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl flex-shrink-0 max-w-[52%]">
-            <span className="text-base leading-none">🏢</span>
-            <div className="min-w-0">
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Viewing</p>
-              <p className="text-xs font-bold text-gray-900 truncate">{userComps[0].name}</p>
-              {compChief && <CompChiefBadge name={compChief.name} avatarUrl={compChief.avatar_url} verified={compChief.verified} href={compChief.id ? `/chief/${compChief.id}` : null} className="mt-0.5" />}
+        {userComps.length > 0 && (
+          <div className="flex-shrink-0 max-w-[56%] min-w-0">
+            <label className="block text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1">Viewing comp</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm">🏢</span>
+              <select
+                value={selectedComp ?? ''}
+                onChange={e => { const id = e.target.value; setSelectedComp(id); setEntries([]); setMyEntry(null); fetchLeaderboard(scope, undefined, id) }}
+                disabled={userComps.length < 2}
+                aria-label="Select comp"
+                className="w-full max-w-full text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded-xl pl-8 pr-7 py-2 truncate appearance-none cursor-pointer disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                {userComps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {userComps.length > 1 && (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">▼</span>
+              )}
             </div>
+            {compChief && (
+              <div className="mt-1 flex justify-end">
+                <CompChiefBadge name={compChief.name} avatarUrl={compChief.avatar_url} verified={compChief.verified} href={compChief.id ? `/chief/${compChief.id}` : null} />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -481,38 +512,14 @@ export default function LeaderboardPage() {
         <span className="text-emerald-600 font-bold text-lg leading-none">→</span>
       </a>
 
-      {/* Multi-comp selector — only shown when user is in >1 comp */}
-      {userComps.length > 1 && (
-        <div className="mb-4">
-          <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Select comp</p>
-          <div className="flex gap-2 flex-wrap">
-            {userComps.map(c => (
-              <button key={c.id}
-                onClick={() => {
-                  setSelectedComp(c.id)
-                  setEntries([]); setMyEntry(null)
-                  fetchLeaderboard(scope, undefined, c.id)
-                }}
-                className={clsx(
-                  'flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold',
-                  selectedComp === c.id
-                    ? 'bg-green-600 border-green-600 text-white shadow-sm scale-[1.02]'
-                    : 'bg-white border-gray-200 text-gray-700 hover:border-green-400 hover:shadow-sm'
-                )}>
-                <span>🏢</span>
-                <span>{c.name}</span>
-                {selectedComp === c.id && (
-                  <span className="flex items-center gap-0.5 text-green-200 text-[10px]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse"/>
-                    Active
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          {compChief && <CompChiefBadge name={compChief.name} avatarUrl={compChief.avatar_url} verified={compChief.verified} href={compChief.id ? `/chief/${compChief.id}` : null} className="mt-2" />}
-        </div>
-      )}
+      {/* Rate-us nudge — above the leaderboard so engaged players don't miss it. Dismissible + shared with Home. */}
+      <TrustpilotPrompt
+        engaged={!!myEntry && (myEntry.total_points ?? 0) > 0}
+        surface="scoreboard"
+        className="mb-4"
+      />
+
+      {/* (Comp selector moved to the header dropdown, top-right.) */}
 
       {/* Sticky "your position" bar — always visible while scrolling */}
       {(() => {

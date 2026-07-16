@@ -13,6 +13,10 @@ import { flagFor } from '@/lib/team-flags'
 const TOURNAMENT_PREVIEW_EMAILS = ['paws@petzbff.com.au']
 const PREVIEW_TOURNAMENT_SLUGS  = ['epl-2026-27']
 
+// Columns selected for each tournament. Shared by the initial load and refreshTournaments
+// so a targeted refresh returns exactly the same shape.
+const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
+
 export interface Tournament {
   id:             string
   name:           string
@@ -67,6 +71,7 @@ interface UserPrefsCtx {
   pickComp:           (comp: Comp) => Promise<void>
   updateComp:         (id: string, patch: Partial<Comp>) => void
   refreshComps:       (preferredCompId?: string) => Promise<void>
+  refreshTournaments: () => Promise<void>
   hasTribe:           boolean | null   // null = loading, true/false = resolved
   selectedTribeId:    string | null
   refreshHasTribe:    () => Promise<void>
@@ -221,7 +226,6 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       // tournaments PLUS the preview slugs (EPL); everyone else sees only active ones.
       // is_active is never changed here — the public still sees only active tournaments.
       const emailAllow = TOURNAMENT_PREVIEW_EMAILS.includes((session.user.email ?? '').toLowerCase())
-      const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
 
       const [{ data: prefs }, adminRes, { data: myComps }] = await Promise.all([
         supabase.from('user_preferences').select('tournament_id, comp_id').eq('user_id', session.user.id).maybeSingle(),
@@ -406,6 +410,19 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
   const updateComp = useCallback((id: string, patch: Partial<Comp>) => {
     setTournsComps(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
   }, [])
+
+  // Re-fetch the currently-visible tournaments' columns and merge fresh values in place,
+  // without disturbing the current tournament/comp selection. Lets an admin action (e.g.
+  // toggling practice mode) reflect immediately without a full page reload — the tournament
+  // rows are otherwise loaded only once per session.
+  const refreshTournaments = useCallback(async () => {
+    if (!session || activeTournaments.length === 0) return
+    const ids = activeTournaments.map(t => t.id)
+    const { data } = await supabase.from('tournaments').select(TOURN_COLS).in('id', ids)
+    if (!data) return
+    const freshById = new Map((data as Tournament[]).map(t => [t.id, t]))
+    setActiveTournaments(cur => cur.map(t => freshById.get(t.id) ?? t))
+  }, [session, supabase, activeTournaments])
   // Derived synchronously — true whenever the selected comp is one the user admins
   const isCompAdmin = selectedCompId != null && adminCompIds.has(selectedCompId)
   // isPremium: true when enforcement is off (everyone free) OR user has paid for this tournament
@@ -422,7 +439,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       isCompAdmin, adminComps,
       roundConfigs, scoringConfig,
       teamsMap, flag, code,
-      pickTournament, pickComp, refreshComps,
+      pickTournament, pickComp, refreshComps, refreshTournaments,
       hasTribe, selectedTribeId, refreshHasTribe,
       loading,
       isPremium, isProPaid: isPremiumOrg, enforcePremium,

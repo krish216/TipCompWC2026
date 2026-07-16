@@ -17,6 +17,7 @@ import { getOrCreateSessionId } from '@/lib/session'
 import { linkify } from '@/lib/linkify'
 import { PollCard } from '@/components/game/PollCard'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
+import { TrustpilotPrompt } from '@/components/game/TrustpilotPrompt'
 
 // Default bonus-team lock (first WC2026 match). Overridden by app_settings.bonus_lock_at.
 const TOURNAMENT_KICKOFF = new Date('2026-06-11T19:00:00Z')
@@ -2607,6 +2608,10 @@ export default function HomePage() {
                   >×</button>
                 </div>
               )}
+
+              {/* Rate-us nudge — engaged players only, placed above the comp card so it isn't
+                  missed. Dismissible + shares its dismiss state with the ScoreBoard. */}
+              <TrustpilotPrompt engaged={(totalPts ?? 0) > 0} surface="home" className="mb-3" />
 
               {/* Comp radio list */}
               {tournsComps.length > 0 && selectedTournId && (

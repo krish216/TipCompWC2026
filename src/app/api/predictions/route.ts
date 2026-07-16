@@ -99,8 +99,21 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: tournRow } = await (admin.from('tournaments') as any)
-      .select('allow_retroactive_predictions').eq('id', tournamentId).maybeSingle()
-    const retroactive = (tournRow as any)?.allow_retroactive_predictions === true
+      .select('allow_retroactive_predictions, fav_exact_focus').eq('id', tournamentId).maybeSingle()
+    const retroactive   = (tournRow as any)?.allow_retroactive_predictions === true
+    const favExactFocus = (tournRow as any)?.fav_exact_focus === true
+
+    // For an exact-focus tournament (EPL), a scoreline prediction on the user's favourite
+    // club's match is a "focus pick" — record the club on the row (see below) so the bonus is
+    // traceable and scoring no longer depends on the live, mutable favourite. Non-focus
+    // tournaments (WC) never read this: focus_team stays NULL and v_focus is false in the trigger.
+    let favTeam: string | null = null
+    if (favExactFocus) {
+      const { data: utRow } = await (admin.from('user_tournaments') as any)
+        .select('favourite_team').eq('user_id', user.id).eq('tournament_id', tournamentId).maybeSingle()
+      favTeam = (utRow as any)?.favourite_team ?? null
+    }
+    const fixtureById = new Map(fixtures.map((f: any) => [f.id, f]))
 
     const { data: roundLockRows } = await (admin.from('round_locks') as any)
       .select('round_code, is_open').eq('tournament_id', tournamentId)
@@ -133,6 +146,13 @@ export async function POST(request: NextRequest) {
 
     const rows = predictions.map((p: any) => {
       const isOutcome = p.outcome != null
+      // Focus pick (EPL): a scoreline on the user's favourite club's own match. Record the club
+      // so the exact-focus bonus is traceable and scored from it (migration 176), not the live
+      // favourite. Explicitly NULL otherwise — an upsert must clear a stale value if the fixture
+      // reverts to an H/D/A tap after the favourite changed. Always NULL for WC (favExactFocus off).
+      const fx = fixtureById.get(p.fixture_id)
+      const isFocusPick = favExactFocus && !isOutcome && favTeam != null
+        && !!fx && (fx.home === favTeam || fx.away === favTeam)
       return {
         user_id:       user.id,
         fixture_id:    p.fixture_id,
@@ -141,6 +161,7 @@ export async function POST(request: NextRequest) {
         away:          isOutcome ? 0 : (p.away ?? 0),
         outcome:       p.outcome ?? null,
         pen_winner:    p.pen_winner ?? null,
+        focus_team:    isFocusPick ? favTeam : null,
         // Do NOT include points_earned — the DB trigger owns scoring.
         // Setting it to null on UPDATE fires trg_refresh_lb which can fail
         // if the leaderboard view has constraint violations.

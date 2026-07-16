@@ -55,9 +55,13 @@ export default function PredictPage() {
   const { selectedTourn, selectedTournId, selectedTribeId, isAdFree, scoringConfig: ctxScoringConfig } = useUserPrefs()
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
-  // Warm-up (Round 0) is a practice-mode-only tab — and never for the World Cup, whose
-  // warm-up is over and which must never enter practice mode.
-  const warmupVisible = allowRetroactivePredictions && (selectedTourn as any)?.slug !== 'wc2026'
+  const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
+  // Warm-up (Round 0) never shows for the World Cup (its warm-up is over and it must never
+  // enter practice mode). For other tournaments it shows in practice mode, OR whenever its
+  // round lock is open — so EPL's warm-up can be exercised for testing even with practice
+  // mode off. Admins control it via the round-lock toggle.
+  const warmupVisible = (selectedTourn as any)?.slug !== 'wc2026'
+    && (allowRetroactivePredictions || !!roundLocks['wup'])
 
   // Build round tabs dynamically from tournament_rounds (via scoringConfig).
   // Use useState+useEffect instead of useMemo to avoid SSR/client hydration mismatch:
@@ -106,7 +110,6 @@ export default function PredictPage() {
     })()
   }, [supabase])
   const [teamsList,     setTeamsList]     = useState<{name:string; fifa_code:string; flag_emoji:string; logo_url?:string|null}[]>([])
-  const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
   const [tippingClosed, setTippingClosed] = useState<Record<string, boolean>>({})
   const [challenges,    setChallenges]    = useState<Record<number, {prize:string;sponsor?:string|null}>>({})
   const [celebrating,   setCelebrating]   = useState<Set<number>>(new Set())
@@ -541,6 +544,23 @@ export default function PredictPage() {
     return minsToKickoff <= 5
   }, [isRoundOpen, allowRetroactivePredictions, knownTeams])
 
+  // EPL exact-focus club lock (mirrors the server rule in isExactFocusClubCommitted): once
+  // you've entered your club's exact score for a current open round, the club is frozen for
+  // that round so it can't be hopped onto another match to farm the weekly bonus. PRACTICE
+  // mode (retroactive predictions) overrides the lock, so warm-up/testing picks stay free
+  // while it's on and freeze once it's off — including on the warm-up round. A committed focus
+  // pick is a prediction with a scoreline (outcome == null); an H/D/A tap keeps outcome set.
+  // NB: declared here (before any early return) so the hook order stays stable.
+  const favClubLocked = useMemo(() => {
+    if (!scoringConfig.fav_exact_focus || !favouriteTeam || allowRetroactivePredictions) return false
+    return allFixtures.some(f => {
+      if (!isRoundOpen(f.round)) return false
+      if (f.home !== favouriteTeam && f.away !== favouriteTeam) return false
+      const p = predictions[f.id]
+      return !!p && (p as any).outcome == null
+    })
+  }, [scoringConfig.fav_exact_focus, favouriteTeam, allowRetroactivePredictions, allFixtures, isRoundOpen, predictions])
+
   // ── Lock-in (voluntary, irreversible commit that reveals the tribe tipsheet) ──
   const isCommitted = useCallback((fixtureId: number) => !!predictions[fixtureId]?.locked_at, [predictions])
 
@@ -864,8 +884,9 @@ export default function PredictPage() {
   const tournamentStarted = Date.now() >= (bonusLockAt ?? TOURNAMENT_KICKOFF.getTime())
 
   const saveFavTeam = async (team: string) => {
-    // EPL's exact-focus club never locks; only WC's 2× bonus team freezes at kickoff.
-    if (!selectedTournId || (!scoringConfig.fav_exact_focus && tournamentStarted)) return
+    // WC's 2× bonus team freezes at kickoff; EPL's exact-focus club freezes for the round
+    // once its score is entered (favClubLocked). The server enforces both authoritatively.
+    if (!selectedTournId || (!scoringConfig.fav_exact_focus && tournamentStarted) || favClubLocked) return
     const prev = favouriteTeam
     setSavingFav(true)
     setFavouriteTeam(team || null)   // optimistic
@@ -875,7 +896,7 @@ export default function PredictPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tournament_id: selectedTournId, favourite_team: team || null }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'save failed')
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any)?.error || 'save failed')
       // Keep the predict cache in sync so a remount renders the new pick instantly.
       if (session?.user?.id) {
         const ck = `${session.user.id}:${selectedTournId}`
@@ -883,9 +904,9 @@ export default function PredictPage() {
         if (c) predictCache.set(ck, { ...c, favouriteTeam: team || null })
       }
       if (team) toast.success(`${scoringConfig.fav_exact_focus ? 'Club' : 'Bonus team'} set: ${team}`)
-    } catch {
+    } catch (e) {
       setFavouriteTeam(prev)         // revert optimistic on failure
-      toast.error('Could not save your pick — please try again')
+      toast.error(e instanceof Error && e.message !== 'save failed' ? e.message : 'Could not save your pick — please try again')
     } finally {
       setSavingFav(false)
     }
@@ -938,15 +959,24 @@ export default function PredictPage() {
 
       {/* Fav team picker */}
       {teamsList.length > 0 && anyFavRoundOpen && (
-        <FavTeamPicker
-          teams={teamsList}
-          value={favouriteTeam}
-          // EPL's exact-focus club never locks; only WC's 2× bonus team freezes at kickoff.
-          disabled={savingFav || (!scoringConfig.fav_exact_focus && tournamentStarted)}
-          saving={savingFav}
-          onSelect={saveFavTeam}
-          favExactFocus={scoringConfig.fav_exact_focus}
-        />
+        <>
+          <FavTeamPicker
+            teams={teamsList}
+            value={favouriteTeam}
+            // WC's 2× bonus team freezes at kickoff; EPL's exact-focus club freezes for the
+            // round once you've entered its score (favClubLocked).
+            disabled={savingFav || (!scoringConfig.fav_exact_focus && tournamentStarted) || favClubLocked}
+            saving={savingFav}
+            onSelect={saveFavTeam}
+            favExactFocus={scoringConfig.fav_exact_focus}
+          />
+          {favClubLocked && (
+            <p className="mt-1.5 text-xs text-slate-500 flex items-start gap-1">
+              <span aria-hidden>🔒</span>
+              <span>Your club is locked for this round — you’ve entered its score. You can change it next round.</span>
+            </p>
+          )}
+        </>
       )}
 
       {/* Month overlay rail — week-structured tournaments only (EPL). Quick-jump to the

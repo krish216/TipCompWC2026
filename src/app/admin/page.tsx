@@ -221,7 +221,7 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
 // ─── Admin Page ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, selectedTournId, activeTournaments, flag } = useUserPrefs()
+  const { scoringConfig, selectedTournId, activeTournaments, flag, refreshTournaments } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<AdminTab>('results')
 
@@ -597,6 +597,9 @@ export default function AdminPage() {
     setTogglingRetroactive(false)
     if (res.ok) {
       setTournamentData((prev: any) => ({ ...prev, allow_retroactive_predictions: next }))
+      // Refresh the shared context so /predict reflects the change without a full reload
+      // (tournament rows are otherwise loaded once per session).
+      refreshTournaments()
       toast.success(next ? '🧪 Practice Mode enabled' : 'Practice Mode disabled')
     } else {
       toast.error('Failed to update setting')

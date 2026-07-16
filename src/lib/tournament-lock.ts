@@ -47,3 +47,62 @@ export async function isBonusTeamLocked(client: any, tournamentId: string): Prom
   if (!data?.kickoff_utc) return false          // no real fixtures yet → not locked
   return Date.now() >= new Date(data.kickoff_utc).getTime()
 }
+
+/**
+ * EPL exact-focus club lock.
+ *
+ * The favourite drives a per-round EXACT-score bonus, and the scoring trigger reads the
+ * favourite LIVE for each fixture as its result lands (migration 152). Because the
+ * favourite is a single mutable field, a tipster could otherwise hop it onto every match
+ * they nailed and harvest the bonus across a whole matchweek. So once the club is committed
+ * for the current round — i.e. the tipster has entered a scoreline (a focus pick, stored
+ * with outcome IS NULL) for that club's match in an OPEN round — the club is frozen until
+ * the next round opens. The lock is overridden by PRACTICE mode (the tournament's
+ * allow_retroactive_predictions flag), checked by the caller — so warm-up/testing picks
+ * stay freely changeable while practice mode is on, and freeze once it's off.
+ *
+ * Returns true when `favTeam` is committed this round, so a change away from it must be
+ * refused. The lock releases automatically next round (round_locks moves on).
+ */
+export async function isExactFocusClubCommitted(
+  client: any,
+  tournamentId: string,
+  userId: string,
+  favTeam: string | null,
+): Promise<boolean> {
+  if (!favTeam) return false
+
+  // Open rounds for this tournament (includes the warm-up round — practice mode is the
+  // override, handled by the caller, not a per-round exclusion).
+  const { data: locks } = await client
+    .from('round_locks')
+    .select('round_code')
+    .eq('tournament_id', tournamentId)
+    .eq('is_open', true)
+  const openRounds = (locks ?? []).map((r: any) => r.round_code as string)
+  if (openRounds.length === 0) return false
+
+  // The favourite's fixtures within those open rounds. Filtered in JS rather than via a
+  // PostgREST .or() on team names, which is fragile when names contain spaces/&/parentheses.
+  const { data: fixtures } = await client
+    .from('fixtures')
+    .select('id, home, away')
+    .eq('tournament_id', tournamentId)
+    .in('round', openRounds)
+  const favFixtureIds = (fixtures ?? [])
+    .filter((f: any) => f.home === favTeam || f.away === favTeam)
+    .map((f: any) => f.id)
+  if (favFixtureIds.length === 0) return false
+
+  // A committed focus pick = a prediction with a scoreline (outcome IS NULL) on one of
+  // those fixtures. An ordinary H/D/A tap stores outcome='H'|'D'|'A' (home/away = 0), so
+  // it is correctly ignored.
+  const { data: preds } = await client
+    .from('predictions')
+    .select('id')
+    .eq('user_id', userId)
+    .in('fixture_id', favFixtureIds)
+    .is('outcome', null)
+    .limit(1)
+  return (preds?.length ?? 0) > 0
+}

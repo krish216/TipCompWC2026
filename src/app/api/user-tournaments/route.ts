@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
-import { isBonusTeamLocked } from '@/lib/tournament-lock'
+import { isBonusTeamLocked, isExactFocusClubCommitted } from '@/lib/tournament-lock'
 
 // GET /api/user-tournaments — list tournaments the current user is enrolled in
 export async function GET() {
@@ -38,6 +38,30 @@ export async function POST(request: NextRequest) {
   const locked = await isBonusTeamLocked(supabase, tournament_id)
   if (locked && favourite_team) {
     return NextResponse.json({ error: 'Bonus team is locked — the tournament has started.' }, { status: 409 })
+  }
+
+  // EPL exact-focus club lock: once the club's exact score is entered for the current open
+  // round, freeze it for that round — the scoring trigger reads the club live per fixture, so
+  // a mutable club could otherwise harvest the weekly bonus. A change is only refused when the
+  // CURRENT club is already committed; the first pick stays free, and PRACTICE mode
+  // (allow_retroactive_predictions) overrides the lock so warm-up/testing picks stay
+  // changeable. (WC uses the kickoff lock above and isn't affected.)
+  if (!locked && 'favourite_team' in body) {
+    const { data: tconf } = await supabase
+      .from('tournaments').select('fav_exact_focus, allow_retroactive_predictions').eq('id', tournament_id).maybeSingle()
+    if ((tconf as any)?.fav_exact_focus && !(tconf as any)?.allow_retroactive_predictions) {
+      const { data: utCur } = await supabase
+        .from('user_tournaments').select('favourite_team')
+        .eq('user_id', user.id).eq('tournament_id', tournament_id).maybeSingle()
+      const currentFav = (utCur as any)?.favourite_team ?? null
+      const changing   = (favourite_team || null) !== currentFav
+      if (changing && await isExactFocusClubCommitted(supabase, tournament_id, user.id, currentFav)) {
+        return NextResponse.json(
+          { error: "Your club is locked for this round — you've entered its score. You can change it next round." },
+          { status: 409 },
+        )
+      }
+    }
   }
 
   // Only write the fields actually supplied, so a comp-only update never clobbers the
