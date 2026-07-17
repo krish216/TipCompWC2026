@@ -16,6 +16,7 @@ import { CHALLENGE_TOURNAMENT_KEY } from '@/lib/challenge'
 import { getOrCreateSessionId } from '@/lib/session'
 import { linkify } from '@/lib/linkify'
 import { PollCard } from '@/components/game/PollCard'
+import { CodesignOnboardingCard } from '@/components/game/CodesignOnboardingCard'
 import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { TrustpilotPrompt } from '@/components/game/TrustpilotPrompt'
 
@@ -1348,6 +1349,7 @@ export default function HomePage() {
       )}
 
       {/* Quick poll — active topic poll for signed-in users, votes inline */}
+      {session && <CodesignOnboardingCard className="mb-4" />}
       {session && <PollCard className="mb-4" />}
 
       {/* Advertise open challenges flagged for the homepage (hidden once entered) */}

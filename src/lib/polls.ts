@@ -13,6 +13,10 @@ export interface PollView {
   my_vote: number | null      // option_idx the user picked, or null
   tallies: number[]           // vote count per option (aligned to options)
   total: number
+  // The tournament this poll is contextually tied to: a tournament poll's own tournament,
+  // or a comp poll's comp tournament; null for audience 'all'. Lets the homepage card hide a
+  // poll when a different tournament is selected (e.g. an EPL comp poll while viewing the WC).
+  tournament_id: string | null
 }
 
 // Count votes per option for a poll. Returns an array aligned to options length.
@@ -69,6 +73,18 @@ export async function activePollsForUser(admin: any, userId: string): Promise<Po
   const myVote = new Map<string, number>()
   for (const v of (votes ?? []) as any[]) myVote.set(v.poll_id, v.option_idx)
 
+  // Contextual tournament per poll: comp polls resolve to their comp's tournament.
+  const compTourn = new Map<string, string>()
+  const compIdsToResolve = Array.from(new Set(live.filter(p => p.audience === 'comp' && p.comp_id).map(p => p.comp_id as string)))
+  if (compIdsToResolve.length) {
+    const { data: comps } = await (admin.from('comps') as any).select('id, tournament_id').in('id', compIdsToResolve)
+    for (const c of (comps ?? []) as any[]) if (c.tournament_id) compTourn.set(c.id, c.tournament_id)
+  }
+  const pollTournamentId = (p: any): string | null =>
+    p.audience === 'tournament' ? (p.tournament_id ?? null)
+    : p.audience === 'comp'     ? (compTourn.get(p.comp_id) ?? null)
+    : null
+
   const out: PollView[] = []
   for (const p of live) {
     const opts = (p.options ?? []) as string[]
@@ -78,6 +94,7 @@ export async function activePollsForUser(admin: any, userId: string): Promise<Po
       ends_at: p.ends_at ?? null,
       my_vote: myVote.has(p.id) ? (myVote.get(p.id) as number) : null,
       tallies, total,
+      tournament_id: pollTournamentId(p),
     })
   }
   return out

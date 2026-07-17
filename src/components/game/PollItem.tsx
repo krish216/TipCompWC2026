@@ -7,6 +7,7 @@ import { linkify } from '@/lib/linkify'
 export interface Poll {
   id: string; topic: string; question: string; description: string | null; options: string[]
   ends_at: string | null; my_vote: number | null; tallies: number[]; total: number
+  tournament_id?: string | null   // contextual tournament (comp/tournament polls); null = 'all'
 }
 
 // A single poll: question + options, vote inline, live results. Shared by the homepage
