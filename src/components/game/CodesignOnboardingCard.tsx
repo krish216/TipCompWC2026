@@ -57,7 +57,12 @@ export function CodesignOnboardingCard({ className }: { className?: string }) {
       <ol className="mt-3 space-y-2.5">
         <li className="flex items-start gap-2.5">
           <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">1</span>
-          <p className="text-sm text-purple-900 leading-snug">Answer the <strong>3 quick questions</strong> below ↓ — how you'd play, what excites you, and whether you'd help lead.</p>
+          <div className="min-w-0">
+            <p className="text-sm text-purple-900 leading-snug">Answer the <strong>3 quick questions</strong> — how you'd play, what excites you, and whether you'd help lead.</p>
+            <Link href="/polls?topic=codesign" className="inline-block mt-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700">
+              Answer the questions →
+            </Link>
+          </div>
         </li>
         <li className="flex items-start gap-2.5">
           <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">2</span>
