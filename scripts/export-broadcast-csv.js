@@ -25,17 +25,24 @@ const db = createClient(url, key, { auth: { autoRefreshToken: false, persistSess
 const cell = s => { s = s == null ? '' : String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s }
 
 async function main() {
-  // Users who have made at least one prediction — only these get the broadcast.
+  // Scope strictly to the WC2026 tournament — only users who tipped the World Cup get this
+  // broadcast (excludes e.g. EPL warm-up-only tippers).
+  const { data: wc, error: wcErr } = await db.from('tournaments').select('id').eq('slug', 'wc2026').single()
+  if (wcErr || !wc?.id) { console.error('wc2026 tournament not found:', wcErr?.message); process.exit(1) }
+  const wcId = wc.id
+
+  // Users who have made at least one WC2026 prediction — only these get the broadcast.
   const predictors = new Set()
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db.from('predictions').select('user_id')
+      .eq('tournament_id', wcId)
       .order('user_id', { ascending: true }).range(from, from + 999)
     if (error) { console.error('predictions query error:', error.message); process.exit(1) }
     if (!data || !data.length) break
     data.forEach(p => predictors.add(p.user_id))
     if (data.length < 1000) break
   }
-  console.log(`Users with >=1 prediction: ${predictors.size}`)
+  console.log(`Users with >=1 WC2026 prediction: ${predictors.size}`)
 
   const seen = new Set()
   const rows = []

@@ -35,14 +35,21 @@ export async function userTournamentId(admin: any, userId: string): Promise<stri
   return (t as any)?.id ?? null
 }
 
+// The comps the user belongs to (for audience === 'comp').
+export async function userCompIds(admin: any, userId: string): Promise<Set<string>> {
+  const { data } = await (admin.from('user_comps') as any).select('comp_id').eq('user_id', userId)
+  return new Set(((data ?? []) as any[]).map(r => r.comp_id as string))
+}
+
 // Active polls visible to a user right now (within their window + audience), each with
 // the user's own vote and current tallies.
 export async function activePollsForUser(admin: any, userId: string): Promise<PollView[]> {
   const tid = await userTournamentId(admin, userId)
+  const compIds = await userCompIds(admin, userId)
   const nowIso = new Date().toISOString()
 
   const { data: rows } = await (admin.from('polls') as any)
-    .select('id, topic, question, description, options, audience, tournament_id, starts_at, ends_at')
+    .select('id, topic, question, description, options, audience, tournament_id, comp_id, starts_at, ends_at')
     .eq('active', true)
     .order('created_at', { ascending: false })
 
@@ -50,6 +57,7 @@ export async function activePollsForUser(admin: any, userId: string): Promise<Po
     if (p.starts_at && p.starts_at > nowIso) return false
     if (p.ends_at && p.ends_at < nowIso) return false
     if (p.audience === 'tournament') return p.tournament_id && p.tournament_id === tid
+    if (p.audience === 'comp')       return p.comp_id && compIds.has(p.comp_id)
     return true
   })
   if (!live.length) return []

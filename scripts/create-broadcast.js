@@ -44,13 +44,15 @@ async function main() {
     console.error('Usage:\n  node scripts/create-broadcast.js --list\n  node scripts/create-broadcast.js --audience <id> [--subject "..."]')
     process.exit(1)
   }
-  const subject = getArg('--subject') || 'The group stage was just the warm-up 🌍'
-  const html = readFileSync(join(__dirname, '..', 'docs', 'broadcast-round3-email.html'), 'utf8')
+  const subject  = getArg('--subject') || 'The group stage was just the warm-up 🌍'
+  const htmlFile = getArg('--html')    || 'docs/broadcast-round3-email.html'
+  const name     = getArg('--name')    || 'TribePicks — Round 3 / knockouts'
+  const html = readFileSync(join(__dirname, '..', ...htmlFile.split('/')), 'utf8')
 
   const { status, body } = await api('/broadcasts', {
     method: 'POST',
     body: JSON.stringify({
-      name: 'TribePicks — Round 3 / knockouts',
+      name,
       audience_id: audienceId,
       from: 'TribePicks <noreply@mail.tribepicks.com>',
       reply_to: 'noreply@mail.tribepicks.com',

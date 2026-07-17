@@ -12,7 +12,7 @@ export async function GET() {
   if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: rows } = await (admin.from('polls') as any)
-    .select('id, topic, question, description, options, audience, tournament_id, active, starts_at, ends_at, created_at')
+    .select('id, topic, question, description, options, audience, tournament_id, comp_id, active, starts_at, ends_at, created_at')
     .order('created_at', { ascending: false })
 
   const polls = await Promise.all(((rows ?? []) as any[]).map(async p => {
@@ -35,12 +35,14 @@ export async function POST(request: NextRequest) {
   if (!question) return NextResponse.json({ error: 'Question required.' }, { status: 400 })
   if (options.length < 2) return NextResponse.json({ error: 'Add at least two options.' }, { status: 422 })
 
-  const audience = b.audience === 'tournament' ? 'tournament' : 'all'
+  const audience = (b.audience === 'tournament' || b.audience === 'comp') ? b.audience : 'all'
   let tournamentId: string | null = typeof b.tournament_id === 'string' && b.tournament_id ? b.tournament_id : null
   if (audience === 'tournament' && !tournamentId) {
     const t = await getPrimaryTournament(admin)
     tournamentId = (t as any)?.id ?? null
   }
+  const compId: string | null = audience === 'comp' && typeof b.comp_id === 'string' && b.comp_id ? b.comp_id : null
+  if (audience === 'comp' && !compId) return NextResponse.json({ error: 'Pick a comp for a comp-scoped poll.' }, { status: 400 })
 
   const { data, error } = await (admin.from('polls') as any).insert({
     question,
@@ -48,7 +50,8 @@ export async function POST(request: NextRequest) {
     options,
     topic:         typeof b.topic === 'string' && b.topic.trim() ? b.topic.trim() : 'general',
     audience,
-    tournament_id: tournamentId,
+    tournament_id: audience === 'comp' ? null : tournamentId,
+    comp_id:       compId,
     ends_at:       b.ends_at || null,
     active:        b.active !== false,
   }).select('id').single()

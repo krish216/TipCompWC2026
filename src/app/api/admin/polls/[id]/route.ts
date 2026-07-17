@@ -19,11 +19,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (typeof b.question === 'string' && b.question.trim()) patch.question = b.question.trim()
   if ('description' in b) patch.description = (typeof b.description === 'string' && b.description.trim()) ? b.description.trim() : null
   if (typeof b.topic === 'string' && b.topic.trim()) patch.topic = b.topic.trim()
-  if (b.audience === 'all' || b.audience === 'tournament') {
+  if (b.audience === 'all' || b.audience === 'tournament' || b.audience === 'comp') {
     patch.audience = b.audience
     if (b.audience === 'tournament') {
       const t = await getPrimaryTournament(admin)
       patch.tournament_id = (t as any)?.id ?? null
+      patch.comp_id = null
+    } else if (b.audience === 'comp') {
+      if (typeof b.comp_id !== 'string' || !b.comp_id) return NextResponse.json({ error: 'Pick a comp for a comp-scoped poll.' }, { status: 400 })
+      patch.comp_id = b.comp_id
+      patch.tournament_id = null
+    } else {
+      patch.tournament_id = null
+      patch.comp_id = null
     }
   }
 

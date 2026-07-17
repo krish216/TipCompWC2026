@@ -9,22 +9,30 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 interface AdminPoll {
   id: string; topic: string; question: string; description: string | null; options: string[]
-  audience: string; active: boolean; ends_at: string | null; created_at: string
+  audience: string; comp_id: string | null; active: boolean; ends_at: string | null; created_at: string
   tallies: number[]; total: number
 }
+interface CompLite { id: string; name: string }
 
-const TOPICS = ['football', 'feedback', 'general']
+const TOPICS = ['football', 'feedback', 'codesign', 'general']
 
 export default function PollsAdminPage() {
-  const { session } = useSupabase()
+  const { session, supabase } = useSupabase()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [polls, setPolls] = useState<AdminPoll[]>([])
+  const [comps, setComps] = useState<CompLite[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!session) { setIsAdmin(false); return }
     fetch('/api/admin').then(r => r.json()).then(d => setIsAdmin(!!d.is_admin)).catch(() => setIsAdmin(false))
   }, [session])
+
+  // Comps list for the comp-scoped audience picker (comps are public-read).
+  useEffect(() => {
+    if (!isAdmin) return
+    ;(supabase.from('comps') as any).select('id, name').order('name').then(({ data }: any) => setComps(data ?? []))
+  }, [isAdmin, supabase])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -49,39 +57,41 @@ export default function PollsAdminPage() {
         </div>
       </div>
 
-      <NewPollForm onCreated={load} />
+      <NewPollForm onCreated={load} comps={comps} />
 
       {loading ? (
         <div className="flex justify-center py-12"><Spinner className="w-7 h-7" /></div>
       ) : polls.length === 0 ? (
         <Card><p className="text-center text-gray-400 py-8 text-sm">No polls yet — create one above.</p></Card>
       ) : (
-        <div className="space-y-2.5">{polls.map(p => <PollRow key={p.id} poll={p} onChanged={load} />)}</div>
+        <div className="space-y-2.5">{polls.map(p => <PollRow key={p.id} poll={p} comps={comps} onChanged={load} />)}</div>
       )}
     </div>
   )
 }
 
-function NewPollForm({ onCreated }: { onCreated: () => void }) {
+function NewPollForm({ onCreated, comps }: { onCreated: () => void; comps: CompLite[] }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [question, setQuestion] = useState('')
   const [description, setDescription] = useState('')
   const [options, setOptions] = useState<string[]>(['', ''])
   const [topic, setTopic] = useState('football')
-  const [audience, setAudience] = useState<'all' | 'tournament'>('all')
+  const [audience, setAudience] = useState<'all' | 'tournament' | 'comp'>('all')
+  const [compId, setCompId] = useState('')
 
-  const reset = () => { setQuestion(''); setDescription(''); setOptions(['', '']); setTopic('football'); setAudience('all'); setOpen(false) }
+  const reset = () => { setQuestion(''); setDescription(''); setOptions(['', '']); setTopic('football'); setAudience('all'); setCompId(''); setOpen(false) }
 
   const create = async () => {
     const opts = options.map(o => o.trim()).filter(Boolean)
     if (!question.trim()) { toast.error('Question required'); return }
     if (opts.length < 2) { toast.error('Add at least two options'); return }
+    if (audience === 'comp' && !compId) { toast.error('Pick a comp'); return }
     setBusy(true)
     try {
       const res = await fetch('/api/admin/polls', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: question.trim(), description: description.trim() || null, options: opts, topic, audience }),
+        body: JSON.stringify({ question: question.trim(), description: description.trim() || null, options: opts, topic, audience, comp_id: audience === 'comp' ? compId : null }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Failed to create'); return }
@@ -137,9 +147,20 @@ function NewPollForm({ onCreated }: { onCreated: () => void }) {
           <select value={audience} onChange={e => setAudience(e.target.value as any)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
             <option value="all">Everyone (signed-in)</option>
             <option value="tournament">This tournament only</option>
+            <option value="comp">A specific comp</option>
           </select>
         </div>
       </div>
+
+      {audience === 'comp' && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Comp *</label>
+          <select value={compId} onChange={e => setCompId(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+            <option value="">Select a comp…</option>
+            {comps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
 
       <div className="flex gap-2">
         <button disabled={busy} onClick={create} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
@@ -151,14 +172,17 @@ function NewPollForm({ onCreated }: { onCreated: () => void }) {
   )
 }
 
-function PollRow({ poll, onChanged }: { poll: AdminPoll; onChanged: () => void }) {
+function PollRow({ poll, comps, onChanged }: { poll: AdminPoll; comps: CompLite[]; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   const [q, setQ]       = useState(poll.question)
   const [desc, setDesc] = useState(poll.description ?? '')
   const [opts, setOpts] = useState<string[]>(poll.options)
   const [topic, setTopic]       = useState(poll.topic)
-  const [audience, setAudience] = useState<'all' | 'tournament'>(poll.audience === 'tournament' ? 'tournament' : 'all')
+  const [audience, setAudience] = useState<'all' | 'tournament' | 'comp'>(
+    poll.audience === 'tournament' ? 'tournament' : poll.audience === 'comp' ? 'comp' : 'all')
+  const [compId, setCompId]     = useState(poll.comp_id ?? '')
+  const compName = comps.find(c => c.id === poll.comp_id)?.name
   const optionsLocked = poll.total > 0
   const pct = (n: number) => (poll.total ? Math.round((n / poll.total) * 100) : 0)
 
@@ -175,7 +199,9 @@ function PollRow({ poll, onChanged }: { poll: AdminPoll; onChanged: () => void }
     const cleanOpts = opts.map(o => o.trim()).filter(Boolean)
     if (!q.trim()) { toast.error('Question required'); return }
     if (!optionsLocked && cleanOpts.length < 2) { toast.error('Add at least two options'); return }
+    if (audience === 'comp' && !compId) { toast.error('Pick a comp'); return }
     const body: any = { question: q.trim(), description: desc.trim() || null, topic, audience }
+    if (audience === 'comp') body.comp_id = compId
     if (!optionsLocked) body.options = cleanOpts
     if (await patch(body, 'Poll updated')) setEditing(false)
   }
@@ -193,6 +219,7 @@ function PollRow({ poll, onChanged }: { poll: AdminPoll; onChanged: () => void }
             <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">{poll.topic}</span>
             {!poll.active && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">closed</span>}
             {poll.audience === 'tournament' && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">tournament</span>}
+            {poll.audience === 'comp' && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">🏢 {compName ?? 'comp'}</span>}
           </div>
           <p className="font-semibold text-gray-900 mt-1">{poll.question}</p>
         </div>
@@ -247,12 +274,22 @@ function PollRow({ poll, onChanged }: { poll: AdminPoll; onChanged: () => void }
               <select value={audience} onChange={e => setAudience(e.target.value as any)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
                 <option value="all">Everyone (signed-in)</option>
                 <option value="tournament">This tournament only</option>
+                <option value="comp">A specific comp</option>
               </select>
             </div>
           </div>
+          {audience === 'comp' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Comp *</label>
+              <select value={compId} onChange={e => setCompId(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none">
+                <option value="">Select a comp…</option>
+                {comps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="flex gap-2">
             <button disabled={busy} onClick={saveEdit} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">{busy ? 'Saving…' : 'Save changes'}</button>
-            <button onClick={() => { setEditing(false); setQ(poll.question); setDesc(poll.description ?? ''); setOpts(poll.options); setTopic(poll.topic); setAudience(poll.audience === 'tournament' ? 'tournament' : 'all') }} className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-sm font-medium">Cancel</button>
+            <button onClick={() => { setEditing(false); setQ(poll.question); setDesc(poll.description ?? ''); setOpts(poll.options); setTopic(poll.topic); setAudience(poll.audience === 'tournament' ? 'tournament' : poll.audience === 'comp' ? 'comp' : 'all'); setCompId(poll.comp_id ?? '') }} className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-sm font-medium">Cancel</button>
           </div>
         </div>
       )}
