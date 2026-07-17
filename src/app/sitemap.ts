@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getPublicTournaments, getTeamsAndFixtures, groupLetters, playedRounds, roundSlug } from '@/lib/content/wc'
+import { createAdminClient } from '@/lib/supabase'
 
 export const revalidate = 3600
 
@@ -42,6 +43,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       contentPages.push({ url: `${base}/${t.slug}/recaps`, changeFrequency: cf, priority: 0.7 })
       for (const r of rounds) contentPages.push({ url: `${base}/${t.slug}/recaps/${roundSlug(r)}`, changeFrequency: 'weekly', priority: 0.6 })
     }
+
+    // Public dynamic entity pages — match challenges (/match/{slug}), bracket boards
+    // (/bracket/leaderboard/{slug}) and open, discoverable comps (/c/{slug}). Wrapped in its
+    // own try so a failure here still returns the tournament content pages above.
+    // NB: tipster/[id] and chief/[id] profiles are intentionally NOT listed yet (1,300+ users
+    // — pending a volume/indexing decision).
+    try {
+      const admin = createAdminClient()
+      const { data: challenges } = await (admin.from('challenges') as any)
+        .select('slug, type, enabled').eq('enabled', true).not('slug', 'is', null)
+      for (const ch of (challenges ?? []) as { slug: string; type: string }[]) {
+        if (ch.type === 'match')   contentPages.push({ url: `${base}/match/${ch.slug}`, changeFrequency: 'weekly', priority: 0.6 })
+        if (ch.type === 'bracket') contentPages.push({ url: `${base}/bracket/leaderboard/${ch.slug}`, changeFrequency: cf, priority: 0.6 })
+      }
+      const { data: comps } = await (admin.from('comps') as any)
+        .select('slug').eq('visibility', 'open').eq('is_discoverable', true).not('slug', 'is', null)
+      for (const c of (comps ?? []) as { slug: string }[]) {
+        contentPages.push({ url: `${base}/c/${c.slug}`, changeFrequency: 'weekly', priority: 0.5 })
+      }
+    } catch { /* skip dynamic entity pages if the DB query fails */ }
+
     return [...staticPages, ...contentPages]
   } catch {
     return staticPages

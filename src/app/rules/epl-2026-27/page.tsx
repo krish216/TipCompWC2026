@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { createAdminClient } from '@/lib/supabase'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { faqJsonLd } from '@/lib/seo'
 
 export const revalidate = 3600
 
@@ -40,6 +42,7 @@ export default async function EplRulesPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
+      <JsonLd data={faqJsonLd(FAQS)} />
       <div className="flex items-center gap-2 mb-1">
         <h1 className="text-lg font-semibold text-gray-900">How to play</h1>
         <span className="text-[11px] font-semibold px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Premier League 2026/27</span>

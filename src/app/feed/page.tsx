@@ -11,6 +11,7 @@ const FEED_OG_DESC = 'Feed the TribePicks pack for good luck — it keeps the ga
 export const metadata: Metadata = {
   title: 'Feed the doggies 🐾 | TribePicks',
   description: FEED_OG_DESC,
+  alternates: { canonical: 'https://tribepicks.com/feed' },
   // og:image is supplied automatically by ./opengraph-image.tsx. Set the text fields
   // explicitly so email clients and social cards show a proper title + blurb.
   openGraph: {

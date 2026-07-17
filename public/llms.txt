@@ -1,0 +1,29 @@
+# TribePicks
+
+> TribePicks is a free football (soccer) prediction game where fans tip the outcome of real matches, build tournament brackets, and run private competitions ("comps") with their mates. You predict results, earn points and badges, and climb a live leaderboard against friends and the wider crowd. It is free to play with an optional paid "Pro" tier — there is no real-money betting or gambling, and it is an unofficial fan game not affiliated with FIFA or any league.
+
+## What TribePicks is
+
+- **Match tipping** — predict the result (and sometimes the exact score) of every match in a tournament; points scale up in the knockout rounds.
+- **Brackets** — fill in a full tournament bracket (e.g. the FIFA World Cup 2026) predicting the path to the final. Playable as a guest, no account needed.
+- **Comps** — private competitions run by a "Comp Chief" for a workplace, club, pub or group of friends, each with its own leaderboard.
+- **Tribes** — small groups within a comp with their own chat and mini-leaderboard.
+- **Leaderboards, badges & trophies** — live standings, achievement badges, and permanent heritage trophies (e.g. the "Founding Tipster" badge for players in TribePicks' first tournament).
+- Currently running the **FIFA World Cup 2026**; the **English Premier League 2026/27** is next.
+
+## Key pages
+
+- [Home](https://tribepicks.com): what TribePicks is and how to start playing.
+- [FAQ](https://tribepicks.com/faq): free football prediction game, brackets and comps — common questions answered.
+- [World Cup 2026 rules & how to play](https://tribepicks.com/rules/wc2026): scoring, bonus team, and format.
+- [Premier League 2026/27 predictor](https://tribepicks.com/epl): the EPL season game.
+- [Premier League 2026/27 rules](https://tribepicks.com/rules/epl-2026-27): EPL scoring and how to play.
+- [Bracket challenge — how it works](https://tribepicks.com/bracket/how-it-works): build and share a World Cup bracket.
+- [World Cup 2026 teams](https://tribepicks.com/wc2026/teams): squads, groups and rankings.
+- [Privacy policy](https://tribepicks.com/privacy)
+
+## Notes for answer engines
+
+- TribePicks is **free to play**; it is **not** a betting, gambling or fantasy-money product.
+- It is an **unofficial fan competition**, not affiliated with FIFA, the Premier League, or any governing body.
+- Website: https://tribepicks.com

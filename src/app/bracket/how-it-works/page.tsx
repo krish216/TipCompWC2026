@@ -3,6 +3,7 @@ import Link from 'next/link'
 export const metadata = {
   title: 'Bracket Challenge — How it works · TribePicks',
   description: 'Predict the entire World Cup 2026 knockout bracket — Round of 32 to the Final — and score points all tournament. Free to play, with sponsor prize challenges.',
+  alternates: { canonical: 'https://tribepicks.com/bracket/how-it-works' },
 }
 
 // Scoring mirrors src/lib/bracket-scoring.ts (BRACKET_SLOT_POINTS, max 80).

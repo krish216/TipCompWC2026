@@ -1,4 +1,8 @@
-export const metadata = { title: 'Privacy Policy — TribePicks' }
+export const metadata = {
+  title: 'Privacy Policy — TribePicks',
+  description: 'How TribePicks collects, uses and protects your data. A free-to-play football prediction game — no real-money betting.',
+  alternates: { canonical: 'https://tribepicks.com/privacy' },
+}
 
 const LAST_UPDATED = '18 June 2026'
 const CONTACT_EMAIL = 'privacy@tribepicks.com'

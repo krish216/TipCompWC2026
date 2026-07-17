@@ -17,6 +17,8 @@ import { NpsPulse } from '@/components/game/NpsPulse'
 import { RefCapture } from '@/components/layout/RefCapture'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { siteJsonLd, SITE_URL, SITE_NAME, SITE_TITLE, SITE_DESCRIPTION } from '@/lib/seo'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -28,12 +30,26 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://tribepicks.com'),
-  title: 'TribePicks',
-  description: 'Predict every match of the 2026 FIFA World Cup. Compete with your tribe.',
+  metadataBase: new URL(SITE_URL),
+  // Product-level default title, inherited by pages that set none (e.g. the homepage).
+  // NB: kept a plain string (not a { default, template }) on purpose — most pages already
+  // hardcode "… | TribePicks" in their own title, so a suffixing template would double it.
+  // Normalising those onto a template is a Phase 2 change.
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   openGraph: {
-    title: 'TribePicks',
-    description: 'Predict every match. Beat your tribe. Win bragging rights.',
+    type: 'website',
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    // og:image is supplied site-wide by ./opengraph-image.tsx (pages can override).
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
   },
   // AdSense site verification: <meta name="google-adsense-account" ...>. Present
   // only once NEXT_PUBLIC_ADSENSE_CLIENT is set, so it's inert until configured.
@@ -86,6 +102,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className={inter.className}>
+        {/* Site-wide structured data (Organization + WebSite + WebApplication) for search
+            engines and AI answer engines. Server-rendered so it's in the initial HTML. */}
+        <JsonLd data={siteJsonLd()} />
         {adsEnabled && adsClient && (
           <Script
             id="adsbygoogle-loader"

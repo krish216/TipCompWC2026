@@ -4,6 +4,7 @@ import { NeveAvatar } from '@/components/NeveAvatar'
 export const metadata = {
   title: 'Queen Neve — Chief Morale Officer · TribePicks',
   description: 'Meet Queen Neve: TribePicks Chief Morale Officer, die-hard Socceroos tragic, and known tipsheet thief. Upgrades to Tipster Pro keep her in kibble.',
+  alternates: { canonical: 'https://tribepicks.com/neve' },
   openGraph: {
     title: 'Queen Neve — Chief Morale Officer · TribePicks',
     description: 'Die-hard Socceroos tragic. Known tipsheet thief. Powered by Tipster Pro kibble.',

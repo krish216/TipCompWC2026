@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase'
 import { buildScoringConfig, getDefaultScoringConfig, type RoundId } from '@/types'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { faqJsonLd } from '@/lib/seo'
 
 const SCORING_ROWS: { rid: RoundId; label: string; badge?: string; highlight?: boolean }[] = [
   { rid: 'gs1',  label: 'Group stage' },
@@ -62,11 +64,18 @@ async function loadScoringConfig() {
   }
 }
 
+export const metadata = {
+  title: 'World Cup 2026 — scoring rules & how to play | TribePicks',
+  description: 'How to play TribePicks for the FIFA World Cup 2026: prediction scoring, the bonus team, knockout points, tie-breaks and FAQs. Free to play, no betting.',
+  alternates: { canonical: 'https://tribepicks.com/rules/wc2026' },
+}
+
 export default async function WC2026RulesPage() {
   const scoringConfig = await loadScoringConfig()
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
+      <JsonLd data={faqJsonLd(FAQS)} />
       <div className="flex items-center gap-2 mb-1">
         <h1 className="text-lg font-semibold text-gray-900">How to play</h1>
         <span className="text-[11px] font-semibold px-2 py-0.5 bg-green-100 text-green-700 rounded-full">WC 2026</span>

@@ -1,3 +1,9 @@
+export const metadata = {
+  title: 'Terms & Conditions — TribePicks',
+  description: 'TribePicks terms and conditions. A free-to-play football prediction game operated by 11outof10 Pty Ltd — no real-money betting or gambling.',
+  alternates: { canonical: 'https://tribepicks.com/terms' },
+}
+
 export default function TermsPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

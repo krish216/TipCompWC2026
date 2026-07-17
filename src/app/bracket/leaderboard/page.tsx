@@ -1,9 +1,21 @@
-'use client'
+import type { Metadata } from 'next'
+import { Suspense } from 'react'
+import BracketLeaderboardClient from './BracketLeaderboardClient'
+import { SITE_URL } from '@/lib/seo'
 
-import { BracketLeaderboardView } from '@/components/game/BracketLeaderboardView'
+// Server wrapper for server-rendered metadata. The per-challenge boards live at
+// /bracket/leaderboard/[slug] (already fully covered); this is the index.
+export const dynamic = 'force-dynamic'
+export const metadata: Metadata = {
+  title: 'Bracket challenge leaderboards | TribePicks',
+  description: 'Browse the public World Cup 2026 bracket challenge leaderboards on TribePicks — see who is topping the standings.',
+  alternates: { canonical: `${SITE_URL}/bracket/leaderboard` },
+}
 
-// Slug-less entry point — the API resolves the tournament's default bracket
-// challenge. Branded, per-challenge boards live at /bracket/leaderboard/[slug].
-export default function BracketLeaderboardPage() {
-  return <BracketLeaderboardView />
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <BracketLeaderboardClient />
+    </Suspense>
+  )
 }

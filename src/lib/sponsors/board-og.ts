@@ -52,7 +52,9 @@ export async function boardMetadata(slug: string): Promise<Metadata> {
       title = 'WC 2026 Bracket Challenge — Pick the World Cup Winners | TribePicks'
       description = 'Free · pick the World Cup 2026 knockout winners and climb the leaderboard. Join in 2 minutes — no sign-up wall.'
     }
-    image = null   // no bespoke card → generic preview (title + description only)
+    // No bespoke card → a dynamically-generated 1200×630 card that composes the sponsor/prize
+    // (or a generic bracket card), so every board still gets a rich preview image.
+    image = `${SITE}/api/bracket/og?slug=${encodeURIComponent(slug)}`
   }
 
   return {
