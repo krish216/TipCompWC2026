@@ -27,6 +27,18 @@ export default function EplInterestPage({ searchParams }: { searchParams: { v?: 
         <h1 className="text-xl font-black text-gray-900">{c.head}</h1>
         <p className="text-sm text-gray-500 mt-2">{c.sub}</p>
 
+        {/* Positive responders (yes/maybe) are invited straight into the co-design crew —
+            joining the comp surfaces the 3 co-design polls on their home screen. */}
+        {(v === 'yes' || v === 'maybe') && (
+          <div className="mt-6">
+            <Link href="/join?code=FXAZQXWW"
+              className="inline-block px-5 py-3 rounded-xl bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 transition-colors">
+              ⚽ Join the EPL co-design crew →
+            </Link>
+            <p className="text-[11px] text-gray-400 mt-2">Help shape the game before launch — a few quick questions await on your home screen.</p>
+          </div>
+        )}
+
         {u && (
           <div className="mt-6">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Change your answer</p>
