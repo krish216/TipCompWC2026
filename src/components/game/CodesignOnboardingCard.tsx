@@ -53,6 +53,9 @@ export function CodesignOnboardingCard({ className }: { className?: string }) {
         <button onClick={dismiss} aria-label="Dismiss" className="text-purple-300 hover:text-purple-500 text-lg leading-none flex-shrink-0 px-1">×</button>
       </div>
       <p className="mt-1 text-xs text-purple-700">Here's how to help shape it — takes about 2 minutes:</p>
+      <Link href="/epl/guide" className="mt-1.5 inline-block text-xs font-semibold text-purple-600 underline hover:text-purple-800">
+        🗺️ New here? See what's decided &amp; what's yours to shape →
+      </Link>
 
       <ol className="mt-3 space-y-2.5">
         <li className="flex items-start gap-2.5">
@@ -67,14 +70,24 @@ export function CodesignOnboardingCard({ className }: { className?: string }) {
         <li className="flex items-start gap-2.5">
           <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">2</span>
           <div className="min-w-0">
-            <p className="text-sm text-purple-900 leading-snug"><strong>Try the warm-up</strong> — make your first EPL predictions and watch live scoring (practice mode is on).</p>
+            <p className="text-sm text-purple-900 leading-snug"><strong>Try the Warm-Up Round</strong> — make your first EPL predictions and watch live scoring (practice mode is on).</p>
             <Link href="/predict" className="inline-block mt-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700">
-              Try the warm-up →
+              Try the Warm-Up Round →
             </Link>
           </div>
         </li>
         <li className="flex items-start gap-2.5">
           <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">3</span>
+          <div className="min-w-0">
+            <p className="text-sm text-purple-900 leading-snug"><strong>Join the crew chat</strong> — the day-to-day back-and-forth with the rest of the founding members.</p>
+            <a href="https://chat.whatsapp.com/G3LdKklggNrE6Zapcj0gUz?mode=gi_t" target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#1ebe5b]">
+              💬 Join on WhatsApp →
+            </a>
+          </div>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] font-bold flex items-center justify-center mt-0.5">4</span>
           <p className="text-sm text-purple-900 leading-snug">You're a <strong>founding member</strong> — your input directly steers what we build before launch. 🙌</p>
         </li>
       </ol>

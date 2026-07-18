@@ -42,3 +42,4 @@ deploy-*.log
 broadcast-contacts.csv
 broadcast-contacts-test.csv
 broadcast-*.csv
+wrapup-*.csv

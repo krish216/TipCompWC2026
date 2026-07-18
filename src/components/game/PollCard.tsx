@@ -7,7 +7,7 @@ import { PollItem, type Poll } from '@/components/game/PollItem'
 
 // Multi-question "survey" topics are surfaced on the dedicated /polls page (linked from the
 // co-design onboarding card and the wrap-up email), NOT one-at-a-time on the homepage card.
-const SURVEY_TOPICS = ['codesign', 'feedback']
+const SURVEY_TOPICS = ['codesign', 'feedback', 'wrapup-drift', 'wrapup-finish', 'wrapup-general']
 
 // Homepage "quick poll" card. Shows the most recent active poll the signed-in user
 // hasn't dismissed; vote inline (via PollItem), then see live results. Dismiss is per-poll.

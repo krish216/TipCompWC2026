@@ -11,6 +11,7 @@ import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
 import { EplPollBanner } from '@/components/layout/EplPollBanner'
+import { WrapupSurveyBanner } from '@/components/layout/WrapupSurveyBanner'
 import { FeedCtaLink } from '@/components/game/FeedCtaLink'
 import { FeedbackButton } from '@/components/layout/FeedbackButton'
 import { NpsPulse } from '@/components/game/NpsPulse'
@@ -121,6 +122,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </Suspense>
             <EmailVerificationBanner />
             <EplPollBanner />
+            <WrapupSurveyBanner />
             {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
             <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
               {children}
@@ -138,6 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="max-w-4xl mx-auto space-y-3">
                 {/* Nav links — single centred wrapping row */}
                 <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
+                  <a href="/about" className="hover:text-gray-600 transition-colors">About</a>
                   <a href="/teams" className="hover:text-gray-600 transition-colors">Teams</a>
                   <a href="/groups" className="hover:text-gray-600 transition-colors">Groups</a>
                   <a href="/recaps" className="hover:text-gray-600 transition-colors">Recaps</a>

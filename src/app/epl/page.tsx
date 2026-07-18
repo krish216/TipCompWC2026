@@ -18,7 +18,7 @@ async function getEpl() {
 
 export const metadata: Metadata = {
   title: 'Premier League 2026/27 Predictor — free to play | TribePicks',
-  description: 'Predict the Premier League table, tip every matchweek, and climb a season-long leaderboard. Free to play — call the top 5 and bottom 3 at four checkpoints, pick a weekly focus team, and enter sponsored match challenges. No betting, no money.',
+  description: 'Predict the Premier League table, tip every matchweek, and climb a season-long leaderboard. Free to play — call the top 5 and bottom 3 at four checkpoints, and tip every matchweek where points rise each quarter (1→4) so a slow start is never fatal. No betting, no money.',
   alternates: { canonical: 'https://tribepicks.com/epl' },
   openGraph: {
     title: 'Premier League 2026/27 Predictor — free to play',
@@ -39,6 +39,15 @@ const CHECKPOINTS = [
   { q: 'Q2', mw: 'after MW19' },
   { q: 'Q3', mw: 'after MW28' },
   { q: 'Q4', mw: 'after MW38' },
+]
+
+// Matchweek points climb each quarter (mirrors the Predictor checkpoints) — a slow start
+// isn't fatal, and the run-in matters most. Values track tournament_rounds.result_pts.
+const SCORE_TIERS = [
+  { q: 'Q1', mw: 'MW1–9', pts: '1 pt' },
+  { q: 'Q2', mw: 'MW10–19', pts: '2 pts' },
+  { q: 'Q3', mw: 'MW20–28', pts: '3 pts' },
+  { q: 'Q4', mw: 'MW29–38', pts: '4 pts' },
 ]
 
 export default async function EplLanding() {
@@ -106,7 +115,22 @@ export default async function EplLanding() {
           Alongside the table prediction, tip all 10 matches each week — just pick Home, Draw or Away, so it takes seconds. Get the result right and you score; simple and quick, so casual fans stay in the mix all season.
         </p>
         <p className="mt-3 text-sm text-gray-700 leading-relaxed">
-          Want an edge? Choose a <strong>bonus team</strong>. For your bonus team&apos;s match each week you don&apos;t just pick the result — you predict the <strong>exact score</strong>. Nail it and you bank bonus points. It rewards knowing your own club inside out, without asking you to score-predict all 10 games.
+          Here&apos;s the twist: <strong>a correct tip is worth more the deeper into the season you go.</strong> Points climb each quarter — mirroring the Table Predictor checkpoints — so a slow start never buries you, and the run-in is where titles are won.
+        </p>
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {SCORE_TIERS.map(t => (
+            <div key={t.q} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-center">
+              <p className="text-lg font-black text-emerald-700">{t.pts}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">{t.mw}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-gray-400 text-center">per correct Home / Draw / Away result</p>
+        <p className="mt-4 text-sm text-gray-700 leading-relaxed">
+          Want an edge? Choose a <strong>bonus team</strong> — usually the club you support, since you know them best. For your bonus team&apos;s match each week you don&apos;t just pick the result — you predict the <strong>exact score</strong>. Nail it and you bank bonus points.
+        </p>
+        <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+          <span className="font-semibold text-gray-700">For example:</span> a Liverpool fan sets Liverpool as their bonus team. Each week they call the <em>exact</em> Liverpool scoreline — say <strong>2–1</strong> — on top of the quick Home/Draw/Away pick on the other nine games. It rewards knowing your own club inside out, without asking you to score-predict all 10 matches.
         </p>
       </section>
 
