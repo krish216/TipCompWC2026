@@ -338,7 +338,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError(null); setLoading(true)
-    const nextUrl = codeParam ? `/join?code=${codeParam}` : role === 'organiser' ? `/?flow=create` : isBracket ? `/bracket` : `/`
+    const nextUrl = codeParam ? `/join?code=${codeParam}` : role === 'organiser' ? `/?flow=create` : isBracket ? `/bracket` : redirect
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

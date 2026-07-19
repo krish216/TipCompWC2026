@@ -115,7 +115,11 @@ export function PollsClient({ topic, pollId }: { topic: string | null; pollId: s
       ) : !session ? (
         <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
           <p className="text-sm text-gray-600 mb-3">Sign in to answer.</p>
-          <Link href="/login" className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">Sign in →</Link>
+          {/* Carry the survey URL so login returns here (not the homepage) — password, magic-link and Google OAuth all honour ?redirect=. */}
+          <Link
+            href={`/login?redirect=${encodeURIComponent(pollId ? `/polls?id=${pollId}` : topic ? `/polls?topic=${topic}` : '/polls')}`}
+            className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+          >Sign in →</Link>
         </div>
       ) : (polls && polls.length > 0) ? (
         <div className="space-y-4">
