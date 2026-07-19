@@ -114,12 +114,14 @@ export function PollsClient({ topic, pollId }: { topic: string | null; pollId: s
         <div className="flex justify-center py-12"><Spinner className="w-7 h-7" /></div>
       ) : !session ? (
         <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-          <p className="text-sm text-gray-600 mb-3">Sign in to answer.</p>
-          {/* Carry the survey URL so login returns here (not the homepage) — password, magic-link and Google OAuth all honour ?redirect=. */}
+          <p className="text-sm text-gray-600 mb-1">Confirm it&apos;s you to answer.</p>
+          <p className="text-xs text-gray-400 mb-3">No password needed — we&apos;ll email you a one-tap sign-in link.</p>
+          {/* Deep-link to the magic-link tab (tab=magic) so drifters who've forgotten their password aren't
+              blocked — they just get a link emailed. Carry the survey URL so login returns here, not the homepage. */}
           <Link
-            href={`/login?redirect=${encodeURIComponent(pollId ? `/polls?id=${pollId}` : topic ? `/polls?topic=${topic}` : '/polls')}`}
+            href={`/login?tab=magic&redirect=${encodeURIComponent(pollId ? `/polls?id=${pollId}` : topic ? `/polls?topic=${topic}` : '/polls')}`}
             className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
-          >Sign in →</Link>
+          >Email me a sign-in link →</Link>
         </div>
       ) : (polls && polls.length > 0) ? (
         <div className="space-y-4">

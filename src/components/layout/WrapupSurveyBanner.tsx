@@ -21,7 +21,15 @@ export function WrapupSurveyBanner() {
     if (typeof window !== 'undefined' && localStorage.getItem(DISMISS_KEY)) return
     fetch('/api/wrapup-segment')
       .then(r => r.json())
-      .then(d => { if (d.active && d.segment) setLink(`/polls?topic=wrapup-${d.segment},wrapup-general`) })
+      .then(d => {
+        // Map the segment to its poll topic slug. NB the DB topics are wrapup-finish / wrapup-drift
+        // (migration 179) — NOT the raw segment words finisher/drifter, or the segment-specific
+        // Q1 filters out and only the shared wrapup-general questions show.
+        if (d.active && d.segment) {
+          const topic = d.segment === 'finisher' ? 'wrapup-finish' : 'wrapup-drift'
+          setLink(`/polls?topic=${topic},wrapup-general`)
+        }
+      })
       .catch(() => {})
   }, [session?.user?.id, pathname])
 

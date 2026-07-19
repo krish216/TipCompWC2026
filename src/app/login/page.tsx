@@ -41,6 +41,7 @@ export default function LoginPage() {
   // Default role is always tipster — organiser only when explicitly ?role=organiser.
   useEffect(() => {
     if (tabParam === 'register') setMode('register')
+    else if (tabParam === 'magic') setMode('magic')   // survey gate deep-links here — passwordless, no recall needed
     else if (tabParam === 'login') setMode('login')
     setRole(isOrganiser ? 'organiser' : 'tipster')
   }, [tabParam, isOrganiser, isChallenge])
