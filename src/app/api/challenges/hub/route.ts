@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
         ? (admin.from('match_entries') as any).select('challenge_id').eq('user_id', user.id).in('challenge_id', rawMatches.map(m => m.id))
         : Promise.resolve({ data: [] }),
       bracketId
-        ? (admin.from('bracket_entries') as any).select('challenge_id').eq('user_id', user.id).eq('challenge_id', bracketId).limit(1)
+        // Entry is per-tournament, not per-challenge: a tournament can have several bracket
+        // challenge "pools" (e.g. global + comp-scoped), and a user's single bracket counts
+        // for all of them. Matching one specific challenge_id missed entries in the others.
+        ? (admin.from('bracket_entries') as any).select('id').eq('user_id', user.id).eq('tournament_id', t.id).limit(1)
         : Promise.resolve({ data: [] }),
       (predictorQs ?? 0) > 0
         ? (admin.from('standings_predictions') as any).select('id').eq('user_id', user.id).eq('tournament_id', t.id).limit(1)
