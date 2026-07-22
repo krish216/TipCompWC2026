@@ -1533,9 +1533,12 @@ export default function HomePage() {
                 flagship tournament: WC → the 4-Pick guest funnel, EPL → the Charity Shield match
                 challenge (guest-enterable). Unknown flagship → no teaser rather than a wrong one. */}
             {persona === 'tipster' && (() => {
+              // The hero "guest challenge" teaser. EPL (and any tournament using the Challenge
+              // promo card, above) is intentionally omitted so its challenge isn't advertised
+              // twice — the dismissible challenge-promos card is the vehicle for those. WC kept
+              // for its bespoke /su-challenge 4-pick guest funnel (not a challenge-promos entry).
               const gt = ({
-                'wc2026':      { label: 'World Cup',      name: '4-Pick',        href: '/su-challenge' },
-                'epl-2026-27': { label: 'EPL', name: 'Charity Shield', href: '/match/mt-arsenal-manchester-city' },
+                'wc2026': { label: 'World Cup', name: '4-Pick', href: '/su-challenge' },
               } as Record<string, { label: string; name: string; href: string }>)[selectedTourn?.slug ?? '']
               if (!gt) return null
               return (
