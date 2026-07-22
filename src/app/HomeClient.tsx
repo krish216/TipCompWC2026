@@ -1386,7 +1386,7 @@ export default function HomePage() {
             </h1>
           </div>
           <p style={{ margin:0, fontSize:11, color:'#9ca3af', fontWeight:500, letterSpacing:'0.2px' }}>
-            World Cup 2026 Tipping Competition
+            {selectedTourn?.name ?? 'World Cup 2026'} Tipping Competition
           </p>
         </div>
 
@@ -1435,7 +1435,7 @@ export default function HomePage() {
             <div style={{ margin:'0 0 20px', textAlign:'center', maxWidth:300, marginLeft:'auto', marginRight:'auto' }}>
               {persona === 'tipster' ? (<>
                 <p style={{ margin:'0 0 5px', fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1.3 }}>Tip every match. Beat your tribe.</p>
-                <p style={{ margin:0, fontSize:13, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private World Cup comp — free and instant.</p>
+                <p style={{ margin:0, fontSize:13, color:'rgba(255,255,255,0.50)' }}>Join your group&apos;s private comp — free and instant.</p>
               </>) : (<>
                 <p style={{ margin:'0 0 5px', fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.4px', lineHeight:1.3 }}>Be the hero of your group.</p>
                 <p style={{ margin:'0 0 10px', fontSize:13, color:'rgba(255,255,255,0.50)' }}>Zero spreadsheets. Zero arguments. Set up in minutes.</p>
@@ -1488,7 +1488,7 @@ export default function HomePage() {
                   <div>
                     <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready to run your own</p>
                     <p style={{ margin:0, fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
-                      <span style={{ color:'#60a5fa' }}>World Cup </span>
+                      <span style={{ color:'#60a5fa' }}>{({ 'wc2026': 'World Cup', 'epl-2026-27': 'EPL' } as Record<string, string>)[selectedTourn?.slug ?? ''] ?? (selectedTourn?.name ?? 'World Cup')} </span>
                       <span>Tipping<br/>Comp?</span>
                     </p>
                   </div>
@@ -1529,9 +1529,17 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Challenge CTA — below primary CTAs so registration is the first action */}
-            {persona === 'tipster' && (
-              <Link href="/su-challenge" style={{
+            {/* Challenge CTA — below primary CTAs so registration is the first action. Keyed to the
+                flagship tournament: WC → the 4-Pick guest funnel, EPL → the Charity Shield match
+                challenge (guest-enterable). Unknown flagship → no teaser rather than a wrong one. */}
+            {persona === 'tipster' && (() => {
+              const gt = ({
+                'wc2026':      { label: 'World Cup',      name: '4-Pick',        href: '/su-challenge' },
+                'epl-2026-27': { label: 'EPL', name: 'Charity Shield', href: '/match/mt-arsenal-manchester-city' },
+              } as Record<string, { label: string; name: string; href: string }>)[selectedTourn?.slug ?? '']
+              if (!gt) return null
+              return (
+              <Link href={gt.href} style={{
                 display:'block', position:'relative',
                 marginBottom:16, borderRadius:18, overflow:'hidden',
                 minHeight:156, textDecoration:'none', cursor:'pointer',
@@ -1570,10 +1578,10 @@ export default function HomePage() {
                   display:'flex', flexDirection:'column', justifyContent:'center', gap:11,
                 }}>
                   <div>
-                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for a</p>
+                    <p style={{ margin:'0 0 3px', fontSize:10.5, color:'rgba(255,255,255,0.52)', fontStyle:'italic', fontWeight:500 }}>Ready for the</p>
                     <p style={{ margin:'0 0 11px', fontSize:17, fontWeight:900, color:'#fff', lineHeight:1.2, letterSpacing:'-0.3px' }}>
-                      <span style={{ color:'#fbbf24' }}>World Cup </span>
-                      <span>4-Pick<br/>Challenge?</span>
+                      <span style={{ color:'#fbbf24' }}>{gt.label} </span>
+                      <span>{gt.name}<br/>Challenge?</span>
                     </p>
                     <p style={{ margin:0, fontSize:13, color:'rgba(255,255,255,0.70)', fontWeight:600 }}>
                       Try the challenge →
@@ -1582,7 +1590,8 @@ export default function HomePage() {
                   </div>
                 </div>
               </Link>
-            )}
+              )
+            })()}
 
 
             {/* Benefit list */}
@@ -3023,8 +3032,12 @@ export default function HomePage() {
         ]
 
         const steps = isTipster ? tipsterSteps : organiserSteps
+        // Flagship-aware CTA: a league (EPL) nudges the Table Predictor; a knockout nudges the
+        // bracket. Follows the selected/flagship tournament so it's never stuck on the World Cup.
         const cta   = isTipster
-          ? { href:'/bracket?slug=wc2026', label:'Pick your WC2026 bracket →', sub: 'no sign-in needed' }
+          ? (selectedTourn?.format === 'league'
+              ? { href:`/${selectedTourn.slug}/predictor`, label:'Pick your Top 5 & Bottom 3 →', sub: 'no sign-in needed' }
+              : { href:`/bracket?slug=${selectedTourn?.slug ?? 'wc2026'}`, label:'Pick your bracket →', sub: 'no sign-in needed' })
           : { href:'/login?tab=register&role=organiser', label:'Create a Comp Free →', sub: null }
         const testimonial = isTipster
           ? { quote: 'I love seeing how my tribe\'s picks stack up each round!', author: 'Alex, TribePicks tipster' }

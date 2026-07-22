@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   title: 'EPL Co-Design — the lay of the land | TribePicks',
   description: 'The TribePicks Premier League co-design brief: what already works, what’s new for EPL, and where the co-design crew’s input lands.',
   robots: { index: false, follow: false },
+  // og:title/description/url for the WhatsApp crew-chat preview. Deliberately NO openGraph.images
+  // so the segment's own opengraph-image.tsx (the co-design card) still applies — setting images
+  // here would suppress the static file (Next merges the static image only when images is unset).
+  openGraph: {
+    title: 'EPL Co-Design — the lay of the land 🗺️',
+    description: 'Help shape TribePicks’ Premier League before it launches — what carries over, what’s new for EPL, and where your input lands.',
+    url: 'https://tribepicks.com/epl/guide',
+    type: 'website',
+  },
 }
 
 // EPL Co-Design crew WhatsApp group.

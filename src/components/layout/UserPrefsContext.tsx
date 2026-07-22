@@ -15,7 +15,7 @@ const PREVIEW_TOURNAMENT_SLUGS  = ['epl-2026-27']
 
 // Columns selected for each tournament. Shared by the initial load and refreshTournaments
 // so a targeted refresh returns exactly the same shape.
-const TOURN_COLS = 'id, name, slug, status, is_active, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
+const TOURN_COLS = 'id, name, slug, status, is_active, is_primary, format, logo_url, start_date, end_date, total_matches, total_teams, total_rounds, kickoff_venue, final_venue, final_date, first_match, teams, allow_retroactive_predictions, max_base_pts, max_bonus_pts, enforce_premium, warmup_comp_code, warmup_tribe_code'
 
 export interface Tournament {
   id:             string
@@ -23,6 +23,8 @@ export interface Tournament {
   slug:           string
   status:         string
   is_active:      boolean
+  is_primary?:    boolean
+  format?:        string | null   // 'league' | 'knockout' — drives the flagship (predictor vs bracket)
   logo_url?:      string | null
   start_date?:    string | null
   end_date?:      string | null
@@ -219,7 +221,23 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     // access when a different user logs in after a comp-admin logs out)
     setAdminCompIds(new Set())
     setAdminComps([])
-    if (!session) { setLoading(false); return }
+    if (!session) {
+      // Logged-out visitors still get the FLAGSHIP (primary) active tournament as context, so the
+      // homepage banner / hero / links reflect what's live now instead of a hardcoded default.
+      // Mirrors getPrimaryTournament(): among active tournaments, is_primary first, then latest
+      // start. Public read is allowed by the tournaments_public_read RLS policy.
+      ;(async () => {
+        const { data } = await supabase.from('tournaments').select(TOURN_COLS)
+          .eq('is_active', true)
+          .order('is_primary', { ascending: false })
+          .order('start_date', { ascending: false })
+        const tourns = (data ?? []) as Tournament[]
+        setActiveTournaments(tourns)
+        setSelectedTournId(tourns[0]?.id ?? null)   // flagship = primary, else latest-starting
+        setLoading(false)
+      })()
+      return
+    }
     ;(async () => {
       // 1+2. Fetch user preferences + admin status in parallel, then the tournaments.
       // Preview users (global/tournament admins, plus the allow-listed emails) see active
