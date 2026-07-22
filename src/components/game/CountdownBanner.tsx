@@ -38,6 +38,11 @@ const kickoffOf = (t: Tournament | null): Date =>
 const startsLabel = (t: Tournament): string =>
   t.start_date ? `Starts ${new Date(`${t.start_date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Upcoming'
 
+// A tournament is over once its end_date has passed (a plain date → end of that UTC day).
+// Lets the banner swap the perpetual "LIVE NOW" for a completed state once the final's done.
+const hasEnded = (t: Tournament | null): boolean =>
+  t?.end_date ? new Date(`${t.end_date}T23:59:59Z`).getTime() < Date.now() : false
+
 function Digit({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col items-center bg-green-800 rounded-lg px-3 py-2 min-w-[52px]">
@@ -70,6 +75,7 @@ export function CountdownBanner() {
   // Per-tournament logo; only fall back to the WC crest when there's no tournament at all.
   const logo       = selectedTourn?.logo_url ?? (selectedTourn ? null : WC.logo)
   const canSwitch  = tournaments.length > 1
+  const ended      = hasEnded(selectedTourn)
 
   const [t, setT]     = useState<TimeLeft>(() => calcTimeLeft(kickoff))
   const [sheet, setSheet] = useState(false)
@@ -92,7 +98,7 @@ export function CountdownBanner() {
           {canSwitch && <span className="text-green-300 text-[11px] leading-none">▾</span>}
         </p>
         <p className="text-[11px] text-green-300 truncate">
-          {t.started ? `Tournament is underway · ${matches} matches` : firstMatch}
+          {ended ? `Tournament complete · ${matches} matches` : t.started ? `Tournament is underway · ${matches} matches` : firstMatch}
         </p>
       </div>
     </div>
@@ -106,7 +112,9 @@ export function CountdownBanner() {
               className="flex items-center gap-3 min-w-0 text-left rounded-lg hover:opacity-90 active:opacity-80 transition-opacity">{identity}</button>
           : identity}
 
-        {t.started ? (
+        {ended ? (
+          <span className="px-3 py-1.5 bg-white/10 text-white text-xs font-semibold rounded-full whitespace-nowrap">✓ Completed</span>
+        ) : t.started ? (
           <span className="px-3 py-1.5 bg-red-500 text-white text-xs font-semibold rounded-full animate-pulse">LIVE NOW</span>
         ) : (
           <div className="flex gap-2">
@@ -157,6 +165,7 @@ function TournamentSheet({ tournaments, currentId, onPick, onClose }: {
         </div>
         <div className="overflow-y-auto p-2">
           {tournaments.map(t => {
+            const ended = hasEnded(t)
             const started = t.start_date ? new Date(`${t.start_date}T00:00:00Z`).getTime() <= now : true
             const isCur = t.id === currentId
             return (
@@ -168,7 +177,7 @@ function TournamentSheet({ tournaments, currentId, onPick, onClose }: {
                   : <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">⚽</span>}
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-bold text-gray-900 truncate">{t.name}</span>
-                  <span className={`text-[11px] font-semibold ${started ? 'text-red-500' : 'text-gray-400'}`}>{started ? '● Live' : startsLabel(t)}</span>
+                  <span className={`text-[11px] font-semibold ${ended ? 'text-gray-400' : started ? 'text-red-500' : 'text-gray-400'}`}>{ended ? '✓ Complete' : started ? '● Live' : startsLabel(t)}</span>
                 </span>
                 {busyId === t.id ? <Spinner className="w-4 h-4" /> : isCur ? <span className="text-emerald-600 font-bold flex-shrink-0">✓</span> : null}
               </button>
