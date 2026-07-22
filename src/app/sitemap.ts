@@ -34,6 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // all templated shells (no results/recaps) — indexing them dilutes the site with
       // thin pages, so keep them out of the sitemap (and they're noindex'd too).
       if (!rounds.length) continue
+      contentPages.push({ url: `${base}/${t.slug}`, changeFrequency: cf, priority: 0.7 })  // tournament "Wrapped" retro root
       contentPages.push({ url: `${base}/${t.slug}/teams`, changeFrequency: cf, priority: 0.8 })
       for (const tm of teams) contentPages.push({ url: `${base}/${t.slug}/teams/${tm.code}`, changeFrequency: cf, priority: 0.6 })
       const groups = groupLetters(teams)
