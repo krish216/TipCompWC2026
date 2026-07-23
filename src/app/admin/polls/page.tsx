@@ -55,6 +55,7 @@ export default function PollsAdminPage() {
           <h1 className="text-2xl font-extrabold text-gray-900 mt-1">Polls</h1>
           <p className="text-sm text-gray-500">Ask signed-in users a quick question on the homepage — football or product feedback.</p>
         </div>
+        <Link href="/admin/polls/results" className="shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">View results →</Link>
       </div>
 
       <NewPollForm onCreated={load} comps={comps} />
