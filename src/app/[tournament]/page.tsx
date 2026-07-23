@@ -16,48 +16,79 @@ export async function generateMetadata({ params }: { params: { tournament: strin
   const url = `https://tribepicks.com/${params.tournament}`
   return {
     title: `${name}, Wrapped — the TribePicks retro`,
-    description: `The TribePicks ${name} in numbers: the tipsters, the predictions, the comps, and the crowned champion tipster.`,
+    description: `The TribePicks ${name} in numbers: the tipsters, the predictions, the comps, and the champion podiums.`,
     alternates: { canonical: url },
-    openGraph: { title: `${name}, Wrapped 🏆`, description: `The TribePicks ${name} in numbers — and the champion tipster who called it best.`, url, type: 'website' },
+    openGraph: { title: `${name}, Wrapped 🏆`, description: `The TribePicks ${name} in numbers — the tipster, bracket and comp-chief podiums.`, url, type: 'website' },
   }
 }
 
-type Row = { display_name: string; country: string | null; total_points: number; correct_count: number; predictions_made: number }
-type Bracket = { entrants: number; champion: { name: string; points: number } | null }
-type Retro = { tipsters: number; predictions: number; comps: number; tribes: number; top: Row[]; bracket: Bracket | null }
+type Row = { user_id: string; display_name: string; country: string | null; total_points: number; correct_count: number; predictions_made: number }
+type PodiumEntry = { name: string; points: number; href: string | null }
+type Chief = { name: string; href: string }
+type Retro = {
+  tipsters: number; predictions: number; comps: number; tribes: number
+  top: Row[]
+  bracket: { entrants: number; podium: PodiumEntry[] } | null
+  chiefs: Chief[]
+}
 
 async function getRetro(tournamentId: string): Promise<Retro | null> {
   try {
     const admin = createAdminClient()
     const [{ data: lb }, { data: comps }] = await Promise.all([
       (admin.from('leaderboard') as any)
-        .select('display_name, country, total_points, correct_count, predictions_made')
+        .select('user_id, display_name, country, total_points, correct_count, predictions_made')
         .eq('tournament_id', tournamentId).order('total_points', { ascending: false }),
       (admin.from('comps') as any).select('id').eq('tournament_id', tournamentId),
     ])
     const rows = (lb ?? []) as Row[]
     if (!rows.length) return null
+    // Users with a public tipster profile = those on the leaderboard (bracket-only entrants
+    // may not have one, so we only link those that do).
+    const profileIds = new Set(rows.map(r => r.user_id))
     const compIds = ((comps ?? []) as { id: string }[]).map(c => c.id)
     const { count: tribes } = compIds.length
       ? await (admin.from('tribes') as any).select('*', { count: 'exact', head: true }).in('comp_id', compIds)
       : { count: 0 }
 
-    // Bracket Challenge — count distinct entrants; champion = highest bracket score (final_points).
-    let bracket: Bracket | null = null
+    // Bracket Challenge — distinct entrants + the top-3 podium by best bracket score.
+    let bracket: Retro['bracket'] = null
     const { data: be } = await (admin.from('bracket_entries') as any)
       .select('user_id, final_points, excluded').eq('tournament_id', tournamentId)
     const active = ((be ?? []) as { user_id: string; final_points: number | null; excluded: boolean }[]).filter(e => !e.excluded)
     if (active.length) {
       const entrants = new Set(active.map(e => e.user_id)).size
-      const scored = active.filter(e => e.final_points != null)
-      let champion: Bracket['champion'] = null
-      if (scored.length) {
-        const top = scored.reduce((a, b) => ((b.final_points as number) > (a.final_points as number) ? b : a))
-        const { data: cu } = await (admin.from('users') as any).select('display_name').eq('id', top.user_id).maybeSingle()
-        if (cu?.display_name) champion = { name: cu.display_name, points: top.final_points as number }
-      }
-      bracket = { entrants, champion }
+      // One bracket per person may enter several pools — keep each user's best score.
+      const best = new Map<string, number>()
+      for (const e of active) if (e.final_points != null && (!best.has(e.user_id) || e.final_points > best.get(e.user_id)!)) best.set(e.user_id, e.final_points)
+      const top3 = [...best.entries()].map(([user_id, points]) => ({ user_id, points })).sort((a, b) => b.points - a.points).slice(0, 3)
+      const { data: bu } = top3.length
+        ? await (admin.from('users') as any).select('id, display_name').in('id', top3.map(t => t.user_id))
+        : { data: [] }
+      const nameById = new Map<string, string>(((bu ?? []) as any[]).map(u => [u.id, u.display_name]))
+      const podium = top3.map(t => ({
+        name: nameById.get(t.user_id) ?? 'Unknown',
+        points: t.points,
+        href: profileIds.has(t.user_id) ? `/tipster/${t.user_id}` : null,
+      }))
+      bracket = { entrants, podium }
     }
+
+    // Comp-Chief podium — the composite chief_scores rating, excluding platform admins (the
+    // tournament organiser). Tolerant: [] if the view isn't applied/refreshed.
+    let chiefs: Chief[] = []
+    try {
+      const { data: admins } = await (admin.from('admin_users') as any).select('user_id')
+      const adminSet = new Set(((admins ?? []) as any[]).map(a => a.user_id))
+      const { data: cs } = await (admin.from('chief_scores') as any)
+        .select('chief_id, score').not('rank_global', 'is', null).order('score', { ascending: false }).limit(12)
+      const eligible = ((cs ?? []) as any[]).filter(r => !adminSet.has(r.chief_id)).slice(0, 3)
+      if (eligible.length) {
+        const { data: cu } = await (admin.from('users') as any).select('id, display_name').in('id', eligible.map(r => r.chief_id))
+        const cname = new Map<string, string>(((cu ?? []) as any[]).map(u => [u.id, u.display_name]))
+        chiefs = eligible.map(r => ({ name: cname.get(r.chief_id) ?? '', href: `/chief/${r.chief_id}` })).filter(c => c.name)
+      }
+    } catch { /* chief_scores view optional */ }
 
     return {
       tipsters: rows.length,
@@ -66,11 +97,13 @@ async function getRetro(tournamentId: string): Promise<Retro | null> {
       tribes: tribes ?? 0,
       top: rows.slice(0, 5),
       bracket,
+      chiefs,
     }
   } catch { return null }
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+const MEDAL = ['🥇', '🥈', '🥉']
 
 export default async function TournamentRetroPage({ params }: { params: { tournament: string } }) {
   const t = await getTournamentBySlug(params.tournament)
@@ -117,7 +150,9 @@ export default async function TournamentRetroPage({ params }: { params: { tourna
           {r.top[0] && (
             <section className="mt-8 rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-white px-6 py-7 text-center">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">🏆 {(t as any).name} Champion Tipster</p>
-              <p className="mt-2 text-2xl sm:text-3xl font-black text-gray-900">{r.top[0].display_name}</p>
+              <p className="mt-2 text-2xl sm:text-3xl font-black text-gray-900">
+                <Link href={`/tipster/${r.top[0].user_id}`} className="hover:underline">{r.top[0].display_name}</Link>
+              </p>
               <p className="mt-1 text-sm text-gray-600">
                 <span className="font-bold text-amber-700 tabular-nums">{fmt(r.top[0].total_points)} pts</span>
                 {' · '}{r.top[0].correct_count}/{r.top[0].predictions_made} correct
@@ -126,15 +161,15 @@ export default async function TournamentRetroPage({ params }: { params: { tourna
             </section>
           )}
 
-          {/* Podium / top 5 */}
+          {/* Podium chasers (ranks 2–5) */}
           {r.top.length > 1 && (
             <section className="mt-6">
               <h2 className="text-sm font-black text-gray-900 uppercase tracking-wide">The podium chasers</h2>
               <div className="mt-3 divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white">
                 {r.top.slice(1).map((row, i) => (
-                  <div key={row.display_name + i} className="flex items-center gap-3 px-4 py-3">
+                  <div key={row.user_id + i} className="flex items-center gap-3 px-4 py-3">
                     <span className="w-6 text-center text-sm font-black text-gray-400 tabular-nums">{i + 2}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">{row.display_name}</span>
+                    <Link href={`/tipster/${row.user_id}`} className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 hover:underline">{row.display_name}</Link>
                     <span className="text-sm font-bold text-emerald-600 tabular-nums">{fmt(row.total_points)} pts</span>
                   </div>
                 ))}
@@ -142,23 +177,43 @@ export default async function TournamentRetroPage({ params }: { params: { tourna
             </section>
           )}
 
-          {/* Bracket Challenge */}
+          {/* Bracket Challenge podium */}
           {r.bracket && (
-            <section className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 px-5 py-5 sm:px-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600">🗺️ The Bracket Challenge</p>
-                  <p className="mt-1 text-sm text-gray-700">
-                    <strong className="text-gray-900 tabular-nums">{fmt(r.bracket.entrants)}</strong> brackets called — group stage all the way to the final.
-                  </p>
+            <section className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 px-5 py-5 sm:px-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600">🗺️ The Bracket Challenge</p>
+              <p className="mt-1 text-sm text-gray-700">
+                <strong className="text-gray-900 tabular-nums">{fmt(r.bracket.entrants)}</strong> brackets called — group stage all the way to the final.
+              </p>
+              {r.bracket.podium.length > 0 && (
+                <div className="mt-3 divide-y divide-emerald-100 rounded-xl border border-emerald-100 bg-white">
+                  {r.bracket.podium.map((p, i) => (
+                    <div key={p.name + i} className="flex items-center gap-3 px-4 py-3">
+                      <span className="w-6 text-center text-lg leading-none">{MEDAL[i]}</span>
+                      {p.href
+                        ? <Link href={p.href} className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 hover:underline">{p.name}</Link>
+                        : <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">{p.name}</span>}
+                      <span className="text-sm font-bold text-emerald-600 tabular-nums">{fmt(p.points)} pts</span>
+                    </div>
+                  ))}
                 </div>
-                {r.bracket.champion && (
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Bracket champion</p>
-                    <p className="text-base font-black text-gray-900">{r.bracket.champion.name}</p>
-                    <p className="text-xs font-bold text-emerald-600 tabular-nums">{fmt(r.bracket.champion.points)} pts</p>
+              )}
+            </section>
+          )}
+
+          {/* Comp-Chief podium */}
+          {r.chiefs.length > 0 && (
+            <section className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/40 px-5 py-5 sm:px-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-600">👑 Top Comp-Chiefs</p>
+              <p className="mt-1 text-sm text-gray-700">
+                The organisers who ran the best comps — by the TribePicks Comp-Chief rating (tipsters led, kept active, and brought back).
+              </p>
+              <div className="mt-3 divide-y divide-violet-100 rounded-xl border border-violet-100 bg-white">
+                {r.chiefs.map((c, i) => (
+                  <div key={c.name + i} className="flex items-center gap-3 px-4 py-3">
+                    <span className="w-6 text-center text-lg leading-none">{MEDAL[i]}</span>
+                    <Link href={c.href} className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 hover:underline">{c.name}</Link>
                   </div>
-                )}
+                ))}
               </div>
             </section>
           )}
