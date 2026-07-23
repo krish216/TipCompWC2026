@@ -146,6 +146,24 @@ export default async function TournamentRetroPage({ params }: { params: { tourna
             ))}
           </section>
 
+          {/* Completionists — final WC figures (computed 2026-07-23). Gated to wc2026: these
+              per-match / per-round coverage counts are tournament-specific, and deriving them
+              live would mean scanning all ~69k predictions on every render. Mock accounts excluded. */}
+          {params.tournament === 'wc2026' && (
+            <section className="mt-6 rounded-2xl border border-gray-200 bg-white px-5 py-4 sm:px-6">
+              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-2 text-center">
+                <div>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">122</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tipped all 104 matches</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">215</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tipped every round</p>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Champion */}
           {r.top[0] && (
             <section className="mt-8 rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-white px-6 py-7 text-center">
