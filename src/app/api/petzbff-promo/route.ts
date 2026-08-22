@@ -35,6 +35,11 @@ const CODES: Record<number, string> = {
   18: 'Maisey18', 21: 'Bear21', 24: 'Waffles24', 27: 'Murph27', 30: 'QNeve30',
 }
 
+// Soft cap: how many completed plays one email gets. Blunts casual replay-farming and keeps
+// the lead list clean. NOT a hard control — it keys on email, which a determined user can
+// change; the real cost bound is a usageLimit on the high-value Shopify codes.
+const PLAY_LIMIT = 3
+
 const Body = z.object({
   email:     z.string().trim().toLowerCase().email().max(254),
   consent:   z.boolean(),
@@ -78,6 +83,31 @@ export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   if (throttled(ip)) {
     return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 })
+  }
+
+  // Soft anti-farming cap, enforced at the gate ('start') so a blocked player never begins a
+  // 4th run. Counts 'finish' rows (completed plays) for this email, so abandoning a run
+  // mid-quiz doesn't burn a go. On a block we hand back their best prior code so the message
+  // can resurface value instead of dead-ending. Fails OPEN: a read error lets them play
+  // rather than lose a real lead.
+  if (stage === 'start') {
+    try {
+      const admin = createAdminClient()
+      const { data: prior } = await (admin.from('petzbff_promo') as any)
+        .select('discount_pct, code')
+        .eq('email', email).eq('stage', 'finish')
+        .order('discount_pct', { ascending: false })
+      const plays = ((prior ?? []) as any[]).length
+      if (plays >= PLAY_LIMIT) {
+        const best = ((prior ?? []) as any[])[0]
+        return NextResponse.json({
+          ok: false, error: 'play_limit', plays,
+          bestCode: best?.code ?? null, bestPct: best?.discount_pct ?? null,
+        }, { status: 200 })
+      }
+    } catch (err) {
+      console.error('[petzbff-promo] play-limit check failed', err)
+    }
   }
 
   const code = typeof pct === 'number' ? CODES[pct] : null

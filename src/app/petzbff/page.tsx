@@ -1,23 +1,18 @@
-import type { Metadata } from 'next'
-import PetzBffQuizClient from './PetzBffQuizClient'
+import { redirect } from 'next/navigation'
 
-// PetzBFF is the founder's second business (petzbff.com.au, a Shopify store). The quiz
-// lives here rather than on Shopify because Shopify's storefront will not let a custom
-// form create a customer - it attaches its captcha token only to forms rendered by its
-// own Liquid form tag, so every custom variant is rejected and the lead is lost silently.
-// Hosting it here gives a real row per play (migration 182), the score, and a sent email.
+export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'The Dog Lovers Show Quiz · PetzBFF',
-  description:
-    'Ten questions about dogs, getting harder as you go. Every one you get right adds 3% to your PetzBFF discount. Bank it, or stake it on the next one.',
-  alternates: { canonical: 'https://tribepicks.com/petzbff' },
-  openGraph: {
-    title: 'The Dog Lovers Show Quiz · PetzBFF',
-    description: 'Bank it or stake it. Ten from ten is 30% off at PetzBFF.',
-  },
-}
-
-export default function PetzBffPage() {
-  return <PetzBffQuizClient />
+// The quiz moved to /petzbff/quiz (now a sibling of /petzbff/wheel). Keep /petzbff working for
+// every link already in the wild — the Shopify handoff and confirmation emails all point here —
+// by forwarding to the quiz, query string and all, so the ?email= prefill survives the hop.
+export default function PetzBffIndex(
+  { searchParams }: { searchParams: Record<string, string | string[] | undefined> },
+) {
+  const qs = new URLSearchParams(
+    Object.entries(searchParams).flatMap(([k, v]) =>
+      Array.isArray(v) ? v.map(x => [k, x] as [string, string])
+        : v != null ? [[k, v] as [string, string]]
+        : []),
+  ).toString()
+  redirect(`/petzbff/quiz${qs ? `?${qs}` : ''}`)
 }

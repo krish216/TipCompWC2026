@@ -10,7 +10,9 @@ const LEADS_KEY = 'pbff_leads_v1'   // on-device backup; independent of the netw
 
 // A lead is only "captured" when the server says so. Nothing here fails quietly - that is
 // what cost a day of trade-show leads on the Shopify version.
-async function capture(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; emailed?: boolean }> {
+async function capture(body: Record<string, unknown>): Promise<{
+  ok: boolean; error?: string; emailed?: boolean; bestCode?: string | null; bestPct?: number | null
+}> {
   try {
     const res = await fetch('/api/petzbff-promo', {
       method:  'POST',
@@ -18,7 +20,9 @@ async function capture(body: Record<string, unknown>): Promise<{ ok: boolean; er
       body:    JSON.stringify(body),
     })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok || !json?.ok) return { ok: false, error: json?.error || `http_${res.status}` }
+    // On the play-limit block the server hands back the player's best prior code, so pass it
+    // through for the gate message rather than collapsing it into a bare error.
+    if (!res.ok || !json?.ok) return { ok: false, error: json?.error || `http_${res.status}`, bestCode: json?.bestCode ?? null, bestPct: json?.bestPct ?? null }
     // `emailed` tells the finish screen whether the code email actually went out, so we can
     // say "sent to your inbox" rather than promising a mail that may have failed.
     return { ok: true, emailed: !!json?.emailed }
@@ -107,6 +111,13 @@ export default function PetzBffQuizClient() {
     setBusy(false)
 
     if (!res.ok) {
+      if (res.error === 'play_limit') {
+        // Soft cap reached. Resurface their best code rather than dead-ending them.
+        setError(res.bestCode
+          ? `You’ve had your three goes — thanks for playing! Your best was ${res.bestPct}% off with code ${res.bestCode}. Check your inbox for it.`
+          : 'You’ve already played three times. Check your inbox for your discount code.')
+        return
+      }
       // Deliberately blocking. A quiz that plays but never records the lead is worse than
       // one that says it is broken.
       setError(res.error === 'rate_limited'
