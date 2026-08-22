@@ -83,3 +83,9 @@ Every migration that creates a new table **must** include explicit grants, other
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.my_table TO anon, authenticated;
 GRANT ALL ON TABLE public.my_table TO service_role;
 ```
+
+## PetzBFF quiz (branch `petzbff-quiz`)
+A lead-capture quiz for the founder's second business, at `/petzbff`, with capture in
+`petzbff_promo` (migration 182). Built but **not deployed and never verified against the
+database**. Read `docs/petzbff-quiz-handover.md` before touching it — it records why the capture
+cannot live on Shopify, and what must be tested before this is trusted with real leads.
