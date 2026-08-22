@@ -10,7 +10,7 @@ const LEADS_KEY = 'pbff_leads_v1'   // on-device backup; independent of the netw
 
 // A lead is only "captured" when the server says so. Nothing here fails quietly - that is
 // what cost a day of trade-show leads on the Shopify version.
-async function capture(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+async function capture(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; emailed?: boolean }> {
   try {
     const res = await fetch('/api/petzbff-promo', {
       method:  'POST',
@@ -19,7 +19,9 @@ async function capture(body: Record<string, unknown>): Promise<{ ok: boolean; er
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok || !json?.ok) return { ok: false, error: json?.error || `http_${res.status}` }
-    return { ok: true }
+    // `emailed` tells the finish screen whether the code email actually went out, so we can
+    // say "sent to your inbox" rather than promising a mail that may have failed.
+    return { ok: true, emailed: !!json?.emailed }
   } catch {
     return { ok: false, error: 'network' }
   }
@@ -69,6 +71,8 @@ export default function PetzBffQuizClient() {
   const [outcome, setOutcome] = useState<Outcome>('busted')
   const [finalPct, setFinal]  = useState(STEP)
   const [copied, setCopied]   = useState(false)
+  // null = still sending, true = email confirmed sent, false = send failed (code still on screen)
+  const [emailed, setEmailed] = useState<boolean | null>(null)
 
   const sessionId = useRef<string>('')
   if (!sessionId.current && typeof crypto !== 'undefined') sessionId.current = crypto.randomUUID()
@@ -104,7 +108,7 @@ export default function PetzBffQuizClient() {
   }, [email, consent, source])
 
   const finish = useCallback(async (pct: number, how: Outcome, scored: number) => {
-    setFinal(pct); setOutcome(how); setScreen('result'); setCopied(false)
+    setFinal(pct); setOutcome(how); setScreen('result'); setCopied(false); setEmailed(null)
     // Fire and forget: the code is already on screen, so a failure here must not block
     // the player. It is still logged server-side and surfaced in the console.
     const res = await capture({
@@ -112,6 +116,10 @@ export default function PetzBffQuizClient() {
       sessionId: sessionId.current, score: scored, outcome: how, pct, source,
     })
     if (!res.ok) console.error('[petzbff] finish not recorded:', res.error)
+    // Drives the "sent to your inbox" confirmation on the result screen. A failed request
+    // or a captured-but-unsent code both resolve to false, so we never promise a mail that
+    // did not go out — the code stays copyable on screen either way.
+    setEmailed(res.ok ? (res.emailed ?? false) : false)
   }, [email, consent, source])
 
   const answer = (choice: number) => {
@@ -270,6 +278,18 @@ export default function PetzBffQuizClient() {
             </button>
             <p className="mb-3 mt-2 min-h-[18px] text-[13px] font-bold text-[#4f7d5a]">{copied ? 'Copied. Paste it at checkout.' : ''}</p>
 
+            {/* Email-delivery confirmation. Resolves a beat after the result screen appears,
+                since the send is fire-and-forget — the code is already on screen regardless. */}
+            <div className="mb-4 rounded-xl border border-black/10 bg-white px-4 py-3 text-[13.5px] leading-snug">
+              {emailed === null ? (
+                <span className="opacity-70">📨 Sending your code to <strong>{email}</strong>…</span>
+              ) : emailed ? (
+                <span className="text-[#4f7d5a]">✅ We’ve emailed your code to <strong>{email}</strong>. Check your inbox (and spam, just in case).</span>
+              ) : (
+                <span className="text-[#b8543c]">We couldn’t email your code just now — copy it above so you don’t lose it. It still works at checkout.</span>
+              )}
+            </div>
+
             <div className="grid gap-2.5">
               <a href="https://petzbff.com.au/collections/all" target="_blank" rel="noopener noreferrer"
                  className="w-full rounded-xl bg-[#e08151] px-5 py-4 text-[17px] font-bold uppercase tracking-wide text-white hover:opacity-90">
@@ -282,7 +302,7 @@ export default function PetzBffQuizClient() {
                 setScreen('gate')
               }}>Play again</Btn>
             </div>
-            <p className="mt-3 text-xs opacity-70">Enter the code at checkout. One use per customer. We have emailed you a copy.</p>
+            <p className="mt-3 text-xs opacity-70">Enter the code at checkout. One use per customer.</p>
           </div>
         </Card>
       )}
