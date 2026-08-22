@@ -9,6 +9,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SupabaseProvider } from '@/components/layout/SupabaseProvider'
 import { UserPrefsProvider } from '@/components/layout/UserPrefsContext'
 import { Navbar } from '@/components/layout/Navbar'
+import { SiteChrome } from '@/components/layout/SiteChrome'
 import { EmailVerificationBanner } from '@/components/layout/EmailVerificationBanner'
 import { EplPollBanner } from '@/components/layout/EplPollBanner'
 import { WrapupSurveyBanner } from '@/components/layout/WrapupSurveyBanner'
@@ -117,26 +118,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <SupabaseProvider initialSession={clientSession || null}>
           <UserPrefsProvider>
-            <Suspense fallback={<div className="h-12 bg-white border-b border-gray-200" />}>
-              <Navbar isAdmin={isAdmin} />
-            </Suspense>
-            <EmailVerificationBanner />
-            <EplPollBanner />
-            <WrapupSurveyBanner />
-            {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
-            <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
-              {children}
-            </main>
-            <Suspense fallback={null}><FeedbackButton /></Suspense>
-            <Suspense fallback={null}><NpsPulse /></Suspense>
-            <Suspense fallback={null}><RefCapture /></Suspense>
-            <Toaster
-              position="top-right"
-              toastOptions={{ duration: 3000, style: { fontSize: '13px' } }}
-            />
-            {/* Bottom padding clears the fixed mobile bottom-nav (≈56px + safe area);
-                reset to normal on sm+ where that nav is hidden. */}
-            <footer className="border-t border-gray-200 bg-white mt-8 px-4 pt-4 pb-[calc(5rem_+_env(safe-area-inset-bottom))] sm:pb-4">
+            {/* SiteChrome renders the nav/banners/footer on every route EXCEPT bare ones
+                (e.g. /petzbff), where only the page body shows — see SiteChrome.tsx. */}
+            <SiteChrome
+              header={
+                <>
+                  <Suspense fallback={<div className="h-12 bg-white border-b border-gray-200" />}>
+                    <Navbar isAdmin={isAdmin} />
+                  </Suspense>
+                  <EmailVerificationBanner />
+                  <EplPollBanner />
+                  <WrapupSurveyBanner />
+                </>
+              }
+              footer={
+                <>
+                  <Suspense fallback={null}><FeedbackButton /></Suspense>
+                  <Suspense fallback={null}><NpsPulse /></Suspense>
+                  <Suspense fallback={null}><RefCapture /></Suspense>
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{ duration: 3000, style: { fontSize: '13px' } }}
+                  />
+                  {/* Bottom padding clears the fixed mobile bottom-nav (≈56px + safe area);
+                      reset to normal on sm+ where that nav is hidden. */}
+                  <footer className="border-t border-gray-200 bg-white mt-8 px-4 pt-4 pb-[calc(5rem_+_env(safe-area-inset-bottom))] sm:pb-4">
               <div className="max-w-4xl mx-auto space-y-3">
                 {/* Nav links — single centred wrapping row */}
                 <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
@@ -210,7 +216,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </a>
                 </div>
               </div>
-            </footer>
+                  </footer>
+                </>
+              }
+            >
+              {children}
+            </SiteChrome>
           </UserPrefsProvider>
         </SupabaseProvider>
         <Analytics />

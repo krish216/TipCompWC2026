@@ -33,6 +33,27 @@ function backupLocally(email: string) {
   } catch { /* private mode; the server write is the real record */ }
 }
 
+// Shared bits of chrome. These MUST live at module scope, not inside the component:
+// a component defined inside another is a new function identity on every render, so React
+// unmounts and remounts its subtree each time — which was blurring the email input on every
+// keystroke (the input sits inside <Card>, so it was destroyed and recreated as you typed).
+function Card({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-2xl border border-black/10 bg-[#fdf8f2] p-6 sm:p-7">{children}</div>
+}
+function Btn({ onClick, children, ghost, disabled }: {
+  onClick?: () => void; children: React.ReactNode; ghost?: boolean; disabled?: boolean
+}) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      className={`w-full rounded-xl px-5 py-4 text-[17px] font-bold uppercase tracking-wide transition disabled:opacity-50 ${
+        ghost ? 'border border-black/30 bg-transparent text-[#121212] hover:bg-black/5'
+              : 'bg-[#e08151] text-white hover:opacity-90'}`}>
+      {children}
+    </button>
+  )
+}
+
 export default function PetzBffQuizClient() {
   const [screen, setScreen]   = useState<Screen>('gate')
   const [bank, setBank]       = useState<Question[]>([])
@@ -105,22 +126,6 @@ export default function PetzBffQuizClient() {
   }
 
   const code = codeFor(finalPct) ?? 'PETZBFF3'
-
-  // Shared bits of chrome
-  const Card = ({ children }: { children: React.ReactNode }) => (
-    <div className="rounded-2xl border border-black/10 bg-[#fdf8f2] p-6 sm:p-7">{children}</div>
-  )
-  const Btn = ({ onClick, children, ghost, disabled }: {
-    onClick?: () => void; children: React.ReactNode; ghost?: boolean; disabled?: boolean
-  }) => (
-    <button
-      type="button" onClick={onClick} disabled={disabled}
-      className={`w-full rounded-xl px-5 py-4 text-[17px] font-bold uppercase tracking-wide transition disabled:opacity-50 ${
-        ghost ? 'border border-black/30 bg-transparent text-[#121212] hover:bg-black/5'
-              : 'bg-[#e08151] text-white hover:opacity-90'}`}>
-      {children}
-    </button>
-  )
 
   return (
     <main className="mx-auto max-w-[640px] px-4 py-8 text-[#121212]">
