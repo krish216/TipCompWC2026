@@ -20,10 +20,14 @@ export const dynamic = 'force-dynamic'
 // The whole reason this route exists is that a silent capture failure cost a day of
 // trade-show leads.
 
-// PetzBFF's own address — requires petzbff.com.au to be a VERIFIED sending domain in Resend
-// (add the domain + its SPF/DKIM DNS records first). Until then Resend rejects the send; the
-// lead is still captured and the code is shown on screen. Override per-env via RESEND_FROM.
-const FROM = process.env.RESEND_FROM ?? 'PetzBFF <paws@petzbff.com.au>'
+// PetzBFF's own address. petzbff.com.au is a VERIFIED sending domain in Resend, so this
+// sends as PetzBFF, not TribePicks.
+//
+// Deliberately NOT the shared RESEND_FROM env var: that one is set to the TribePicks address
+// (no-reply@mail.tribepicks.com) for TribePicks' own transactional mail, and PetzBFF must
+// never inherit it — a dog-store discount email from a football-tipping domain is a brand and
+// deliverability smell. Override only via the PetzBFF-specific PETZBFF_RESEND_FROM if ever needed.
+const FROM = process.env.PETZBFF_RESEND_FROM ?? 'PetzBFF <paws@petzbff.com.au>'
 
 // The Shopify discount codes. Must match the codes in the quiz UI and in Shopify admin.
 const CODES: Record<number, string> = {
