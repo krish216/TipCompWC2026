@@ -82,6 +82,16 @@ export default function PetzBffQuizClient() {
     return new URLSearchParams(window.location.search).get('ref') || undefined
   }, [])
 
+  // Prefill the email when a player arrives from the PetzBFF Shopify quiz gate, which
+  // redirects here as tribepicks.com/petzbff?email=…&ref=shopify-quiz. Done in an effect
+  // (not a lazy useState) so the SSR'd input starts empty and there's no hydration mismatch.
+  // Consent is deliberately NOT carried in the URL — it's an affirmative action taken here,
+  // where the lead is recorded. The player still ticks the box and hits start.
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get('email')
+    if (e) setEmail(e.trim())
+  }, [])
+
   const q = bank[idx]
   const pot = correct * STEP
   const answered = picked !== null
