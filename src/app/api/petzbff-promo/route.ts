@@ -49,6 +49,7 @@ const Body = z.object({
   outcome:   z.enum(['banked', 'busted', 'perfect']).optional(),
   pct:       z.number().int().min(3).max(30).optional(),
   source:    z.string().trim().max(60).optional(),
+  quiz:      z.enum(['dog', 'cat']).default('dog'),   // which quiz — labels the lead + scopes the cap
 })
 
 // Best-effort throttle. Serverless instances are not shared, so this stops a hammering
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'bad_request' }, { status: 400 })
   }
 
-  const { email, consent, stage, sessionId, score, outcome, pct, source } = parsed
+  const { email, consent, stage, sessionId, score, outcome, pct, source, quiz } = parsed
 
   if (!consent) {
     return NextResponse.json({ ok: false, error: 'consent_required' }, { status: 400 })
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       const admin = createAdminClient()
       const { data: prior } = await (admin.from('petzbff_promo') as any)
         .select('discount_pct, code')
-        .eq('email', email).eq('stage', 'finish')
+        .eq('email', email).eq('stage', 'finish').eq('quiz', quiz)
         .order('discount_pct', { ascending: false })
       const plays = ((prior ?? []) as any[]).length
       if (plays >= PLAY_LIMIT) {
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest) {
         email,
         consent,
         stage,
+        quiz,
         score:        score  ?? null,
         outcome:      outcome ?? null,
         discount_pct: pct    ?? null,

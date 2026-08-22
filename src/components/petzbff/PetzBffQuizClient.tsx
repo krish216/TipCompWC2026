@@ -1,10 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { newRun, codeFor, STEP, type Question } from '@/lib/petzbff-quiz'
+import { codeFor, STEP, newRun as dogRun, type Question } from '@/lib/petzbff-quiz'
+import { newRun as catRun } from '@/lib/petzbff-cat-quiz'
+import { QuizIllustration } from './QuizIllustration'
 
 type Screen = 'gate' | 'quiz' | 'result'
 type Outcome = 'banked' | 'busted' | 'perfect'
+
+// Per-species config. The engine, scoring, capture and result screens are identical for the
+// dog and cat quizzes; only the title, intro line, the `quiz` discriminator (which labels the
+// lead + scopes the 3-play cap), and — keyed off it — the question bank differ. Config is kept
+// serialisable (no functions): a Server Component page can't hand a function to this Client
+// Component, so we resolve the bank here from `quiz` instead.
+export interface QuizConfig {
+  quiz: 'dog' | 'cat'
+  title: string
+  intro: string
+}
+
+const runFor = (quiz: QuizConfig['quiz']): Question[] => (quiz === 'cat' ? catRun() : dogRun())
 
 const LEADS_KEY = 'pbff_leads_v1'   // on-device backup; independent of the network
 
@@ -60,7 +75,7 @@ function Btn({ onClick, children, ghost, disabled }: {
   )
 }
 
-export default function PetzBffQuizClient() {
+export default function PetzBffQuizClient({ config }: { config: QuizConfig }) {
   const [screen, setScreen]   = useState<Screen>('gate')
   const [bank, setBank]       = useState<Question[]>([])
   const [idx, setIdx]         = useState(0)
@@ -107,7 +122,7 @@ export default function PetzBffQuizClient() {
 
     setBusy(true); setError('')
     backupLocally(addr)
-    const res = await capture({ email: addr, consent, stage: 'start', sessionId: sessionId.current, source })
+    const res = await capture({ email: addr, consent, stage: 'start', sessionId: sessionId.current, source, quiz: config.quiz })
     setBusy(false)
 
     if (!res.ok) {
@@ -125,8 +140,8 @@ export default function PetzBffQuizClient() {
         : 'We could not save your email just then. Have another go in a moment.')
       return
     }
-    setBank(newRun()); setIdx(0); setCorrect(0); setPicked(null); setScreen('quiz')
-  }, [email, consent, source])
+    setBank(runFor(config.quiz)); setIdx(0); setCorrect(0); setPicked(null); setScreen('quiz')
+  }, [email, consent, source, config])
 
   const finish = useCallback(async (pct: number, how: Outcome, scored: number) => {
     setFinal(pct); setOutcome(how); setScreen('result'); setCopied(false); setEmailed(null)
@@ -134,14 +149,14 @@ export default function PetzBffQuizClient() {
     // the player. It is still logged server-side and surfaced in the console.
     const res = await capture({
       email: email.trim().toLowerCase(), consent, stage: 'finish',
-      sessionId: sessionId.current, score: scored, outcome: how, pct, source,
+      sessionId: sessionId.current, score: scored, outcome: how, pct, source, quiz: config.quiz,
     })
     if (!res.ok) console.error('[petzbff] finish not recorded:', res.error)
     // Drives the "sent to your inbox" confirmation on the result screen. A failed request
     // or a captured-but-unsent code both resolve to false, so we never promise a mail that
     // did not go out — the code stays copyable on screen either way.
     setEmailed(res.ok ? (res.emailed ?? false) : false)
-  }, [email, consent, source])
+  }, [email, consent, source, config])
 
   const answer = (choice: number) => {
     if (answered) return
@@ -162,12 +177,8 @@ export default function PetzBffQuizClient() {
         <>
           <div className="mb-5 rounded-2xl bg-gradient-to-r from-[#efddc9] to-[#c2ccb1] px-6 py-7">
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] opacity-75">PetzBFF presents</p>
-            <h1 className="mb-2 text-3xl font-black uppercase leading-tight sm:text-4xl">The Dog Lovers Show Quiz</h1>
-            <p className="text-[17px] leading-relaxed">
-              Ten questions about dogs, getting harder as you go. Every one you get right adds 3% to your
-              discount. Then you choose: bank what you are holding, or stake it on the next question. Get one
-              wrong and you are back to 3%. Hold your nerve all ten and it is 30% off.
-            </p>
+            <h1 className="mb-2 text-3xl font-black uppercase leading-tight sm:text-4xl">{config.title}</h1>
+            <p className="text-[17px] leading-relaxed">{config.intro}</p>
           </div>
           <Card>
             <ul className="mb-6 grid gap-2 text-[15px]">
@@ -221,6 +232,7 @@ export default function PetzBffQuizClient() {
             ))}
           </div>
 
+          {q.image && <QuizIllustration name={q.image} />}
           <h2 className="mb-4 text-[22px] font-bold leading-snug sm:text-[26px]">{q.q}</h2>
 
           <div className="grid gap-2.5">

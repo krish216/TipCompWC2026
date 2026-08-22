@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import PetzBffQuizClient from './PetzBffQuizClient'
+import PetzBffQuizClient from '@/components/petzbff/PetzBffQuizClient'
 
 // PetzBFF is the founder's second business (petzbff.com.au, a Shopify store). The quiz
 // lives here rather than on Shopify because Shopify's storefront will not let a custom
@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   },
 }
 
-export default function PetzBffPage() {
-  return <PetzBffQuizClient />
+export default function PetzBffQuizPage() {
+  return <PetzBffQuizClient config={{
+    quiz: 'dog',
+    title: 'The Dog Lovers Show Quiz',
+    intro: 'Ten questions about dogs, getting harder as you go. Every one you get right adds 3% to your ' +
+      'discount. Then you choose: bank what you are holding, or stake it on the next question. Get one ' +
+      'wrong and you are back to 3%. Hold your nerve all ten and it is 30% off.',
+  }} />
 }

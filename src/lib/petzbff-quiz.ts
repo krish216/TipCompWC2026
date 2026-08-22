@@ -14,8 +14,9 @@
 export interface Question {
   q: string
   options: string[]
-  a: number      // index of the correct option
-  why: string    // one-line explainer shown after answering
+  a: number       // index of the correct option
+  why: string     // one-line explainer shown after answering
+  image?: string  // optional illustration key (see QuizIllustration) — makes it a visual question
 }
 
 export const STEP = 3                    // % added per correct answer
@@ -314,16 +315,25 @@ export function scramble(question: Question): Question {
   const pairs = shuffle(question.options.map((o, i) => ({ o, right: i === question.a })))
   let a = 0
   const options = pairs.map((p, i) => { if (p.right) a = i; return p.o })
-  return { q: question.q, options, a, why: question.why }
+  return { q: question.q, options, a, why: question.why, image: question.image }
 }
 
-/** One run: the fixed ladder, then a fresh random tail, all with shuffled options. */
-export function newRun(): Question[] {
+/**
+ * One run from any species bank: the fixed easy ladder, then a fresh random tail drawn from
+ * the medium and hard pools, all with shuffled options. Shared by the dog quiz (below) and the
+ * cat quiz (petzbff-cat-quiz.ts) so both behave identically — only the questions differ.
+ */
+export function assembleRun(fixed: Question[], medium: Question[], hard: Question[]): Question[] {
   return [
-    ...FIXED,
-    ...shuffle(MEDIUM).slice(0, DRAW.medium),
-    ...shuffle(HARD).slice(0, DRAW.hard),
+    ...fixed,
+    ...shuffle(medium).slice(0, DRAW.medium),
+    ...shuffle(hard).slice(0, DRAW.hard),
   ].map(scramble)
+}
+
+/** One run of the Dog quiz. */
+export function newRun(): Question[] {
+  return assembleRun(FIXED, MEDIUM, HARD)
 }
 
 export const codeFor = (pct: number): string | undefined => CODES[pct]
