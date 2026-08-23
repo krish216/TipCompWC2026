@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Screen = 'gate' | 'spinning' | 'result'
 interface Prize { id: string; label: string; valueCents: number }
@@ -21,6 +21,7 @@ const SEGMENTS: { id: string; label: string; fill: string; ink: string }[] = [
 const N = SEGMENTS.length
 const SEG = 360 / N
 const SPIN_MS = 4200
+const DEVICE_KEY = 'pbff_wheel_played_v1'   // one play per device (belt-and-braces with the per-email server rule)
 
 // SVG helpers: build one wedge path for segment i on a unit-ish circle (radius 100, centre 110).
 function wedgePath(i: number): string {
@@ -56,6 +57,20 @@ export default function PetzBffWheelClient() {
     return new URLSearchParams(window.location.search).get('ref') || 'wheel'
   }, [])
 
+  // One play per device: if this browser has already spun, show that result straight away
+  // rather than the gate, so the same phone can't be replayed with a fresh email. The server's
+  // one-spin-per-email rule is the real guard; this closes the easy same-device loophole.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DEVICE_KEY)
+      if (saved) {
+        setPrize(JSON.parse(saved) as Prize)
+        setAlready(true)
+        setScreen('result')
+      }
+    } catch { /* private mode — fall back to the server's per-email guard */ }
+  }, [])
+
   const spin = async () => {
     const addr = email.trim().toLowerCase()
     if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(addr)) { setError('That email does not look right. Mind checking it?'); return }
@@ -82,6 +97,8 @@ export default function PetzBffWheelClient() {
 
     const won: Prize = res.prize
     setPrize(won); setAlready(!!res.already)
+    // Remember on this device so a refresh (or a second email) can't spin again.
+    try { localStorage.setItem(DEVICE_KEY, JSON.stringify(won)) } catch { /* private mode */ }
 
     // Land the pointer (fixed at top) on a segment matching the won prize. Pick the segment
     // index, then rotate several full turns plus the offset that brings its centre to the top,
