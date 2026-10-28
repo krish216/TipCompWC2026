@@ -77,10 +77,14 @@ export function EoiForm({ tournamentId, source, initialIntent }: { tournamentId:
       <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" required maxLength={120} className={input} />
 
       {intent === 'organise' ? (
-        <div className="flex gap-2">
-          <input value={organisation} onChange={e => setOrganisation(e.target.value)} placeholder="Workplace / club / group (optional)" maxLength={120} className={`${input} flex-1`} />
-          <input value={groupSize} onChange={e => setGroupSize(e.target.value)} placeholder="How many people?" inputMode="numeric" className={`${input} w-36`} />
-        </div>
+        <>
+          <input value={organisation} onChange={e => setOrganisation(e.target.value)} placeholder="Workplace / club / group (optional)" maxLength={120} className={input} />
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-xs text-gray-500">Roughly how many people? <span className="text-gray-400">(optional)</span></span>
+            <input value={groupSize} onChange={e => setGroupSize(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 25" inputMode="numeric" maxLength={5}
+              className="w-24 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
+          </label>
+        </>
       ) : (
         <label className="flex items-center justify-between gap-3">
           <span className="text-xs text-gray-500">Tickets you'd like</span>

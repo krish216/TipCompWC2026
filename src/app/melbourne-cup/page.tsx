@@ -77,7 +77,7 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         </p>
       </div>
 
-      <div className="mt-8">
+      <div id="register" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-black text-gray-900">Register your interest</h2>
         <p className="text-xs text-gray-500 mt-1 mb-4">Want to run a sweep, or join one? Leave your details and we'll be in touch when the field is final.</p>
         {cup

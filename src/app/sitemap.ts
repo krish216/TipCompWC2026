@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/bracket/leaderboard`, changeFrequency: cf, priority: 0.6 },
     { url: `${base}/epl`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${base}/melbourne-cup`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${base}/quiz/australia`, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${base}/rules/epl-2026-27`, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${base}/rules/wc2026`, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${base}/faq`, changeFrequency: 'weekly', priority: 0.5 },
