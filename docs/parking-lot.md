@@ -5,6 +5,32 @@ top. Each item: what it is, why, options/notes, and status.
 
 ---
 
+## HomeClient conflates the logged-out homepage and the logged-in dashboard
+**Added:** 2026-10-24 · **Status:** Idea — not started
+
+`HomeClient.tsx` (`src/app/HomeClient.tsx`) serves both the logged-out marketing/landing
+experience and the logged-in "My Comps" dashboard from one component, branching internally
+on session state, selected tournament, comp selection, sweep format, and more — the same
+sprawling-conditionals pattern that eventually justified splitting sweep out into its own
+`/sweep` page (see the Melbourne Cup sweep work) rather than keep patching `HomeClient`.
+
+**Not the problem:** the *route* — `/` serving both the logged-out and logged-in case is a
+normal, low-risk pattern plenty of apps use (key off session state at the same URL).
+
+**The actual problem:** the *component* — one of the largest files in the app, hard to
+reason about, and every new case (comp admin, sweep, weekly report card, etc.) has added
+another branch rather than a clean seam.
+
+**Suggested shape:** split the component's internals — a `LoggedOutHero`/marketing piece vs.
+the actual dashboard, decomposed further from there — rather than moving the dashboard to a
+new route. Keeping the route as-is avoids the bigger risks of a route migration: bookmarks,
+SEO/canonical URLs, and every other place in the app that assumes `/` is "home".
+
+**Why low priority:** no forcing function the way "fundamentally incompatible game mode" was
+for sweeps — this is purely a code-health call, not something actively broken.
+
+---
+
 ## Sponsor uploads a customer list to invite to their challenge
 **Added:** 2026-06-22 · **Status:** Idea — not started
 

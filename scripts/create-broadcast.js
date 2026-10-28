@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * create-broadcast.js — load docs/broadcast-round3-email.html into Resend as a DRAFT
+ * create-broadcast.js — load docs/email-templates/broadcast-round3-email.html into Resend as a DRAFT
  * broadcast via the REST API (no SDK dependency; the installed resend@3.5.0 predates
  * broadcasts). Creates a draft only — never sends. Review / test / schedule in the
  * Resend dashboard afterwards.
@@ -45,7 +45,7 @@ async function main() {
     process.exit(1)
   }
   const subject  = getArg('--subject') || 'The group stage was just the warm-up 🌍'
-  const htmlFile = getArg('--html')    || 'docs/broadcast-round3-email.html'
+  const htmlFile = getArg('--html')    || 'docs/email-templates/broadcast-round3-email.html'
   const name     = getArg('--name')    || 'TribePicks — Round 3 / knockouts'
   const html = readFileSync(join(__dirname, '..', ...htmlFile.split('/')), 'utf8')
 

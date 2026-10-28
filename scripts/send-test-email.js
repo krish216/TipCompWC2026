@@ -5,7 +5,7 @@
  * {{{RESEND_UNSUBSCRIBE_URL}}}) aren't substituted by that endpoint, so we fill sensible
  * test values here so the preview reads correctly.
  *
- *   node scripts/send-test-email.js --html docs/broadcast-founding-wrapup-email.html \
+ *   node scripts/send-test-email.js --html docs/email-templates/broadcast-founding-wrapup-email.html \
  *          --to you@example.com --subject "…" --name "Krish"
  *
  * Reads RESEND_API_KEY from .env.local. Sends immediately — test recipient only.
@@ -27,7 +27,7 @@ const args = process.argv.slice(2)
 const getArg = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d }
 
 const to       = getArg('--to')
-const htmlFile  = getArg('--html', 'docs/broadcast-founding-wrapup-email.html')
+const htmlFile  = getArg('--html', 'docs/email-templates/broadcast-founding-wrapup-email.html')
 const subject   = getArg('--subject', 'You’re a Founding Tipster ⭐')
 const firstName = getArg('--name', 'there')
 if (!to) { console.error('Usage: node scripts/send-test-email.js --to <email> [--html <file>] [--subject "..."] [--name "First"]'); process.exit(1) }

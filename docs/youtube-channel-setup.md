@@ -1,7 +1,7 @@
 # TribePicks — YouTube channel setup guide
 
 Step-by-step to stand up the **TribePicks** YouTube channel (host the `/pro/tipster` demo video +
-future content). ~30 min, do once. Companion to the video plan ([tipster-pro-video-plan.md](./tipster-pro-video-plan.md) §8).
+future content). ~30 min, do once. Companion to the video plan ([tipster-pro-video-plan.md](./plans/tipster-pro-video-plan.md) §8).
 
 **Assets you already have:**
 - `public/logo.png` — the globe logo → **avatar**.
