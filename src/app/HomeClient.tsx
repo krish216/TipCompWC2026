@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import confetti from 'canvas-confetti'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { SweepPromoCard } from '@/components/game/SweepPromoCard'
 import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { Spinner, UpgradeModal, CrownBadge, TeamPickerSheet, Flag } from '@/components/ui'
 import { TeamBadge } from '@/components/game/TeamBadge'
@@ -577,6 +578,12 @@ export default function HomePage() {
     loading: contextLoading,
     isPremium,
   } = useUserPrefs()
+  // Most of this dashboard (round wrap-ups, next-round teasers, the predictor/bracket
+  // flagship CTA) assumes a predictions-based tournament — none of it applies to a
+  // sweep, which has no rounds/predictions at all. Rather than keep patching individual
+  // cards here, a sweep-selected user is sent straight to the purpose-built /sweep page.
+  const isSweep = selectedTourn?.format === 'sweep'
+  useEffect(() => { if (isSweep) router.replace('/sweep') }, [isSweep, router])
 
   // Weekly Intelligence Report homepage card (admin-gated, 4+ member tribes)
   const [reportCardWeek,      setReportCardWeek]      = useState<string | null>(null)
@@ -1325,6 +1332,10 @@ export default function HomePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <CountdownBanner />
+
+      {session && !isSweep && (
+        <SweepPromoCard invite={pendingInvites.find((i: any) => i.tournament_format === 'sweep') ?? null} />
+      )}
 
       {/* Tournament announcement banner — dismissable per announcement via localStorage */}
       {session && tournAnnouncement && !annDismissed && (
@@ -2576,7 +2587,7 @@ export default function HomePage() {
               )}
 
               {/* No open round — next round teaser */}
-              {!currentRoundCode && nextRoundInfo && (
+              {!isSweep && !currentRoundCode && nextRoundInfo && (
                 <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-center gap-3">
                   <span className="text-xl flex-shrink-0">📅</span>
                   <div className="flex-1">
@@ -2818,7 +2829,11 @@ export default function HomePage() {
                   <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/60 flex items-start gap-1.5">
                     <span className="text-[10px] text-gray-400 font-semibold flex-shrink-0 mt-px">ℹ</span>
                     <p className="text-[11px] text-gray-400 leading-relaxed">
-                      A <strong className="text-gray-500">Comp</strong> is your private leaderboard — a group of friends, colleagues, or family all tipping on the same tournament and competing for the top spot.
+                      {isSweep ? (
+                        <>A <strong className="text-gray-500">Comp</strong> is your sweepstake — a group of friends, colleagues, or family drawing horses and racing for the pool.</>
+                      ) : (
+                        <>A <strong className="text-gray-500">Comp</strong> is your private leaderboard — a group of friends, colleagues, or family all tipping on the same tournament and competing for the top spot.</>
+                      )}
                     </p>
                   </div>
                 </div>

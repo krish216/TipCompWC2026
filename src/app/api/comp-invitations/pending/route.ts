@@ -34,6 +34,14 @@ export async function GET() {
   const compMap: Record<string, any> = {}
   ;(comps ?? []).forEach((c: any) => { compMap[c.id] = c })
 
+  // Tournament format lets /sweep show only sweep invites (and My Comps the rest).
+  const tournIds = [...new Set(((comps ?? []) as any[]).map(c => c.tournament_id).filter(Boolean))]
+  const { data: tourns } = tournIds.length
+    ? await (admin.from('tournaments') as any).select('id, format').in('id', tournIds)
+    : { data: [] }
+  const formatByTourn: Record<string, string | null> = {}
+  ;(tourns ?? []).forEach((t: any) => { formatByTourn[t.id] = t.format ?? null })
+
   // Fetch user's tournament enrollments to get blocked comp IDs
   const { data: enrollments } = await (admin.from('user_tournaments') as any)
     .select('tournament_id, blocked_comp_ids')
@@ -56,6 +64,7 @@ export async function GET() {
         comp_logo_url: comp.logo_url ?? null,
         invite_code:   comp.invite_code,
         tournament_id: comp.tournament_id ?? null,
+        tournament_format: formatByTourn[comp.tournament_id] ?? null,
         invited_at:    row.invited_at,
       }
     })

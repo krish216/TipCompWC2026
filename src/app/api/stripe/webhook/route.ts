@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase'
+import { fulfilPoolPurchase } from '@/lib/sweep/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,24 @@ export async function POST(request: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session       = event.data.object as Stripe.Checkout.Session
     const tournamentId  = session.metadata?.tournament_id
+
+    // ── Sweep pools bought by an organiser (src/lib/sweep/billing.ts) ───────────
+    // Checked first: these carry no tournament_id either, so they'd otherwise fall into the
+    // donation branch below. fulfilPoolPurchase is idempotent across Stripe retries.
+    if (session.metadata?.kind === 'sweep_pools') {
+      const purchaseId = session.metadata?.purchase_id
+      if (!purchaseId) {
+        console.error('[stripe/webhook] sweep_pools missing purchase_id', session.metadata)
+        return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
+      }
+      const res = await fulfilPoolPurchase(createAdminClient(), purchaseId)
+      if (res.error) {
+        console.error('[stripe/webhook] sweep pool fulfil failed:', res.error)
+        return NextResponse.json({ error: 'DB update failed' }, { status: 500 })
+      }
+      console.log(`[stripe/webhook] sweep pools fulfilled — purchase ${purchaseId}`)
+      return NextResponse.json({ received: true })
+    }
 
     // ── Donation (Support TribePicks Payment Link) ──────────────────────────────
     // Premium upgrades always carry tournament_id metadata; donations never do, so

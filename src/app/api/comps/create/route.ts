@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { z } from 'zod'
+import { buyPools, SWEEP_PRICING, sweepBillingEnabled } from '@/lib/sweep/billing'
 
 const CreateSchema = z.object({
   name:        z.string().min(2).max(80).trim(),
@@ -24,6 +25,12 @@ const CreateSchema = z.object({
   prize_type:        z.enum(['none', 'chief_offers', 'pool']).optional(),
   prize_description: z.string().max(120).optional(),
   member_cap:        z.number().int().min(2).max(500).optional(),
+  // Pool overflow cap (migration 189) — set at creation time so a sweep organiser doesn't
+  // need a separate trip to comp-admin settings right after creating. Generic to every comp
+  // type, but most relevant for sweeps, where each pool only holds as many tickets as the
+  // race has horses, so a bigger event needs multiple pools from the start. Capped at 5 —
+  // 5 pools x a typical ~20-24 horse field already covers well over 100 people.
+  max_tribes:        z.number().int().min(1).max(5).optional(),
 })
 
 // POST /api/comps/create — self-service org creation
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
     name, owner_name, owner_phone, owner_email, user_id,
     display_name, email, country, timezone,
     visibility, is_discoverable, comp_category, team_affiliation,
-    description, prize_type, prize_description, member_cap,
+    description, prize_type, prize_description, member_cap, max_tribes,
   } = parsed.data
 
   const adminClient = createAdminClient()
@@ -73,6 +80,18 @@ export async function POST(request: NextRequest) {
     // Continue anyway — user may already exist from the trigger
   }
 
+  // Is this a sweep? Decided before the insert because a sweep's pool count is bought: with
+  // billing on, it starts with the free allowance and the rest goes through checkout below.
+  let isSweepComp = false
+  if (parsed.data.tournament_id) {
+    const { data: tourn } = await (adminClient.from('tournaments') as any)
+      .select('format').eq('id', parsed.data.tournament_id).maybeSingle()
+    isSweepComp = (tourn as any)?.format === 'sweep'
+  }
+  const requestedPools = isSweepComp ? Math.max(1, Math.min(SWEEP_PRICING.maxPools, max_tribes ?? 1)) : 1
+  const poolCount = isSweepComp && sweepBillingEnabled() ? Math.min(requestedPools, SWEEP_PRICING.includedPools) : requestedPools
+  const poolsToBuy = requestedPools - poolCount
+
   // Step 3: create the org — user row is now guaranteed to exist
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const slug     = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`
@@ -98,6 +117,7 @@ export async function POST(request: NextRequest) {
       prize_type:        prize_type        ?? 'none',
       prize_description: prize_description ?? null,
       member_cap:        member_cap        ?? null,
+      ...(isSweepComp ? { max_tribes: poolCount } : max_tribes !== undefined ? { max_tribes } : {}),
     })
     .select().single()
 
@@ -119,24 +139,60 @@ export async function POST(request: NextRequest) {
     ),
   ])
 
-  // Step 5: auto-create a default tribe named "{Comp Name} Tribe" and add the creator
-  const tribeCode = Math.random().toString(36).substring(2, 10).toUpperCase()
-  const { data: tribe, error: tribeError } = await (adminClient.from('tribes') as any)
-    .insert({
-      name:          `${name} Tribe`,
-      created_by:    user_id,
-      invite_code:   tribeCode,
-      comp_id:       compId,
-      tournament_id: parsed.data.tournament_id ?? null,
-      is_default:    true,
-    })
-    .select('id').single()
+  // Step 5: auto-create the comp's tribe(s). For a sweep, the organiser said upfront how
+  // many pools this sweep needs (max_tribes) — create all of them now rather than relying
+  // on self-register to lazily add one once the first fills, so "My Pools" shows the full
+  // set (as pills) from the moment the sweep exists, matching what the organiser configured.
+  const tribeRows = Array.from({ length: poolCount }, (_, i) => ({
+    name: isSweepComp
+      ? (poolCount > 1 ? `Pool ${i + 1}` : 'Pool')
+      : `${name} Tribe`,
+    created_by:    user_id,
+    invite_code:   (Math.random().toString(36).substring(2, 10) + i).toUpperCase().slice(0, 10),
+    comp_id:       compId,
+    tournament_id: parsed.data.tournament_id ?? null,
+    is_default:    i === 0,
+  }))
+  const { data: createdTribes, error: tribeError } = await (adminClient.from('tribes') as any)
+    .insert(tribeRows).select('id, is_default')
 
   if (tribeError) {
     console.error('[comps/create] tribe auto-create failed (non-fatal):', tribeError)
-  } else if (tribe) {
+  } else if (createdTribes?.length) {
+    // Creator only joins the default (first) pool as a member — they're already admin of
+    // every pool under the comp via comp_admins, no need to be a "buyer" in all of them.
+    const defaultTribe = (createdTribes as any[]).find(t => t.is_default) ?? createdTribes[0]
     await (adminClient.from('tribe_members') as any)
-      .insert({ user_id, tribe_id: (tribe as any).id })
+      .insert({ user_id, tribe_id: (defaultTribe as any).id })
+  }
+
+  // Default the creator's app onto this comp's tournament, same as self-register already
+  // does when joining via a code — otherwise the creator of a brand-new sweep (or any comp
+  // for a tournament they weren't already in) never gets a user_preferences/user_tournaments
+  // row for it, and the nav has nothing to pick up even after a reload.
+  const tournId = parsed.data.tournament_id ?? null
+  if (tournId) {
+    await (adminClient.from('user_preferences') as any).upsert(
+      { user_id, tournament_id: tournId, comp_id: compId },
+      { onConflict: 'user_id' }
+    )
+    await (adminClient.from('user_tournaments') as any).upsert(
+      { user_id, tournament_id: tournId, selected_comp_id: compId },
+      { onConflict: 'user_id,tournament_id' }
+    )
+  }
+
+  // Extra pools beyond the free allowance: hand back a checkout URL for the client to follow.
+  // The sweep already exists with its free pool(s) — if checkout is abandoned, the organiser
+  // can add pools later from Settings.
+  if (poolsToBuy > 0) {
+    const checkout = await buyPools(adminClient, { compId, userId: user_id, pools: poolsToBuy })
+    if ('error' in checkout) {
+      return NextResponse.json({ data: org, pool_purchase_error: checkout.error }, { status: 201 })
+    }
+    if (checkout.kind === 'redirect') {
+      return NextResponse.json({ data: org, checkout_url: checkout.url }, { status: 201 })
+    }
   }
 
   return NextResponse.json({ data: org }, { status: 201 })
@@ -151,6 +207,7 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const {
     comp_id, logo_url, min_age, name, requires_payment_fee, entry_fee_amount, max_tribe_size,
+    max_tribes, tribes_closed,
     visibility, is_discoverable, comp_category, team_affiliation,
     description, prize_type, prize_description, member_cap, auto_reminder, featured,
   } = body ?? {}
@@ -167,12 +224,22 @@ export async function PATCH(request: NextRequest) {
 
   // Verify caller is comp admin, tournament admin, or created the comp
   const [{ data: org }, { data: compAdminRow }, { data: tournAdmin }] = await Promise.all([
-    (adminClient.from('comps') as any).select('created_by').eq('id', comp_id).single(),
+    (adminClient.from('comps') as any).select('created_by, tournament_id').eq('id', comp_id).single(),
     (adminClient.from('comp_admins') as any).select('user_id').eq('user_id', user.id).eq('comp_id', comp_id).single(),
     adminClient.from('admin_users').select('user_id').eq('user_id', user.id).single(),
   ])
   if (!org || ((org as any).created_by !== user.id && !compAdminRow && !tournAdmin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // A sweep's pool count is bought, not set (src/lib/sweep/billing.ts) — don't let this
+  // generic route raise it around the purchase.
+  if (max_tribes !== undefined && (org as any).tournament_id) {
+    const { data: tourn } = await (adminClient.from('tournaments') as any)
+      .select('format').eq('id', (org as any).tournament_id).maybeSingle()
+    if ((tourn as any)?.format === 'sweep') {
+      return NextResponse.json({ error: 'Add sweep pools from the sweep organiser page.' }, { status: 400 })
+    }
   }
 
   await (adminClient.from('comps') as any)
@@ -183,6 +250,11 @@ export async function PATCH(request: NextRequest) {
       ...(requires_payment_fee !== undefined ? { requires_payment_fee: requires_payment_fee ?? false } : {}),
       ...(entry_fee_amount     !== undefined ? { entry_fee_amount:     entry_fee_amount ?? null      } : {}),
       ...(max_tribe_size       !== undefined ? { max_tribe_size:       max_tribe_size ?? 15          } : {}),
+      ...(max_tribes           !== undefined ? { max_tribes:           max_tribes ?? 10              } : {}),
+      // tribes_closed is a boolean toggle from the client; stored as a timestamp (set = closed,
+      // null = open) so the overflow logic in self-register can tell closed-and-reopened apart
+      // from never-touched without a separate flag.
+      ...(tribes_closed        !== undefined ? { tribes_closed_at: tribes_closed ? new Date().toISOString() : null } : {}),
       ...(visibility           !== undefined ? { visibility }                                         : {}),
       ...(is_discoverable      !== undefined ? { is_discoverable }                                    : {}),
       ...(comp_category        !== undefined ? { comp_category }                                      : {}),
@@ -219,6 +291,23 @@ export async function DELETE(request: NextRequest) {
   const { data: tribeRows } = await (adminClient.from('tribes') as any)
     .select('id').eq('comp_id', comp_id)
   const tribeIds = (tribeRows ?? []).map((t: any) => t.id)
+
+  // Sweep-specific safety check: tribes cascade-deletes sweep_entries and
+  // sweep_payment_requests (migrations 188/193), so deleting a sweep that's already sold
+  // tickets would silently wipe real money/stake records, not just an empty shell comp.
+  // Blocked here rather than only relying on UI — this route is shared by every comp type.
+  if (tribeIds.length > 0) {
+    const [{ count: ticketCount }, { count: requestCount }] = await Promise.all([
+      (adminClient.from('sweep_entries') as any).select('id', { count: 'exact', head: true }).in('tribe_id', tribeIds),
+      (adminClient.from('sweep_payment_requests') as any).select('id', { count: 'exact', head: true }).in('tribe_id', tribeIds),
+    ])
+    if ((ticketCount ?? 0) > 0 || (requestCount ?? 0) > 0) {
+      return NextResponse.json({
+        error: 'This sweep already has tickets or requests — it can’t be deleted once selling has started.',
+      }, { status: 409 })
+    }
+  }
+
   if (tribeIds.length > 0) {
     await (adminClient.from('tribe_members') as any).delete().in('tribe_id', tribeIds)
     await (adminClient.from('tribes') as any).delete().eq('comp_id', comp_id)

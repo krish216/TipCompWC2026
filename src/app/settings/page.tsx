@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner, Card, RemoveAdsButton } from '@/components/ui'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
@@ -608,7 +609,12 @@ export default function SettingsPage() {
 
       {/* Tournament enrollments */}
       <section className="mb-6">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">My Tournaments</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">My Tournaments</h2>
+          {/* Sweeps (Melbourne Cup etc.) don't fit this enrol-in-predictions model — no bonus
+              team, no leaderboard — so they're excluded below and linked here instead. */}
+          <Link href="/sweep" className="text-[11px] font-semibold text-emerald-600 hover:underline">🐎 Looking for a sweep? →</Link>
+        </div>
         <TournamentEnrollments />
       </section>
 
@@ -677,6 +683,8 @@ export default function SettingsPage() {
 function TournamentEnrollments() {
   const { supabase, session } = useSupabase()
   const [allTourns,     setAllTourns]     = useState<any[]>([])
+  const [pastTourns,    setPastTourns]    = useState<any[]>([])
+  const [pastOpen,      setPastOpen]      = useState(false)
   const [enrolled,      setEnrolled]      = useState<Set<string>>(new Set())
   const [saving,        setSaving]        = useState<string | null>(null)
   const [loading,       setLoading]       = useState(true)
@@ -687,10 +695,18 @@ function TournamentEnrollments() {
       fetch('/api/tournaments').then(r => r.json()),
       fetch('/api/user-tournaments').then(r => r.json()),
     ]).then(([all, mine]) => {
-      setAllTourns((all.data ?? []).filter((t: any) => t.status !== 'completed'))
       const map = new Set<string>()
       ;(mine.data ?? []).forEach((e: any) => { map.add(e.tournament_id) })
       setEnrolled(map)
+
+      // Sweeps don't fit this model (no predictions, no bonus team) — and its "Join" action
+      // below (enrolInTournament) wouldn't get them into a comp anyway. See the /sweep link
+      // in the section header above.
+      const nonSweep = (all.data ?? []).filter((t: any) => t.format !== 'sweep')
+      setAllTourns(nonSweep.filter((t: any) => t.status !== 'completed'))
+      // Finished tournaments are only worth surfacing as history if the user was actually
+      // in them — otherwise it's just noise, same reasoning as excluding sweeps above.
+      setPastTourns(nonSweep.filter((t: any) => t.status === 'completed' && map.has(t.id)))
       setLoading(false)
     })
   }, [session])
@@ -718,7 +734,7 @@ function TournamentEnrollments() {
 
   if (loading) return <div className="py-4 text-sm text-gray-400">Loading…</div>
 
-  if (allTourns.length === 0) return (
+  if (allTourns.length === 0 && pastTourns.length === 0) return (
     <Card><p className="text-sm text-gray-400 text-center py-2">No active tournaments</p></Card>
   )
 
@@ -726,6 +742,9 @@ function TournamentEnrollments() {
 
   return (
     <div className="space-y-3">
+      {allTourns.length === 0 && (
+        <Card><p className="text-sm text-gray-400 text-center py-2">No active tournaments</p></Card>
+      )}
       {allTourns.map(t => {
         const isEnrolled = enrolled.has(t.id)
         const isSaving   = saving === t.id
@@ -768,6 +787,35 @@ function TournamentEnrollments() {
           </Card>
         )
       })}
+
+      {pastTourns.length > 0 && (
+        <div>
+          <button type="button" onClick={() => setPastOpen(o => !o)}
+            className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-700 py-1.5">
+            <span>Past tournaments ({pastTourns.length})</span>
+            <span className={`transition-transform ${pastOpen ? 'rotate-180' : ''}`}>▾</span>
+          </button>
+          {pastOpen && (
+            <div className="space-y-2 mt-2">
+              {pastTourns.map(t => (
+                <Card key={t.id} className="opacity-70">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">⚽ {t.name}</p>
+                      {t.start_date && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {new Date(t.start_date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">completed</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -64,11 +64,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // A tournament's remembered comp must belong to that tournament. Callers (pickComp, the
+  // "leaving" save in pickTournament) send whatever comp is selected at that moment, which
+  // can be a comp from another tournament — e.g. an EPL user picking a Melbourne Cup sweep
+  // from My Comps saved the sweep as EPL's comp. Drop a mismatched comp rather than store it.
+  let compMismatch = false
+  if (selected_comp_id) {
+    const { data: comp } = await supabase
+      .from('comps').select('tournament_id').eq('id', selected_comp_id).maybeSingle()
+    compMismatch = !comp || (comp as any).tournament_id !== tournament_id
+  }
+  if (compMismatch && !('favourite_team' in body)) {
+    return NextResponse.json({ success: true, skipped: 'selected_comp_id belongs to another tournament' })
+  }
+
   // Only write the fields actually supplied, so a comp-only update never clobbers the
   // bonus team (and vice versa). onConflict upsert leaves omitted columns untouched.
   const row: any = { user_id: user.id, tournament_id }
   if (!locked && 'favourite_team' in body) row.favourite_team = favourite_team || null
-  if ('selected_comp_id' in body)          row.selected_comp_id = selected_comp_id ?? null
+  if ('selected_comp_id' in body && !compMismatch) row.selected_comp_id = selected_comp_id ?? null
 
   const { error } = await (supabase.from('user_tournaments') as any)
     .upsert(row, { onConflict: 'user_id,tournament_id' })

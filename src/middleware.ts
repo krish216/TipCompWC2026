@@ -40,13 +40,15 @@ export async function middleware(request: NextRequest) {
 
   // Already logged in → send away from login page.
   // Verified users go to /predict; unverified go to homepage (onboarding).
-  // email_verified in user_metadata is set at signup and updated when the user
-  // clicks their verification link — readable from the JWT without a DB query.
-  // Existing users without this metadata field default to /predict (all were
-  // backfilled as verified in migration 087).
+  // email_confirmed_at is Supabase's own native confirmation field — set the moment
+  // verifyOtp succeeds (signup code) or an invite-created account is made via the Admin
+  // API with email_confirm:true, readable from the JWT without a DB query. Anyone who can
+  // reach this check at all already satisfies Supabase's sign-in requirement, so existing
+  // accounts (pre-dating this OTP flow, back to the migration-087 backfill) are covered
+  // the same way — they wouldn't have a session here otherwise.
   if (user && AUTH_ROUTES.some(r => pathname === r)) {
-    const emailVerified = (user as any).user_metadata?.email_verified
-    const dest = emailVerified === false ? '/' : '/predict'
+    const emailVerified = !!(user as any).email_confirmed_at
+    const dest = emailVerified ? '/predict' : '/'
     return NextResponse.redirect(new URL(dest, request.url))
   }
 

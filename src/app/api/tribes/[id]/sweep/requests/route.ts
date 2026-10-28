@@ -1,0 +1,136 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
+import { grantTickets } from '@/lib/sweep/tickets'
+import { createNotifications } from '@/lib/notifications'
+import { signReceiptUrls } from '@/lib/sweep/receipts'
+import { getOrganiserDetails, hasPaymentDetails } from '@/lib/sweep/organiser'
+
+export const dynamic = 'force-dynamic'
+
+const PAYMENT_METHODS = ['cash', 'bank_transfer', 'iou']
+
+// POST /api/tribes/:id/sweep/requests — a buyer asks for N tickets in this pool. Unlike
+// grant-tickets (organiser grants directly, after collecting payment offline themselves),
+// this is the self-serve path: the request starts `pending` and only becomes real tickets
+// once confirmed — immediately for `iou` (if the comp allows it) and `bank_transfer` in
+// auto-approve mode, or via the organiser's explicit approve for everything else.
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json().catch(() => null)
+  const ticketsRequested = Number(body?.tickets_requested)
+  const paymentMethod = body?.payment_method
+  const amount = body?.amount != null ? Number(body.amount) : null
+  if (!Number.isInteger(ticketsRequested) || ticketsRequested < 1) {
+    return NextResponse.json({ error: 'tickets_requested must be a positive integer' }, { status: 400 })
+  }
+  if (!PAYMENT_METHODS.includes(paymentMethod)) {
+    return NextResponse.json({ error: `payment_method must be one of: ${PAYMENT_METHODS.join(', ')}` }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const tribeId = params.id
+
+  const { data: tribe } = await (admin.from('tribes') as any)
+    .select('id, comp_id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
+  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (tribe.sweep_locked_at) return NextResponse.json({ error: 'This pool is locked — no more ticket requests.' }, { status: 409 })
+
+  const { data: membership } = await (admin.from('tribe_members') as any)
+    .select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle()
+  if (!membership) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+
+  const { data: tourn } = await (admin.from('tournaments') as any)
+    .select('format').eq('id', tribe.tournament_id).maybeSingle()
+  if ((tourn as any)?.format !== 'sweep') {
+    return NextResponse.json({ error: 'This tribe is not a sweep' }, { status: 400 })
+  }
+
+  const { data: comp } = await (admin.from('comps') as any)
+    .select('name, allow_iou, sweep_approval_mode').eq('id', tribe.comp_id).maybeSingle()
+  if (paymentMethod === 'iou' && !(comp as any)?.allow_iou) {
+    return NextResponse.json({ error: 'IOU is not enabled for this sweep' }, { status: 403 })
+  }
+  // No bank details on file → the buyer can't be told where to send the money.
+  if (paymentMethod === 'bank_transfer' && !hasPaymentDetails(await getOrganiserDetails(admin, tribe.comp_id))) {
+    return NextResponse.json({ error: "Your organiser hasn't added bank details yet — pay by cash, or check back later." }, { status: 409 })
+  }
+
+  // Oversell guard: granted tickets so far + other pending requests' tickets + this one
+  // can't exceed the field size. grantTickets() re-checks this authoritatively at the
+  // moment tickets actually get inserted — this is just an early, friendlier rejection.
+  const [{ count: horseCount }, { count: ticketCount }, { data: pendingRows }] = await Promise.all([
+    (admin.from('sweep_horses') as any).select('id', { count: 'exact', head: true }).eq('tournament_id', tribe.tournament_id).eq('scratched', false),
+    (admin.from('sweep_entries') as any).select('id', { count: 'exact', head: true }).eq('tribe_id', tribeId),
+    (admin.from('sweep_payment_requests') as any).select('tickets_requested').eq('tribe_id', tribeId).eq('status', 'pending'),
+  ])
+  const reserved = (ticketCount ?? 0) + ((pendingRows ?? []) as any[]).reduce((sum, r) => sum + r.tickets_requested, 0)
+  if (reserved + ticketsRequested > (horseCount ?? 0)) {
+    return NextResponse.json({
+      error: `Only ${Math.max(0, (horseCount ?? 0) - reserved)} ticket(s) left in this pool's field.`,
+    }, { status: 400 })
+  }
+
+  const baseRow = {
+    tribe_id: tribeId, comp_id: tribe.comp_id, user_id: user.id,
+    tickets_requested: ticketsRequested, payment_method: paymentMethod, amount,
+  }
+
+  if (paymentMethod === 'iou') {
+    const granted = await grantTickets(admin, { tribeId, tournamentId: tribe.tournament_id, userId: user.id, count: ticketsRequested })
+    if (!granted.ok) return NextResponse.json({ error: granted.error }, { status: 400 })
+    const { data: inserted, error } = await (admin.from('sweep_payment_requests') as any)
+      .insert({ ...baseRow, status: 'approved', reviewed_at: new Date().toISOString(), paid_at: null })
+      .select().maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, request: inserted })
+  }
+
+  // cash / bank_transfer both start pending — cash waits for the organiser to tick it off
+  // in person, bank_transfer waits for a receipt (and then manual or auto approval).
+  const { data: inserted, error } = await (admin.from('sweep_payment_requests') as any)
+    .insert({ ...baseRow, status: 'pending' })
+    .select().maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: admins } = await (admin.from('comp_admins') as any).select('user_id').eq('comp_id', tribe.comp_id)
+  const { data: buyer } = await (admin.from('users') as any).select('display_name').eq('id', user.id).maybeSingle()
+  await createNotifications(((admins ?? []) as any[]).map(a => ({
+    user_id: a.user_id,
+    type: 'sweep_payment_request' as const,
+    title: `${(buyer as any)?.display_name ?? 'Someone'} wants ${ticketsRequested} ticket(s) in ${(comp as any)?.name ?? 'your sweep'}`,
+    body: paymentMethod === 'cash' ? 'Paying cash — approve once you\'ve got it in hand.' : 'Paid by bank transfer — review their receipt.',
+    data: { href: '/sweep-admin?tab=requests', comp_id: tribe.comp_id, tribe_id: tribeId, request_id: (inserted as any).id },
+  })))
+
+  return NextResponse.json({ ok: true, request: inserted })
+}
+
+// GET /api/tribes/:id/sweep/requests — comp-admin: every request for this pool (the review
+// queue). Member: only their own requests ("my orders").
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const tribeId = params.id
+
+  const { data: tribe } = await (admin.from('tribes') as any).select('id, comp_id').eq('id', tribeId).maybeSingle()
+  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+
+  const { data: membership } = await (admin.from('tribe_members') as any)
+    .select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle()
+  if (!membership) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+
+  const { data: isAdmin } = await (admin.from('comp_admins') as any)
+    .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()
+
+  let query = (admin.from('sweep_payment_requests') as any).select('*').eq('tribe_id', tribeId).order('created_at', { ascending: false })
+  if (!isAdmin) query = query.eq('user_id', user.id)
+  const { data, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ data: await signReceiptUrls(admin, data ?? []), is_comp_admin: !!isAdmin })
+}

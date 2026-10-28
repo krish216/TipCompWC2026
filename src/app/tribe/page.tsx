@@ -10,6 +10,7 @@ import type { RoundId } from '@/types'
 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
+import { SweepPoolPanel } from '@/components/game/SweepPoolPanel'
 import { TipsterPopover } from '@/components/game/TipsterPopover'
 import { linkify } from '@/lib/linkify'
 
@@ -56,7 +57,7 @@ interface Fixture {
   result?: { home: number; away: number } | null
 }
 
-type MainTab   = 'leaderboard' | 'picks' | 'chat' | 'challenges'
+type MainTab   = 'leaderboard' | 'picks' | 'chat' | 'challenges' | 'sweep'
 type ChatTopic = 'general' | string   // string = round_code
 
 const ROUND_LABELS: Partial<Record<RoundId, string>> = {
@@ -992,9 +993,16 @@ function PrizesDisplay({ compId }: { compId: string }) {
   )
 }
 
+type SweepPoolRow = {
+  tribe_id: string; tribe_name: string; comp_id: string
+  locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number
+  comp_pools: { tribe_id: string; tickets: number; field_size: number; full: boolean }[]
+}
+
 export default function TribePage() {
   const { session, supabase } = useSupabase()
-  const { selectedComp, selectedTourn } = useUserPrefs()
+  const { selectedComp, selectedTourn, isCompAdmin, refreshMembership } = useUserPrefs()
+  const isSweep = selectedTourn?.format === 'sweep'
 
   const [tribe,          setTribe]          = useState<TribeData | null>(null)
   const [tribePicksData, setTribePicksData] = useState<any | null>(null)
@@ -1011,6 +1019,16 @@ export default function TribePage() {
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const myId = session?.user.id ?? ''
 
+  // Every pool in this sweep the viewer manages or has a horse in — feeds the Hero's pool
+  // pills and the Draw tab below. selectedPoolId defaults to whichever pool loadTribe
+  // resolved, but switching pills only changes what's shown below, not the Hero's own
+  // member-count/invite-code (those stay about the home pool).
+  const [sweepPools,       setSweepPools]       = useState<SweepPoolRow[] | null>(null)
+  const [selectedPoolId,   setSelectedPoolId]   = useState('')
+  const [confirmLeavePool, setConfirmLeavePool] = useState<string | null>(null)
+  const [leavingPool,      setLeavingPool]      = useState<string | null>(null)
+  const [poolsError,       setPoolsError]       = useState<string | null>(null)
+
   const loadPicks = async () => {
     if (!tribe) return
     setPicksLoading(true)
@@ -1023,8 +1041,14 @@ export default function TribePage() {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as MainTab | null
-    if (tabParam && ['leaderboard','picks','chat','challenges','about'].includes(tabParam)) setTab(tabParam)
+    if (tabParam && ['leaderboard','picks','chat','challenges','sweep','about'].includes(tabParam)) setTab(tabParam)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sweeps have no standings/tip-sheets — land on the draw instead if we're sitting on a
+  // tab that doesn't apply (default is 'leaderboard', meaningless for a sweep tribe).
+  useEffect(() => {
+    if (isSweep && (tab === 'leaderboard' || tab === 'picks')) setTab('sweep')
+  }, [isSweep, tab])
 
   useEffect(() => {
     if (tab === 'picks' && tribe && !tribePicksData) loadPicks()
@@ -1091,6 +1115,19 @@ export default function TribePage() {
 
   useEffect(() => { if (session) loadTribe() }, [session, selectedComp?.id, loadTribe])
 
+  // Arriving from /sweep's collapsed "My Pools" card (one row per sweep) with ?comp_id= —
+  // switch the global comp/tournament selection to that sweep first, so loadTribe's own
+  // selectedComp-based resolution (above) picks up the right comp instead of whatever was
+  // last selected. Mirrors the same pattern /sweep uses for its own ?comp_id= handling.
+  const tribeCompIdParam = searchParams.get('comp_id')
+  useEffect(() => {
+    if (!tribeCompIdParam || tribeCompIdParam === selectedComp?.id) return
+    fetch(`/api/sweep/context?comp_id=${tribeCompIdParam}`).then(r => r.json()).then(ctx => {
+      if (ctx.tournament) refreshMembership(ctx.tournament.id, tribeCompIdParam)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tribeCompIdParam])
+
   // Persist realtime subscription for new chat messages regardless of active tab
   useEffect(() => {
     if (!tribe || !session) return
@@ -1113,6 +1150,29 @@ export default function TribePage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [tribe?.id, session?.user.id, supabase])
+
+  const sweepCompId = (tribe as any)?.comp_id as string | undefined
+  useEffect(() => {
+    if (!isSweep || !sweepCompId) { setSweepPools(null); return }
+    let cancelled = false
+    fetch('/api/sweep/my-pools').then(r => r.json()).then(res => {
+      if (cancelled) return
+      const pools = ((res.data ?? []) as SweepPoolRow[]).filter(p => p.comp_id === sweepCompId)
+      setSweepPools(pools)
+      setSelectedPoolId(prev => (prev && pools.some(p => p.tribe_id === prev)) ? prev : (tribe?.id ?? pools[0]?.tribe_id ?? ''))
+    })
+    return () => { cancelled = true }
+  }, [isSweep, sweepCompId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleLeavePool(p: SweepPoolRow) {
+    setLeavingPool(p.tribe_id); setPoolsError(null)
+    const res = await fetch('/api/comp-members/leave', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: p.comp_id }),
+    }).then(r => r.json())
+    setLeavingPool(null); setConfirmLeavePool(null)
+    if (res.error) { setPoolsError(res.error); return }
+    setSweepPools(prev => prev?.filter(x => x.tribe_id !== p.tribe_id) ?? null)
+  }
 
   const leaveTribe = async () => {
     if (!confirm('Leave this tribe? Your predictions and points history are kept.')) return
@@ -1152,12 +1212,17 @@ export default function TribePage() {
     </div>
   )
 
-  const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = [
-    { id: 'leaderboard', label: 'Standings',  icon: '🏅' },
-    { id: 'picks',       label: 'Tip Sheets', icon: '⚽' },
-    // { id: 'challenges', label: 'Challenges', icon: '🎯' },  // hidden — tournament challenges now live on /challenges; comp challenges are off (comp-admin ChallengesTab disabled). Render block + ChallengeResultsTab retained for one-line revival.
-    { id: 'chat',        label: 'Chat',       icon: '💬' },
-  ]
+  const TAB_ITEMS: { id: MainTab; label: string; icon: string }[] = isSweep
+    ? [
+        { id: 'sweep', label: 'Draw', icon: '🐎' },
+        { id: 'chat',  label: 'Chat', icon: '💬' },
+      ]
+    : [
+        { id: 'leaderboard', label: 'Standings',  icon: '🏅' },
+        { id: 'picks',       label: 'Tip Sheets', icon: '⚽' },
+        // { id: 'challenges', label: 'Challenges', icon: '🎯' },  // hidden — tournament challenges now live on /challenges; comp challenges are off (comp-admin ChallengesTab disabled). Render block + ChallengeResultsTab retained for one-line revival.
+        { id: 'chat',        label: 'Chat',       icon: '💬' },
+      ]
 
   const org = selectedComp || (tribe as any)._org
 
@@ -1192,11 +1257,11 @@ export default function TribePage() {
                   <img src={org.logo_url} alt="" style={{ width: 14, height: 14, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} />
                 )}
                 <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {org?.name}{selectedTourn ? ` · ${selectedTourn.name}` : ''}
+                  {isSweep ? (selectedTourn?.name ?? '') : `${org?.name ?? ''}${selectedTourn ? ` · ${selectedTourn.name}` : ''}`}
                 </span>
               </div>
               <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', lineHeight: 1.15 }}>
-                {tribe.name}
+                {isSweep ? (org?.name ?? tribe.name) : tribe.name}
               </h1>
             </div>
 
@@ -1207,15 +1272,17 @@ export default function TribePage() {
                   <span style={{ fontSize: 12 }}>👥</span>
                   {tribe.members.length}
                 </span>
-                <button onClick={leaveTribe} style={{
-                  padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
-                  background: 'rgba(255,80,80,0.07)',
-                  border: '1px solid rgba(255,100,100,0.25)',
-                  color: 'rgba(255,160,160,0.7)',
-                  fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
-                }}>
-                  Leave
-                </button>
+                {!isSweep && (
+                  <button onClick={leaveTribe} style={{
+                    padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
+                    background: 'rgba(255,80,80,0.07)',
+                    border: '1px solid rgba(255,100,100,0.25)',
+                    color: 'rgba(255,160,160,0.7)',
+                    fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
+                  }}>
+                    Leave
+                  </button>
+                )}
               </div>
               <button onClick={copyCode} style={{
                 display: 'flex', alignItems: 'center', gap: 5,
@@ -1233,6 +1300,51 @@ export default function TribePage() {
               </button>
             </div>
           </div>
+
+          {/* Pools in this sweep — pills switch which pool's draw/chat shows below; leave
+              is scoped to whichever pool is currently selected. */}
+          {isSweep && sweepPools && sweepPools.length > 1 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                {sweepPools.map(p => {
+                  const pill = p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)
+                  const isSelected = p.tribe_id === selectedPoolId
+                  return (
+                    <button key={p.tribe_id} onClick={() => setSelectedPoolId(p.tribe_id)} title={p.tribe_name}
+                      style={{
+                        fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+                        background: pill?.full ? 'rgba(74,222,128,0.18)' : 'rgba(251,191,36,0.18)',
+                        color: pill?.full ? '#4ade80' : '#fbbf24',
+                        boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.5)' : 'none',
+                        cursor: 'pointer', border: 'none',
+                      }}>
+                      {p.tribe_name}: {pill?.tickets ?? p.my_tickets}/{pill?.field_size || '—'}
+                    </button>
+                  )
+                })}
+              </div>
+              {(() => {
+                const selected = sweepPools.find(p => p.tribe_id === selectedPoolId)
+                if (!selected || selected.is_comp_admin) return null
+                return confirmLeavePool === selected.tribe_id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                    <span style={{ color: 'rgba(255,160,160,0.9)' }}>Leave {selected.tribe_name}?</span>
+                    <button onClick={() => setConfirmLeavePool(null)} style={{ color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+                    <button onClick={() => handleLeavePool(selected)} disabled={leavingPool === selected.tribe_id}
+                      style={{ color: '#fff', background: '#ef4444', border: 'none', borderRadius: 8, padding: '3px 8px', fontWeight: 700, cursor: 'pointer', opacity: leavingPool === selected.tribe_id ? 0.5 : 1 }}>
+                      {leavingPool === selected.tribe_id ? 'Leaving…' : 'Confirm'}
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmLeavePool(selected.tribe_id)}
+                    style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,160,160,0.75)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Leave this pool
+                  </button>
+                )
+              })()}
+              {poolsError && <p style={{ marginTop: 6, fontSize: 11, color: '#fca5a5' }}>{poolsError}</p>}
+            </div>
+          )}
 
           {/* Tab bar */}
           <div style={{ display: 'flex' }}>
@@ -1289,11 +1401,17 @@ export default function TribePage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-green-800 mb-2">Welcome to {tribe.name}!</p>
               <div className="space-y-1.5 mb-0">
+                {isSweep ? (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-semibold text-gray-700">🐎 Draw —</span> Once your organiser locks entries, tap the <strong>Draw</strong> tab to see your horse and the rest of the pool.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-semibold text-gray-700">📊 Tip Sheets —</span> Once a round closes, tap the <strong>Tip Sheets</strong> tab to see how everyone in your tribe tipped. Compare picks and find out who called it right.
+                  </p>
+                )}
                 <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-700">📊 Tip Sheets —</span> Once a round closes, tap the <strong>Tip Sheets</strong> tab to see how everyone in your tribe tipped. Compare picks and find out who called it right.
-                </p>
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-700">💬 Chat —</span> Head to the <strong>Chat</strong> tab to get in on the banter, react to picks, and celebrate the wins with your tribe.
+                  <span className="font-semibold text-gray-700">💬 Chat —</span> Head to the <strong>Chat</strong> tab to get in on the banter, react to picks, and celebrate the wins with your {isSweep ? 'pool' : 'tribe'}.
                 </p>
               </div>
               {(tribe as any)._org?.invite_code && (
@@ -1321,8 +1439,14 @@ export default function TribePage() {
           </div>
         )}
 
+        {/* Draw — sweep tribes only. Pool selection (when this sweep has more than one pool
+            relevant to the viewer) happens via the Hero's pills, not here. */}
+        {isSweep && tab === 'sweep' && (
+          <SweepPoolPanel tribeId={selectedPoolId || tribe.id} />
+        )}
+
         {/* Standings */}
-        {tab === 'leaderboard' && (
+        {!isSweep && tab === 'leaderboard' && (
           <>
             {/* Invite nudge — always visible on Standings when alone */}
             {tribe.members.length === 1 && (
@@ -1357,7 +1481,7 @@ export default function TribePage() {
         )}
 
         {/* Picks */}
-        {tab === 'picks' && (
+        {!isSweep && tab === 'picks' && (
           <TribePicksView
             tribePicksData={tribePicksData}
             loading={picksLoading}

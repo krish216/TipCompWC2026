@@ -10,6 +10,7 @@ import { getDefaultScoringConfig, type RoundId, type Fixture, type MatchScore } 
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 import { SCORED_SLOTS } from '@/lib/bracket-scoring'
+import { SweepEoiQrButton } from '@/components/game/SweepEoiQrButton'
 
 const SIM_ROUND_DEFS: { round: string; label: string }[] = [
   { round: 'r32', label: 'Round of 32' }, { round: 'r16', label: 'Round of 16' },
@@ -278,6 +279,19 @@ export default function AdminPage() {
   // Tournament tab state
   const [tournLoading,    setTournLoading]    = useState(false)
   const [tournamentData,  setTournamentData]  = useState<any>(null)
+  const isSweepTourn = tournamentData?.format === 'sweep'
+
+  // The hardcoded 'results' default (useState<AdminTab>('results') above) is wrong once the
+  // selected tournament turns out to be a sweep — fall back to Tournament instead of showing
+  // an empty fixtures/rounds screen. Declared here, before the isAdmin/loading early returns
+  // below, so this hook always runs in the same order across renders (Rules of Hooks) — it
+  // can't live down near TABS, since that's reached only once those returns are past.
+  useEffect(() => {
+    if (isSweepTourn && (activeTab === 'results' || activeTab === 'locks' || activeTab === 'scoring')) {
+      setActiveTab('tournament')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSweepTourn])
   const [logoUploading,   setLogoUploading]   = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
 
@@ -478,6 +492,24 @@ export default function AdminPage() {
   const [togglingEnforcePremium, setTogglingEnforcePremium] = useState(false)
   const [togglingKnockout,       setTogglingKnockout]       = useState(false)
   const [togglingBracketKO,      setTogglingBracketKO]      = useState(false)
+  const [savingStatus,           setSavingStatus]           = useState(false)
+
+  const handleStatusChange = async (next: string) => {
+    if (!tournamentData || next === tournamentData.status) return
+    setSavingStatus(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, status: next }),
+    })
+    setSavingStatus(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, status: next }))
+      refreshTournaments()
+      toast.success(`Status set to ${next}`)
+    } else {
+      toast.error('Failed to update status')
+    }
+  }
   const [reportCardOn,        setReportCardOn]        = useState(false)
   const [togglingReportCard,  setTogglingReportCard]  = useState(false)
   const [adsOn,               setAdsOn]               = useState(false)  // app_settings.ads_enabled (OFF until turned on)
@@ -670,7 +702,7 @@ export default function AdminPage() {
       entered: (fixtures[r] ?? []).filter(f => results[f.id]).length,
       isOpen:  locks[r] ?? false,
     })),
-  [fixtures, results, locks])
+  [ALL_ROUNDS, ROUND_LABELS, fixtures, results, locks])
 
   const visibleFixtures = useMemo(() => {
     let fs = fixtures[activeRound] ?? []
@@ -740,9 +772,13 @@ export default function AdminPage() {
 
   // ── Tab nav ────────────────────────────────────────────────
   const TABS: { id: AdminTab; label: string; icon: string }[] = [
-    { id: 'results',       label: 'Results',       icon: '⚽' },
-    { id: 'locks',         label: 'Round Locks',   icon: '🔒' },
-    { id: 'scoring',       label: 'Scoring',       icon: '📊' },
+    // Results/Round Locks/Scoring are fixtures+rounds concepts — a sweep has neither (its
+    // "result" is just a horse's finish_position, set directly on /admin/sweep-horses).
+    ...(!isSweepTourn ? [
+      { id: 'results' as AdminTab,    label: 'Results',     icon: '⚽' },
+      { id: 'locks' as AdminTab,      label: 'Round Locks', icon: '🔒' },
+      { id: 'scoring' as AdminTab,    label: 'Scoring',     icon: '📊' },
+    ] : []),
     { id: 'tournament',    label: 'Tournament',    icon: '🏆' },
     { id: 'announcements', label: 'Announcements', icon: '📣' },
     { id: 'feedback',      label: 'Feedback',      icon: '💬' },
@@ -783,19 +819,36 @@ export default function AdminPage() {
           <div>
             <h1 className="text-base font-bold text-gray-900 tracking-tight">Tournament Admin</h1>
             <p className="text-[11px] text-gray-400">
-              {tournamentData?.name ?? 'Loading…'} · {totalEntered}/{totalFixtures} results entered
+              {tournamentData?.name ?? 'Loading…'}
+              {tournamentData?.format !== 'sweep' && ` · ${totalEntered}/${totalFixtures} results entered`}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-medium text-emerald-700">Live scoring</span>
-          </div>
+          {tournamentData?.format === 'sweep' ? (
+            // Doubles as the persistent entry point into /admin/sweep-horses — otherwise
+            // nothing links there except the (selection-gated) callout inside the
+            // Tournament tab, same discoverability gap we already fixed for /sweep itself.
+            <>
+              <SweepEoiQrButton />
+              <Link href="/admin/sweep-horses"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors">
+                <span className="text-[11px] font-medium text-amber-700">🐎 Sweep · manage field →</span>
+              </Link>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-medium text-emerald-700">Live scoring</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Progress bar ─────────────────────────────────── */}
+      {/* Fixtures/rounds results-entry progress — a league/knockout concept (matches,
+          rounds); a sweep has neither, so this is just noise (0/0, NaN% width) for it. */}
+      {tournamentData?.format !== 'sweep' && (
       <div className="mb-4 bg-white border border-gray-200 rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-gray-600">Tournament progress</span>
@@ -827,6 +880,7 @@ export default function AdminPage() {
           ))}
         </div>
       </div>
+      )}
 
       {/* ── Tab bar ───────────────────────────────────────── */}
       <div className="flex gap-0 bg-gray-100 p-1 rounded-xl mb-4">
@@ -1125,16 +1179,36 @@ export default function AdminPage() {
 
             {tournamentData ? (
               <div className="space-y-2">
+                <div className="flex items-center justify-between py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 font-medium">Status</span>
+                  <div className="flex items-center gap-2">
+                    {savingStatus && <Spinner className="w-3 h-3" />}
+                    <select
+                      value={tournamentData.status ?? 'upcoming'}
+                      disabled={savingStatus}
+                      onChange={e => handleStatusChange(e.target.value)}
+                      className="text-xs font-semibold text-gray-800 border border-gray-200 rounded-lg px-2 py-1 disabled:opacity-50"
+                    >
+                      <option value="upcoming">upcoming</option>
+                      <option value="active">active</option>
+                      <option value="completed">completed</option>
+                    </select>
+                  </div>
+                </div>
                 {[
                   { label: 'Name',        value: tournamentData.name },
-                  { label: 'Status',      value: tournamentData.status },
                   { label: 'Active',      value: tournamentData.is_active ? '✓ Yes' : '✗ No' },
                   { label: 'Start date',  value: tournamentData.start_date ?? '—' },
                   { label: 'Final date',  value: tournamentData.final_date ?? '—' },
-                  { label: 'Total teams', value: tournamentData.total_teams ?? '—' },
-                  { label: 'Matches',     value: tournamentData.total_matches ?? '—' },
-                  { label: 'Kickoff venue', value: tournamentData.kickoff_venue ?? '—' },
-                  { label: 'Final venue', value: tournamentData.final_venue ?? '—' },
+                  // Teams/matches/venues are league & knockout concepts — a sweep has a
+                  // race field (managed on /admin/sweep-horses, linked below) and a start
+                  // time, not a bracket of matches, so these rows are hidden for it.
+                  ...(tournamentData.format !== 'sweep' ? [
+                    { label: 'Total teams', value: tournamentData.total_teams ?? '—' },
+                    { label: 'Matches',     value: tournamentData.total_matches ?? '—' },
+                    { label: 'Kickoff venue', value: tournamentData.kickoff_venue ?? '—' },
+                    { label: 'Final venue', value: tournamentData.final_venue ?? '—' },
+                  ] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                     <span className="text-xs text-gray-500 font-medium">{label}</span>
@@ -1144,6 +1218,12 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="flex justify-center py-4"><Spinner className="w-5 h-5" /></div>
+            )}
+            {tournamentData?.format === 'sweep' && (
+              <Link href="/admin/sweep-horses"
+                className="mt-3 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors">
+                🐎 Manage the race field, scratchings, results &amp; start time <span>→</span>
+              </Link>
             )}
           </div>
 

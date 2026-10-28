@@ -23,6 +23,7 @@ function JoinInner() {
   const [compId,        setCompId]        = useState<string | null>(null)
   const [chief,         setChief]         = useState<Chief | null>(null)
   const [tribeAssigned, setTribeAssigned] = useState(false)
+  const [compFull,      setCompFull]      = useState(false)
   const [errMsg,        setErrMsg]        = useState<string | null>(null)
   const ran = useRef(false)
 
@@ -58,11 +59,12 @@ function JoinInner() {
       // Who runs this comp — shown on the "You're in" screen so the tipster knows their Chief.
       fetch(`/api/comps/chief?comp_id=${comp.id}`).then(r => r.json()).then(d => setChief(d.chief ?? null)).catch(() => {})
 
-      const { success, error: joinErr, tribe_assigned } = await fetch('/api/comp-admins/self-register', {
+      const { success, error: joinErr, tribe_assigned, comp_full } = await fetch('/api/comp-admins/self-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comp_id: comp.id, invite_code: code }),
       }).then(r => r.json())
+      setCompFull(!!comp_full)
 
       // "Already a member" still counts as success
       if (!success && !joinErr?.toLowerCase().includes('already')) {
@@ -134,7 +136,11 @@ function JoinInner() {
             <div className="flex justify-center mt-5"><GroupChatLink compId={compId} /></div>
           )}
           {!tribeAssigned && (
-            <p className="text-[11px] text-gray-400 text-center mt-5">Your tribe will be assigned by the comp manager.</p>
+            <p className="text-[11px] text-gray-400 text-center mt-5">
+              {compFull
+                ? "Every pool in this comp is full right now — we've let your organiser know, and they can open it up for you."
+                : 'Your tribe will be assigned by the comp manager.'}
+            </p>
           )}
           <p className="text-[11px] text-gray-400 text-center mt-5 leading-relaxed">
             🔀 In more than one competition? Switch anytime from the{' '}

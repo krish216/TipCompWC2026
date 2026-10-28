@@ -17,9 +17,12 @@ export async function GET(request: NextRequest) {
   const tournament_id = searchParams.get('tournament_id')
 
   if (code) {
-    const { data, error } = await supabase
-      .from('comps')
-      .select('id, name, slug, invite_code, logo_url, tournament_id')
+    // Admin client — this is hit from the login/join page before the visitor is
+    // necessarily signed in, and the embedded tournament format lookup shouldn't depend
+    // on anon RLS grants on `tournaments`.
+    const lookupAdmin = createAdminClient()
+    const { data, error } = await (lookupAdmin.from('comps') as any)
+      .select('id, name, slug, invite_code, logo_url, tournament_id, tournaments(format)')
       .eq('invite_code', code)
       .neq('slug', 'public')
       .single()
@@ -39,7 +42,8 @@ export async function GET(request: NextRequest) {
       email_invited = !!inv
     }
 
-    return NextResponse.json({ data: { ...(data as any), email_invited } })
+    const { tournaments, ...rest } = data as any
+    return NextResponse.json({ data: { ...rest, format: tournaments?.format ?? null, email_invited } })
   }
 
   const user = await getSessionUser()

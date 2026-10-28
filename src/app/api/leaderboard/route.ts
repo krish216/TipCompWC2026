@@ -164,6 +164,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Favourite/bonus team per user for THIS tournament (user_tournaments.favourite_team),
+    // resolved to its flag emoji / club crest via tournament_teams so the board can show a
+    // TeamBadge next to the player's name without a client-side lookup.
+    const favouriteTeamMap: Record<string, { name: string; flag: string | null; logo: string | null }> = {}
+    if (tournamentId && userIds.length > 0) {
+      const [{ data: utRows }, { data: teamRows }] = await Promise.all([
+        (adminClient.from('user_tournaments') as any)
+          .select('user_id, favourite_team')
+          .eq('tournament_id', tournamentId)
+          .in('user_id', userIds),
+        (adminClient.from('tournament_teams') as any)
+          .select('name, flag_emoji, logo_url')
+          .eq('tournament_id', tournamentId),
+      ])
+      const teamVisualByName: Record<string, { flag: string | null; logo: string | null }> = {}
+      ;(teamRows ?? []).forEach((t: any) => {
+        teamVisualByName[t.name] = { flag: t.flag_emoji ?? null, logo: t.logo_url ?? null }
+      })
+      ;(utRows ?? []).forEach((row: any) => {
+        if (!row.favourite_team) return
+        const visual = teamVisualByName[row.favourite_team] ?? { flag: null, logo: null }
+        favouriteTeamMap[row.user_id] = { name: row.favourite_team, ...visual }
+      })
+    }
+
     // Comp name per user — shown on the GLOBAL board in place of tribe (which is
     // per-comp and undefined globally). Uses each player's currently-selected comp
     // (user_preferences.comp_id). The default 'PUBLIC' comp is filtered out in the UI.
@@ -344,6 +369,9 @@ export async function GET(request: NextRequest) {
       first_name:          resolveFirstName(row.user_id),
       flag:                tipsterFlag(profileMap[row.user_id]?.country ?? row.country, profileMap[row.user_id]?.timezone),
       avatar_url:          profileMap[row.user_id]?.avatar_url  ?? null,
+      favourite_team:      favouriteTeamMap[row.user_id]?.name ?? null,
+      favourite_team_flag: favouriteTeamMap[row.user_id]?.flag ?? null,
+      favourite_team_logo: favouriteTeamMap[row.user_id]?.logo ?? null,
       comp_name:           compNameMap[row.user_id]             ?? null,
       tribe_id:            tribeInfoMap[row.user_id]?.tribe_id   ?? null,
       tribe_name:          tribeInfoMap[row.user_id]?.tribe_name ?? null,
@@ -383,6 +411,9 @@ export async function GET(request: NextRequest) {
           first_name:          profileMap[user.id]?.first_name  ?? null,
           flag:                tipsterFlag(profileMap[user.id]?.country ?? m.country, profileMap[user.id]?.timezone),
           avatar_url:          profileMap[user.id]?.avatar_url  ?? null,
+          favourite_team:      favouriteTeamMap[user.id]?.name ?? null,
+          favourite_team_flag: favouriteTeamMap[user.id]?.flag ?? null,
+          favourite_team_logo: favouriteTeamMap[user.id]?.logo ?? null,
           comp_name:           compNameMap[user.id]             ?? null,
           tribe_id:            tribeInfoMap[user.id]?.tribe_id   ?? null,
           tribe_name:          tribeInfoMap[user.id]?.tribe_name ?? null,

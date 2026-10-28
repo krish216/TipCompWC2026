@@ -2,6 +2,7 @@
 // v3 — roundview type fix
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { Avatar, Medal, Spinner, EmptyState, Card } from '@/components/ui'
@@ -12,6 +13,7 @@ import { ChallengePromoCard } from '@/components/game/ChallengePromoCard'
 import { FlagshipChallengePrompt } from '@/components/game/FlagshipChallengePrompt'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { TrophyStrip } from '@/components/game/TrophyStrip'
+import { TeamBadge } from '@/components/game/TeamBadge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import type { LeaderboardEntry, RoundId } from '@/types'
@@ -56,7 +58,12 @@ const lbCache = new Map<string, LbCacheEntry>()
 // ── Main ScoreBoard page ──────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, selectedTournId, selectedCompId } = useUserPrefs()
+  const router = useRouter()
+  const { scoringConfig, selectedTourn, selectedTournId, selectedCompId } = useUserPrefs()
+  const isSweep = selectedTourn?.format === 'sweep'
+  // Sweeps have no scoring/leaderboard — they live entirely under /sweep. Bounce out
+  // rather than show an empty ScoreBoard for whatever tournament the switcher landed on.
+  useEffect(() => { if (isSweep) router.replace('/sweep') }, [isSweep, router])
 
   const { ROUND_SNAPSHOTS, CUMULATIVE_TABS } = useMemo(() => {
     const rounds = Object.values(scoringConfig.rounds)
@@ -757,6 +764,16 @@ export default function LeaderboardPage() {
                                       <span className={clsx('text-xs font-medium truncate max-w-[100px]', isMe && 'text-green-700')}>
                                         <Link href={`/tipster/${entry.user_id}`} onClick={e => e.stopPropagation()} className="hover:underline">{entry.display_name}</Link>{isMe && ' (you)'}
                                       </span>
+                                      {entry.favourite_team && (
+                                        <span title={entry.favourite_team} className="flex-shrink-0">
+                                          <TeamBadge
+                                            flag={entry.favourite_team_flag ?? ''}
+                                            logo={entry.favourite_team_logo}
+                                            name={entry.favourite_team}
+                                            size={13}
+                                          />
+                                        </span>
+                                      )}
                                       {isMe && (
                                         <ShareButton compact payload={{
                                           type: 'rank', rank: myRank,

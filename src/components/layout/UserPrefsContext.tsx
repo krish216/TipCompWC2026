@@ -24,7 +24,7 @@ export interface Tournament {
   status:         string
   is_active:      boolean
   is_primary?:    boolean
-  format?:        string | null   // 'league' | 'knockout' — drives the flagship (predictor vs bracket)
+  format?:        string | null   // 'league' | 'knockout' — drives the flagship (predictor vs bracket); 'sweep' has no predictions/leaderboard at all — Navbar/predict/leaderboard route it to /sweep instead
   logo_url?:      string | null
   start_date?:    string | null
   end_date?:      string | null
@@ -74,6 +74,15 @@ interface UserPrefsCtx {
   updateComp:         (id: string, patch: Partial<Comp>) => void
   refreshComps:       (preferredCompId?: string) => Promise<void>
   refreshTournaments: () => Promise<void>
+  // Re-checks which tournaments the user belongs to a comp in (comps/create and
+  // self-register write that membership server-side but have no way to tell this context
+  // to notice — it only loads once per session). Adds any newly-joined tournament into
+  // activeTournaments, and optionally switches straight to it (e.g. right after creating
+  // or joining a sweep, so Navbar/isSweep reflect it without a full reload) — pass
+  // switchToCompId too when the caller already knows exactly which comp, so pages like
+  // /tribe that key off selectedComp.id resolve the right one rather than falling back to
+  // an arbitrary tribe membership.
+  refreshMembership:  (switchToTournId?: string, switchToCompId?: string) => Promise<void>
   hasTribe:           boolean | null   // null = loading, true/false = resolved
   selectedTribeId:    string | null
   refreshHasTribe:    () => Promise<void>
@@ -441,6 +450,53 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
     const freshById = new Map((data as Tournament[]).map(t => [t.id, t]))
     setActiveTournaments(cur => cur.map(t => freshById.get(t.id) ?? t))
   }, [session, supabase, activeTournaments])
+
+  // See the interface comment — re-runs the membership half of the initial-load query
+  // (mirrors self-register's own tournament lookup) and merges in anything new.
+  const refreshMembership = useCallback(async (switchToTournId?: string, switchToCompId?: string) => {
+    if (!session) return
+    const { data: myComps } = await supabase.from('user_comps').select('comps(tournament_id)').eq('user_id', session.user.id)
+    const memberTournIds = Array.from(new Set(
+      ((myComps ?? []) as any[])
+        .map(r => (Array.isArray(r.comps) ? r.comps[0] : r.comps)?.tournament_id)
+        .filter(Boolean)
+    )) as string[]
+
+    if (memberTournIds.length) {
+      const { data } = await supabase.from('tournaments').select(TOURN_COLS).in('id', memberTournIds)
+      if (data?.length) {
+        // Merge by id against the CURRENT state at apply time, not the `activeTournaments`
+        // closed over above — this call can run twice concurrently (e.g. React Strict
+        // Mode double-invoking the mount effect), and checking "is it missing" against a
+        // stale snapshot before appending via a plain spread let both calls append the
+        // same row, producing duplicates in the switcher.
+        setActiveTournaments(prev => {
+          const byId = new Map(prev.map(t => [t.id, t]))
+          for (const t of data as Tournament[]) byId.set(t.id, t)
+          return Array.from(byId.values())
+        })
+      }
+    }
+
+    if (switchToTournId) {
+      setSelectedTournId(switchToTournId)
+      // loadComps resolves and sets tournsComps/selectedCompId itself (preferring
+      // switchToCompId when given) — leaving this at null/[] like the old version did
+      // broke /tribe's own tribe lookup, which keys off selectedComp.id: with no comp
+      // selected it falls back to "first tribe membership" and can resolve a DIFFERENT
+      // tribe than the sweep the user is actually looking at (e.g. a football one),
+      // while isSweep (correctly updated) still renders SweepPoolPanel for it — a 400
+      // from the sweep API with no my_horses field, which SweepPoolPanel doesn't guard.
+      await loadComps(switchToTournId, session.user.id, switchToCompId ?? null)
+      // Persist the tournament globally, same as pickTournament — /tribe's loadTribe
+      // reads user_preferences.tournament_id directly from the DB, not from this
+      // context's state, so skipping this left that read stale too.
+      await fetch('/api/user-preferences', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: switchToTournId }),
+      }).catch(() => { /* non-critical */ })
+    }
+  }, [session, supabase, loadComps])
   // Derived synchronously — true whenever the selected comp is one the user admins
   const isCompAdmin = selectedCompId != null && adminCompIds.has(selectedCompId)
   // isPremium: true when enforcement is off (everyone free) OR user has paid for this tournament
@@ -457,7 +513,7 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       isCompAdmin, adminComps,
       roundConfigs, scoringConfig,
       teamsMap, flag, code,
-      pickTournament, pickComp, refreshComps, refreshTournaments,
+      pickTournament, pickComp, refreshComps, refreshTournaments, refreshMembership,
       hasTribe, selectedTribeId, refreshHasTribe,
       loading,
       isPremium, isProPaid: isPremiumOrg, enforcePremium,

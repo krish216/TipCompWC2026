@@ -31,6 +31,8 @@ const NOTIF_ICONS: Record<string, string> = {
   round_complete:    '🏁',
   weekly_report:     '📋',
   feedback_reply:    '💬',
+  sweep_payment_request: '💳',
+  sweep_results_ready:    '🏆',
 }
 
 function timeAgo(dateStr: string): string {
@@ -48,7 +50,13 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router        = useRouter()
   const searchParams  = useSearchParams()
   const { supabase, session } = useSupabase()
-  const { isCompAdmin, selectedCompId, selectedTribeId } = useUserPrefs()
+  const { isCompAdmin, selectedCompId, selectedTribeId, selectedTourn } = useUserPrefs()
+  const isSweep = selectedTourn?.format === 'sweep'
+  // /sweep and /sweep-admin never change the global tournament (a non-member can't even
+  // select a sweep — it isn't in their list), so the nav would otherwise keep showing the
+  // football items on a horse-racing page. Being on one of those pages IS sweep context.
+  const onSweepPage = pathname.startsWith('/sweep')
+  const sweepNav = isSweep || onSweepPage
   const [mounted,      setMounted]      = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [hasUnread,    setHasUnread]    = useState(false)
@@ -176,10 +184,27 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   // Desktop nav items (shown in top bar on sm+)
   const desktopItems = isCompAdminPage
     ? [
-        { href: '/',                           label: 'My Comps'  },
+        // "My Comps" (href '/') always bounces straight back to /sweep when isSweep — a
+        // dead link there (see HomeClient's redirect), so it's dropped entirely rather than
+        // shown pointing nowhere useful. Football keeps it; it's a real destination there.
+        ...(!isSweep ? [{ href: '/', label: 'My Comps' }] : []),
         { href: '/comp-admin?tab=tipsters',    label: 'Tipsters'  },
-        { href: '/comp-admin?tab=tribes',      label: 'Tribes'    },
-        { href: '/comp-admin?tab=insights',    label: 'Insights'  },
+        { href: `/comp-admin?tab=tribes`,      label: isSweep ? 'Pools' : 'Tribes' },
+        // Insights (prediction accuracy/scoring) has no sweep equivalent — same gate as
+        // the tab itself inside /comp-admin.
+        ...(!isSweep ? [{ href: '/comp-admin?tab=insights', label: 'Insights' }] : []),
+      ]
+    : sweepNav
+    ? [
+        { href: '/sweep', label: 'My Sweep' },
+        // "My Pool" (singular, not "My Pools" — that's the plural all-pools list already on
+        // /sweep) — /tribe only ever shows one pool's chat/draw at a time, same role "My
+        // Tribe" plays for football. Only when a sweep is actually selected: otherwise
+        // /tribe resolves the selected FOOTBALL tribe, so the link would land on the wrong
+        // thing (the My Sweeps rows link to /tribe?comp_id=… directly instead).
+        // ...and with a football tournament still selected, '/' is a real destination (it
+        // only bounces back here when a sweep is selected), so keep the way back to it.
+        ...(isSweep ? [{ href: '/tribe', label: 'My Pool' }] : [{ href: '/', label: 'My Comps' }]),
       ]
     : [
         { href: '/',            label: 'My Comps'   },
@@ -193,10 +218,23 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   // Mobile bottom tab items
   const bottomTabs = isCompAdminPage
     ? [
-        { href: '/',                        icon: '🏠', label: 'Home',      disabled: false },
+        // Same dead-link reasoning as desktopItems above — dropped for sweeps.
+        ...(!isSweep ? [{ href: '/', icon: '🏠', label: 'Home', disabled: false }] : []),
         { href: '/comp-admin?tab=tipsters', icon: '🙋', label: 'Tipsters',  disabled: false },
-        { href: '/comp-admin?tab=tribes',   icon: '👥', label: 'Tribes',    disabled: false },
-        { href: '/comp-admin?tab=insights', icon: '📊', label: 'Insights',  disabled: false },
+        { href: '/comp-admin?tab=tribes',   icon: '👥', label: isSweep ? 'Pools' : 'Tribes', disabled: false },
+        ...(!isSweep ? [{ href: '/comp-admin?tab=insights', icon: '📊', label: 'Insights', disabled: false }] : []),
+      ]
+    : sweepNav
+    ? [
+        { href: '/sweep', icon: '🐎', label: 'Sweep', disabled: false },
+        // Pool + Manage key off the selected comp, which is only a sweep comp when a
+        // sweep is selected — same reasoning as "My Pool" above.
+        ...(isSweep
+          ? [{ href: '/tribe', icon: '👥', label: 'Pool', disabled: false }]
+          : [{ href: '/',      icon: '🏠', label: 'Home', disabled: false }]),
+        ...(isSweep && isCompAdmin && selectedCompId
+          ? [{ href: '/comp-admin', icon: '⚙️', label: 'Manage', disabled: false }]
+          : []),
       ]
     : [
         { href: '/',            icon: '🏠', label: 'Home',    disabled: false           },

@@ -10,13 +10,14 @@ import { autoPostRoundDebriefs } from '@/lib/round-debrief-auto'
 
 export const dynamic = 'force-dynamic'
 
-// Triggered by Supabase pg_cron every 5 min during the tournament. Auth via
-// CRON_SECRET. Pulls results from ESPN's free scoreboard API and matches them to
-// our fixtures by team pair + date (no stored id / mapping step needed). Manual
-// admin entries are never touched (guarded on home_score IS NULL).
+// Triggered by Supabase pg_cron every 5 min, year-round. Auth via CRON_SECRET. Pulls
+// results from ESPN's free scoreboard API — one feed per tournament, via
+// tournaments.espn_league (migration 149) — and matches them to our fixtures by team
+// pair + date (no stored id / mapping step needed). Manual admin entries are never
+// touched (guarded on home_score IS NULL). No date window: the pending-fixtures query
+// below already returns nothing when no tournament has a kicked-off, unscored game, so
+// a fixed tournament window isn't needed and would just have to be re-tuned per season.
 
-const TOURNAMENT_START = new Date('2026-06-11T00:00:00Z')
-const TOURNAMENT_END   = new Date('2026-07-21T00:00:00Z')
 const MAX_PER_RUN = 20
 const DAY = 86_400_000
 const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
@@ -27,10 +28,6 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date()
-  if (now < TOURNAMENT_START || now > TOURNAMENT_END) {
-    return NextResponse.json({ skipped: 'Outside tournament window' })
-  }
-
   const supabase = createAdminClient()
 
   // Refresh knockout teams/dates/venues from ESPN (event-id keyed). Must run before
@@ -50,7 +47,7 @@ export async function GET(request: NextRequest) {
   const skipped: { fixture_id: number; reason: string }[] = []
   try {
     const { data: pending, error: pendErr } = await (supabase.from('fixtures') as any)
-      .select('id, home, away, kickoff_utc')
+      .select('id, home, away, kickoff_utc, tournament_id')
       .neq('round', 'wup')
       .is('home_score', null)
       .lte('kickoff_utc', now.toISOString())
@@ -60,83 +57,108 @@ export async function GET(request: NextRequest) {
     checked = pending?.length ?? 0
 
     if (checked > 0) {
-      // One ESPN call covers a date range spanning the pending kickoffs (± a day).
-      const times = pending.map((f: any) => new Date(f.kickoff_utc).getTime())
-      const dates = `${yyyymmdd(new Date(Math.min(...times) - DAY))}-${yyyymmdd(new Date(Math.max(...times) + DAY))}`
-      const byPair = new Map<string, ReturnType<typeof parseEspnEvent>>()
-      for (const ev of await espnScoreboard(dates)) {
-        const p = parseEspnEvent(ev)
-        if (!p || p.comps.length !== 2) continue
-        byPair.set([p.comps[0].canon, p.comps[1].canon].sort().join('|'), p)
+      // Group by tournament — each has its own ESPN feed (tournaments.espn_league,
+      // e.g. 'fifa.world' for the WC, 'eng.1' for the EPL) so a WC fixture is never
+      // looked up against the EPL scoreboard or vice versa.
+      const tournamentIds = [...new Set((pending as any[]).map(f => f.tournament_id).filter(Boolean))]
+      const { data: tournaments } = await (supabase.from('tournaments') as any)
+        .select('id, slug, espn_league')
+        .in('id', tournamentIds)
+      const leagueByTournament = new Map<number, string | null>(
+        (tournaments ?? []).map((t: any) => [t.id, t.espn_league])
+      )
+
+      const byTournament = new Map<number, any[]>()
+      for (const f of pending as any[]) {
+        if (!byTournament.has(f.tournament_id)) byTournament.set(f.tournament_id, [])
+        byTournament.get(f.tournament_id)!.push(f)
       }
 
-      for (const f of pending as any[]) {
-        if (isPlaceholderTeam(f.home) || isPlaceholderTeam(f.away)) continue   // TBD knockout — can't name-match yet
-
-        const ourHome = canonTeam(f.home), ourAway = canonTeam(f.away)
-        const ev = byPair.get([ourHome, ourAway].sort().join('|'))
-        if (!ev) { skipped.push({ fixture_id: f.id, reason: 'not found on ESPN (date/name)' }); continue }
-
-        // Still in progress — capture the LIVE scoreline into the SEPARATE live_*
-        // columns (never home_score, which would fire final scoring) so the match
-        // challenge board can show a provisional "if it ended now" ranking. Then
-        // retry the final result next run.
-        if (!ev.completed) {
-          if (ev.state === 'in') {
-            const lh = ev.comps.find(c => c.canon === ourHome)?.score ?? null
-            const la = ev.comps.find(c => c.canon === ourAway)?.score ?? null
-            if (lh != null && la != null) {
-              await (supabase.from('fixtures') as any).update({
-                live_home_score: lh, live_away_score: la, live_status: 'in',
-                live_minute: ev.minute, live_updated_at: new Date().toISOString(),
-                // Actual first-goal minute once the first goal is scored — powers the
-                // provisional tie-break live; only set when known (never overwrite with null).
-                ...(ev.firstGoalMinute != null ? { first_goal_min: ev.firstGoalMinute } : {}),
-              }).eq('id', f.id).is('home_score', null)
-              liveUpdated++
-            }
-          }
+      for (const [tournamentId, fixtures] of byTournament) {
+        const league = leagueByTournament.get(tournamentId)
+        if (!league) {
+          for (const f of fixtures) skipped.push({ fixture_id: f.id, reason: 'tournament has no espn_league configured' })
           continue
         }
 
-        const homeComp = ev.comps.find(c => c.canon === ourHome)
-        const awayComp = ev.comps.find(c => c.canon === ourAway)
-        if (!homeComp || !awayComp || homeComp.score == null || awayComp.score == null) {
-          skipped.push({ fixture_id: f.id, reason: 'completed but no score' }); continue
+        // One ESPN call covers a date range spanning this tournament's pending kickoffs (± a day).
+        const times = fixtures.map((f: any) => new Date(f.kickoff_utc).getTime())
+        const dates = `${yyyymmdd(new Date(Math.min(...times) - DAY))}-${yyyymmdd(new Date(Math.max(...times) + DAY))}`
+        const byPair = new Map<string, ReturnType<typeof parseEspnEvent>>()
+        for (const ev of await espnScoreboard(dates, league)) {
+          const p = parseEspnEvent(ev)
+          if (!p || p.comps.length !== 2) continue
+          byPair.set([p.comps[0].canon, p.comps[1].canon].sort().join('|'), p)
         }
 
-        // Penalty shootout winner → our team name (level score above stays a draw).
-        let penWinner: string | null = null
-        if (ev.isShootout) {
-          const w = ev.comps.find(c => c.winner)
-          penWinner = w?.canon === ourHome ? f.home : w?.canon === ourAway ? f.away : null
+        for (const f of fixtures) {
+          if (isPlaceholderTeam(f.home) || isPlaceholderTeam(f.away)) continue   // TBD knockout — can't name-match yet
+
+          const ourHome = canonTeam(f.home), ourAway = canonTeam(f.away)
+          const ev = byPair.get([ourHome, ourAway].sort().join('|'))
+          if (!ev) { skipped.push({ fixture_id: f.id, reason: 'not found on ESPN (date/name)' }); continue }
+
+          // Still in progress — capture the LIVE scoreline into the SEPARATE live_*
+          // columns (never home_score, which would fire final scoring) so the match
+          // challenge board can show a provisional "if it ended now" ranking. Then
+          // retry the final result next run.
+          if (!ev.completed) {
+            if (ev.state === 'in') {
+              const lh = ev.comps.find(c => c.canon === ourHome)?.score ?? null
+              const la = ev.comps.find(c => c.canon === ourAway)?.score ?? null
+              if (lh != null && la != null) {
+                await (supabase.from('fixtures') as any).update({
+                  live_home_score: lh, live_away_score: la, live_status: 'in',
+                  live_minute: ev.minute, live_updated_at: new Date().toISOString(),
+                  // Actual first-goal minute once the first goal is scored — powers the
+                  // provisional tie-break live; only set when known (never overwrite with null).
+                  ...(ev.firstGoalMinute != null ? { first_goal_min: ev.firstGoalMinute } : {}),
+                }).eq('id', f.id).is('home_score', null)
+                liveUpdated++
+              }
+            }
+            continue
+          }
+
+          const homeComp = ev.comps.find(c => c.canon === ourHome)
+          const awayComp = ev.comps.find(c => c.canon === ourAway)
+          if (!homeComp || !awayComp || homeComp.score == null || awayComp.score == null) {
+            skipped.push({ fixture_id: f.id, reason: 'completed but no score' }); continue
+          }
+
+          // Penalty shootout winner → our team name (level score above stays a draw).
+          let penWinner: string | null = null
+          if (ev.isShootout) {
+            const w = ev.comps.find(c => c.winner)
+            penWinner = w?.canon === ourHome ? f.home : w?.canon === ourAway ? f.away : null
+          }
+
+          const { data: upd, error } = await (supabase.from('fixtures') as any)
+            .update({
+              home_score: homeComp.score,
+              away_score: awayComp.score,
+              pen_winner: penWinner,
+              result_set_at: new Date().toISOString(),
+              result_set_by: null, // null = automated
+              live_status: 'ft',    // final is in — stop the live/provisional board
+              // Actual first-goal minute for the tie-break: ESPN's if known, else 0 for a
+              // goalless match (0–0 = "no goal"); leave unset if goals but no play detail.
+              ...(ev.firstGoalMinute != null
+                ? { first_goal_min: ev.firstGoalMinute }
+                : ((homeComp.score ?? 0) + (awayComp.score ?? 0) === 0 ? { first_goal_min: 0 } : {})),
+            })
+            .eq('id', f.id)
+            .is('home_score', null)   // never clobber a manual entry
+            .select('id')
+
+          if (error) { skipped.push({ fixture_id: f.id, reason: error.message }); continue }
+          if (!upd?.length) { skipped.push({ fixture_id: f.id, reason: 'already had a result' }); continue }
+
+          updated++
+          console.log(`[scores/sync] fixture ${f.id}: ${f.home} ${homeComp.score}-${awayComp.score} ${f.away}${penWinner ? ` (pens: ${penWinner})` : ''}`)
+          await notifyScoreUpdate(supabase, f.id)
+          await settleChallengesForFixture(supabase, f.id).catch(() => {})
         }
-
-        const { data: upd, error } = await (supabase.from('fixtures') as any)
-          .update({
-            home_score: homeComp.score,
-            away_score: awayComp.score,
-            pen_winner: penWinner,
-            result_set_at: new Date().toISOString(),
-            result_set_by: null, // null = automated
-            live_status: 'ft',    // final is in — stop the live/provisional board
-            // Actual first-goal minute for the tie-break: ESPN's if known, else 0 for a
-            // goalless match (0–0 = "no goal"); leave unset if goals but no play detail.
-            ...(ev.firstGoalMinute != null
-              ? { first_goal_min: ev.firstGoalMinute }
-              : ((homeComp.score ?? 0) + (awayComp.score ?? 0) === 0 ? { first_goal_min: 0 } : {})),
-          })
-          .eq('id', f.id)
-          .is('home_score', null)   // never clobber a manual entry
-          .select('id')
-
-        if (error) { skipped.push({ fixture_id: f.id, reason: error.message }); continue }
-        if (!upd?.length) { skipped.push({ fixture_id: f.id, reason: 'already had a result' }); continue }
-
-        updated++
-        console.log(`[scores/sync] fixture ${f.id}: ${f.home} ${homeComp.score}-${awayComp.score} ${f.away}${penWinner ? ` (pens: ${penWinner})` : ''}`)
-        await notifyScoreUpdate(supabase, f.id)
-        await settleChallengesForFixture(supabase, f.id).catch(() => {})
       }
     }
   } catch (e: any) { console.error('[scores/sync] results failed:', e?.message ?? e) }

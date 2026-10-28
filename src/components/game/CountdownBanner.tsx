@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
-import { Spinner } from '@/components/ui'
+import { TournamentSheet } from '@/components/game/TournamentSwitcher'
 
 // Logged-out / no-context fallback (World Cup 2026).
 const WC = {
@@ -35,9 +35,6 @@ const kickoffOf = (t: Tournament | null): Date =>
     : t?.start_date ? new Date(`${t.start_date}T00:00:00Z`)
     : WC.kickoff
 
-const startsLabel = (t: Tournament): string =>
-  t.start_date ? `Starts ${new Date(`${t.start_date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Upcoming'
-
 // A tournament is over once its end_date has passed (a plain date → end of that UTC day).
 // Lets the banner swap the perpetual "LIVE NOW" for a completed state once the final's done.
 const hasEnded = (t: Tournament | null): boolean =>
@@ -67,14 +64,20 @@ export function CountdownBanner() {
   const kickoff    = kickoffOf(selectedTourn)
   const name       = selectedTourn?.name ?? WC.name
   const matches    = selectedTourn?.total_matches ?? WC.matches
+  const isSweep    = (selectedTourn as any)?.format === 'sweep'
   // Don't borrow WC's first-match line for another tournament that has none — fall back
-  // to a kickoff date instead.
+  // to a kickoff date instead. A sweep is one race, not a season of matches.
   const firstMatch = selectedTourn
-    ? (selectedTourn.first_match ?? `Season kicks off ${kickoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`)
+    ? (selectedTourn.first_match ?? (isSweep
+        ? `Race day: ${kickoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+        : `Season kicks off ${kickoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`))
     : WC.first
   // Per-tournament logo; only fall back to the WC crest when there's no tournament at all.
   const logo       = selectedTourn?.logo_url ?? (selectedTourn ? null : WC.logo)
-  const canSwitch  = tournaments.length > 1
+  // The sheet also lists upcoming sweeps, so it's worth opening even with a single football
+  // tournament — otherwise someone who sees only one (e.g. just EPL) has no way to reach
+  // /sweep from here at all.
+  const canSwitch  = !!pick && tournaments.length > 0
   const ended      = hasEnded(selectedTourn)
 
   const [t, setT]     = useState<TimeLeft>(() => calcTimeLeft(kickoff))
@@ -91,14 +94,22 @@ export function CountdownBanner() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {logo
         ? <img src={logo} alt={name} className="w-8 h-auto max-h-8 flex-shrink-0 drop-shadow object-contain" />
-        : <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">⚽</span>}
+        : <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">{isSweep ? '🐎' : '⚽'}</span>}
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-white flex items-center gap-1.5 truncate">
-          {name}
-          {canSwitch && <span className="text-green-300 text-[11px] leading-none">▾</span>}
+        <p className="text-sm font-semibold text-white flex items-center gap-2 min-w-0">
+          <span className="truncate">{name}</span>
+          {/* A labelled chip, not just a ▾ — the whole banner is the switcher (and the only
+              way to reach Sweeps), but on its own it reads as a heading, not a control. */}
+          {canSwitch && (
+            <span className="flex-shrink-0 text-[10px] font-bold text-white bg-white/15 border border-white/25 rounded-full px-2 py-0.5 leading-none">
+              Switch ⇄
+            </span>
+          )}
         </p>
         <p className="text-[11px] text-green-300 truncate">
-          {ended ? `Tournament complete · ${matches} matches` : t.started ? `Tournament is underway · ${matches} matches` : firstMatch}
+          {isSweep
+            ? (ended ? 'Race complete' : t.started ? 'Race day is here' : firstMatch)
+            : (ended ? `Tournament complete · ${matches} matches` : t.started ? `Tournament is underway · ${matches} matches` : firstMatch)}
         </p>
       </div>
     </div>
@@ -130,61 +141,5 @@ export function CountdownBanner() {
         <TournamentSheet tournaments={tournaments} currentId={selectedTourn?.id ?? null} onPick={pick} onClose={() => setSheet(false)} />
       )}
     </>
-  )
-}
-
-// ── Switch-tournament bottom sheet ──────────────────────────────────────────────
-function TournamentSheet({ tournaments, currentId, onPick, onClose }: {
-  tournaments: Tournament[]; currentId: string | null
-  onPick: (id: string) => Promise<void> | void; onClose: () => void
-}) {
-  const [busyId, setBusyId] = useState<string | null>(null)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const choose = async (id: string) => {
-    if (id === currentId) { onClose(); return }
-    setBusyId(id)
-    try { await onPick(id) } finally { onClose() }
-  }
-
-  const now = Date.now()
-  return (
-    <div className="fixed inset-0 z-[9999] flex flex-col justify-end sm:justify-center sm:items-center"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative bg-white w-full sm:w-[420px] sm:max-w-[96vw] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[70vh]">
-        <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0"><div className="w-10 h-1 rounded-full bg-gray-300" /></div>
-        <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-gray-100 flex-shrink-0">
-          <h2 className="text-sm font-semibold text-gray-900">Switch tournament</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none p-1" aria-label="Close">×</button>
-        </div>
-        <div className="overflow-y-auto p-2">
-          {tournaments.map(t => {
-            const ended = hasEnded(t)
-            const started = t.start_date ? new Date(`${t.start_date}T00:00:00Z`).getTime() <= now : true
-            const isCur = t.id === currentId
-            return (
-              <button key={t.id} type="button" onClick={() => choose(t.id)} disabled={!!busyId}
-                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors disabled:opacity-60 ${isCur ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {t.logo_url
-                  ? <img src={t.logo_url} alt="" className="w-8 h-8 rounded object-contain flex-shrink-0" />
-                  : <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">⚽</span>}
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-bold text-gray-900 truncate">{t.name}</span>
-                  <span className={`text-[11px] font-semibold ${ended ? 'text-gray-400' : started ? 'text-red-500' : 'text-gray-400'}`}>{ended ? '✓ Complete' : started ? '● Live' : startsLabel(t)}</span>
-                </span>
-                {busyId === t.id ? <Spinner className="w-4 h-4" /> : isCur ? <span className="text-emerald-600 font-bold flex-shrink-0">✓</span> : null}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </div>
   )
 }

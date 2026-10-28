@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import confetti from 'canvas-confetti'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
@@ -52,7 +53,12 @@ const predictCache = new Map<string, PredictCacheEntry>()
 export default function PredictPage() {
   const { session, supabase } = useSupabase()
   const { timezone } = useTimezone()
+  const router = useRouter()
   const { selectedTourn, selectedTournId, selectedTribeId, isAdFree, scoringConfig: ctxScoringConfig } = useUserPrefs()
+  const isSweep = selectedTourn?.format === 'sweep'
+  // Sweeps have no predictions — they live entirely under /sweep. Bounce out rather than
+  // show an empty/meaningless tips screen for whatever tournament the switcher landed on.
+  useEffect(() => { if (isSweep) router.replace('/sweep') }, [isSweep, router])
   const allowRetroactivePredictions = !!(selectedTourn as any)?.allow_retroactive_predictions
   const scoringConfig = ctxScoringConfig  // alias for clarity
   const [roundLocks,    setRoundLocks]    = useState<Record<string, boolean>>({})
@@ -912,7 +918,7 @@ export default function PredictPage() {
     }
   }
 
-  if (loading) return (
+  if (loading || isSweep) return (
     <div className="flex items-center justify-center py-24">
       <Spinner className="w-8 h-8" />
     </div>

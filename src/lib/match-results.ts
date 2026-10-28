@@ -68,14 +68,18 @@ export function normaliseScore(score: any): { home: number; away: number; isShoo
   return { home, away, isShootout, winner }
 }
 
-// ── ESPN (free, unofficial) — live-score source for the World Cup ───────────────
-// ESPN's hidden scoreboard API has WC scores the football-data free tier withholds.
-// No key. Queried by date(s): YYYYMMDD or YYYYMMDD-YYYYMMDD.
-const ESPN_BASE   = 'https://site.api.espn.com/apis/site/v2/sports/soccer'
-const ESPN_LEAGUE = process.env.ESPN_LEAGUE ?? 'fifa.world'
+// ── ESPN (free, unofficial) — live-score source, one feed per tournament ────────
+// ESPN's hidden scoreboard API has scores the football-data free tier withholds.
+// No key. Queried by date(s): YYYYMMDD or YYYYMMDD-YYYYMMDD, against a league slug
+// (e.g. 'fifa.world' for the World Cup, 'eng.1' for the Premier League) — each
+// tournament carries its own in tournaments.espn_league (migration 149). The env
+// var is only a fallback for single-tournament call sites (e.g. the WC knockout
+// schedule sync) that don't pass one explicitly.
+const ESPN_BASE          = 'https://site.api.espn.com/apis/site/v2/sports/soccer'
+const ESPN_LEAGUE_DEFAULT = process.env.ESPN_LEAGUE ?? 'fifa.world'
 
-export async function espnScoreboard(dates: string): Promise<any[]> {
-  const res = await fetch(`${ESPN_BASE}/${ESPN_LEAGUE}/scoreboard?dates=${dates}&limit=300`, { cache: 'no-store' })
+export async function espnScoreboard(dates: string, league: string = ESPN_LEAGUE_DEFAULT): Promise<any[]> {
+  const res = await fetch(`${ESPN_BASE}/${league}/scoreboard?dates=${dates}&limit=300`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`ESPN ${res.status}`)
   const json = await res.json()
   return json.events ?? []

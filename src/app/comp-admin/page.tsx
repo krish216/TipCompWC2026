@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { Spinner, EmptyState, PremiumSection, PremiumButton, CrownBadge, UpgradeModal, TeamPickerSheet, Flag } from '@/components/ui'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -1449,7 +1449,7 @@ function CommsTab({ comp, tipsters, preset }: { comp: any; tipsters: Tipster[]; 
 }
 
 // ─── Tab: Settings ─────────────────────────────────────────────────────────────
-function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; maxTribeSize: number; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
+function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, maxTribes, tribesClosed, requiresFee, entryFee, currentUserId, tipsters, onUpdate }: { comp: any; tier: string; domain: string | null; minAge: number | null; maxTribeSize: number; maxTribes: number; tribesClosed: boolean; requiresFee: boolean; entryFee: number | null; currentUserId: string; tipsters: Tipster[]; onUpdate: (k: string, v: any) => void }) {
   const { supabase, session }               = useSupabase()
   const [name,            setName]            = useState(comp?.name ?? '')
   const [logoUrl,         setLogoUrl]         = useState(comp?.logo_url ?? '')
@@ -1461,6 +1461,8 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
   const [newDomain,       setNewDomain]       = useState(domain ?? '')
   const [newMinAge,       setNewMinAge]       = useState(minAge ? String(minAge) : '')
   const [newMaxTribeSize, setNewMaxTribeSize] = useState(String(maxTribeSize))
+  const [newMaxTribes,    setNewMaxTribes]    = useState(String(maxTribes))
+  const [tribesClosedBusy, setTribesClosedBusy] = useState(false)
   const [selectedAdminUid, setSelectedAdminUid] = useState('')
   const [grantingAdmin,    setGrantingAdmin]    = useState(false)
   const [deletingComp,     setDeletingComp]     = useState(false)
@@ -1593,6 +1595,19 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
     setTribeSizeError(null)
     const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, max_tribe_size: size }) })
     if (res.ok) { onUpdate('maxTribeSize', size); toast.success(`Max tribe size set to ${size}`) } else toast.error('Failed')
+  }
+  const saveMaxTribes = async () => {
+    const n = parseInt(newMaxTribes) || 10
+    const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, max_tribes: n }) })
+    if (res.ok) { onUpdate('maxTribes', n); toast.success(`Max pools set to ${n}`) } else toast.error('Failed')
+  }
+  const toggleTribesClosed = async () => {
+    setTribesClosedBusy(true)
+    const next = !tribesClosed
+    const res = await fetch('/api/comps/create', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, tribes_closed: next }) })
+    setTribesClosedBusy(false)
+    if (res.ok) { onUpdate('tribesClosed', next); toast.success(next ? 'Pool creation closed — existing pools can still fill up' : 'Pool creation reopened') }
+    else toast.error('Failed')
   }
   const grantAdmin = async () => {
     const tipster = eligibleAdmins.find(t => t.user_id === selectedAdminUid)
@@ -1939,7 +1954,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
             </button>
           </div>
         )},
-        { title: 'Max tribe size', sub: 'Recommended members per tribe — used to prompt when to add more tribes', id: 'max-tribe-size-section', content: (
+        { title: 'Max tribe size', sub: 'Members per pool — once a pool reaches this, the next joiner opens a new one', id: 'max-tribe-size-section', content: (
           <div className="p-4 space-y-2">
             <div className="flex gap-2 items-center">
               <input type="number" min="2" max="200" value={newMaxTribeSize}
@@ -1957,6 +1972,26 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
             </div>
             {tribeSizeError    && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{tribeSizeError}</p>}
             {tribeSizeAdvisory && <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-xl">Ideal minimum tribe size is 10 or more — smaller tribes can feel too quiet.</p>}
+          </div>
+        )},
+        { title: 'Max pools', sub: 'How many pools can auto-open before new joiners have to ask you directly', id: 'max-tribes-section', content: (
+          <div className="p-4 space-y-2">
+            <div className="flex gap-2 items-center">
+              <input type="number" min="1" max="100" value={newMaxTribes}
+                onChange={e => setNewMaxTribes(e.target.value)}
+                placeholder="10" className="w-28 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800" />
+              <button onClick={saveMaxTribes} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800">Save</button>
+              <span className="text-xs text-gray-400">pools (default 10)</span>
+            </div>
+            <p className="text-xs text-gray-400">Once every pool is full and you're already at this limit, we notify you instead of auto-opening another.</p>
+          </div>
+        )},
+        { title: 'Pool creation', sub: tribesClosed ? 'Closed — existing pools can still fill up, but no new ones will open' : 'Open — new pools open automatically as this one fills', id: 'tribes-closed-section', content: (
+          <div className="p-4">
+            <button onClick={toggleTribesClosed} disabled={tribesClosedBusy}
+              className={`px-4 py-2 text-xs font-bold rounded-xl disabled:opacity-50 ${tribesClosed ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'}`}>
+              {tribesClosedBusy ? 'Saving…' : tribesClosed ? 'Reopen pool creation' : 'Close pool creation'}
+            </button>
           </div>
         )},
       ].map(s => (
@@ -2024,7 +2059,7 @@ function SettingsTab({ comp, tier, domain, minAge, maxTribeSize, requiresFee, en
 }
 
 // ─── Tab: Tribes ───────────────────────────────────────────────────────────────
-function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters: Tipster[]; tribes: Tribe[]; setTribes: React.Dispatch<React.SetStateAction<Tribe[]>> }) {
+function TribesTab({ comp, tipsters, tribes, setTribes, isSweep }: { comp: any; tipsters: Tipster[]; tribes: Tribe[]; setTribes: React.Dispatch<React.SetStateAction<Tribe[]>>; isSweep: boolean }) {
   const [name,           setName]           = useState('')
   const [desc,           setDesc]           = useState('')
   const [creating,       setCreating]       = useState(false)
@@ -2166,30 +2201,52 @@ function TribesTab({ comp, tipsters, tribes, setTribes }: { comp: any; tipsters:
 
   return (
     <div>
-      {/* What/why help blurb — collapsible, surfaces the upsides right where admins create tribes */}
-      <details className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl" open>
-        <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-emerald-800">
-          👥 What are tribes — and why split your comp?
-        </summary>
-        <div className="px-4 pb-4 pt-1 space-y-2 text-[13px] leading-relaxed text-emerald-900">
-          <p>Tribes are teams <em>inside</em> your comp (by office, city, mates…). Splitting members into 2+ tribes unlocks:</p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li><strong>Team-vs-team rivalry</strong> — a race between groups, not just individuals.</li>
-            <li><strong>A smaller “My tribe” leaderboard</strong> — everyone gets a winnable contest.</li>
-            <li><strong>A private tribe chat</strong> with round channels &amp; reactions — keeps casual players engaged.</li>
-          </ul>
-          <p className="pt-1 font-semibold text-emerald-800">Set it up in 3 steps:</p>
-          <ol className="list-decimal pl-5 space-y-1">
-            <li>Create <strong>2 or more</strong> tribes below.</li>
-            <li>Assign members from the <strong>“Not in a tribe”</strong> list (tick → pick a tribe → <strong>Add</strong>).</li>
-            <li>Optional: <strong>Set default</strong> so new joiners land in a tribe automatically.</li>
-          </ol>
-          <p className="text-[12px] text-emerald-700">Tribe features show once you have 2+ tribes. Each member is in one tribe per comp; up to 25 per tribe.</p>
-        </div>
-      </details>
+      {/* What/why help blurb — collapsible, surfaces the upsides right where admins create tribes/pools */}
+      {isSweep ? (
+        <details className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl" open>
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-emerald-800">
+            🐎 What are pools — and why split your sweep?
+          </summary>
+          <div className="px-4 pb-4 pt-1 space-y-2 text-[13px] leading-relaxed text-emerald-900">
+            <p>A pool can only hold as many tickets as there are horses in the race — once it's full, nobody else can buy in <em>there</em>. Splitting into 2+ pools lets you:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Sell more tickets than the field has horses</strong> — once one pool's full, buyers move into the next.</li>
+              <li><strong>Run independent draws</strong> — each pool gets its own 1st/2nd/3rd, so more people get a real shot at winning.</li>
+              <li><strong>Match pools to your groups</strong> — by office, family, mates… each with their own pool and bragging rights.</li>
+            </ul>
+            <p className="pt-1 font-semibold text-emerald-800">Set it up in 2 steps:</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Set how many pools this sweep can grow to (Settings → Pools, up to 5).</li>
+              <li>Share your invite link — buyers auto-fill the current pool, then move into the next once it's full.</li>
+            </ol>
+            <p className="text-[12px] text-emerald-700">Pools fill automatically in order — you don't manually assign anyone.</p>
+          </div>
+        </details>
+      ) : (
+        <details className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl" open>
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-emerald-800">
+            👥 What are tribes — and why split your comp?
+          </summary>
+          <div className="px-4 pb-4 pt-1 space-y-2 text-[13px] leading-relaxed text-emerald-900">
+            <p>Tribes are teams <em>inside</em> your comp (by office, city, mates…). Splitting members into 2+ tribes unlocks:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Team-vs-team rivalry</strong> — a race between groups, not just individuals.</li>
+              <li><strong>A smaller “My tribe” leaderboard</strong> — everyone gets a winnable contest.</li>
+              <li><strong>A private tribe chat</strong> with round channels &amp; reactions — keeps casual players engaged.</li>
+            </ul>
+            <p className="pt-1 font-semibold text-emerald-800">Set it up in 3 steps:</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Create <strong>2 or more</strong> tribes below.</li>
+              <li>Assign members from the <strong>“Not in a tribe”</strong> list (tick → pick a tribe → <strong>Add</strong>).</li>
+              <li>Optional: <strong>Set default</strong> so new joiners land in a tribe automatically.</li>
+            </ol>
+            <p className="text-[12px] text-emerald-700">Tribe features show once you have 2+ tribes. Each member is in one tribe per comp; up to 25 per tribe.</p>
+          </div>
+        </details>
+      )}
 
       <div className="grid grid-cols-3 gap-2 mb-4">
-        {[{ label:'Tribes', v:tribes.length },{ label:'Tipsters', v:tipsters.length },{ label:'No tribe', v:withoutTribe.length }].map(s => (
+        {[{ label: isSweep ? 'Pools' : 'Tribes', v:tribes.length },{ label: isSweep ? 'Buyers' : 'Tipsters', v:tipsters.length },{ label: isSweep ? 'No pool' : 'No tribe', v:withoutTribe.length }].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-2.5 text-center shadow-sm">
             <p className="text-xl font-black text-gray-800">{s.v}</p>
             <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mt-0.5">{s.label}</p>
@@ -2876,6 +2933,10 @@ export default function CompAdminPage() {
   const { session }                                         = useSupabase()
   const { selectedComp, selectedTourn, isCompAdmin, scoringConfig, loading: ctxLoading, updateComp } = useUserPrefs()
   const searchParams = useSearchParams()
+  const router = useRouter()
+  // "Tribes" is a sweep's "Pools" — same concept (sub-groups within a comp), different
+  // vocabulary per format, same pattern as the Navbar's "My Tribe"/"My Pool" split.
+  const isSweep = selectedTourn?.format === 'sweep'
 
   const VALID_TABS: Tab[] = ['tipsters','payments','comms','settings','tribes','insights']  // 'challenges' hidden — not in use
   const [activeTab,    setActiveTab]    = useState<Tab>(() => {
@@ -2889,6 +2950,17 @@ export default function CompAdminPage() {
     if (t && VALID_TABS.includes(t)) setActiveTab(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Insights (prediction accuracy/scoring) is a league/knockout concept — hidden below for
+  // sweeps. If the user was on it and then switches to a sweep comp, bounce back to Tipsters
+  // instead of leaving them on a tab with no button to get off it. Declared here (before the
+  // ctxLoading/isCompAdmin early returns further down) so this hook always runs in the same
+  // order across renders (Rules of Hooks).
+  useEffect(() => {
+    if (isSweep && activeTab === 'insights') setActiveTab('tipsters')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSweep])
+
   const [loading,      setLoading]      = useState(false)
   const [tipsters,     setTipsters]     = useState<Tipster[]>([])
   const [invitations,  setInvitations]  = useState<Invitation[]>([])
@@ -2899,6 +2971,8 @@ export default function CompAdminPage() {
   const [domain,       setDomain]       = useState<string | null>(null)
   const [minAge,       setMinAge]       = useState<number | null>(null)
   const [maxTribeSize, setMaxTribeSize] = useState<number>(15)
+  const [maxTribes,    setMaxTribes]    = useState<number>(10)
+  const [tribesClosed, setTribesClosed] = useState<boolean>(false)
   const [showKebab,           setShowKebab]           = useState(false)
   const [deletingComp,        setDeletingComp]        = useState(false)
   const [freshBannerDismissed,setFreshBannerDismissed]= useState(false)
@@ -2907,6 +2981,16 @@ export default function CompAdminPage() {
   const kebabRef = useRef<HTMLDivElement>(null)
 
   const comp = selectedComp as any
+
+  // /comp-admin is the generic, football-oriented dashboard — a sweep organiser belongs on
+  // the purpose-built /sweep-admin instead (Sell/Requests/Allocation/Pools/Settings), same
+  // reasoning and same pattern as HomeClient's isSweep redirect for '/'. The isSweep-aware
+  // tweaks elsewhere on this page (Pools label, hidden Insights, etc.) stay in place as a
+  // defensive fallback for whatever renders in the instant before this fires.
+  useEffect(() => {
+    if (isSweep) router.replace(comp?.id ? `/sweep-admin?comp_id=${comp.id}` : '/sweep-admin')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSweep, comp?.id])
 
   // Persist checklist dismiss state per comp in localStorage
   const checklistKey = comp?.id ? `checklist_dismissed_${comp.id}` : null
@@ -2945,6 +3029,8 @@ export default function CompAdminPage() {
       setRequiresFee(comp.requires_payment_fee ?? false)
       setEntryFee(comp.entry_fee_amount ?? null)
       setMaxTribeSize(comp.max_tribe_size ?? 15)
+      setMaxTribes(comp.max_tribes ?? 10)
+      setTribesClosed(!!comp.tribes_closed_at)
     }).finally(() => setLoading(false))
   }, [session, comp?.id])
 
@@ -2985,6 +3071,8 @@ export default function CompAdminPage() {
     if (k === 'requiresFee')  { setRequiresFee(v);  updateComp(comp?.id, { requires_payment_fee: v } as any) }
     if (k === 'entryFee')     { setEntryFee(v);     updateComp(comp?.id, { entry_fee_amount: v }    as any) }
     if (k === 'maxTribeSize') setMaxTribeSize(v)
+    if (k === 'maxTribes')    setMaxTribes(v)
+    if (k === 'tribesClosed') setTribesClosed(v)
   }, [comp?.id, updateComp])
 
   useEffect(() => {
@@ -3105,13 +3193,16 @@ export default function CompAdminPage() {
           const pendingJoin = invitations.filter(i => !i.joined).length
           const roundName  = adminRoundCode ? (scoringConfig.rounds as any)[adminRoundCode]?.round_name ?? adminRoundCode : null
           const stats = [
-            { label: 'Joined',      value: tipsters.length,        sub: 'tipsters',          color: 'text-sky-800'   },
-            { label: 'In a tribe',  value: inTribe,                 sub: `of ${tipsters.length}`, color: 'text-blue-600'  },
-            { label: 'Have tipped', value: lbHealth?.active ?? '…', sub: roundName ?? 'total', color: 'text-green-700' },
+            { label: 'Joined',                          value: tipsters.length,        sub: isSweep ? 'buyers' : 'tipsters', color: 'text-sky-800'   },
+            { label: isSweep ? 'In a pool' : 'In a tribe', value: inTribe,               sub: `of ${tipsters.length}`, color: 'text-blue-600'  },
+            // "Have tipped" is a league/knockout concept (prediction scoring) — no
+            // equivalent is tracked here for sweeps, so it's dropped rather than shown
+            // with a made-up or always-empty number.
+            ...(!isSweep ? [{ label: 'Have tipped', value: lbHealth?.active ?? '…', sub: roundName ?? 'total', color: 'text-green-700' }] : []),
             { label: 'Awaiting',    value: pendingJoin,             sub: 'not yet joined',    color: 'text-amber-600' },
           ]
           return (
-            <div className="grid grid-cols-4 divide-x divide-sky-100 border-t border-sky-100 -mx-4 px-0">
+            <div className={clsx('grid divide-x divide-sky-100 border-t border-sky-100 -mx-4 px-0', isSweep ? 'grid-cols-3' : 'grid-cols-4')}>
               {stats.map(s => (
                 <div key={s.label} className="flex flex-col items-center justify-center py-3 px-1 text-center">
                   <span className={`text-2xl font-black leading-none ${s.color}`}>{s.value}</span>
@@ -3190,12 +3281,14 @@ export default function CompAdminPage() {
 
       {/* Tab nav — scrollable on mobile */}
       <div className="flex overflow-x-auto gap-1 bg-sky-50 border border-sky-200 shadow-sm p-1 rounded-2xl mb-5 scrollbar-none">
-        {TABS.map(t => (
+        {/* Insights (prediction accuracy/scoring) is a league/knockout concept — not shown
+            for sweeps (see the activeTab bounce-back effect above). */}
+        {TABS.filter(t => !(isSweep && t.id === 'insights')).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={clsx('relative flex flex-col items-center gap-1 py-2.5 px-3 rounded-xl transition-all flex-shrink-0',
               activeTab === t.id ? 'bg-white shadow-sm ring-1 ring-sky-200 text-sky-700' : 'text-gray-400 hover:text-gray-600 hover:bg-white/50')}>
             <span className="text-lg leading-none">{tabLocked[t.id] ? '🔒' : t.icon}</span>
-            <span className={clsx('text-[11px] font-bold leading-none', activeTab === t.id ? 'text-sky-700' : tabLocked[t.id] ? 'text-gray-300' : 'text-gray-500')}>{t.label}</span>
+            <span className={clsx('text-[11px] font-bold leading-none', activeTab === t.id ? 'text-sky-700' : tabLocked[t.id] ? 'text-gray-300' : 'text-gray-500')}>{t.id === 'tribes' && isSweep ? 'Pools' : t.label}</span>
             {(badgeCounts[t.id] ?? 0) > 0 && (
               <span className={clsx('absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-black flex items-center justify-center',
                 activeTab === t.id ? 'bg-sky-600 text-white' : 'bg-gray-400 text-white')}>
@@ -3221,8 +3314,8 @@ export default function CompAdminPage() {
             </div>
       )}
       {activeTab === 'comms'      && <CommsTab      comp={comp} tipsters={tipsters} preset={searchParams.get('preset') ?? undefined} />}
-      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
-      {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} />}
+      {activeTab === 'settings'   && <SettingsTab   comp={comp} tier={tier} domain={domain} minAge={minAge} maxTribeSize={maxTribeSize} maxTribes={maxTribes} tribesClosed={tribesClosed} requiresFee={requiresFee} entryFee={entryFee} currentUserId={session?.user.id ?? ''} tipsters={tipsters} onUpdate={handleSettingUpdate} />}
+      {activeTab === 'tribes'     && <TribesTab     comp={comp} tipsters={tipsters} tribes={tribes} setTribes={setTribes} isSweep={isSweep} />}
       {activeTab === 'challenges' && <ChallengesTab comp={comp} />}
       {activeTab === 'insights'   && <InsightsTab   comp={comp} />}
     </div>

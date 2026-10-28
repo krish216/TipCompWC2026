@@ -12,6 +12,12 @@ export type NotificationType =
   | 'weekly_report'
   | 'feedback_reply'
   | 'sponsor_lead'
+  | 'comp_full_request'   // someone tried to join a comp with no tribe room left and pool creation closed/capped
+  | 'sweep_payment_request' // a buyer submitted a cash/bank-transfer ticket request needing the organiser's review
+  | 'sweep_results_ready'   // a tribe's podium is fully determined — results are in for its members
+  | 'sweep_request_approved' // the buyer's ticket request was approved — they can spin
+  | 'sweep_request_rejected' // the buyer's ticket request was rejected
+  | 'sweep_payment_reminder' // a buyer nudged the organiser about an overdue request
 
 export interface CreateNotificationParams {
   user_id:  string
