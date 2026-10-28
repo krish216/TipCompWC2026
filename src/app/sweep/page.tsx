@@ -8,7 +8,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
 
-type Tournament = { id: string; name: string; race_date: string }
+type Tournament = { id: string; name: string; race_date: string; enrollment_open?: boolean }
 type MyTribe = {
   id: string; name: string; invite_code: string
   comp_id: string; comp_name: string | null; comp_invite_code: string | null
@@ -340,6 +340,17 @@ export default function SweepPage() {
           </div>
         )}
 
+        {/* New sweeps paused for this race (admin → Tournament → "New sweeps"), e.g. until the
+            field is announced — point organisers at the interest page instead. */}
+        {tourn?.enrollment_open === false ? (
+          <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 mb-5">
+            <h2 className="font-bold text-gray-900 mb-1">Start your own sweep</h2>
+            <p className="text-sm text-amber-900">New sweeps open once the field is announced on Friday 30 October.</p>
+            <Link href="/melbourne-cup" className="inline-block mt-3 text-sm font-bold text-amber-800 hover:underline">
+              Register your interest and we'll let you know →
+            </Link>
+          </div>
+        ) : (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
           <h2 className="font-bold text-gray-900 mb-3">Start your own sweep</h2>
           <input
@@ -375,6 +386,7 @@ export default function SweepPage() {
             )
           })()}
         </div>
+        )}
 
         <div className="border border-gray-200 rounded-2xl p-5">
           <h2 className="font-bold text-gray-900 mb-2">Join one with a code</h2>

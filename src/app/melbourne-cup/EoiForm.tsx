@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 
 type Intent = 'organise' | 'join'
@@ -54,13 +53,10 @@ export function EoiForm({ tournamentId, source, initialIntent }: { tournamentId:
         <div className="text-3xl">🎉</div>
         <p className="font-bold text-gray-900 mt-1">Thanks{name ? `, ${name.split(' ')[0]}` : ''} — you're on the list.</p>
         <p className="text-xs text-gray-600 mt-1">
-          {intent === 'organise' ? "We'll be in touch to help you get your sweep running." : "We'll let you know when there's a sweep you can join."}
+          {intent === 'organise'
+            ? "We'll email you once the field is announced on 30 October so you can set up your sweep."
+            : "We'll let you know when there's a sweep you can join."}
         </p>
-        {intent === 'organise' && (
-          <Link href="/sweep" className="inline-block mt-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
-            Or start your sweep now →
-          </Link>
-        )}
       </div>
     )
   }

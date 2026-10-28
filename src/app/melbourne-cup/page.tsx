@@ -68,14 +68,18 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         ))}
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
-        <p className="text-sm text-emerald-900"><span className="font-bold">Ready now?</span> Start a sweep in under a minute.</p>
-        <Link href="/sweep" className="text-sm font-bold text-emerald-700 whitespace-nowrap hover:underline">Start a sweep →</Link>
+      {/* No "start a sweep" shortcut: the field isn't final until 30 Oct, so sweeps can't
+          sell properly before then — this page collects interest until it is. */}
+      <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+        <p className="text-sm text-amber-900">
+          <span className="font-bold">Sweeps open once the field is announced</span> on Friday 30 October.
+          Register below and we'll let you know the moment you can start yours.
+        </p>
       </div>
 
       <div className="mt-8">
         <h2 className="text-lg font-black text-gray-900">Register your interest</h2>
-        <p className="text-xs text-gray-500 mt-1 mb-4">Not ready yet, or don't have a sweep to join? Leave your details and we'll be in touch.</p>
+        <p className="text-xs text-gray-500 mt-1 mb-4">Want to run a sweep, or join one? Leave your details and we'll be in touch when the field is final.</p>
         {cup
           ? <EoiForm tournamentId={cup.id} source={searchParams.src ?? null} initialIntent={searchParams.intent === 'join' ? 'join' : 'organise'} />
           : <p className="text-sm text-gray-400">Registrations aren't open yet — check back soon.</p>}

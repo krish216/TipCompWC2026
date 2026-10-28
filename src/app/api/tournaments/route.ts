@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest) {
     .from('admin_users').select('user_id').eq('user_id', user.id).single()
   if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled, bracket_knockout_mode } = await request.json()
+  const { id, name, description, status, start_date, end_date, set_active, is_active, logo_url, kickoff_venue, final_venue, final_date, first_match, total_matches, total_teams, total_rounds, allow_retroactive_predictions, enforce_premium, knockout_leaderboard_enabled, bracket_knockout_mode, enrollment_open } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const updates: any = {}
@@ -77,6 +77,7 @@ export async function PATCH(request: NextRequest) {
   if (enforce_premium !== undefined) updates.enforce_premium = enforce_premium
   if (knockout_leaderboard_enabled !== undefined) updates.knockout_leaderboard_enabled = knockout_leaderboard_enabled
   if (bracket_knockout_mode !== undefined) updates.bracket_knockout_mode = bracket_knockout_mode
+  if (enrollment_open !== undefined) updates.enrollment_open = !!enrollment_open
   if (start_date  !== undefined) updates.start_date  = start_date
   if (end_date    !== undefined) updates.end_date    = end_date
 

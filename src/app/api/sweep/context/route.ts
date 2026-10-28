@@ -31,12 +31,12 @@ export async function GET(request: NextRequest) {
     scopedCompId = (comp as any).id
     scopedComp = { id: (comp as any).id, name: (comp as any).name, invite_code: (comp as any).invite_code }
     const { data: tourn } = await (admin.from('tournaments') as any)
-      .select('id, name, race_date:end_date, format, race_start_at').eq('id', (comp as any).tournament_id).maybeSingle()
+      .select('id, name, race_date:end_date, format, race_start_at, enrollment_open').eq('id', (comp as any).tournament_id).maybeSingle()
     if ((tourn as any)?.format !== 'sweep') return NextResponse.json({ tournament: null, my_tribe: null })
     tournament = tourn
   } else {
     const { data: tourn } = await (admin.from('tournaments') as any)
-      .select('id, name, race_date:end_date, format, race_start_at').eq('slug', DEFAULT_SLUG).maybeSingle()
+      .select('id, name, race_date:end_date, format, race_start_at, enrollment_open').eq('slug', DEFAULT_SLUG).maybeSingle()
     tournament = tourn
   }
   if (!tournament) return NextResponse.json({ tournament: null, my_tribe: null })

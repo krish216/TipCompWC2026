@@ -493,6 +493,26 @@ export default function AdminPage() {
   const [togglingKnockout,       setTogglingKnockout]       = useState(false)
   const [togglingBracketKO,      setTogglingBracketKO]      = useState(false)
   const [savingStatus,           setSavingStatus]           = useState(false)
+  const [savingSweepsOpen,       setSavingSweepsOpen]       = useState(false)
+
+  // Sweeps only: tournaments.enrollment_open gates creating new sweeps (e.g. closed until the
+  // race field is announced). Joining an existing sweep isn't affected.
+  const handleSweepsOpenToggle = async () => {
+    if (!tournamentData) return
+    const next = tournamentData.enrollment_open === false
+    setSavingSweepsOpen(true)
+    const res = await fetch('/api/tournaments', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tournamentData.id, enrollment_open: next }),
+    })
+    setSavingSweepsOpen(false)
+    if (res.ok) {
+      setTournamentData((prev: any) => ({ ...prev, enrollment_open: next }))
+      toast.success(next ? 'New sweeps open' : 'New sweeps paused')
+    } else {
+      toast.error('Failed to update setting')
+    }
+  }
 
   const handleStatusChange = async (next: string) => {
     if (!tournamentData || next === tournamentData.status) return
@@ -1195,6 +1215,18 @@ export default function AdminPage() {
                     </select>
                   </div>
                 </div>
+                {tournamentData.format === 'sweep' && (
+                  <div className="flex items-center justify-between py-1.5 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-medium">New sweeps</span>
+                    <div className="flex items-center gap-2">
+                      {savingSweepsOpen && <Spinner className="w-3 h-3" />}
+                      <button onClick={handleSweepsOpenToggle} disabled={savingSweepsOpen}
+                        className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-50 ${tournamentData.enrollment_open === false ? 'border border-gray-300 text-gray-600' : 'bg-emerald-600 text-white'}`}>
+                        {tournamentData.enrollment_open === false ? 'Paused — tap to open' : 'Open'}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {[
                   { label: 'Name',        value: tournamentData.name },
                   { label: 'Active',      value: tournamentData.is_active ? '✓ Yes' : '✗ No' },

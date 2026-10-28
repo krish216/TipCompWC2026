@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
-type SweepTourn = { id: string; name: string; race_date: string | null; race_start_at: string | null }
+type SweepTourn = { id: string; name: string; race_date: string | null; race_start_at: string | null; enrollment_open?: boolean }
 
 // Seasonal "🐎 Melbourne Cup sweeps" prompt for My Comps. Sweeps are deliberately kept out
 // of the football tournament rotation (migration 188), so otherwise the only way to find one
@@ -37,14 +37,16 @@ export function SweepPromoCard({ invite }: { invite?: { comp_name: string } | nu
     : null
 
   return (
-    <Link href="/sweep"
+    <Link href={!invite && tourn.enrollment_open === false ? '/melbourne-cup' : '/sweep'}
       className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors">
       <div className="min-w-0">
         <p className="text-sm font-bold text-gray-900 truncate">
           🐎 {tourn.name.replace(/\s*\d{4}$/, '')} sweeps{raceDay ? ` · ${raceDay}` : ''}
         </p>
         <p className="text-xs text-amber-800 truncate">
-          {invite ? `You've been invited to ${invite.comp_name}` : "Join your group's sweep or start one"}
+          {invite ? `You've been invited to ${invite.comp_name}`
+            : tourn.enrollment_open === false ? 'Sweeps open when the field is announced — register interest'
+            : "Join your group's sweep or start one"}
         </p>
       </div>
       <span className="text-xs font-bold text-amber-700 whitespace-nowrap flex-shrink-0">{invite ? 'View invite →' : 'Go →'}</span>

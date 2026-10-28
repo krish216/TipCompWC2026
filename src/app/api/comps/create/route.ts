@@ -85,8 +85,17 @@ export async function POST(request: NextRequest) {
   let isSweepComp = false
   if (parsed.data.tournament_id) {
     const { data: tourn } = await (adminClient.from('tournaments') as any)
-      .select('format').eq('id', parsed.data.tournament_id).maybeSingle()
+      .select('format, enrollment_open').eq('id', parsed.data.tournament_id).maybeSingle()
     isSweepComp = (tourn as any)?.format === 'sweep'
+    // New sweeps can be paused per tournament (admin → Tournament → "New sweeps"), e.g. until
+    // the race field is announced. Platform admins can still create one, for testing.
+    if (isSweepComp && (tourn as any)?.enrollment_open === false) {
+      const { data: platformAdmin } = await (adminClient.from('admin_users') as any)
+        .select('user_id').eq('user_id', user_id).maybeSingle()
+      if (!platformAdmin) {
+        return NextResponse.json({ error: 'New sweeps open once the field is announced — register your interest at /melbourne-cup.' }, { status: 403 })
+      }
+    }
   }
   const requestedPools = isSweepComp ? Math.max(1, Math.min(SWEEP_PRICING.maxPools, max_tribes ?? 1)) : 1
   const poolCount = isSweepComp && sweepBillingEnabled() ? Math.min(requestedPools, SWEEP_PRICING.includedPools) : requestedPools
