@@ -26,7 +26,7 @@ function storage(): Storage | null {
 // "What's the biggest problem facing Australia?" — until the jump (3pm AEDT, Tue 3 Nov) the
 // only right answer is the race that stops a nation. After it, the Cup is wrong and the real
 // #1, cost of living, is right — so the page stays sensible once the race is run.
-export function ProblemsQuiz({ raceStartAt }: { raceStartAt: string }) {
+export function ProblemsQuiz({ raceStartAt, src }: { raceStartAt: string; src?: string | null }) {
   const [picked, setPicked] = useState<Answer | null>(null)
   const [tallies, setTallies] = useState<Tallies | null>(null)
   const raceRun = Date.now() >= new Date(raceStartAt).getTime()
@@ -112,8 +112,9 @@ export function ProblemsQuiz({ raceStartAt }: { raceStartAt: string }) {
           {tallies && tallies.total > 0 && (
             <p className="text-[11px] text-gray-400 mt-1">Bars show what {tallies.total.toLocaleString()} visitor{tallies.total === 1 ? '' : 's'} picked.</p>
           )}
-          {/* ?src=quiz tags any sign-up that came through the quiz (sweep_eoi.source). */}
-          <a href="/melbourne-cup?src=quiz#register"
+          {/* Tags any sign-up that came through the quiz (sweep_eoi.source): quiz, or
+              quiz-<tag> when the quiz link itself carried ?src=<tag>. */}
+          <a href={`/melbourne-cup?src=${src ? `quiz-${src}` : 'quiz'}#register`}
             className="block text-center mt-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg">
             {raceRun ? 'See Melbourne Cup sweeps on TribePicks →' : '🐎 Get your Melbourne Cup sweep sorted →'}
           </a>

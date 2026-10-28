@@ -27,13 +27,15 @@ async function getRaceStart(): Promise<string | null> {
   } catch { return null }
 }
 
-export default async function AustraliaQuizPage() {
+export default async function AustraliaQuizPage({ searchParams }: { searchParams: { src?: string } }) {
   // Jump time drives when the quiz's "right answer" flips; fall back to 3pm AEDT Cup day.
   const raceStartAt = (await getRaceStart()) ?? '2026-11-03T04:00:00Z'
+  // Campaign tag (e.g. ?src=stoneandchalk) — carried through to the sign-up as quiz-<tag>.
+  const src = (searchParams.src ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || null
 
   return (
     <main className="max-w-md mx-auto px-4 py-10">
-      <ProblemsQuiz raceStartAt={raceStartAt} />
+      <ProblemsQuiz raceStartAt={raceStartAt} src={src} />
     </main>
   )
 }
