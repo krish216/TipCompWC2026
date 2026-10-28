@@ -45,7 +45,7 @@ export function SweepPromoCard({ invite }: { invite?: { comp_name: string } | nu
         </p>
         <p className="text-xs text-amber-800 truncate">
           {invite ? `You've been invited to ${invite.comp_name}`
-            : tourn.enrollment_open === false ? 'Sweeps open when the field is announced — register interest'
+            : tourn.enrollment_open === false ? 'Sweeps open Sat 31 Oct — register your interest'
             : "Join your group's sweep or start one"}
         </p>
       </div>

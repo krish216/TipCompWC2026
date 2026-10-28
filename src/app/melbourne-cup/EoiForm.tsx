@@ -54,7 +54,7 @@ export function EoiForm({ tournamentId, source, initialIntent }: { tournamentId:
         <p className="font-bold text-gray-900 mt-1">Thanks{name ? `, ${name.split(' ')[0]}` : ''} — you're on the list.</p>
         <p className="text-xs text-gray-600 mt-1">
           {intent === 'organise'
-            ? "We'll email you once the field is announced on 30 October so you can set up your sweep."
+            ? "We'll email you when sweeps open on Saturday 31 October so you can set up yours."
             : "We'll let you know when there's a sweep you can join."}
         </p>
       </div>

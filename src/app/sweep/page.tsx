@@ -345,7 +345,7 @@ export default function SweepPage() {
         {tourn?.enrollment_open === false ? (
           <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 mb-5">
             <h2 className="font-bold text-gray-900 mb-1">Start your own sweep</h2>
-            <p className="text-sm text-amber-900">New sweeps open once the field is announced on Friday 30 October.</p>
+            <p className="text-sm text-amber-900">New sweeps open on Saturday 31 October, once the final field is declared.</p>
             <Link href="/melbourne-cup" className="inline-block mt-3 text-sm font-bold text-amber-800 hover:underline">
               Register your interest and we'll let you know →
             </Link>

@@ -68,11 +68,11 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         ))}
       </div>
 
-      {/* No "start a sweep" shortcut: the field isn't final until 30 Oct, so sweeps can't
+      {/* No "start a sweep" shortcut: the field isn't declared until Sat 31 Oct, so sweeps can't
           sell properly before then — this page collects interest until it is. */}
       <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
         <p className="text-sm text-amber-900">
-          <span className="font-bold">Sweeps open once the field is announced</span> on Friday 30 October.
+          <span className="font-bold">Sweeps open on Saturday 31 October</span>, once the final field is declared.
           Register below and we'll let you know the moment you can start yours.
         </p>
       </div>

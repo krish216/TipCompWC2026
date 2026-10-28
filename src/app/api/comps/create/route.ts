@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       const { data: platformAdmin } = await (adminClient.from('admin_users') as any)
         .select('user_id').eq('user_id', user_id).maybeSingle()
       if (!platformAdmin) {
-        return NextResponse.json({ error: 'New sweeps open once the field is announced — register your interest at /melbourne-cup.' }, { status: 403 })
+        return NextResponse.json({ error: 'New sweeps open on Saturday 31 October, once the final field is declared — register your interest at /melbourne-cup.' }, { status: 403 })
       }
     }
   }
