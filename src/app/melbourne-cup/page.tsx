@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import QRCode from 'qrcode'
 import { createAdminClient } from '@/lib/supabase'
 import { EoiForm } from './EoiForm'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
@@ -7,6 +8,8 @@ import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 export const revalidate = 900
 
 const SLUG = 'melbourne-cup-2026'
+// ?src=qr tags scans in sweep_eoi.source, same as the admin "EOI QR" button.
+const QR_URL = 'https://tribepicks.com/melbourne-cup?src=qr'
 
 async function getCup() {
   try {
@@ -54,6 +57,7 @@ const STEPS = [
 
 export default async function MelbourneCupPage({ searchParams }: { searchParams: { src?: string; intent?: string } }) {
   const cup = await getCup()
+  const qrSvg = await QRCode.toString(QR_URL, { type: 'svg', margin: 1 }).catch(() => '')
   // Admin → Tournament → "New sweeps" / "Draw" (migrations 196, 201): sweeps can sell before
   // the field is declared; only the spin waits for it.
   const sweepsOpen = cup?.enrollment_open !== false
@@ -111,6 +115,21 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
           ? <EoiForm tournamentId={cup.id} source={searchParams.src ?? null} initialIntent={searchParams.intent === 'join' || sweepsOpen ? 'join' : 'organise'} sweepsOpen={sweepsOpen} />
           : <p className="text-sm text-gray-400">Registrations aren't open yet — check back soon.</p>}
       </div>
+
+      {qrSvg && (
+        <div className="mt-8 border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4">
+          <div role="img" aria-label="QR code for tribepicks.com/melbourne-cup"
+            className="w-36 h-36 shrink-0 [&>svg]:w-full [&>svg]:h-full"
+            dangerouslySetInnerHTML={{ __html: qrSvg }} />
+          <div className="text-center sm:text-left">
+            <p className="text-sm font-bold text-gray-900">Share this page</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Scan to open it on a phone — or show it in the office, on a poster or at the club.
+            </p>
+            <p className="text-[11px] text-gray-400 mt-2">tribepicks.com/melbourne-cup</p>
+          </div>
+        </div>
+      )}
 
       <p className="text-[11px] text-gray-400 mt-8">
         TribePicks never holds sweep money — buyers pay the organiser directly. Your details are only used to
