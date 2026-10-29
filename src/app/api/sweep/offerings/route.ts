@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { loadFields } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,17 +27,14 @@ export async function GET() {
   const tribeIds = ((tribeRows ?? []) as any[]).map(t => t.id)
 
   // Per-pool ticket count and fill status — a pool is "full" once every ticket (sold, not
-  // necessarily spun yet) matches the non-scratched field size. Drives the pool pills.
-  const [{ data: horses }, { data: entries }] = await Promise.all([
-    (admin.from('sweep_horses') as any).select('tournament_id, scratched').in('tournament_id', tournIds),
+  // necessarily spun yet) matches its capacity (lib/sweep/field.ts). Drives the pool pills.
+  const [fields, { data: entries }] = await Promise.all([
+    loadFields(admin, tournIds),
     tribeIds.length
       ? (admin.from('sweep_entries') as any).select('tribe_id').in('tribe_id', tribeIds)
       : Promise.resolve({ data: [] }),
   ])
-  const fieldSizeByTourn: Record<string, number> = {}
-  for (const h of (horses ?? []) as any[]) {
-    if (!h.scratched) fieldSizeByTourn[h.tournament_id] = (fieldSizeByTourn[h.tournament_id] ?? 0) + 1
-  }
+  const fieldSizeByTourn: Record<string, number> = Object.fromEntries(Object.entries(fields).map(([id, f]) => [id, f.capacity]))
   const ticketsByTribe: Record<string, number> = {}
   for (const e of (entries ?? []) as any[]) ticketsByTribe[e.tribe_id] = (ticketsByTribe[e.tribe_id] ?? 0) + 1
 

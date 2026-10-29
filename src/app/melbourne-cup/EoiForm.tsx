@@ -7,7 +7,9 @@ type Intent = 'organise' | 'join'
 
 // Expression-of-interest form for /melbourne-cup — one form, two kinds of lead (see
 // migration 197). Fields switch with the intent; the API keeps only the ones that apply.
-export function EoiForm({ tournamentId, source, initialIntent }: { tournamentId: string; source: string | null; initialIntent: Intent }) {
+export function EoiForm({ tournamentId, source, initialIntent, sweepsOpen = false }: {
+  tournamentId: string; source: string | null; initialIntent: Intent; sweepsOpen?: boolean
+}) {
   const { session } = useSupabase()
   const [intent, setIntent] = useState<Intent>(initialIntent)
   const [name, setName] = useState('')
@@ -54,9 +56,16 @@ export function EoiForm({ tournamentId, source, initialIntent }: { tournamentId:
         <p className="font-bold text-gray-900 mt-1">Thanks{name ? `, ${name.split(' ')[0]}` : ''} — you're on the list.</p>
         <p className="text-xs text-gray-600 mt-1">
           {intent === 'organise'
-            ? "We'll email you when sweeps open on Saturday 31 October so you can set up yours."
+            ? sweepsOpen
+              ? "Sweeps are open now — you can set yours up straight away."
+              : "We'll email you when sweeps open on Saturday 31 October so you can set up yours."
             : "We'll let you know when there's a sweep you can join."}
         </p>
+        {intent === 'organise' && sweepsOpen && (
+          <a href="/sweep" className="inline-block mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
+            Start your sweep →
+          </a>
+        )}
       </div>
     )
   }

@@ -1,3 +1,5 @@
+import { loadField } from '@/lib/sweep/field'
+
 // Shared ticket-granting logic — inserts N unclaimed sweep_entries rows (horse_id null) for
 // a tribe member, capped so a tribe's total tickets can never exceed its field size (a
 // ticket with no horse left to possibly win isn't a ticket). Used by grant-tickets (the
@@ -6,7 +8,8 @@
 // between call sites.
 //
 // The cap is: tickets already out + tickets other PENDING requests have reserved + this
-// grant <= non-scratched horses. Counting pending requests means a direct organiser grant
+// grant <= the pool's capacity (non-scratched horses, or the race's maximum field while the
+// draw isn't open yet — see lib/sweep/field.ts). Counting pending requests means a direct organiser grant
 // can't squeeze out someone who's already paid and is waiting on approval. `requestId` is the
 // request being approved, if any — excluded so it doesn't reserve against itself.
 export async function grantTickets(
@@ -17,13 +20,12 @@ export async function grantTickets(
     .select('tickets_requested').eq('tribe_id', opts.tribeId).eq('status', 'pending')
   if (opts.requestId) pendingQuery = pendingQuery.neq('id', opts.requestId)
 
-  const [{ count: horseCount }, { count: existingTickets }, { data: pendingRows }] = await Promise.all([
-    (admin.from('sweep_horses') as any).select('id', { count: 'exact', head: true })
-      .eq('tournament_id', opts.tournamentId).eq('scratched', false),
+  const [{ capacity }, { count: existingTickets }, { data: pendingRows }] = await Promise.all([
+    loadField(admin, opts.tournamentId),
     (admin.from('sweep_entries') as any).select('id', { count: 'exact', head: true }).eq('tribe_id', opts.tribeId),
     pendingQuery,
   ])
-  const field = horseCount ?? 0
+  const field = capacity
   const existing = existingTickets ?? 0
   const reserved = ((pendingRows ?? []) as any[]).reduce((sum, r) => sum + r.tickets_requested, 0)
   if (existing + reserved + opts.count > field) {

@@ -514,6 +514,38 @@ export default function AdminPage() {
     }
   }
 
+  // Sweeps only: "Draw open" (migration 201) — tickets sell before the field is known, but
+  // nobody spins until this is on. Turning it on the first time emails + notifies every
+  // ticket holder ("the field's in — spin for your horse"), so confirm with the head count.
+  const [sweepDraw, setSweepDraw] = useState<{ draw_open: boolean; reminder_sent_at: string | null; nudge_sent_at: string | null; waiting: { people: number; tickets: number } } | null>(null)
+  const [savingSweepDraw, setSavingSweepDraw] = useState(false)
+  useEffect(() => {
+    setSweepDraw(null)
+    if (tournamentData?.format !== 'sweep' || !tournamentData?.id) return
+    fetch(`/api/admin/sweep-draw?tournament_id=${tournamentData.id}`).then(r => r.json()).then(d => { if (!d.error) setSweepDraw(d) }).catch(() => {})
+  }, [tournamentData?.id, tournamentData?.format])
+
+  const handleSweepDrawToggle = async () => {
+    if (!tournamentData || !sweepDraw) return
+    const open = !sweepDraw.draw_open
+    if (open) {
+      const willEmail = !sweepDraw.reminder_sent_at && sweepDraw.waiting.people > 0
+      const msg = willEmail
+        ? `Open the draw? Make sure the final field is loaded first.\n\nThis emails and notifies ${sweepDraw.waiting.people} ticket holder${sweepDraw.waiting.people === 1 ? '' : 's'} (${sweepDraw.waiting.tickets} ticket${sweepDraw.waiting.tickets === 1 ? '' : 's'} to spin) that they can spin now.`
+        : 'Open the draw? Make sure the final field is loaded first.'
+      if (!window.confirm(msg)) return
+    } else if (!window.confirm('Close the draw? Nobody will be able to spin until it reopens.')) return
+    setSavingSweepDraw(true)
+    const res = await fetch('/api/admin/sweep-draw', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: tournamentData.id, open }),
+    }).then(r => r.json()).catch(() => ({ error: 'Failed' }))
+    setSavingSweepDraw(false)
+    if (res.error) { toast.error(res.error); return }
+    setSweepDraw(d => d ? { ...d, draw_open: open, reminder_sent_at: res.reminded ? new Date().toISOString() : d.reminder_sent_at } : d)
+    toast.success(open ? (res.reminded ? `Draw open — reminded ${res.reminded.people} ticket holder${res.reminded.people === 1 ? '' : 's'}` : 'Draw open') : 'Draw closed')
+  }
+
   const handleStatusChange = async (next: string) => {
     if (!tournamentData || next === tournamentData.status) return
     setSavingStatus(true)
@@ -1225,6 +1257,26 @@ export default function AdminPage() {
                         {tournamentData.enrollment_open === false ? 'Paused — tap to open' : 'Open'}
                       </button>
                     </div>
+                  </div>
+                )}
+                {tournamentData.format === 'sweep' && sweepDraw && (
+                  <div className="py-1.5 border-b border-gray-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 font-medium">Draw (spinning)</span>
+                      <div className="flex items-center gap-2">
+                        {savingSweepDraw && <Spinner className="w-3 h-3" />}
+                        <button onClick={handleSweepDrawToggle} disabled={savingSweepDraw}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-50 ${sweepDraw.draw_open ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                          {sweepDraw.draw_open ? 'Open' : 'Closed — tap to open'}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {sweepDraw.draw_open
+                        ? `Spinning is on.${sweepDraw.reminder_sent_at ? ` "Spin now" reminder sent ${new Date(sweepDraw.reminder_sent_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : ''}`
+                        : `Tickets sell (up to 24 a pool) but nobody spins. Load the final field, then open it — ${sweepDraw.waiting.people} holder${sweepDraw.waiting.people === 1 ? '' : 's'} will be reminded.`}
+                      {sweepDraw.nudge_sent_at && ` Race-morning nudge sent.`}
+                    </p>
                   </div>
                 )}
                 {[

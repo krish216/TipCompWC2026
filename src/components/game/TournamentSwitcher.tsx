@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUserPrefs, type Tournament } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
+import { isPracticeSlug } from '@/lib/sweep/practice'
 
 const startsLabel = (t: Tournament): string =>
   t.start_date ? `Starts ${new Date(`${t.start_date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Upcoming'
@@ -67,7 +68,9 @@ export function TournamentSheet({ tournaments, currentId, onPick, onClose }: {
         <div className="overflow-y-auto p-2">
           {/* One plain list of tournaments: the user's own (football, plus any sweep they're
               in, which switches like any other), then upcoming sweeps they're not in yet. */}
-          {[...tournaments, ...extraSweeps].map(t => {
+          {/* The practice sweep (migration 200) isn't a real event — it lives in /sweep's
+              "My practice sweeps" card, never in the tournament list. */}
+          {[...tournaments, ...extraSweeps].filter(t => !isPracticeSlug((t as any).slug)).map(t => {
             const isExtra = extraSweeps.includes(t)
             const isSweep = t.format === 'sweep'
             const ended = hasEnded(t)

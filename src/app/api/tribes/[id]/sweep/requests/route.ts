@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { grantTickets } from '@/lib/sweep/tickets'
+import { loadField } from '@/lib/sweep/field'
 import { createNotifications } from '@/lib/notifications'
 import { signReceiptUrls } from '@/lib/sweep/receipts'
 import { getOrganiserDetails, hasPaymentDetails } from '@/lib/sweep/organiser'
@@ -22,7 +23,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const body = await request.json().catch(() => null)
   const ticketsRequested = Number(body?.tickets_requested)
   const paymentMethod = body?.payment_method
-  const amount = body?.amount != null ? Number(body.amount) : null
   if (!Number.isInteger(ticketsRequested) || ticketsRequested < 1) {
     return NextResponse.json({ error: 'tickets_requested must be a positive integer' }, { status: 400 })
   }
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   const { data: comp } = await (admin.from('comps') as any)
-    .select('name, allow_iou, sweep_approval_mode').eq('id', tribe.comp_id).maybeSingle()
+    .select('name, allow_iou, sweep_approval_mode, sweep_ticket_price_cents').eq('id', tribe.comp_id).maybeSingle()
   if (paymentMethod === 'iou' && !(comp as any)?.allow_iou) {
     return NextResponse.json({ error: 'IOU is not enabled for this sweep' }, { status: 403 })
   }
@@ -59,10 +59,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   // Oversell guard: granted tickets so far + other pending requests' tickets + this one
-  // can't exceed the field size. grantTickets() re-checks this authoritatively at the
-  // moment tickets actually get inserted — this is just an early, friendlier rejection.
-  const [{ count: horseCount }, { count: ticketCount }, { data: pendingRows }] = await Promise.all([
-    (admin.from('sweep_horses') as any).select('id', { count: 'exact', head: true }).eq('tournament_id', tribe.tournament_id).eq('scratched', false),
+  // can't exceed the pool's capacity (lib/sweep/field.ts). grantTickets() re-checks this
+  // authoritatively at the moment tickets actually get inserted — this is just an early,
+  // friendlier rejection.
+  const [{ capacity: horseCount }, { count: ticketCount }, { data: pendingRows }] = await Promise.all([
+    loadField(admin, tribe.tournament_id),
     (admin.from('sweep_entries') as any).select('id', { count: 'exact', head: true }).eq('tribe_id', tribeId),
     (admin.from('sweep_payment_requests') as any).select('tickets_requested').eq('tribe_id', tribeId).eq('status', 'pending'),
   ])
@@ -72,6 +73,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       error: `Only ${Math.max(0, (horseCount ?? 0) - reserved)} ticket(s) left in this pool's field.`,
     }, { status: 400 })
   }
+
+  // What the buyer owes, from the organiser's ticket price — never trusted from the client.
+  // Null for a legacy sweep with no price set.
+  const priceCents = (comp as any)?.sweep_ticket_price_cents ?? null
+  const amount = priceCents ? (priceCents * ticketsRequested) / 100 : null
 
   const baseRow = {
     tribe_id: tribeId, comp_id: tribe.comp_id, user_id: user.id,

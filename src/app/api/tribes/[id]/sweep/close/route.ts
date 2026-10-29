@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,11 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const { data: isAdmin } = await (admin.from('comp_admins') as any)
     .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()
   if (!isAdmin) return NextResponse.json({ error: 'Only a comp admin can close this pool' }, { status: 403 })
+
+  // Finalising hands out leftover horses — meaningless before the real field is loaded.
+  if (!(await loadField(admin, tribe.tournament_id)).drawOpen) {
+    return NextResponse.json({ error: `You can close the pool once the draw opens (${DRAW_OPENS_LABEL}). To stop new joins now, lock it instead.` }, { status: 409 })
+  }
 
   if (!tribe.sweep_locked_at) {
     await (admin.from('tribes') as any)

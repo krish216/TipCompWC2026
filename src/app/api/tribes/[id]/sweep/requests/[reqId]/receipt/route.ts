@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { receiptPath, SWEEP_RECEIPTS_BUCKET } from '@/lib/sweep/storage'
 import { grantTickets } from '@/lib/sweep/tickets'
 import { sendSweepPaymentConfirmation } from '@/lib/sweep/emails'
+import { loadField } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         email: (buyer as any).email, name: (buyer as any).display_name,
         compName: (comp as any)?.name ?? 'your sweep', tribeName: (tribe as any)?.name ?? '',
         tickets: req.tickets_requested, amount: req.amount, paymentMethod: 'bank_transfer',
+        drawOpen: (await loadField(admin, (tribe as any).tournament_id)).drawOpen,
       }).catch(() => {})
     }
   }

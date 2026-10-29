@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { buyPools, SWEEP_PRICING, sweepBillingEnabled } from '@/lib/sweep/billing'
+import { isPracticeTournament } from '@/lib/sweep/practice'
 
 const CreateSchema = z.object({
   name:        z.string().min(2).max(80).trim(),
@@ -31,6 +32,10 @@ const CreateSchema = z.object({
   // race has horses, so a bigger event needs multiple pools from the start. Capped at 5 —
   // 5 pools x a typical ~20-24 horse field already covers well over 100 people.
   max_tribes:        z.number().int().min(1).max(5).optional(),
+  // Sweeps only (migration 199): ticket price in cents, and the 1st/2nd/3rd split.
+  ticket_price_cents: z.number().int().min(50).max(100000).optional(),
+  prize_split:        z.array(z.number().int().min(0).max(100)).length(3)
+                        .refine(s => s[0] + s[1] + s[2] === 100).optional(),
 })
 
 // POST /api/comps/create — self-service org creation
@@ -49,6 +54,7 @@ export async function POST(request: NextRequest) {
     display_name, email, country, timezone,
     visibility, is_discoverable, comp_category, team_affiliation,
     description, prize_type, prize_description, member_cap, max_tribes,
+    ticket_price_cents, prize_split,
   } = parsed.data
 
   const adminClient = createAdminClient()
@@ -127,6 +133,8 @@ export async function POST(request: NextRequest) {
       prize_description: prize_description ?? null,
       member_cap:        member_cap        ?? null,
       ...(isSweepComp ? { max_tribes: poolCount } : max_tribes !== undefined ? { max_tribes } : {}),
+      ...(isSweepComp && ticket_price_cents ? { sweep_ticket_price_cents: ticket_price_cents } : {}),
+      ...(isSweepComp && prize_split ? { sweep_prize_split: prize_split } : {}),
     })
     .select().single()
 
@@ -251,9 +259,13 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  await (adminClient.from('comps') as any)
+  if (name !== undefined && (typeof name !== 'string' || !name.trim() || name.trim().length > 80)) {
+    return NextResponse.json({ error: 'Name must be 1–80 characters.' }, { status: 400 })
+  }
+
+  const { error: updateError } = await (adminClient.from('comps') as any)
     .update({
-      ...(name                 !== undefined ? { name:                 name ?? null                  } : {}),
+      ...(name                 !== undefined ? { name:                 name.trim()                   } : {}),
       ...(logo_url             !== undefined ? { logo_url }                                           : {}),
       ...(min_age              !== undefined ? { min_age:              min_age ?? null               } : {}),
       ...(requires_payment_fee !== undefined ? { requires_payment_fee: requires_payment_fee ?? false } : {}),
@@ -275,6 +287,13 @@ export async function PATCH(request: NextRequest) {
       ...(validReminder                      ? { auto_reminder }                                       : {}),
       ...(featured             !== undefined ? { featured: !!featured }                               : {}),
     }).eq('id', comp_id)
+  // comps.name is unique — say so rather than reporting success on a clash.
+  if (updateError) {
+    return NextResponse.json(
+      { error: updateError.code === '23505' ? 'That name is already taken — try another.' : updateError.message },
+      { status: updateError.code === '23505' ? 409 : 500 },
+    )
+  }
 
   return NextResponse.json({ success: true })
 }
@@ -305,7 +324,10 @@ export async function DELETE(request: NextRequest) {
   // sweep_payment_requests (migrations 188/193), so deleting a sweep that's already sold
   // tickets would silently wipe real money/stake records, not just an empty shell comp.
   // Blocked here rather than only relying on UI — this route is shared by every comp type.
-  if (tribeIds.length > 0) {
+  // Practice sweeps (migration 200) hold no real money, so they can always be deleted.
+  const { data: delComp } = await (adminClient.from('comps') as any).select('tournament_id').eq('id', comp_id).maybeSingle()
+  const practice = await isPracticeTournament(adminClient, (delComp as any)?.tournament_id)
+  if (tribeIds.length > 0 && !practice) {
     const [{ count: ticketCount }, { count: requestCount }] = await Promise.all([
       (adminClient.from('sweep_entries') as any).select('id', { count: 'exact', head: true }).in('tribe_id', tribeIds),
       (adminClient.from('sweep_payment_requests') as any).select('id', { count: 'exact', head: true }).in('tribe_id', tribeIds),

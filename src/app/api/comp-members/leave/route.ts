@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { isPracticeTournament } from '@/lib/sweep/practice'
 
 // DELETE /api/comp-members/leave — authenticated tipster removes themselves from a comp.
 // Comp admins (owners) are blocked — they must delete the comp instead.
@@ -41,9 +42,11 @@ export async function DELETE(request: NextRequest) {
   // every pool under the comp, not just the ones they're a tribe_member of — tickets can sit
   // in a pool they were never listed in. The organiser removes them manually instead, same as
   // the "comp admins can't leave" rule above protects against losing the one person who can act.
-  const { data: compTribes } = await (admin.from('tribes') as any).select('id').eq('comp_id', comp_id)
+  // Practice sweeps (migration 200) hold no real money, so leaving is always allowed.
+  const { data: compTribes } = await (admin.from('tribes') as any).select('id, tournament_id').eq('comp_id', comp_id)
   const compTribeIds = ((compTribes ?? []) as any[]).map(t => t.id)
-  if (compTribeIds.length > 0) {
+  const practice = await isPracticeTournament(admin, (compTribes as any[])?.[0]?.tournament_id)
+  if (compTribeIds.length > 0 && !practice) {
     const [{ count: ticketCount }, { count: requestCount }] = await Promise.all([
       (admin.from('sweep_entries') as any).select('id', { count: 'exact', head: true })
         .eq('user_id', user.id).in('tribe_id', compTribeIds),

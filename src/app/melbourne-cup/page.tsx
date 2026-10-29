@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createAdminClient } from '@/lib/supabase'
 import { EoiForm } from './EoiForm'
+import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 
 export const revalidate = 900
 
@@ -10,9 +11,14 @@ const SLUG = 'melbourne-cup-2026'
 async function getCup() {
   try {
     const admin = createAdminClient()
-    const { data } = await (admin.from('tournaments') as any)
-      .select('id, name, race_date:end_date, race_start_at').eq('slug', SLUG).maybeSingle()
-    return data as { id: string; name: string; race_date: string | null; race_start_at: string | null } | null
+    const cols = 'id, name, race_date:end_date, race_start_at, enrollment_open'
+    let { data, error } = await (admin.from('tournaments') as any).select(`${cols}, sweep_draw_open`).eq('slug', SLUG).maybeSingle()
+    // sweep_draw_open arrives with migration 201 — don't lose the whole page without it.
+    if (error) ({ data } = await (admin.from('tournaments') as any).select(cols).eq('slug', SLUG).maybeSingle())
+    return data as {
+      id: string; name: string; race_date: string | null; race_start_at: string | null
+      enrollment_open: boolean | null; sweep_draw_open: boolean | null
+    } | null
   } catch { return null }
 }
 
@@ -48,6 +54,10 @@ const STEPS = [
 
 export default async function MelbourneCupPage({ searchParams }: { searchParams: { src?: string; intent?: string } }) {
   const cup = await getCup()
+  // Admin → Tournament → "New sweeps" / "Draw" (migrations 196, 201): sweeps can sell before
+  // the field is declared; only the spin waits for it.
+  const sweepsOpen = cup?.enrollment_open !== false
+  const drawOpen = cup?.sweep_draw_open !== false
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10">
@@ -68,20 +78,37 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         ))}
       </div>
 
-      {/* No "start a sweep" shortcut: the field isn't declared until Sat 31 Oct, so sweeps can't
-          sell properly before then — this page collects interest until it is. */}
-      <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-        <p className="text-sm text-amber-900">
-          <span className="font-bold">Sweeps open on Saturday 31 October</span>, once the final field is declared.
-          Register below and we'll let you know the moment you can start yours.
-        </p>
-      </div>
+      {sweepsOpen ? (
+        <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-4">
+          <p className="text-sm text-emerald-900">
+            <span className="font-bold">Sweeps are open — start selling now.</span>{' '}
+            {drawOpen
+              ? 'The final field is in, so everyone can spin for their horse straight away.'
+              : `Tickets sell today; the draw opens ${DRAW_OPENS_LABEL}, once the final field is declared — we'll remind everyone to spin.`}
+          </p>
+          <Link href="/sweep" className="inline-block mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
+            Start your sweep →
+          </Link>
+        </div>
+      ) : (
+        // No "start a sweep" shortcut while new sweeps are paused — this page collects interest.
+        <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <p className="text-sm text-amber-900">
+            <span className="font-bold">Sweeps open on {DRAW_OPENS_LABEL}</span>, once the final field is declared.
+            Register below and we'll let you know the moment you can start yours.
+          </p>
+        </div>
+      )}
 
       <div id="register" className="mt-8 scroll-mt-20">
-        <h2 className="text-lg font-black text-gray-900">Register your interest</h2>
-        <p className="text-xs text-gray-500 mt-1 mb-4">Want to run a sweep, or join one? Leave your details and we'll be in touch when the field is final.</p>
+        <h2 className="text-lg font-black text-gray-900">{sweepsOpen ? "Don't have a sweep to join?" : 'Register your interest'}</h2>
+        <p className="text-xs text-gray-500 mt-1 mb-4">
+          {sweepsOpen
+            ? "Leave your details and we'll be in touch — whether you'd like help running one, or a sweep to join."
+            : "Want to run a sweep, or join one? Leave your details and we'll be in touch when the field is final."}
+        </p>
         {cup
-          ? <EoiForm tournamentId={cup.id} source={searchParams.src ?? null} initialIntent={searchParams.intent === 'join' ? 'join' : 'organise'} />
+          ? <EoiForm tournamentId={cup.id} source={searchParams.src ?? null} initialIntent={searchParams.intent === 'join' || sweepsOpen ? 'join' : 'organise'} sweepsOpen={sweepsOpen} />
           : <p className="text-sm text-gray-400">Registrations aren't open yet — check back soon.</p>}
       </div>
 

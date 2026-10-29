@@ -8,6 +8,12 @@
     },
     "src/app/api/comp-announcements/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/admin/sweep-draw/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/sweep-auto-lock/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [

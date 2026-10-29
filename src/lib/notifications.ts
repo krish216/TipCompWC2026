@@ -18,6 +18,7 @@ export type NotificationType =
   | 'sweep_request_approved' // the buyer's ticket request was approved — they can spin
   | 'sweep_request_rejected' // the buyer's ticket request was rejected
   | 'sweep_payment_reminder' // a buyer nudged the organiser about an overdue request
+  | 'sweep_draw_open'        // the final field is in (or it's race morning) — you've tickets to spin
 
 export interface CreateNotificationParams {
   user_id:  string

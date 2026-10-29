@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 
 // Sweep-organiser emails — payment receipts and results. Follows the established
 // per-feature pattern (own Resend client, own FROM, inline-CSS HTML, esc()-escaped
@@ -41,11 +42,15 @@ export async function sendSweepPaymentConfirmation(opts: {
   email: string; name?: string | null
   compName: string; tribeName: string
   tickets: number; amount: number | null; paymentMethod: string
+  drawOpen?: boolean   // false while selling before the field is known (migration 201)
 }): Promise<void> {
   if (!process.env.RESEND_API_KEY) return
   try {
     const firstName = (opts.name ?? '').trim().split(' ')[0]
     const greeting = firstName ? `Nice one, ${esc(firstName)} —` : 'Nice one —'
+    const nextStep = opts.drawOpen === false
+      ? `Your ticket's secured. The draw opens ${DRAW_OPENS_LABEL}, once the final field is declared — we'll email you the moment you can spin for your horse.`
+      : "Your ticket purchase is confirmed — you're ready to spin the wheel."
     const rows = [
       row('🏇 Sweep', opts.compName),
       row('🪣 Pool', opts.tribeName),
@@ -56,7 +61,7 @@ export async function sendSweepPaymentConfirmation(opts: {
     ].filter(Boolean).join('')
 
     const body = `
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;">Your ticket purchase is confirmed — you're ready to spin the wheel.</p>
+  <p style="margin:0 0 16px;font-size:15px;color:#374151;">${esc(nextStep)}</p>
   <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:22px;padding:6px 16px;">
     ${rows}
   </table>
@@ -138,6 +143,56 @@ export async function sendSweepDrawConfirmation(opts: {
     if (error) console.error('[sweep/emails] draw-confirmation send failed:', error)
   } catch (e: any) {
     console.error('[sweep/emails] draw-confirmation error:', e?.message ?? e)
+  }
+}
+
+// "Your horse is waiting" — sent to everyone holding tickets they haven't spun yet: once when
+// the draw opens (the final field is in), and once more on race morning to anyone still
+// holding unspun tickets (lib/sweep/draw-reminders.ts). One email per person, listing every
+// sweep they've got tickets waiting in.
+export async function sendSweepDrawReminder(opts: {
+  email: string; name?: string | null
+  kind: 'open' | 'nudge'
+  raceName: string | null; raceStartAt: string | null
+  sweeps: { compId: string; compName: string; tickets: number }[]
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY || !opts.sweeps.length) return
+  try {
+    const firstName = (opts.name ?? '').trim().split(' ')[0]
+    const total = opts.sweeps.reduce((n, s) => n + s.tickets, 0)
+    const race = opts.raceName ?? 'the race'
+    const jump = opts.raceStartAt
+      ? new Date(opts.raceStartAt).toLocaleString('en-AU', {
+          weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne', timeZoneName: 'short',
+        })
+      : null
+    const rows = opts.sweeps.map(s => row(`🎟️ ${s.compName}`, `${s.tickets} to spin`)).join('')
+    const intro = opts.kind === 'open'
+      ? `The final field for the ${esc(race)} is in — time to spin for your horse${total === 1 ? '' : 's'}.`
+      : `It's race day! You've still got ${total} ticket${total === 1 ? '' : 's'} to spin${jump ? ` — the pools lock 30 minutes before the jump (${esc(jump)})` : ''}.`
+    const body = `
+  <p style="margin:0 0 16px;font-size:15px;color:#374151;">${intro}</p>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:22px;padding:6px 16px;">
+    ${rows}
+  </table>
+  <div style="text-align:center;margin-bottom:8px;">
+    <a href="https://tribepicks.com/tribe?comp_id=${encodeURIComponent(opts.sweeps[0].compId)}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">Spin for your horse →</a>
+  </div>`
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { error } = await resend.emails.send({
+      from: FROM, to: opts.email,
+      subject: opts.kind === 'open'
+        ? `🐎 The field's in — spin for your horse${total === 1 ? '' : 's'}`
+        : `⏰ Race day — you've still got ${total} ticket${total === 1 ? '' : 's'} to spin`,
+      html: wrap(opts.kind === 'open'
+        ? `${firstName ? `${esc(firstName)}, your` : 'Your'} horse is waiting! 🐎`
+        : `${firstName ? `${esc(firstName)}, don't` : "Don't"} miss the draw ⏰`, body,
+        "You're receiving this because you hold tickets in a TribePicks sweep. TribePicks never handles the money itself."),
+    })
+    if (error) console.error('[sweep/emails] draw-reminder send failed:', error)
+  } catch (e: any) {
+    console.error('[sweep/emails] draw-reminder error:', e?.message ?? e)
   }
 }
 

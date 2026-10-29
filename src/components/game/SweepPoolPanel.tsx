@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
+import { fmtCents, type PoolPrizes } from '@/lib/sweep/prizes'
 
 type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null }
 type HiddenHorse = { id: string; hidden: true }
@@ -35,6 +36,13 @@ type SweepState = {
   race_start_at: string | null
   payment_details: { account_name: string | null; bsb: string | null; account_number: string | null; payid: string | null } | null
   organiser_contact: { phone: string | null; email: string | null } | null   // only once a request of yours is overdue
+  ticket_price_cents: number | null
+  prizes: PoolPrizes | null   // null until the organiser sets a ticket price
+  is_practice: boolean        // practice sweep (migration 200): no real money, pretend race
+  field_size: number
+  draw_open: boolean          // false → selling before the field is known: no spinning yet (migration 201)
+  draw_opens_label: string
+  my_over_field: number       // my tickets with no horse after a short final field — refunded
 }
 type MyRequest = {
   id: string; tickets_requested: number; payment_method: 'cash' | 'bank_transfer' | 'iou'
@@ -75,6 +83,17 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
+  const [racing, setRacing] = useState(false)
+
+  // Practice sweeps only: the organiser runs a pretend race (random 1st/2nd/3rd for this pool,
+  // which also locks it and reveals the draw), or clears it to try again.
+  async function practiceRace(method: 'POST' | 'DELETE') {
+    setRacing(true); setError(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/practice-race`, { method }).then(r => r.json())
+    setRacing(false)
+    if (res.error) { setError(res.error); return }
+    await load()
+  }
 
   async function load() {
     const s = await fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json())
@@ -176,8 +195,34 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
     ? <span className="block text-gray-400 italic">🔒 hidden until the pool fills</span>
     : <span className={`block ${h.scratched ? 'text-red-400 line-through' : 'text-gray-900 font-medium'}`}>#{h.number} {h.name}</span>
 
+  const raceRun = sweep.podium.some(p => p.horse)
+
   return (
     <>
+      {sweep.is_practice && (
+        <div className="border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
+          <p className="text-sm font-bold text-violet-900">🧪 Practice sweep — no real money</p>
+          <p className="text-xs text-violet-800 mt-1">
+            Everything works like a real sweep: request a ticket, {sweep.is_comp_admin ? 'approve it in Manage, ' : 'your organiser approves it, '}
+            spin for your horse{sweep.is_comp_admin ? ', then run a pretend race to see the results and prizes.' : ', then wait for the pretend race.'}
+          </p>
+          {sweep.is_comp_admin && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button onClick={() => practiceRace('POST')} disabled={racing}
+                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg">
+                {racing ? 'They\'re racing…' : raceRun ? '🔁 Run the race again' : '🏁 Run the race'}
+              </button>
+              {raceRun && (
+                <button onClick={() => practiceRace('DELETE')} disabled={racing}
+                  className="text-xs font-bold text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50 px-3 py-2 rounded-lg">
+                  Reset &amp; reopen the pool
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {sweep.is_comp_admin && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
           <div className="flex items-center justify-between mb-3">
@@ -225,10 +270,43 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
         </div>
       )}
 
+      {/* Prizes as they stand right now — grows with every ticket sold, so buyers can see
+          what they're playing for (and that it's this POOL's pot, not the whole sweep's). */}
+      {sweep.prizes && (
+        <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 mb-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-bold text-gray-900">🏆 Prizes in this pool</h2>
+            <span className="text-xs text-amber-800">{fmtCents(sweep.prizes.ticket_price_cents)} a ticket</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {sweep.prizes.places.map(p => (
+              <div key={p.place} className="bg-white border border-amber-200 rounded-xl py-2 text-center">
+                <div className="text-lg">{['🥇', '🥈', '🥉'][p.place - 1]}</div>
+                <div className="text-base font-black text-gray-900">{fmtCents(p.cents)}</div>
+                <div className="text-[10px] text-gray-400">{p.pct}%</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-amber-900 mt-3">
+            {sweep.prizes.tickets_sold} of {sweep.field_size || '—'} tickets sold · pot {fmtCents(sweep.prizes.pot_cents)}
+            {sweep.prizes.fee_cents > 0 && ` (after ${fmtCents(sweep.prizes.fee_cents)} TribePicks fee)`}
+            {!sweep.locked && sweep.field_size > sweep.prizes.tickets_sold && ' · grows with every ticket sold'}
+          </p>
+        </div>
+      )}
+
       {!sweep.locked && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
           <h2 className="font-bold text-gray-900 mb-1">Buy tickets</h2>
-          <p className="text-xs text-gray-500 mb-3">Your organiser confirms payment before you can spin — pick how you're paying.</p>
+          <p className="text-xs text-gray-500 mb-3">
+            {sweep.ticket_price_cents
+              ? <>Tickets are <span className="font-bold text-gray-700">{fmtCents(sweep.ticket_price_cents)}</span> each{(() => {
+                  const n = parseInt(buyCount, 10)
+                  return Number.isInteger(n) && n > 1 ? <> — {n} tickets is <span className="font-bold text-gray-700">{fmtCents(n * sweep.ticket_price_cents!)}</span></> : null
+                })()}. Your organiser confirms payment before you can spin.</>
+              : "Your organiser confirms payment before you can spin — pick how you're paying."}
+            {!sweep.draw_open && <> Buy now to secure your spot — the draw opens {sweep.draw_opens_label}, once the final field is declared.</>}
+          </p>
           <div className="flex gap-2 items-center mb-3">
             <input type="number" min="1" value={buyCount} onChange={e => setBuyCount(e.target.value)}
               className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
@@ -349,7 +427,27 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
         </div>
       )}
 
-      {sweep.my_unclaimed > 0 ? (
+      {sweep.my_over_field > 0 && (
+        <div className="border border-red-200 bg-red-50 rounded-2xl p-4 mb-5 text-center">
+          <p className="text-sm font-bold text-red-800">
+            {sweep.my_over_field} of your tickets {sweep.my_over_field === 1 ? 'has' : 'have'} no horse
+          </p>
+          <p className="text-xs text-red-700 mt-1">
+            The final field is smaller than the tickets sold in this pool, and {sweep.my_over_field === 1 ? 'yours was' : 'yours were'} among the last sold — {sweep.organiser_name ?? 'your organiser'} will refund {sweep.my_over_field === 1 ? 'it' : 'them'}.
+          </p>
+        </div>
+      )}
+
+      {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
+        <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-5 mb-5 text-center">
+          <p className="text-sm font-bold text-emerald-900">
+            🎟️ {sweep.my_unclaimed} ticket{sweep.my_unclaimed === 1 ? '' : 's'} secured
+          </p>
+          <p className="text-xs text-emerald-800 mt-1">
+            The draw opens {sweep.draw_opens_label}, once the final field is declared. We'll email you the moment you can spin for your horse.
+          </p>
+        </div>
+      ) : sweep.my_unclaimed > 0 ? (
         <div className="mb-5">
           <p className="text-center text-xs text-gray-500 mb-2">
             {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
@@ -390,6 +488,10 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
               {p.place === 1 ? '🥇' : p.place === 2 ? '🥈' : '🥉'}{' '}
               {p.horse ? `#${p.horse.number} ${p.horse.name}` : 'Result not in yet'}
               {p.winner ? <> — <strong>{p.winner.display_name}</strong></> : p.horse ? ' (nobody in this pool)' : ''}
+              {(() => {
+                const prize = p.horse && sweep.prizes?.places.find(x => x.place === p.place)
+                return prize && prize.cents > 0 ? <span className="text-amber-700 font-bold"> · {fmtCents(prize.cents)}</span> : null
+              })()}
             </p>
           ))}
         </div>
@@ -412,7 +514,11 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
                 <span className="text-right">
                   {r.horses.length === 0 && r.unclaimed === 0 && <span className="text-gray-300">—</span>}
                   {r.horses.map(h => <span key={h.id}>{renderHorse(h)}</span>)}
-                  {r.unclaimed > 0 && <span className="block text-gray-400 italic">{r.unclaimed} still picking…</span>}
+                  {r.unclaimed > 0 && (
+                    <span className="block text-gray-400 italic">
+                      {sweep.draw_open ? `${r.unclaimed} still picking…` : `${r.unclaimed} ticket${r.unclaimed === 1 ? '' : 's'} · waiting for the draw`}
+                    </span>
+                  )}
                 </span>
               </div>
             ))}

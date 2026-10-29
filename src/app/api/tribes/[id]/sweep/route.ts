@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { approvalClockStart, approvalDeadline, getOrganiserDetails, hasContact, hasPaymentDetails } from '@/lib/sweep/organiser'
+import { computePoolPrizes, isValidSplit, poolFeeShares } from '@/lib/sweep/prizes'
+import { isPracticeSlug } from '@/lib/sweep/practice'
+import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const tribeId = params.id
 
   const { data: tribe } = await (admin.from('tribes') as any)
-    .select('id, comp_id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
+    .select('id, comp_id, tournament_id, sweep_locked_at, practice_results').eq('id', tribeId).maybeSingle()
   if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
 
   // Comp admins can view ANY pool under their comp, not just ones they personally joined —
@@ -31,14 +34,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!membership && !isAdmin) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
 
   const { data: tourn } = await (admin.from('tournaments') as any)
-    .select('format, race_start_at').eq('id', tribe.tournament_id).maybeSingle()
+    .select('format, race_start_at, slug').eq('id', tribe.tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') {
     return NextResponse.json({ error: 'This tribe is not a sweep' }, { status: 400 })
   }
 
   const [{ data: comp }, organiser, { data: myPending }] = await Promise.all([
     (admin.from('comps') as any)
-      .select('allow_iou, sweep_approval_mode, owner_name').eq('id', tribe.comp_id).maybeSingle(),
+      .select('allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', tribe.comp_id).maybeSingle(),
     getOrganiserDetails(admin, tribe.comp_id),
     (admin.from('sweep_payment_requests') as any)
       .select('created_at, receipt_attached_at, payment_method').eq('tribe_id', tribeId).eq('user_id', user.id).eq('status', 'pending'),
@@ -92,8 +95,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // Podium: for each placegetter horse, which (if any) entrant in THIS pool holds it —
   // and if several of someone's tickets somehow held it, that can't happen (one horse,
   // one ticket, UNIQUE(tribe_id, horse_id)) so a single match is always correct.
+  // A practice pool has its own pretend result (tribes.practice_results — the practice field is
+  // shared by every practice sweep, so finish_position can't hold it).
+  const isPractice = isPracticeSlug((tourn as any)?.slug)
+  const practiceIds: string[] = (tribe as any).practice_results ?? []
   const podium = [1, 2, 3].map(place => {
-    const horse = (horses ?? []).find((h: any) => h.finish_position === place)
+    const horse = isPractice
+      ? (horses ?? []).find((h: any) => h.id === practiceIds[place - 1])
+      : (horses ?? []).find((h: any) => h.finish_position === place)
     if (!horse) return { place, horse: null, winner: null }
     const winner = roster.find((r: any) => r.horses.some((h: any) => h.id === horse.id)) ?? null
     return { place, horse, winner }
@@ -105,9 +114,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // pool that never fills still reveals before the race. The redaction is a stripped object
   // (no number, name or real id), not a flag, so nothing leaks to a caller reading the raw
   // response.
-  const nonScratched = (horses ?? []).filter((h: any) => !h.scratched).length
+  const field = await loadField(admin, tribe.tournament_id)
+  const nonScratched = field.runners
   const claimedCount = (entries ?? []).filter((e: any) => e.horse_id).length
-  const drawFull = nonScratched > 0 && claimedCount >= nonScratched
+  const drawFull = field.drawOpen && nonScratched > 0 && claimedCount >= nonScratched
+  // Short final field: the caller's tickets that can't spin (lib/sweep/field.ts).
+  const overField = overFieldTicketIds((entries ?? []) as any[], field)
+  const myOverField = ((entries ?? []) as any[]).filter(e => e.user_id === user.id && overField.has(e.id)).length
   const poolClosed = drawFull || !!tribe.sweep_locked_at
   const hideOthers = !poolClosed
   const redact = (h: any) => (h ? { id: `hidden-${Math.random().toString(36).slice(2, 10)}`, hidden: true } : h)
@@ -118,19 +131,39 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     ? podium.map(p => ({ ...p, winner: p.winner ? redactRow(p.winner) : p.winner }))
     : podium
 
+  // Live prize table for THIS pool — tickets sold so far × price, less its share of any
+  // TribePicks fee. Null until the organiser sets a ticket price.
+  const price = (comp as any)?.sweep_ticket_price_cents ?? null
+  const split = isValidSplit((comp as any)?.sweep_prize_split) ? (comp as any).sweep_prize_split : [70, 20, 10]
+  const prizes = price
+    ? computePoolPrizes({
+        ticketPriceCents: price, ticketsSold: (entries ?? []).length, split,
+        feeCents: (await poolFeeShares(admin, tribe.comp_id, (comp as any)?.sweep_deduct_fee !== false))[tribeId] ?? 0,
+      })
+    : null
+
   return NextResponse.json({
     comp_id:         tribe.comp_id,
+    is_practice:     isPractice,
+    ticket_price_cents: price,
+    prizes,
+    field_size:      field.capacity,
+    // Selling before the field is known (migration 201): no spinning, and the placeholder
+    // horses stay out of the response entirely.
+    draw_open:       field.drawOpen,
+    draw_opens_label: DRAW_OPENS_LABEL,
+    my_over_field:   myOverField,
     locked:          !!tribe.sweep_locked_at,
     is_comp_admin:   !!isAdmin,
     allow_iou:       !!(comp as any)?.allow_iou,
     approval_mode:   (comp as any)?.sweep_approval_mode ?? 'manual',
     draw_full:       drawFull,
     draw_hidden:     hideOthers,   // true → other members' horses are redacted until the pool closes
-    horses:          horses ?? [],
-    available:       (horses ?? []).filter((h: any) => !(entries ?? []).some((e: any) => e.horse_id === h.id)),
+    horses:          field.drawOpen ? horses ?? [] : [],
+    available:       field.drawOpen ? (horses ?? []).filter((h: any) => !(entries ?? []).some((e: any) => e.horse_id === h.id)) : [],
     roster:          rosterOut,
     my_horses:       myRoster?.horses ?? [],
-    my_unclaimed:    myRoster?.unclaimed ?? 0,
+    my_unclaimed:    Math.max(0, (myRoster?.unclaimed ?? 0) - myOverField),
     podium:          podiumOut,
     // ── Buying: who to pay, where, and how long approval should take ──
     organiser_name:        organiser.contact_name ?? (comp as any)?.owner_name ?? null,

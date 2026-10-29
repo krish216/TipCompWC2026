@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
+import { loadField } from '@/lib/sweep/field'
 
 // POST /api/comp-admins/self-register
 // Assigns a user to an org using the org's invite code.
@@ -90,8 +91,8 @@ export async function POST(request: NextRequest) {
       // so a joiner is never placed in a pool they'd then be refused tickets in.
       let hasRoom: (tribeId: string) => boolean
       if (isSweep) {
-        const [{ count: fieldSize }, { data: entryRows }, { data: pendingRows }] = await Promise.all([
-          (adminClient.from('sweep_horses') as any).select('id', { count: 'exact', head: true }).eq('tournament_id', (org as any).tournament_id),
+        const [{ capacity: fieldSize }, { data: entryRows }, { data: pendingRows }] = await Promise.all([
+          loadField(adminClient, (org as any).tournament_id),
           (adminClient.from('sweep_entries') as any).select('tribe_id').in('tribe_id', compTribeIds),
           (adminClient.from('sweep_payment_requests') as any).select('tribe_id, tickets_requested').in('tribe_id', compTribeIds).eq('status', 'pending'),
         ])

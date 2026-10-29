@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { APPROVAL_WINDOWS, getOrganiserDetails, normalisePayId, payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { billingInfo } from '@/lib/sweep/billing'
+import { isValidSplit } from '@/lib/sweep/prizes'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,7 +89,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data, error } = await (admin.from('comps') as any)
-    .select('allow_iou, sweep_approval_mode, sweep_leftover_mode, max_tribes, owner_name, created_by').eq('id', params.id).maybeSingle()
+    .select('allow_iou, sweep_approval_mode, sweep_leftover_mode, max_tribes, owner_name, created_by, sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', params.id).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // For now the pool count can only go up — the floor is the current setting itself.
@@ -102,7 +103,25 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     details.contact_name = (data as any)?.owner_name ?? (creator as any)?.display_name ?? null
   }
   const { owner_name: _o, created_by: _c, ...settings } = (data ?? {}) as any
-  return NextResponse.json({ data: settings, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo() })
+  return NextResponse.json({
+    data: settings, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo(),
+    // A sweep with no price yet (created before migration 199) can always set one, even
+    // with sales — those buyers paid whatever the organiser asked; only CHANGING it locks.
+    price_locked: (data as any)?.sweep_ticket_price_cents != null && await hasSales(admin, params.id),
+  })
+}
+
+// Once anyone holds a ticket or has asked for one, the price is part of a deal already
+// struck — changing it would leave buyers in the same pool paying different amounts.
+async function hasSales(admin: any, compId: string): Promise<boolean> {
+  const { data: tribes } = await admin.from('tribes').select('id').eq('comp_id', compId)
+  const ids = ((tribes ?? []) as any[]).map(t => t.id)
+  if (!ids.length) return false
+  const [{ count: tickets }, { count: requests }] = await Promise.all([
+    admin.from('sweep_entries').select('id', { count: 'exact', head: true }).in('tribe_id', ids),
+    admin.from('sweep_payment_requests').select('id', { count: 'exact', head: true }).in('tribe_id', ids).in('status', ['pending', 'approved']),
+  ])
+  return (tickets ?? 0) > 0 || (requests ?? 0) > 0
 }
 
 // A pool counts as "used" (filled or partially filled) once it has at least one ticket —
@@ -131,7 +150,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const body = await request.json().catch(() => null)
   // (reveal_mode is gone — every sweep now works one way: you see only your own horses until
   // the pool closes. The comps.sweep_reveal_mode column is left in place but no longer read.)
-  const { allow_iou, approval_mode, leftover_horse_mode, max_tribes } = body ?? {}
+  const { allow_iou, approval_mode, leftover_horse_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee } = body ?? {}
 
   if (approval_mode !== undefined && !APPROVAL_MODES.includes(approval_mode)) {
     return NextResponse.json({ error: `approval_mode must be one of: ${APPROVAL_MODES.join(', ')}` }, { status: 400 })
@@ -146,6 +165,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: 'Add pools via /api/comps/:id/sweep/pools/purchase.' }, { status: 400 })
   }
 
+  if (ticket_price_cents !== undefined) {
+    if (!Number.isInteger(ticket_price_cents) || ticket_price_cents < 50 || ticket_price_cents > 100000) {
+      return NextResponse.json({ error: 'Ticket price must be between $0.50 and $1,000.' }, { status: 400 })
+    }
+    const { data: cur } = await (admin.from('comps') as any).select('sweep_ticket_price_cents').eq('id', params.id).maybeSingle()
+    const current = (cur as any)?.sweep_ticket_price_cents ?? null
+    if (current != null && current !== ticket_price_cents && await hasSales(admin, params.id)) {
+      return NextResponse.json({ error: "Tickets are already sold or requested, so the price can't change now." }, { status: 409 })
+    }
+  }
+  if (prize_split !== undefined && !isValidSplit(prize_split)) {
+    return NextResponse.json({ error: 'Prize split must be three whole percentages that add up to 100.' }, { status: 400 })
+  }
+
   // Payment + contact details go to sweep_organiser_details, not comps (see migration 195).
   let details: Record<string, any> | null = null
   if (body?.organiser_details !== undefined) {
@@ -158,6 +191,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (allow_iou !== undefined) update.allow_iou = !!allow_iou
   if (approval_mode !== undefined) update.sweep_approval_mode = approval_mode
   if (leftover_horse_mode !== undefined) update.sweep_leftover_mode = leftover_horse_mode
+  if (ticket_price_cents !== undefined) update.sweep_ticket_price_cents = ticket_price_cents
+  if (prize_split !== undefined) update.sweep_prize_split = prize_split
+  if (deduct_fee !== undefined) update.sweep_deduct_fee = !!deduct_fee
   if (Object.keys(update).length === 0 && !details) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (Object.keys(update).length > 0) {

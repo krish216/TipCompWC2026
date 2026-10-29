@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { randomInt } from 'crypto'
 import { sendSweepDrawConfirmation } from '@/lib/sweep/emails'
+import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,10 +69,26 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
   if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
   if (tribe.sweep_locked_at) return NextResponse.json({ error: 'This pool is locked — no more picks.' }, { status: 409 })
 
-  const { data: myTicket } = await (admin.from('sweep_entries') as any)
-    .select('id').eq('tribe_id', tribeId).eq('user_id', user.id).is('horse_id', null).limit(1).maybeSingle()
+  // Tickets can be sold before the field is known (migration 201), but nobody spins until
+  // it's final — otherwise they'd draw a placeholder horse.
+  const field = await loadField(admin, tribe.tournament_id)
+  if (!field.drawOpen) {
+    return NextResponse.json({ error: `The draw opens ${DRAW_OPENS_LABEL}, once the final field is declared — your ticket's safe until then.` }, { status: 409 })
+  }
+
+  // A short final field leaves the last tickets sold with no horse: those can't spin (the
+  // organiser refunds them), so pick one of the caller's tickets that's within the field.
+  const { data: poolEntries } = await (admin.from('sweep_entries') as any)
+    .select('id, user_id, horse_id, joined_at').eq('tribe_id', tribeId)
+  const overField = overFieldTicketIds((poolEntries ?? []) as any[], field)
+  const myOpen = ((poolEntries ?? []) as any[]).filter(e => e.user_id === user.id && !e.horse_id)
+  const myTicket = myOpen.find(e => !overField.has(e.id))
   if (!myTicket) {
-    return NextResponse.json({ error: 'You don’t have an unclaimed ticket in this pool' }, { status: 409 })
+    return NextResponse.json({
+      error: myOpen.length
+        ? 'The final field is smaller than the tickets sold in this pool, so your ticket has no horse — your organiser will refund it.'
+        : 'You don’t have an unclaimed ticket in this pool',
+    }, { status: 409 })
   }
 
   for (let attempt = 0; attempt < MAX_DRAW_ATTEMPTS; attempt++) {

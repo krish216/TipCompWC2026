@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { isPracticeTournament } from '@/lib/sweep/practice'
 
 // ── Sweep billing: organisers buying pools from TribePicks ────────────────────────────────
 // The one seam every pool increase goes through — creating a sweep with more than the free
@@ -83,8 +84,9 @@ const stripeProvider: PoolPaymentProvider = {
   },
 }
 
-function pickProvider(isPlatformAdmin: boolean): PoolPaymentProvider {
-  if (!sweepBillingEnabled()) return instantProvider('free')
+function pickProvider(isPlatformAdmin: boolean, isPractice: boolean): PoolPaymentProvider {
+  // Practice sweeps (migration 200) are never charged, billing on or off.
+  if (!sweepBillingEnabled() || isPractice) return instantProvider('free')
   if (isPlatformAdmin) return instantProvider('admin')
   return stripeProvider
 }
@@ -95,7 +97,7 @@ export async function buyPools(admin: any, opts: { compId: string; userId: strin
   if (!Number.isInteger(opts.pools) || opts.pools < 1) return { error: 'Add at least one pool.', status: 400 }
 
   const [{ data: comp }, { data: platformAdmin }, { data: buyer }] = await Promise.all([
-    (admin.from('comps') as any).select('name, max_tribes').eq('id', opts.compId).maybeSingle(),
+    (admin.from('comps') as any).select('name, max_tribes, tournament_id').eq('id', opts.compId).maybeSingle(),
     (admin.from('admin_users') as any).select('user_id').eq('user_id', opts.userId).maybeSingle(),
     (admin.from('users') as any).select('email').eq('id', opts.userId).maybeSingle(),
   ])
@@ -105,7 +107,7 @@ export async function buyPools(admin: any, opts: { compId: string; userId: strin
     return { error: `A sweep can have up to ${SWEEP_PRICING.maxPools} pools — this one has ${current}.`, status: 400 }
   }
 
-  const provider = pickProvider(!!platformAdmin)
+  const provider = pickProvider(!!platformAdmin, await isPracticeTournament(admin, (comp as any).tournament_id))
   const { data: purchase, error } = await (admin.from('sweep_pool_purchases') as any)
     .insert({
       comp_id: opts.compId, user_id: opts.userId, pools: opts.pools,

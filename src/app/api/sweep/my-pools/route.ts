@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
+import { PRACTICE_SLUG } from '@/lib/sweep/practice'
+import { loadFields } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +61,7 @@ export async function GET() {
 
   const tournIds = [...new Set(allTribes.map(t => t.tournament_id).filter(Boolean))]
   const { data: tourns } = await (admin.from('tournaments') as any)
-    .select('id, name, format, race_start_at').in('id', tournIds)
+    .select('id, name, format, race_start_at, slug').in('id', tournIds)
   const sweepTournIds = new Set(((tourns ?? []) as any[]).filter(t => t.format === 'sweep').map(t => t.id))
   const tournById = Object.fromEntries(((tourns ?? []) as any[]).map(t => [t.id, t]))
 
@@ -80,13 +82,13 @@ export async function GET() {
 
   // Ticket count + fill status for every pool across every represented comp — a pool is
   // "full" once every ticket is SOLD (sweep_entries rows, whether spun yet or not), matching
-  // the non-scratched field size. Same rule as /api/sweep/offerings.
+  // the pool's capacity (lib/sweep/field.ts). Same rule as /api/sweep/offerings.
   const allTribeIds = ((allCompTribes ?? []) as any[]).map(t => t.id)
   // Pending payment requests only matter to organisers, so only fetch them for pools under
   // comps the caller admins — a plain member never sees anyone else's requests.
   const adminTribeIds = ((allCompTribes ?? []) as any[]).filter(t => adminCompIdSet.has(t.comp_id)).map(t => t.id)
-  const [{ data: horses }, { data: allEntries }, { data: pendingRows }] = await Promise.all([
-    (admin.from('sweep_horses') as any).select('tournament_id, scratched').in('tournament_id', tournIds),
+  const [fields, { data: allEntries }, { data: pendingRows }] = await Promise.all([
+    loadFields(admin, tournIds),
     allTribeIds.length
       ? (admin.from('sweep_entries') as any).select('tribe_id').in('tribe_id', allTribeIds)
       : Promise.resolve({ data: [] }),
@@ -100,10 +102,7 @@ export async function GET() {
     const c = compIdByTribe[r.tribe_id]
     pendingByComp[c] = (pendingByComp[c] ?? 0) + 1
   }
-  const fieldSizeByTourn: Record<string, number> = {}
-  for (const h of (horses ?? []) as any[]) {
-    if (!h.scratched) fieldSizeByTourn[h.tournament_id] = (fieldSizeByTourn[h.tournament_id] ?? 0) + 1
-  }
+  const fieldSizeByTourn: Record<string, number> = Object.fromEntries(Object.entries(fields).map(([id, f]) => [id, f.capacity]))
   const soldByTribe: Record<string, number> = {}
   for (const e of (allEntries ?? []) as any[]) soldByTribe[e.tribe_id] = (soldByTribe[e.tribe_id] ?? 0) + 1
 
@@ -124,6 +123,8 @@ export async function GET() {
     tournament_id:    t.tournament_id,
     tournament_name:  tournById[t.tournament_id]?.name ?? null,
     race_start_at:    tournById[t.tournament_id]?.race_start_at ?? null,
+    // Practice sweeps (migration 200) get their own card on /sweep, apart from real ones.
+    is_practice:      tournById[t.tournament_id]?.slug === PRACTICE_SLUG,
     locked:           !!t.sweep_locked_at,
     is_comp_admin:    adminCompIdSet.has(t.comp_id),
     my_tickets:       ownTicketsByTribe[t.id]?.total ?? 0,

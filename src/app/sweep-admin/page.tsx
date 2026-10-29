@@ -7,6 +7,9 @@ import QRCode from 'qrcode'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 import { payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
+import { PRIZE_PRESETS, fmtCents, isValidSplit, type PoolPrizes } from '@/lib/sweep/prizes'
+import { isPracticeSlug } from '@/lib/sweep/practice'
+import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 
 type Tab = 'sell' | 'requests' | 'allocation' | 'pools' | 'settings'
 const TABS: { id: Tab; icon: string; label: string }[] = [
@@ -17,15 +20,23 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'settings',   icon: '⚙️', label: 'Settings' },
 ]
 const VALID_TABS = TABS.map(t => t.id)
+const UNSAVED_PROMPT = 'You have unsaved changes on this sweep. Leave and lose them?'
 
 type CompLite = { id: string; name: string; logo_url: string | null; invite_code: string; tournament_id: string }
-type Settings = { allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; sweep_leftover_mode: 'none' | 'auto_assign_organiser'; max_tribes: number }
+type CrewMember = { user_id: string; display_name: string; practice_names: string[]; status: 'member' | 'invited' | 'none'; can_email: boolean }
+type Settings = {
+  allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; sweep_leftover_mode: 'none' | 'auto_assign_organiser'; max_tribes: number
+  sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]; sweep_deduct_fee: boolean
+}
 type RequestRow = {
   id: string; tribe_id: string; tickets_requested: number; payment_method: string; status: string
   amount: number | null; receipt_url: string | null; paid_at: string | null
   buyer: { display_name: string; avatar_url: string | null } | null
 }
-type Pool = { id: string; name: string; invite_code: string; locked: boolean; members: number; tickets: number; claimed: number; field_size: number }
+type Pool = {
+  id: string; name: string; invite_code: string; locked: boolean; members: number; tickets: number; claimed: number; field_size: number; prizes: PoolPrizes | null
+  draw_open: boolean; refunds: { display_name: string; tickets: number }[]   // migration 201
+}
 type OrganiserDetails = {
   approval_window_hours: number
   bank_account_name: string; bank_bsb: string; bank_account_number: string; payid: string; payid_kind: PayIdKind
@@ -58,6 +69,12 @@ export default function SweepAdminPage() {
 
   const [settings, setSettings] = useState<Settings | null>(null)
   const [savingSetting, setSavingSetting] = useState<string | null>(null)
+  // Prizes card (migration 199). The price locks once anything is sold or requested.
+  const [priceInput, setPriceInput] = useState('')
+  const [splitInput, setSplitInput] = useState<[string, string, string]>(['70', '20', '10'])
+  const [priceLocked, setPriceLocked] = useState(false)
+  const [savingPrizes, setSavingPrizes] = useState(false)
+  const [prizesSavedAt, setPrizesSavedAt] = useState<number | null>(null)
   const [minMaxTribes, setMinMaxTribes] = useState(1)
   const [maxTribesInput, setMaxTribesInput] = useState('')
   const [savingMaxTribes, setSavingMaxTribes] = useState(false)
@@ -65,6 +82,16 @@ export default function SweepAdminPage() {
   // Back from Stripe Checkout. The webhook adds the pools, possibly a moment after the
   // redirect lands, so poll briefly rather than trusting the redirect.
   const [poolsPaid, setPoolsPaid] = useState(searchParams.get('pools') === 'paid')
+  // People from this organiser's practice sweeps, to invite into a real one (Sell tab).
+  const [crew, setCrew] = useState<CrewMember[]>([])
+  const [crewPicked, setCrewPicked] = useState<Set<string>>(new Set())
+  const [sendingCrew, setSendingCrew] = useState(false)
+  const [crewMsg, setCrewMsg] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [nameSavedAt, setNameSavedAt] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -97,7 +124,12 @@ export default function SweepAdminPage() {
         fetch('/api/tournaments').then(r => r.json()),
       ])
       const sweepTournIds = new Set(((tournsRes.data ?? []) as any[]).filter(t => t.format === 'sweep').map(t => t.id))
-      const sweepComps = ((adminsRes.comps ?? []) as any[]).filter(c => sweepTournIds.has(c.tournament_id))
+      // Practice sweeps (migration 200) sort after real ones, so a real sweep is the default pick.
+      const practiceTournIds = new Set(((tournsRes.data ?? []) as any[]).filter(t => isPracticeSlug(t.slug)).map(t => t.id))
+      const sweepComps = ((adminsRes.comps ?? []) as any[])
+        .filter(c => sweepTournIds.has(c.tournament_id))
+        .map(c => ({ ...c, is_practice: practiceTournIds.has(c.tournament_id) }))
+        .sort((a, b) => Number(a.is_practice) - Number(b.is_practice))
       setComps(sweepComps)
       const fromQuery = searchParams.get('comp_id')
       setCompId(fromQuery && sweepComps.some(c => c.id === fromQuery) ? fromQuery : (sweepComps[0]?.id ?? ''))
@@ -117,9 +149,17 @@ export default function SweepAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compIdParam, comps])
 
+  function resetPrizeInputs(s: Pick<Settings, 'sweep_ticket_price_cents' | 'sweep_prize_split'> | null | undefined) {
+    setPriceInput(s?.sweep_ticket_price_cents ? (s.sweep_ticket_price_cents / 100).toFixed(2).replace(/\.00$/, '') : '')
+    const sp = isValidSplit(s?.sweep_prize_split) ? s!.sweep_prize_split : [70, 20, 10]
+    setSplitInput(sp.map(String) as [string, string, string])
+  }
+
   async function loadSettings(id: string) {
     const res = await fetch(`/api/comps/${id}/sweep-settings`).then(r => r.json())
     if (res.data) setSettings(res.data)
+    setPriceLocked(!!res.price_locked)
+    resetPrizeInputs(res.data)
     setMinMaxTribes(res.min_max_tribes ?? 1)
     setBilling(res.billing ?? null)
     setMaxTribesInput(String(res.data?.max_tribes ?? 1))
@@ -185,6 +225,48 @@ export default function SweepAdminPage() {
     const url = `https://tribepicks.com/sweep?code=${comp.invite_code}`
     QRCode.toDataURL(url, { margin: 1, width: 220 }).then(setQrDataUrl).catch(() => setQrDataUrl(''))
   }, [comp?.invite_code])
+  async function loadCrew(id: string) {
+    const res = await fetch(`/api/comps/${id}/sweep/practice-crew`).then(r => r.json()).catch(() => ({}))
+    const rows: CrewMember[] = res.data ?? []
+    setCrew(rows)
+    setCrewPicked(new Set(rows.filter(c => c.status === 'none' && c.can_email).map(c => c.user_id)))
+  }
+  const isPracticeComp = !!(comp as any)?.is_practice
+  useEffect(() => {
+    setCrew([]); setCrewMsg(null)
+    if (compId && comp && !isPracticeComp) loadCrew(compId)
+  }, [compId, !!comp, isPracticeComp]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function inviteCrew() {
+    setSendingCrew(true); setCrewMsg(null)
+    const res = await fetch(`/api/comps/${compId}/sweep/practice-crew`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_ids: [...crewPicked] }),
+    }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
+    setSendingCrew(false)
+    if (res.error) { setCrewMsg(res.error); return }
+    setCrewMsg(`✓ Invited ${res.invited} ${res.invited === 1 ? 'person' : 'people'} by email`)
+    loadCrew(compId)
+  }
+
+  // Switching sweeps mid-rename abandons it.
+  useEffect(() => { setEditingName(false); setNameError(null); setNameSavedAt(null) }, [comp?.id])
+
+  function cancelRename() { setEditingName(false); setNameError(null) }
+
+  async function saveName() {
+    const next = nameInput.trim()
+    if (!comp || !next) return
+    if (next === comp.name) { cancelRename(); return }
+    setSavingName(true); setNameError(null)
+    const res = await fetch('/api/comps/create', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comp_id: comp.id, name: next }),
+    }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
+    setSavingName(false)
+    if (res.error) { setNameError(res.error); return }
+    setComps(cs => cs?.map(c => c.id === comp.id ? { ...c, name: next } : c) ?? cs)
+    setEditingName(false)
+    setNameSavedAt(Date.now())
+  }
 
   async function updateSetting(key: keyof Settings, value: any) {
     setSavingSetting(key)
@@ -235,6 +317,73 @@ export default function SweepAdminPage() {
     loadPools(compId)
   }
 
+  const priceCentsInput = (() => {
+    const n = Math.round(parseFloat(priceInput) * 100)
+    return Number.isFinite(n) && n >= 50 && n <= 100000 ? n : null
+  })()
+  const splitNums = splitInput.map(v => parseInt(v, 10)) as [number, number, number]
+  const splitValid = isValidSplit(splitNums)
+  const prizesDirty = !!settings && (
+    priceCentsInput !== settings.sweep_ticket_price_cents ||
+    JSON.stringify(splitNums) !== JSON.stringify(settings.sweep_prize_split))
+  const poolsDirty = !!settings && maxTribesInput !== String(settings.max_tribes)
+  // Bank details and approvals/contact are one saved record split across two cards, so both
+  // cards share one dirty flag and one Save row (either one saves everything).
+  const detailsDirty = JSON.stringify(details) !== JSON.stringify(savedDetails)
+  const nameDirty = editingName && !!comp && nameInput.trim() !== comp.name
+
+  // Dirty-record guard: edits live only in this page's state until saved, so warn before
+  // anything throws them away — closing/reloading the tab, following a link off the page, or
+  // switching to another sweep (which reloads every form). Moving between tabs here is safe:
+  // the forms' state survives it, and the Settings tab carries a dot while anything's unsaved.
+  const settingsDirty = poolsDirty || prizesDirty || detailsDirty
+  const isDirty = settingsDirty || nameDirty
+  useEffect(() => {
+    if (!isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    // Capture phase on document runs before React's own (root) listeners, so stopping the
+    // click here also stops <Link>'s client-side navigation, not just the native one.
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+      if (!a || a.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey) return
+      const url = new URL(a.href, window.location.href)
+      // Staying on this page is safe — unless the link points at a different sweep.
+      const otherSweep = url.searchParams.get('comp_id')
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname && (!otherSweep || otherSweep === compId)) return
+      if (!window.confirm(UNSAVED_PROMPT)) { e.preventDefault(); e.stopPropagation() }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('click', onClick, true)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      document.removeEventListener('click', onClick, true)
+    }
+  }, [isDirty, compId])
+
+  function discardPools() { if (settings) setMaxTribesInput(String(settings.max_tribes)) }
+  function discardPrizes() { resetPrizeInputs(settings) }
+  function discardDetails() { setDetails(savedDetails); setDetailsError(null) }
+
+  function switchSweep(id: string) {
+    if (isDirty && !window.confirm(UNSAVED_PROMPT)) return
+    setCompId(id)
+  }
+
+  async function savePrizes() {
+    if (!priceCentsInput || !splitValid) return
+    setSavingPrizes(true); setError(null)
+    const body: Record<string, any> = { prize_split: splitNums }
+    if (!priceLocked) body.ticket_price_cents = priceCentsInput
+    const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }).then(r => r.json())
+    setSavingPrizes(false)
+    if (res.error) { setError(res.error); return }
+    setSettings(s => s ? { ...s, sweep_prize_split: splitNums, ...(priceLocked ? {} : { sweep_ticket_price_cents: priceCentsInput }) } : s)
+    setPrizesSavedAt(Date.now())
+    loadPools(compId)
+  }
+
   async function act(tribeId: string, reqId: string, action: 'approve' | 'reject' | 'mark_paid') {
     const res = await fetch(`/api/tribes/${tribeId}/sweep/requests/${reqId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
@@ -263,9 +412,14 @@ export default function SweepAdminPage() {
   const inviteUrl = comp ? `https://tribepicks.com/sweep?code=${comp.invite_code}` : ''
   const waText = encodeURIComponent(`Join my sweep "${comp?.name}" on TribePicks: ${inviteUrl}`)
 
-  // Bank details and approvals/contact are one saved record split across two cards, so both
-  // cards share this Save row (either one saves everything).
-  const detailsDirty = JSON.stringify(details) !== JSON.stringify(savedDetails)
+  // Dirty cards get an amber edge and an "Unsaved changes · Discard" note beside their Save.
+  const cardClass = (dirty: boolean) => `border rounded-2xl p-5 ${dirty ? 'border-amber-300 bg-amber-50/40' : 'border-gray-200'}`
+  const unsavedNote = (dirty: boolean, discard: () => void) => dirty && (
+    <span className="text-[11px] font-semibold text-amber-700">
+      Unsaved changes · <button type="button" onClick={discard} className="underline hover:text-amber-900">Discard</button>
+    </span>
+  )
+
   const saveDetailsRow = (
     <>
       <div className="flex items-center gap-3">
@@ -274,6 +428,7 @@ export default function SweepAdminPage() {
           {savingDetails ? 'Saving…' : 'Save'}
         </button>
         {detailsSavedAt && !detailsDirty && <span className="text-xs text-emerald-600 font-semibold">✓ Saved</span>}
+        {unsavedNote(detailsDirty, discardDetails)}
       </div>
       {detailsError && <p className="text-xs text-red-600 mt-2">{detailsError}</p>}
     </>
@@ -283,10 +438,42 @@ export default function SweepAdminPage() {
     <main className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-xl font-black text-gray-900 mb-1">🐎 Sweep organiser</h1>
 
-      {comps.length > 1 && (
-        <select value={compId} onChange={e => setCompId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4">
-          {comps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+      {/* Which sweep, with an inline rename. Invite links/codes don't change on a rename. */}
+      {comp && (editingName ? (
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <input type="text" value={nameInput} maxLength={80} autoFocus onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') cancelRename() }}
+              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <button onClick={saveName} disabled={savingName || !nameInput.trim()}
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40">
+              {savingName ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={cancelRename} className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-2">Cancel</button>
+          </div>
+          {nameError && <p className="text-xs text-red-600 mt-2">{nameError}</p>}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-4">
+          {comps.length > 1 ? (
+            <select value={compId} onChange={e => switchSweep(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-0">
+              {comps.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          ) : (
+            <span className="text-sm font-semibold text-gray-700 truncate">{comp.name}</span>
+          )}
+          <button onClick={() => { setNameInput(comp.name); setNameError(null); setEditingName(true) }}
+            title="Rename this sweep" aria-label="Rename this sweep"
+            className="shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100">✏️</button>
+          {nameSavedAt && <span className="text-xs text-emerald-600 font-semibold">✓ Renamed</span>}
+        </div>
+      ))}
+
+      {(comp as any)?.is_practice && (
+        <div className="bg-violet-50 border border-violet-200 text-violet-900 text-sm rounded-lg px-4 py-3 mb-4">
+          <span className="font-bold">🧪 Practice sweep — no real money.</span> Approve your own ticket requests in the
+          Requests tab, then run the pretend race from the pool page.
+        </div>
       )}
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">{error}</div>}
@@ -296,6 +483,9 @@ export default function SweepAdminPage() {
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 whitespace-nowrap text-xs font-bold px-3 py-2 rounded-xl ${activeTab === t.id ? 'bg-white ring-1 ring-sky-200 text-gray-900' : 'text-gray-500'}`}>
             {t.icon} {t.label}
+            {t.id === 'settings' && settingsDirty && (
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 align-middle" title="Unsaved changes" />
+            )}
           </button>
         ))}
       </div>
@@ -350,6 +540,54 @@ export default function SweepAdminPage() {
           </div>
         </div>
       )}
+
+      {/* The practice crew → this real sweep. Email invites (with /sweep's one-tap Join) for
+          everyone we can reach, plus a ready-made WhatsApp message for the group chat —
+          most groups organise there, and we can't message it for them. */}
+      {activeTab === 'sell' && comp && !isPracticeComp && crew.length > 0 && (() => {
+        const waCrew = encodeURIComponent(`The practice run's over — the real sweep is open! 🐎 Join "${comp.name}" on TribePicks: ${inviteUrl}`)
+        const counts = { member: crew.filter(c => c.status === 'member').length, invited: crew.filter(c => c.status === 'invited').length }
+        const invitable = crew.filter(c => c.status === 'none' && c.can_email)
+        return (
+          <div className="mt-4 border border-violet-200 bg-violet-50/60 rounded-2xl p-5">
+            <h2 className="font-bold text-gray-900 mb-1 text-sm">🧪 Bring your practice crew</h2>
+            <p className="text-xs text-gray-600 mb-3">
+              {crew.length} {crew.length === 1 ? 'person' : 'people'} tried your practice sweep
+              {counts.member ? ` · ${counts.member} already in` : ''}{counts.invited ? ` · ${counts.invited} invited` : ''}.
+              They join with one tap — nobody's added without saying yes.
+            </p>
+            <ul className="divide-y divide-violet-100 mb-3">
+              {crew.map(c => (
+                <li key={c.user_id} className="flex items-center justify-between gap-3 py-1.5">
+                  <label className="flex items-center gap-2 min-w-0 text-sm">
+                    {c.status === 'none' && c.can_email && (
+                      <input type="checkbox" checked={crewPicked.has(c.user_id)}
+                        onChange={e => setCrewPicked(s => { const n = new Set(s); e.target.checked ? n.add(c.user_id) : n.delete(c.user_id); return n })} />
+                    )}
+                    <span className="truncate text-gray-900">{c.display_name}</span>
+                  </label>
+                  <span className={`text-[11px] font-semibold flex-shrink-0 ${c.status === 'member' ? 'text-emerald-600' : c.status === 'invited' ? 'text-amber-700' : 'text-gray-400'}`}>
+                    {c.status === 'member' ? '✓ In' : c.status === 'invited' ? 'Invited' : c.can_email ? '' : 'No email — use WhatsApp'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap items-center gap-3">
+              {invitable.length > 0 && (
+                <button onClick={inviteCrew} disabled={sendingCrew || crewPicked.size === 0}
+                  className="text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
+                  {sendingCrew ? 'Sending…' : `Email invites to ${crewPicked.size}`}
+                </button>
+              )}
+              <a href={`https://wa.me/?text=${waCrew}`} target="_blank" rel="noreferrer"
+                className="text-xs font-bold text-emerald-700 border border-emerald-200 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg">
+                Message your group on WhatsApp →
+              </a>
+            </div>
+            {crewMsg && <p className={`text-xs mt-2 ${crewMsg.startsWith('✓') ? 'text-emerald-700' : 'text-red-600'}`}>{crewMsg}</p>}
+          </div>
+        )
+      })()}
 
       {activeTab === 'requests' && (
         <div>
@@ -416,6 +654,12 @@ export default function SweepAdminPage() {
 
       {activeTab === 'pools' && (
         <div className="space-y-2">
+          {pools[0] && !pools[0].draw_open && (
+            <p className="text-xs text-sky-900 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+              Selling before the field is final: each pool takes up to {pools[0].field_size} tickets, and spinning opens {DRAW_OPENS_LABEL}.
+              If the final field is smaller, the last tickets sold in a full pool will need a refund — they&apos;ll be listed here.
+            </p>
+          )}
           {pools.map(p => (
             <div key={p.id} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
               <div className="text-sm">
@@ -424,6 +668,18 @@ export default function SweepAdminPage() {
                   {p.members} member{p.members === 1 ? '' : 's'} · {p.tickets} of {p.field_size || '—'} tickets sold · {p.claimed} drawn
                   {p.field_size > 0 && p.tickets >= p.field_size ? ' · sold out' : ''}{p.locked ? ' · locked' : ''}
                 </p>
+                {p.prizes && (
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    Pot {fmtCents(p.prizes.pot_cents)}{p.prizes.fee_cents > 0 ? ` (after ${fmtCents(p.prizes.fee_cents)} fee)` : ''} →{' '}
+                    {p.prizes.places.map(x => `${['🥇', '🥈', '🥉'][x.place - 1]} ${fmtCents(x.cents)}`).join(' · ')}
+                  </p>
+                )}
+                {p.refunds.length > 0 && (
+                  <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1 mt-1">
+                    Short field — refund {p.refunds.map(r => `${r.display_name} (${r.tickets} ticket${r.tickets === 1 ? '' : 's'})`).join(', ')}.
+                    These were the last tickets sold and have no horse to spin for.
+                  </p>
+                )}
               </div>
               {!p.locked ? (
                 <button onClick={() => closePool(p.id)} className="text-xs font-bold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg whitespace-nowrap">Close pool</button>
@@ -438,7 +694,7 @@ export default function SweepAdminPage() {
 
       {activeTab === 'settings' && settings && (
         <div className="space-y-5">
-          <div className="border border-gray-200 rounded-2xl p-5">
+          <div className={cardClass(poolsDirty)}>
             <h2 className="font-bold text-gray-900 mb-1 text-sm">Pools</h2>
             <p className="text-xs text-gray-500 mb-3">
               How many pools this sweep can grow to — joiners auto-move into a new one once the current ones fill.
@@ -457,6 +713,7 @@ export default function SweepAdminPage() {
                 className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
                 {savingMaxTribes ? 'Saving…' : addPoolsCost > 0 ? `Add ${poolsToAdd} · pay $${addPoolsCost.toFixed(2)}` : poolsToAdd > 0 ? `Add ${poolsToAdd}` : 'Save'}
               </button>
+              {unsavedNote(poolsDirty, discardPools)}
             </div>
             {maxTribesInput !== '' && !maxTribesValid && (
               <p className="text-xs text-red-600 mt-2">
@@ -467,7 +724,71 @@ export default function SweepAdminPage() {
             )}
           </div>
 
-          <div className="border border-gray-200 rounded-2xl p-5">
+          <div className={cardClass(prizesDirty)}>
+            <h2 className="font-bold text-gray-900 mb-1 text-sm">Ticket price &amp; prizes</h2>
+            <p className="text-xs text-gray-500 mb-3">Each pool pays its own 1st, 2nd and 3rd from the tickets sold in it. Buyers see the prizes before they buy.</p>
+
+            <label className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-xs font-semibold text-gray-700">Ticket price</span>
+              <span className="flex items-center gap-1">
+                <span className="text-sm text-gray-500">$</span>
+                <input value={priceInput} onChange={e => setPriceInput(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" disabled={priceLocked}
+                  placeholder="5" className={`w-20 border rounded-lg px-2 py-1.5 text-sm text-center disabled:bg-gray-50 disabled:text-gray-500 ${priceInput && !priceCentsInput ? 'border-red-400' : 'border-gray-300'}`} />
+              </span>
+            </label>
+            {priceLocked && <p className="text-[11px] text-gray-400 -mt-2 mb-3">Locked — tickets are already sold or requested.</p>}
+
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">Prize split</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {PRIZE_PRESETS.map(p => (
+                <button key={p.id} type="button" onClick={() => setSplitInput(p.split.map(String) as [string, string, string])}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg ${JSON.stringify(splitNums) === JSON.stringify(p.split) ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+              {(['🥇', '🥈', '🥉'] as const).map((medal, i) => (
+                <label key={medal} className="flex items-center gap-1 text-xs text-gray-500">
+                  {medal}
+                  <input value={splitInput[i]} inputMode="numeric"
+                    onChange={e => setSplitInput(s => { const n = [...s] as [string, string, string]; n[i] = e.target.value.replace(/\D/g, '').slice(0, 3); return n })}
+                    className="w-12 border border-gray-300 rounded-lg px-1.5 py-1 text-sm text-center" />%
+                </label>
+              ))}
+            </div>
+            {!splitValid && <p className="text-[11px] text-red-600 mb-1">The three percentages must add up to 100.</p>}
+
+            <label className="flex items-start gap-2 mt-3 mb-3">
+              <input type="checkbox" checked={settings.sweep_deduct_fee} disabled={savingSetting === 'sweep_deduct_fee'}
+                onChange={async e => {
+                  const next = e.target.checked
+                  setSavingSetting('sweep_deduct_fee')
+                  const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deduct_fee: next }),
+                  }).then(r => r.json())
+                  setSavingSetting(null)
+                  if (res.error) { setError(res.error); return }
+                  setSettings(s => s ? { ...s, sweep_deduct_fee: next } : s)
+                  loadPools(compId)
+                }} className="mt-0.5" />
+              <span className="text-xs text-gray-600">
+                Take any TribePicks pool fee out of the prize pot <span className="text-gray-400">(shared across your pools; buyers see it as its own line. Free pools have no fee.)</span>
+              </span>
+            </label>
+
+            <div className="flex items-center gap-3">
+              <button onClick={savePrizes} disabled={savingPrizes || !priceCentsInput || !splitValid || !prizesDirty}
+                className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
+                {savingPrizes ? 'Saving…' : 'Save'}
+              </button>
+              {prizesSavedAt && !prizesDirty && <span className="text-xs text-emerald-600 font-semibold">✓ Saved</span>}
+              {unsavedNote(prizesDirty, discardPrizes)}
+              {!settings.sweep_ticket_price_cents && <span className="text-[11px] text-amber-700">Set a price so buyers can see the prizes.</span>}
+            </div>
+          </div>
+
+          <div className={cardClass(detailsDirty)}>
             <h2 className="font-bold text-gray-900 mb-1 text-sm">Bank transfer</h2>
             <p className="text-xs text-gray-500 mb-4">
               Where buyers pay you. These details show to everyone in your sweep.
@@ -542,7 +863,7 @@ export default function SweepAdminPage() {
             </div>
           </div>
 
-          <div className="border border-gray-200 rounded-2xl p-5">
+          <div className={cardClass(detailsDirty)}>
             <h2 className="font-bold text-gray-900 mb-1 text-sm">Approvals &amp; contact</h2>
             <p className="text-xs text-gray-500 mb-4">
               Applies to every request, cash or transfer. Your phone/email only shows to a buyer whose

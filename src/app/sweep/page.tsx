@@ -7,6 +7,7 @@ import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
+import { PRIZE_PRESETS } from '@/lib/sweep/prizes'
 
 type Tournament = { id: string; name: string; race_date: string; enrollment_open?: boolean }
 type MyTribe = {
@@ -32,6 +33,7 @@ type Pool = {
   tournament_id: string; tournament_name: string | null; race_start_at: string | null
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number; my_open_requests: number
   comp_pools: PoolPill[]; comp_pending_requests: number
+  is_practice?: boolean   // practice sweeps (migration 200) — listed in their own card
 }
 // One row per SWEEP (comp), not per pool — the pool-level detail (which pools, which one has
 // your horses) lives on /tribe now. Built by collapsing myPools (one row per pool) by comp_id.
@@ -83,10 +85,13 @@ export default function SweepPage() {
   const [joining, setJoining]   = useState(false)
   const [name, setName]         = useState('')
   const [maxTribes, setMaxTribes] = useState('1')
+  const [ticketPrice, setTicketPrice] = useState('5')
+  const [prizePreset, setPrizePreset] = useState(PRIZE_PRESETS[0].id)
   const [billing, setBilling]   = useState<{ enabled: boolean; included_pools: number; per_pool_cents: number } | null>(null)
   const [error, setError]       = useState<string | null>(null)
   const [invites, setInvites]   = useState<PendingInvite[]>([])
   const [inviteBusy, setInviteBusy] = useState<string | null>(null)   // invitation_id being joined/declined
+  const [startingPractice, setStartingPractice] = useState(false)
 
   async function loadContext() {
     const qs = code ? `?code=${encodeURIComponent(code)}` : compIdParam ? `?comp_id=${encodeURIComponent(compIdParam)}` : ''
@@ -111,7 +116,7 @@ export default function SweepPage() {
     // Browsing with no specific sweep in mind — show what's on offer instead of the single
     // hardcoded create/join screen. Loaded whenever that screen could be reached: no pools
     // at all yet, or the user explicitly asked to add another via the My Sweeps card.
-    if ((!pool_list.length || addMode) && !invited) {
+    if ((!pool_list.some(p => !p.is_practice) || addMode) && !invited) {
       const off = await fetch('/api/sweep/offerings').then(r => r.json())
       setOfferings(off.data ?? [])
       const opts: TournamentOption[] = off.tournaments ?? []
@@ -140,8 +145,14 @@ export default function SweepPage() {
     }
   }
 
+  // Whole dollars or cents ("5", "2.50"); null when it isn't a usable price.
+  const priceCents = (() => {
+    const n = Math.round(parseFloat(ticketPrice) * 100)
+    return Number.isFinite(n) && n >= 50 && n <= 100000 ? n : null
+  })()
+
   async function handleCreate() {
-    if (!session?.user || !tourn || !name.trim()) return
+    if (!session?.user || !tourn || !name.trim() || !priceCents) return
     setCreating(true); setError(null)
     const res = await fetch('/api/comps/create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -152,14 +163,16 @@ export default function SweepPage() {
         tournament_id: tourn.id,
         prize_type: 'pool',
         max_tribes: Math.max(1, Math.min(5, parseInt(maxTribes, 10) || 1)),
+        ticket_price_cents: priceCents,
+        prize_split: PRIZE_PRESETS.find(p => p.id === prizePreset)?.split,
       }),
     }).then(r => r.json())
     if (res.error) { setCreating(false); setError(res.error); return }
     // Extra paid pools: the sweep exists with its free pool(s); checkout adds the rest.
     if (res.checkout_url) { window.location.href = res.checkout_url; return }
     setCreating(false)
-    // Go straight to the new sweep's pool detail on /tribe, rather than back to this list.
-    router.push(`/tribe?comp_id=${res.data.id}`)
+    // Organisers' next job is setting up and selling, so land on the new sweep's admin page.
+    router.push(`/sweep-admin?comp_id=${res.data.id}`)
   }
 
   async function handleJoin() {
@@ -228,6 +241,110 @@ export default function SweepPage() {
     )
   }
 
+  // Practice sweeps (migration 200) live in their own card, never mixed in with real ones —
+  // and never count as "having sweeps", so a first-timer with only a practice still gets the
+  // browse/create screen.
+  const realPools = (myPools ?? []).filter(p => !p.is_practice)
+  const practiceSweeps = groupByComp((myPools ?? []).filter(p => p.is_practice))
+
+  async function startPractice() {
+    setStartingPractice(true); setError(null)
+    const res = await fetch('/api/sweep/practice', { method: 'POST' }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
+    if (res.error) { setStartingPractice(false); setError(res.error); return }
+    router.push(`/sweep-admin?comp_id=${res.data.comp_id}`)
+  }
+
+  // One row per sweep in a My Sweeps list — shared by real and practice sweeps so a practice
+  // shows everything a real one does (pool pills, "N to approve", sold out, Leave/Bought in).
+  const sweepRow = (g: SweepGroup, practice = false) => (
+    <div key={g.comp_id}>
+      {/* A plain clickable div, not <Link> — the Manage link inside it can't nest
+          inside another <a>, which is invalid HTML and breaks click behaviour. */}
+      <div onClick={() => router.push(`/tribe?comp_id=${g.comp_id}`)} role="button" tabIndex={0}
+        className={`w-full flex items-center justify-between gap-3 py-2.5 text-left rounded-lg transition-colors cursor-pointer ${practice ? 'hover:bg-violet-100/60 px-1' : 'hover:bg-gray-50'}`}>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">
+            {g.comp_name}
+            {/* Every pool under this sweep sold out. */}
+            {g.comp_pools.length > 0 && g.comp_pools.every(cp => cp.full) && (
+              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-600 text-white align-middle">Sold out</span>
+            )}
+          </p>
+          <p className={`text-[11px] mb-1 ${practice ? 'text-violet-700' : 'text-gray-400'}`}>
+            {practice ? 'Practice' : (g.tournament_name ?? 'Sweep')}
+            {g.my_tickets > 0 ? ` · ${g.my_tickets} ticket${g.my_tickets === 1 ? '' : 's'}${g.my_unclaimed ? ` (${g.my_unclaimed} to spin)` : ''}` : ''}
+          </p>
+          {/* One pill per pool in this sweep, showing tickets sold — green once sold
+              out, amber while still selling. Organiser-only: it's their sales
+              dashboard; a buyer only cares about their own pool, which /tribe shows. */}
+          {g.is_comp_admin && g.comp_pools.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {g.comp_pools.map(cp => (
+                <span key={cp.tribe_id} title={cp.full ? 'Sold out' : 'Still selling'}
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cp.full ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {cp.tickets}/{cp.field_size || '—'}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {g.is_comp_admin ? (
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            {g.pending_requests > 0 && (
+              <Link href={`/sweep-admin?comp_id=${g.comp_id}&tab=requests`} onClick={e => e.stopPropagation()}
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 whitespace-nowrap">
+                {g.pending_requests} to approve
+              </Link>
+            )}
+            <Link href={`/sweep-admin?comp_id=${g.comp_id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">⚙️ Manage</Link>
+          </div>
+        ) : !practice && (g.my_tickets > 0 || g.my_open_requests > 0) ? (
+          // Bought in → can't leave (the API enforces it too). Say why rather than
+          // offering a button that only fails after they confirm. Practice sweeps can
+          // always be left (comp-members/leave exempts them).
+          <span title="You've bought into this sweep — ask your organiser if you need out."
+            className="text-[11px] font-medium text-gray-400 flex-shrink-0 whitespace-nowrap">🎟️ Bought in</span>
+        ) : confirmLeave === g.comp_id ? null : (
+          <button onClick={e => { e.stopPropagation(); setConfirmLeave(g.comp_id) }}
+            className="text-[11px] font-medium text-red-500 hover:text-red-700 flex-shrink-0">Leave</button>
+        )}
+      </div>
+      {confirmLeave === g.comp_id && (
+        <div className="flex items-center justify-between gap-2 pb-2.5 px-1 -mt-1">
+          <span className="text-[11px] text-red-600">Leave {g.comp_name}?</span>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmLeave(null)} className="text-[11px] font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+            <button onClick={() => handleLeave(g)} disabled={leaving === g.comp_id}
+              className="text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-lg px-2.5 py-1">
+              {leaving === g.comp_id ? 'Leaving…' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const practiceCard = (
+    <div className="border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h2 className="text-xs font-bold text-violet-800 uppercase tracking-wide">🧪 My practice sweeps ({practiceSweeps.length})</h2>
+      </div>
+      <p className="text-xs text-violet-900 mb-3">
+        See how a sweep runs, start to finish — buy a ticket, approve it, spin for a horse, then run a pretend race.
+        No real money. Share the invite link and friends can join as punters.
+      </p>
+      {practiceSweeps.length > 0 && (
+        <div className="divide-y divide-violet-100 mb-3">
+          {practiceSweeps.map(g => sweepRow(g, true))}
+        </div>
+      )}
+      <button onClick={startPractice} disabled={startingPractice}
+        className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg">
+        {startingPractice ? 'Setting it up…' : practiceSweeps.length ? '+ Start another practice sweep' : '🧪 Start a practice sweep'}
+      </button>
+    </div>
+  )
+
   const invitesCard = invites.length > 0 && (
     <div className="border border-amber-200 bg-amber-50 rounded-2xl p-4 mb-5">
       <h2 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">
@@ -268,7 +385,7 @@ export default function SweepPage() {
 
   // No pools at all yet, or the user asked to add another via "+ Add" — browse what's on
   // offer, or start/join one directly.
-  const hasPools = !!myPools && myPools.length > 0
+  const hasPools = realPools.length > 0
   if (!hasPools || addMode) {
     // The switcher shows the sweep being browsed (the selected race tab, else the default
     // sweep tournament) — never the global football pick, which /sweep deliberately leaves
@@ -365,6 +482,35 @@ export default function SweepPage() {
             <input type="number" min="1" max="5" value={maxTribes} onChange={e => setMaxTribes(e.target.value)}
               className="w-16 flex-shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center" />
           </label>
+          <label className="flex items-center justify-between gap-3 mb-3">
+            <span className="text-xs text-gray-500">Ticket price</span>
+            <span className="flex items-center gap-1 flex-shrink-0">
+              <span className="text-sm text-gray-500">$</span>
+              <input value={ticketPrice} onChange={e => setTicketPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal"
+                className={`w-20 border rounded-lg px-2 py-1.5 text-sm text-center ${ticketPrice && !priceCents ? 'border-red-400' : 'border-gray-300'}`} />
+            </span>
+          </label>
+          <div className="mb-3">
+            <span className="text-xs text-gray-500">Prizes for 1st / 2nd / 3rd (each pool pays its own)</span>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {PRIZE_PRESETS.map(p => (
+                <button key={p.id} type="button" onClick={() => setPrizePreset(p.id)}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg ${prizePreset === p.id ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {priceCents && (() => {
+              const split = PRIZE_PRESETS.find(p => p.id === prizePreset)!.split
+              const pot = priceCents * 24
+              return (
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  A full pool of 24 at ${(priceCents / 100).toFixed(2)} pays{' '}
+                  {split.filter(x => x > 0).map((x, i) => `${['🥇', '🥈', '🥉'][i]} $${Math.floor(pot * x / 100 / 100)}`).join(' · ')}
+                </p>
+              )
+            })()}
+          </div>
           {(() => {
             const paidPools = billing?.enabled ? Math.max(0, (parseInt(maxTribes, 10) || 1) - billing.included_pools) : 0
             const cost = paidPools * (billing?.per_pool_cents ?? 0) / 100
@@ -377,7 +523,7 @@ export default function SweepPage() {
                   </p>
                 )}
                 <button
-                  onClick={handleCreate} disabled={creating || !name.trim()}
+                  onClick={handleCreate} disabled={creating || !name.trim() || !priceCents}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-lg"
                 >
                   {creating ? 'Creating…' : paidPools > 0 ? `Create sweep & pay $${cost.toFixed(2)} →` : 'Create sweep →'}
@@ -393,6 +539,8 @@ export default function SweepPage() {
           <p className="text-xs text-gray-500">Use the invite link your organiser sent you — it'll start with <code>/sweep?code=</code> or <code>/join?code=</code>.</p>
         </div>
 
+        <div className="mt-5">{practiceCard}</div>
+
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       </main>
     )
@@ -401,7 +549,7 @@ export default function SweepPage() {
   // Has one or more sweeps — one row per SWEEP (not per pool; pool-level detail lives on
   // /tribe). Mirrors HomeClient's "My Comps" card: click to open, Leave/Manage per row,
   // "+ Add" to browse/create/join without losing the list.
-  const sweeps = groupByComp(myPools)
+  const sweeps = groupByComp(realPools)
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10">
@@ -423,74 +571,11 @@ export default function SweepPage() {
           <button onClick={openAddMode} className="text-xs font-bold text-emerald-600 hover:underline">+ Add</button>
         </div>
         <div className="divide-y divide-gray-100">
-          {sweeps.map(g => (
-            <div key={g.comp_id}>
-              {/* A plain clickable div, not <Link> — the Manage link inside it can't nest
-                  inside another <a>, which is invalid HTML and breaks click behaviour. */}
-              <div onClick={() => router.push(`/tribe?comp_id=${g.comp_id}`)} role="button" tabIndex={0}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left rounded-lg transition-colors hover:bg-gray-50 cursor-pointer">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {g.comp_name}
-                    {/* Every pool under this sweep sold out. */}
-                    {g.comp_pools.length > 0 && g.comp_pools.every(cp => cp.full) && (
-                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-600 text-white align-middle">Sold out</span>
-                    )}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mb-1">
-                    {g.tournament_name ?? 'Sweep'}
-                    {g.my_tickets > 0 ? ` · ${g.my_tickets} ticket${g.my_tickets === 1 ? '' : 's'}${g.my_unclaimed ? ` (${g.my_unclaimed} to spin)` : ''}` : ''}
-                  </p>
-                  {/* One pill per pool in this sweep, showing tickets sold — green once sold
-                      out, amber while still selling. Organiser-only: it's their sales
-                      dashboard; a buyer only cares about their own pool, which /tribe shows. */}
-                  {g.is_comp_admin && g.comp_pools.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {g.comp_pools.map(cp => (
-                        <span key={cp.tribe_id} title={cp.full ? 'Sold out' : 'Still selling'}
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cp.full ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {cp.tickets}/{cp.field_size || '—'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {g.is_comp_admin ? (
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    {g.pending_requests > 0 && (
-                      <Link href={`/sweep-admin?comp_id=${g.comp_id}&tab=requests`} onClick={e => e.stopPropagation()}
-                        className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 whitespace-nowrap">
-                        {g.pending_requests} to approve
-                      </Link>
-                    )}
-                    <Link href={`/sweep-admin?comp_id=${g.comp_id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">⚙️ Manage</Link>
-                  </div>
-                ) : g.my_tickets > 0 || g.my_open_requests > 0 ? (
-                  // Bought in → can't leave (the API enforces it too). Say why rather than
-                  // offering a button that only fails after they confirm.
-                  <span title="You've bought into this sweep — ask your organiser if you need out."
-                    className="text-[11px] font-medium text-gray-400 flex-shrink-0 whitespace-nowrap">🎟️ Bought in</span>
-                ) : confirmLeave === g.comp_id ? null : (
-                  <button onClick={e => { e.stopPropagation(); setConfirmLeave(g.comp_id) }}
-                    className="text-[11px] font-medium text-red-500 hover:text-red-700 flex-shrink-0">Leave</button>
-                )}
-              </div>
-              {confirmLeave === g.comp_id && (
-                <div className="flex items-center justify-between gap-2 pb-2.5 px-1 -mt-1">
-                  <span className="text-[11px] text-red-600">Leave {g.comp_name}?</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => setConfirmLeave(null)} className="text-[11px] font-medium text-gray-500 hover:text-gray-700">Cancel</button>
-                    <button onClick={() => handleLeave(g)} disabled={leaving === g.comp_id}
-                      className="text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-lg px-2.5 py-1">
-                      {leaving === g.comp_id ? 'Leaving…' : 'Confirm'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          {sweeps.map(g => sweepRow(g))}
         </div>
       </div>
+
+      {practiceCard}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
     </main>

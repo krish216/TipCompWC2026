@@ -392,14 +392,16 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       }
     } catch { /* use default */ }
     loadTeams(id)
-    // loadComps selects rememberedComp if it's still one of the user's comps, else none.
-    if (session) await loadComps(id, session.user.id, rememberedComp)
     // Persist ONLY the selected tournament globally; the comp is per-tournament memory
-    // (user_tournaments.selected_comp_id), written by loadComps / pickComp.
+    // (user_tournaments.selected_comp_id), written by loadComps / pickComp. Saved before
+    // loadComps so /tribe's loadTribe (which reads it from the DB once the comp changes)
+    // never sees the old tournament — see refreshMembership.
     await fetch('/api/user-preferences', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tournament_id: id }),
-    })
+    }).catch(() => { /* non-critical */ })
+    // loadComps selects rememberedComp if it's still one of the user's comps, else none.
+    if (session) await loadComps(id, session.user.id, rememberedComp)
   }, [loadComps])
 
   const pickComp = useCallback(async (comp: Comp) => {
@@ -480,6 +482,15 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
 
     if (switchToTournId) {
       setSelectedTournId(switchToTournId)
+      // Persist the tournament globally FIRST, same as pickTournament — /tribe's loadTribe
+      // reads user_preferences.tournament_id straight from the DB (not this context's state)
+      // and re-runs the moment loadComps below sets the comp. Saving after loadComps raced
+      // it: loadTribe read the old tournament, judged the new sweep's pool a mismatch and
+      // showed the "pick a tribe" screen — an invitee fresh off a link couldn't buy tickets.
+      await fetch('/api/user-preferences', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_id: switchToTournId }),
+      }).catch(() => { /* non-critical */ })
       // loadComps resolves and sets tournsComps/selectedCompId itself (preferring
       // switchToCompId when given) — leaving this at null/[] like the old version did
       // broke /tribe's own tribe lookup, which keys off selectedComp.id: with no comp
@@ -488,13 +499,6 @@ export function UserPrefsProvider({ children }: { children: ReactNode }) {
       // while isSweep (correctly updated) still renders SweepPoolPanel for it — a 400
       // from the sweep API with no my_horses field, which SweepPoolPanel doesn't guard.
       await loadComps(switchToTournId, session.user.id, switchToCompId ?? null)
-      // Persist the tournament globally, same as pickTournament — /tribe's loadTribe
-      // reads user_preferences.tournament_id directly from the DB, not from this
-      // context's state, so skipping this left that read stale too.
-      await fetch('/api/user-preferences', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournament_id: switchToTournId }),
-      }).catch(() => { /* non-critical */ })
     }
   }, [session, supabase, loadComps])
   // Derived synchronously — true whenever the selected comp is one the user admins
