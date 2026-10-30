@@ -104,6 +104,19 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         </div>
       )}
 
+      {/* Practice sweeps (migration 200) run on their own tournament, so they're on offer
+          whether or not Cup sweeps are open. The card lives on /sweep (after log in). */}
+      <div className="mt-4 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-4">
+        <p className="text-sm text-violet-900">
+          <span className="font-bold">🧪 Try a practice sweep first.</span>{' '}
+          See how it runs for your team, start to finish — buy a ticket, approve it, spin for a horse, then
+          run a pretend race. No real money, set up in under a minute.
+        </p>
+        <Link href="/sweep" className="inline-block mt-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
+          Start a practice sweep →
+        </Link>
+      </div>
+
       <div id="register" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-black text-gray-900">{sweepsOpen ? "Don't have a sweep to join?" : 'Register your interest'}</h2>
         <p className="text-xs text-gray-500 mt-1 mb-4">
