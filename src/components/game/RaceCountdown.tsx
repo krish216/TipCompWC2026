@@ -26,8 +26,9 @@ function fmtTime(d: Date, withDay: boolean): string {
 // the stage — draw not open yet, counting down, pools locked, race run, results in — so the
 // "pools lock 30 minutes before the jump" rule is in front of people before it bites.
 // Ticks once a minute; no seconds.
-export function RaceCountdown({ raceStartAt, drawOpen, resultsIn, resultsHref, className = '' }: {
-  raceStartAt: string; drawOpen: boolean; resultsIn: boolean; resultsHref?: string; className?: string
+// `dark` — a quieter line for inside the dark sweep card on /tribe.
+export function RaceCountdown({ raceStartAt, drawOpen, resultsIn, resultsHref, dark = false, className = '' }: {
+  raceStartAt: string; drawOpen: boolean; resultsIn: boolean; resultsHref?: string; dark?: boolean; className?: string
 }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -39,10 +40,10 @@ export function RaceCountdown({ raceStartAt, drawOpen, resultsIn, resultsHref, c
   const lockAt = new Date(start.getTime() - LOCK_LEAD_MS)
   const toStart = start.getTime() - now
 
-  let tone = 'bg-gray-900 text-white'
+  let tone = dark ? 'bg-white/10 text-white' : 'bg-gray-900 text-white'
   let body: ReactNode
   if (resultsIn) {
-    tone = 'bg-amber-100 text-amber-900'
+    tone = dark ? 'bg-amber-400/20 text-amber-200' : 'bg-amber-100 text-amber-900'
     body = resultsHref
       ? <Link href={resultsHref} className="font-bold hover:underline">🏆 Results are in → see your pool</Link>
       : <span className="font-bold">🏆 Results are in</span>
@@ -62,5 +63,7 @@ export function RaceCountdown({ raceStartAt, drawOpen, resultsIn, resultsHref, c
     )
   }
 
-  return <div className={`rounded-xl px-4 py-2.5 text-sm text-center ${tone} ${className}`}>{body}</div>
+  return (
+    <div className={`${dark ? 'rounded-lg px-3 py-1.5 text-xs text-left' : 'rounded-xl px-4 py-2.5 text-sm text-center'} ${tone} ${className}`}>{body}</div>
+  )
 }

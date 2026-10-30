@@ -12,6 +12,8 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { SweepPoolPanel } from '@/components/game/SweepPoolPanel'
 import { PracticeRaceBar } from '@/components/game/PracticeRaceBar'
+import { RaceCountdown } from '@/components/game/RaceCountdown'
+import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { TipsterPopover } from '@/components/game/TipsterPopover'
 import { linkify } from '@/lib/linkify'
@@ -999,6 +1001,7 @@ type SweepPoolRow = {
   tribe_id: string; tribe_name: string; comp_id: string
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number
   comp_pools: { tribe_id: string; tickets: number; field_size: number; full: boolean }[]
+  race_start_at?: string | null; draw_open?: boolean; results_in?: boolean; is_practice?: boolean
 }
 const isPoolFull = (p: SweepPoolRow) => p.locked || !!p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)?.full
 
@@ -1239,7 +1242,10 @@ export default function TribePage() {
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 16px 40px' }}>
 
-      <div className="pt-4"><CountdownBanner /></div>
+      {/* Sweeps carry the tournament switch and the race countdown inside the sweep card
+          below — the football banner here only repeated it (and read "LIVE NOW" for a
+          practice sweep, which has no race time). */}
+      {isSweep ? <div className="pt-4" /> : <div className="pt-4"><CountdownBanner /></div>}
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <div style={{
@@ -1269,6 +1275,7 @@ export default function TribePage() {
                 <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isSweep ? (selectedTourn?.name ?? '') : `${org?.name ?? ''}${selectedTourn ? ` · ${selectedTourn.name}` : ''}`}
                 </span>
+                {isSweep && <TournamentSwitcher chip className="ml-1" />}
               </div>
               <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', lineHeight: 1.15 }}>
                 {isSweep ? (org?.name ?? tribe.name) : tribe.name}
@@ -1361,6 +1368,14 @@ export default function TribePage() {
               {poolsError && <p style={{ marginTop: 6, fontSize: 11, color: '#fca5a5' }}>{poolsError}</p>}
             </div>
             )
+          })()}
+
+          {/* Race countdown — real sweeps only (a practice sweep has no race time). */}
+          {(() => {
+            const p = sweepPools?.find(x => x.race_start_at && !x.is_practice)
+            return isSweep && p ? (
+              <RaceCountdown dark raceStartAt={p.race_start_at!} drawOpen={p.draw_open !== false} resultsIn={!!p.results_in} className="mb-2" />
+            ) : null
           })()}
 
           {/* Tab bar */}

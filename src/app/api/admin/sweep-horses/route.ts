@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const [{ data, error }, { data: tourn }] = await Promise.all([
     (admin.from('sweep_horses') as any)
-      .select('id, number, name, scratched, finish_position, did_not_finish')
+      .select('*')
       .eq('tournament_id', tournamentId).order('number', { ascending: true }),
     (admin.from('tournaments') as any).select('race_start_at').eq('id', tournamentId).maybeSingle(),
   ])
@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/admin/sweep-horses — add/replace the field in one go.
-// Body: { tournament_id, horses: [{ number, name }] }
+// Body: { tournament_id, horses: [{ number, name, barrier?, jockey?, trainer?, weight_kg? }] }
+// The race-card details (migration 207) are only written when given, so re-pasting just
+// "number, name" never wipes them.
 export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -48,13 +50,24 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient()
-  const rows = horses.map((h: any) => ({
-    tournament_id: tournamentId,
-    number: Number(h.number),
-    name: String(h.name).trim(),
-  }))
-  const { error } = await (admin.from('sweep_horses') as any).upsert(rows, { onConflict: 'tournament_id,number' })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const text = (v: any) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  const num = (v: any) => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v))
+  const rows = horses.map((h: any) => {
+    const row: Record<string, any> = { tournament_id: tournamentId, number: Number(h.number), name: String(h.name).trim() }
+    if (num(h.barrier) != null)   row.barrier   = num(h.barrier)
+    if (text(h.jockey))           row.jockey    = text(h.jockey)
+    if (text(h.trainer))          row.trainer   = text(h.trainer)
+    if (num(h.weight_kg) != null) row.weight_kg = num(h.weight_kg)
+    return row
+  })
+  // One upsert per set of columns: a bulk upsert sets every column any row names, so a
+  // "number, name" row in the same batch as detailed ones would blank its stored details.
+  const groups = new Map<string, Record<string, any>[]>()
+  for (const r of rows) { const k = Object.keys(r).sort().join(','); groups.set(k, [...(groups.get(k) ?? []), r]) }
+  for (const group of groups.values()) {
+    const { error } = await (admin.from('sweep_horses') as any).upsert(group, { onConflict: 'tournament_id,number' })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, count: rows.length })
 }
 

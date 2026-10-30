@@ -15,6 +15,17 @@ export const prizeLabel = (places: number[]) =>
   `${places.map(p => MEDAL[p - 1]).join('')} ${places.map(ordinal).join(' & ')} prize${places.length > 1 ? ' (shared)' : ''}`
 export const finishedLabel = (position: number) => `finished ${ordinal(position)}`
 
+// "Barrier 4 · J McDonald · W Mullins · 57.5kg" — the race-card line under a horse
+// (migration 207). Empty when none of it has been entered.
+export function horseDetails(h: { barrier?: number | null; jockey?: string | null; trainer?: string | null; weight_kg?: number | null }): string {
+  return [
+    h.barrier != null ? `Barrier ${h.barrier}` : null,
+    h.jockey ? `J: ${h.jockey}` : null,
+    h.trainer ? `T: ${h.trainer}` : null,
+    h.weight_kg != null ? `${h.weight_kg}kg` : null,
+  ].filter(Boolean).join(' · ')
+}
+
 export type Finish = { horseId: string; position: number | null }   // null → did not finish
 
 export type PodiumWinner = {

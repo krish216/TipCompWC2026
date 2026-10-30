@@ -39,6 +39,8 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
     <div style={{ marginBottom: 6 }}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {pills}
+        {/* Pushed to the right of the pills; wraps under them on a narrow phone. */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
         <button onClick={() => race('POST')} disabled={racing || (!raceRun && !ready)}
           className="bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-[11px] font-bold px-3 py-1 rounded-full">
           {racing ? 'They’re racing…' : raceRun ? '🔁 Run the race again' : '🏁 Run the race'}
@@ -49,6 +51,7 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
             Reset race
           </button>
         )}
+        </div>
       </div>
       {!raceRun && !ready && (
         <p style={{ marginTop: 6, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>

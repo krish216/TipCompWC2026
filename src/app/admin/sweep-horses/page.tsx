@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
-import { ordinal } from '@/lib/sweep/podium'
+import { horseDetails, ordinal } from '@/lib/sweep/podium'
 
-type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null; did_not_finish?: boolean }
+type Horse = {
+  id: string; number: number; name: string; scratched: boolean; finish_position: number | null; did_not_finish?: boolean
+  barrier?: number | null; jockey?: string | null; trainer?: string | null; weight_kg?: number | null   // migration 207
+}
 
 // Platform-admin-only screen for the ONE shared Melbourne Cup field — entered centrally,
 // not per comp (see docs/plans/melbourne-cup-sweep-plan.md §4). The API routes
@@ -68,9 +71,10 @@ export default function AdminSweepHorsesPage() {
 
   async function addBulk() {
     if (!tournamentId || !bulk.trim()) return
+    // "number, name" or "number, name, barrier, jockey, trainer, weight" — details optional.
     const horsesToAdd = bulk.trim().split('\n').map(line => {
-      const [number, ...rest] = line.split(',')
-      return { number: Number(number.trim()), name: rest.join(',').trim() }
+      const [number, name, barrier, jockey, trainer, weight] = line.split(',').map(x => x?.trim() ?? '')
+      return { number: Number(number), name, barrier, jockey, trainer, weight_kg: weight?.replace(/kg$/i, '') }
     }).filter(h => h.number && h.name)
     if (!horsesToAdd.length) return
     setSaving(true)
@@ -147,10 +151,13 @@ export default function AdminSweepHorsesPage() {
 
       <div className="border border-gray-200 rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-gray-900 mb-2 text-sm">Add/update the field</h2>
-        <p className="text-xs text-gray-500 mb-2">One horse per line: <code>number, name</code></p>
+        <p className="text-xs text-gray-500 mb-2">
+          One horse per line: <code>number, name, barrier, jockey, trainer, weight</code>. The last four are optional and shown
+          on every pool&apos;s sweep sheet; re-pasting just <code>number, name</code> keeps them.
+        </p>
         <textarea
           value={bulk} onChange={e => setBulk(e.target.value)}
-          placeholder={'1, Media Package\n2, Vauban\n3, Buckaroo'}
+          placeholder={'1, Vauban, 4, J McDonald, W Mullins, 57.5\n2, Buckaroo, 12, D Lane, C Waller, 56'}
           rows={6}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mb-3"
         />
@@ -197,7 +204,10 @@ export default function AdminSweepHorsesPage() {
           {horses.map(h => (
             <div key={h.id} className="flex items-center gap-3 py-2 text-sm">
               <span className="w-10 text-gray-400">#{h.number}</span>
-              <span className={`flex-1 ${h.scratched ? 'line-through text-red-400' : 'text-gray-900'}`}>{h.name}</span>
+              <span className="flex-1 min-w-0">
+                <span className={`block ${h.scratched ? 'line-through text-red-400' : 'text-gray-900'}`}>{h.name}</span>
+                {horseDetails(h) && <span className="block text-[11px] text-gray-400 truncate">{horseDetails(h)}</span>}
+              </span>
               <label className="flex items-center gap-1 text-xs text-gray-500">
                 <input type="checkbox" checked={h.scratched} onChange={e => patch(h.id, { scratched: e.target.checked })} />
                 Scratched

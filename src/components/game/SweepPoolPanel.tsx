@@ -5,15 +5,17 @@ import confetti from 'canvas-confetti'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
-import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
 import { fmtCents, type PoolPrizes } from '@/lib/sweep/prizes'
-import { finishedLabel, prizeLabel } from '@/lib/sweep/podium'
+import { finishedLabel, horseDetails, ordinal, prizeLabel } from '@/lib/sweep/podium'
 
-type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null }
+type Horse = {
+  id: string; number: number; name: string; scratched: boolean; finish_position: number | null
+  barrier?: number | null; jockey?: string | null; trainer?: string | null; weight_kg?: number | null   // migration 207
+}
 type HiddenHorse = { id: string; hidden: true }
 type HorseOrHidden = Horse | HiddenHorse
 const isHidden = (h: HorseOrHidden): h is HiddenHorse => (h as any)?.hidden === true
@@ -40,6 +42,7 @@ type SweepState = {
   // Roll-down prize winners (lib/sweep/podium.ts) — empty until the full result is in.
   podium: { places: number[]; horse: Horse | null; finished: number; winner: RosterRow | null; cents: number | null }[]
   race_run: boolean
+  finish_by_horse: Record<string, number | null> | null   // where each horse finished, once the race is run
   organiser_name: string | null
   approval_window_hours: number
   race_start_at: string | null
@@ -109,6 +112,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())   // ticks the spin-window countdowns
+  const [rosterView, setRosterView] = useState<'person' | 'horse'>('person')   // "Who's in this pool": the people, or the sweep sheet
 
   async function load() {
     const s = await fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json())
@@ -263,10 +267,6 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   return (
     <>
-      {!sweep.is_practice && sweep.race_start_at && (
-        <RaceCountdown raceStartAt={sweep.race_start_at} drawOpen={sweep.draw_open} resultsIn={raceRun} className="mb-4" />
-      )}
-
       {/* Approved tickets waiting to spin come FIRST — it's what the holder came back for.
           Below the buy card, on a phone, it sat several screens down and looked missing. */}
       {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
@@ -672,12 +672,74 @@ export function SweepPoolPanel({ tribeId, openPool }: {
             </div>
           </div>
         )}
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 mb-3 text-xs font-bold">
+          {(['person', 'horse'] as const).map(v => (
+            <button key={v} onClick={() => setRosterView(v)}
+              className={`px-3 py-1 rounded-md ${rosterView === v ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'}`}>
+              {v === 'person' ? 'By person' : 'By horse'}
+            </button>
+          ))}
+        </div>
         {sweep.draw_hidden && (
           <p className="text-xs text-gray-400 mb-3">
             You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here.
           </p>
         )}
-        {sweep.roster.length === 0 ? (
+        {rosterView === 'horse' ? (() => {
+          // The sweep sheet. Before the reveal it marks only YOUR horses — flagging the others
+          // as taken or free would give the draw away (it's why the wheel shows no numbers).
+          if (!sweep.horses.length) {
+            return <p className="text-sm text-gray-400 text-center py-4">The field is listed here once the draw opens ({sweep.draw_opens_label}).</p>
+          }
+          const mine = new Set(sweep.my_horses.filter(h => !isHidden(h)).map(h => (h as Horse).id))
+          const holder = new Map<string, string>()
+          for (const r of sweep.roster) for (const h of r.horses) if (!isHidden(h)) holder.set(h.id, r.display_name)
+          const finish = sweep.finish_by_horse
+          const prize = new Map(sweep.podium.filter(p => p.horse).map(p => [p.horse!.id, p]))
+          // After the race: finishing order (non-finishers, then scratchings, last). Before: by number.
+          const rank = (h: Horse) => h.scratched ? 1e6 : finish ? (finish[h.id] ?? 1e5) : h.number
+          const list = [...sweep.horses].sort((a, b) => rank(a) - rank(b) || a.number - b.number)
+          return (
+            <div className="divide-y divide-gray-100">
+              {list.map(h => {
+                const pos = finish && !h.scratched ? finish[h.id] : undefined
+                const won = prize.get(h.id)
+                const details = horseDetails(h)
+                return (
+                  <div key={h.id} className={`flex items-start justify-between gap-3 py-2 text-sm ${mine.has(h.id) ? 'bg-emerald-50 -mx-2 px-2 rounded-lg' : ''}`}>
+                    <span className="flex items-start gap-2 min-w-0">
+                      {finish && (
+                        <span className="w-9 flex-shrink-0 text-xs font-bold text-gray-500 pt-0.5">
+                          {h.scratched ? '' : pos == null ? 'DNF' : ordinal(pos)}
+                        </span>
+                      )}
+                      <span className="min-w-0">
+                        <span className={`block ${h.scratched ? 'line-through text-red-400' : 'font-semibold text-gray-900'}`}>#{h.number} {h.name}</span>
+                        {h.scratched
+                          ? <span className="block text-[11px] text-red-400">Scratched</span>
+                          : details && <span className="block text-[11px] text-gray-400">{details}</span>}
+                      </span>
+                    </span>
+                    <span className="text-right flex-shrink-0">
+                      {mine.has(h.id)
+                        ? <span className="block font-bold text-emerald-700">You</span>
+                        : !sweep.draw_hidden && !h.scratched && (
+                            holder.has(h.id)
+                              ? <span className="block text-gray-700">{holder.get(h.id)}</span>
+                              : <span className="block text-gray-300 italic">unsold</span>
+                          )}
+                      {won && (
+                        <span className="block text-xs font-bold text-amber-700">
+                          {prizeLabel(won.places)}{won.cents != null ? ` · ${fmtCents(won.cents)}` : ''}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })() : sweep.roster.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-4">No horses drawn in this pool yet.</p>
         ) : (
           <div className="divide-y divide-gray-100">

@@ -207,6 +207,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     auto_draw_at:    isPractice ? null : autoDrawAt(raceStartAt)?.toISOString() ?? null,
     podium:          podiumOut,
     race_run:        !!finishes,   // the full result is in (or the practice race has been run)
+    // Where every horse finished (null → did not finish), for the "By horse" sweep sheet.
+    finish_by_horse: finishes ? Object.fromEntries(finishes.map(f => [f.horseId, f.position])) : null,
     // ── Buying: who to pay, where, and how long approval should take ──
     organiser_name:        organiser.contact_name ?? (comp as any)?.owner_name ?? null,
     approval_window_hours: organiser.approval_window_hours,

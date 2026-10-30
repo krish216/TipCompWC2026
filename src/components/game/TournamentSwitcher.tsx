@@ -110,8 +110,11 @@ export function TournamentSheet({ tournaments, currentId, onPick, onClose }: {
 // (or shouldn't render) the full CountdownBanner, e.g. /sweep, where a race-countdown UI
 // makes no sense but someone still needs a way back to their football tournament. Renders
 // nothing if there's nothing to switch to (e.g. logged out, or only one tournament).
-export function TournamentSwitcher({ className = '', current, leaveOnPick = false }: {
+export function TournamentSwitcher({ className = '', current, leaveOnPick = false, chip = false }: {
   className?: string
+  // A small "Switch ⇄" chip for a dark card (the sweep card on /tribe), instead of the
+  // labelled button — the card already names the tournament.
+  chip?: boolean
   // Overrides the global selection for DISPLAY only (label + which row gets the ✓ in the
   // sheet) — doesn't touch selectedTournId/user_preferences. For a page like /sweep that has
   // its own specific tournament context (resolved via /api/sweep/context) which is
@@ -157,11 +160,18 @@ export function TournamentSwitcher({ className = '', current, leaveOnPick = fals
 
   return (
     <>
-      <button type="button" onClick={() => setSheet(true)}
-        className={`inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 border border-emerald-300 rounded-full px-3 py-1.5 hover:bg-emerald-50 transition-colors ${className}`}>
-        {current ? '🐎' : '🏆'} {currentName}
-        <span className="text-emerald-700 font-bold">· Switch ⇄</span>
-      </button>
+      {chip ? (
+        <button type="button" onClick={() => setSheet(true)} aria-label="Switch tournament"
+          className={`flex-shrink-0 text-[10px] font-bold text-white bg-white/15 border border-white/25 hover:bg-white/25 rounded-full px-2 py-0.5 leading-none ${className}`}>
+          Switch ⇄
+        </button>
+      ) : (
+        <button type="button" onClick={() => setSheet(true)}
+          className={`inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 border border-emerald-300 rounded-full px-3 py-1.5 hover:bg-emerald-50 transition-colors ${className}`}>
+          {current ? '🐎' : '🏆'} {currentName}
+          <span className="text-emerald-700 font-bold">· Switch ⇄</span>
+        </button>
+      )}
       {sheet && (
         <TournamentSheet tournaments={tournaments} currentId={sheetCurrentId} onPick={handlePick} onClose={() => setSheet(false)} />
       )}
