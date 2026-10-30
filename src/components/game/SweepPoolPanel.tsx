@@ -89,6 +89,8 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [buyCount,  setBuyCount]  = useState('1')
   const [buyMethod, setBuyMethod] = useState<'cash' | 'bank_transfer' | 'iou'>('cash')
   const [autoDraw, setAutoDraw] = useState(false)   // "draw my horse for me" (migration 203)
+  const [confirmDrawFor, setConfirmDrawFor] = useState<string | null>(null)   // organiser "draw for them"
+  const [drawingFor, setDrawingFor] = useState<string | null>(null)
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
@@ -166,6 +168,17 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     return { ok: true, horse: res.horse as Horse }
   }
 
+  // Organiser draws for a member who isn't spinning — same random server draw as the wheel.
+  async function drawFor(userId: string) {
+    setDrawingFor(userId); setConfirmDrawFor(null); setError(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/draw-unspun`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }),
+    }).then(r => r.json())
+    setDrawingFor(null)
+    if (res.error) { setError(res.error); return }
+    await load()
+  }
+
   async function handleBuy() {
     const count = parseInt(buyCount, 10) || 1
     setBuying(true); setError(null)
@@ -208,6 +221,27 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   return (
     <>
+      {/* Approved tickets waiting to spin come FIRST — it's what the holder came back for.
+          Below the buy card, on a phone, it sat several screens down and looked missing. */}
+      {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
+        <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-5 mb-5 text-center">
+          <p className="text-sm font-bold text-emerald-900">
+            🎟️ {sweep.my_unclaimed} ticket{sweep.my_unclaimed === 1 ? '' : 's'} secured
+          </p>
+          <p className="text-xs text-emerald-800 mt-1">
+            The draw opens {sweep.draw_opens_label}, once the final field is declared. We'll email you the moment you can spin for your horse.
+          </p>
+        </div>
+      ) : sweep.my_unclaimed > 0 && (
+        <div className="mb-5">
+          <p className="text-center text-sm font-bold text-gray-900 mb-2">
+            🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
+          </p>
+          {/* Scratched horses can't be drawn (the server skips them), so keep them off the wheel. */}
+          <SweepWheel key={sweep.my_unclaimed} horses={sweep.available.filter(h => !h.scratched)} onDraw={handleDraw} />
+        </div>
+      )}
+
       {sweep.is_practice && (
         <div className="border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
           <p className="text-sm font-bold text-violet-900">🧪 Practice sweep — no real money</p>
@@ -505,29 +539,14 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         </div>
       )}
 
-      {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
-        <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-5 mb-5 text-center">
-          <p className="text-sm font-bold text-emerald-900">
-            🎟️ {sweep.my_unclaimed} ticket{sweep.my_unclaimed === 1 ? '' : 's'} secured
-          </p>
-          <p className="text-xs text-emerald-800 mt-1">
-            The draw opens {sweep.draw_opens_label}, once the final field is declared. We'll email you the moment you can spin for your horse.
-          </p>
-        </div>
-      ) : sweep.my_unclaimed > 0 ? (
-        <div className="mb-5">
-          <p className="text-center text-xs text-gray-500 mb-2">
-            {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
-          </p>
-          {/* Scratched horses can't be drawn (the server skips them), so keep them off the wheel. */}
-          <SweepWheel key={sweep.my_unclaimed} horses={sweep.available.filter(h => !h.scratched)} onDraw={handleDraw} />
-        </div>
-      ) : sweep.my_horses.length === 0 ? (
+      {/* Tickets waiting to spin are shown at the very top (below); this is only the "no
+          tickets yet" nudge, which points up at the Buy tickets card. */}
+      {sweep.my_unclaimed === 0 && sweep.my_horses.length === 0 && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5 text-center">
           <p className="text-sm text-gray-700">You're in the pool, but no picks yet.</p>
           <p className="text-xs text-gray-400 mt-1">Buy tickets above, or ask your organiser to grant some once you've paid.</p>
         </div>
-      ) : null}
+      )}
 
       {sweep.my_horses.length > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 text-center">
@@ -611,6 +630,21 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                     <span className="block text-gray-400 italic">
                       {sweep.draw_open ? `${r.unclaimed} still picking…` : `${r.unclaimed} ticket${r.unclaimed === 1 ? '' : 's'} · waiting for the draw`}
                     </span>
+                  )}
+                  {/* Organiser: draw for someone not spinning — random horse, emailed to them.
+                      Not for your own tickets: you've got the wheel above. */}
+                  {sweep.is_comp_admin && sweep.draw_open && r.unclaimed > 0 && r.user_id !== session?.user?.id && (
+                    confirmDrawFor === r.user_id ? (
+                      <span className="inline-flex gap-2 mt-1 text-xs">
+                        <button onClick={() => drawFor(r.user_id)} className="font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded-lg">Yes, draw</button>
+                        <button onClick={() => setConfirmDrawFor(null)} className="font-semibold text-gray-500">Cancel</button>
+                      </span>
+                    ) : (
+                      <button onClick={() => setConfirmDrawFor(r.user_id)} disabled={drawingFor === r.user_id}
+                        className="mt-1 text-xs font-bold text-amber-800 border border-amber-300 hover:bg-amber-50 disabled:opacity-50 px-2 py-0.5 rounded-lg">
+                        {drawingFor === r.user_id ? 'Drawing…' : '🎲 Draw for them'}
+                      </button>
+                    )
                   )}
                 </span>
               </div>

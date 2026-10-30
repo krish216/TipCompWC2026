@@ -44,6 +44,8 @@ type OrganiserDetails = {
   contact_name: string; contact_phone: string; contact_email: string
   bank_shared_directly: boolean; bank_shared_confirmed: boolean   // migration 202
 }
+// Tickets bought but not spun yet (refund-bound over-field tickets excluded).
+const poolUnspun = (p: Pool) => p.tickets - p.claimed - p.refunds.reduce((s, r) => s + r.tickets, 0)
 const APPROVAL_WINDOWS = [2, 6, 12, 24]
 const EMPTY_DETAILS: OrganiserDetails = {
   approval_window_hours: 12, bank_account_name: '', bank_bsb: '', bank_account_number: '', payid: '', payid_kind: 'mobile',
@@ -208,7 +210,9 @@ export default function SweepAdminPage() {
   async function loadPools(id: string) {
     const res = await fetch(`/api/comps/${id}/sweep/pools`).then(r => r.json())
     setPools(res.data ?? [])
-    if (!allocTribeId && res.data?.[0]) setAllocTribeId(res.data[0].id)
+    // Allocation opens on a pool with tickets waiting to spin — that's where "Draw for them" is.
+    const firstWaiting = ((res.data ?? []) as Pool[]).find(p => poolUnspun(p) > 0)
+    if (!allocTribeId && res.data?.[0]) setAllocTribeId((firstWaiting ?? res.data[0]).id)
   }
 
   useEffect(() => {
@@ -670,9 +674,13 @@ export default function SweepAdminPage() {
 
       {activeTab === 'allocation' && (
         <div>
+          <p className="text-xs text-gray-500 mb-3">
+            Who holds which tickets. Someone not spinning? Tap <span className="font-bold text-amber-800">🎲 Draw for them</span> next
+            to their name for a random horse — they&apos;re emailed it.
+          </p>
           {pools.length > 1 && (
             <select value={allocTribeId} onChange={e => setAllocTribeId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3">
-              {pools.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {pools.map(p => <option key={p.id} value={p.id}>{p.name}{p.draw_open && poolUnspun(p) > 0 ? ` · ${poolUnspun(p)} to spin` : ''}</option>)}
             </select>
           )}
           <div className="border border-gray-200 rounded-2xl p-5">
@@ -742,7 +750,7 @@ export default function SweepAdminPage() {
                 {/* Tickets bought but not spun — one slow member holds the whole pool's reveal
                     back, and can't spin at all once it locks. Draw them at random. */}
                 {(() => {
-                  const unspun = p.tickets - p.claimed - p.refunds.reduce((s, r) => s + r.tickets, 0)
+                  const unspun = poolUnspun(p)
                   if (!p.draw_open || unspun <= 0) return null
                   return (
                     <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
