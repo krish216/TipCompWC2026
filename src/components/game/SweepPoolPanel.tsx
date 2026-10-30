@@ -42,7 +42,8 @@ type SweepState = {
   prizes: PoolPrizes | null   // null until the organiser sets a ticket price
   is_practice: boolean        // practice sweep (migration 200): no real money, pretend race
   field_size: number
-  draw_open: boolean          // false → selling before the field is known: no spinning yet (migration 201)
+  tickets_left: number        // capacity less granted tickets and pending requests
+  draw_open: boolean         // false → selling before the field is known: no spinning yet (migration 201)
   draw_opens_label: string
   my_over_field: number       // my tickets with no horse after a short final field — refunded
 }
@@ -68,7 +69,12 @@ const fmtWhen = (d: Date) => d.toLocaleString('en-AU', { weekday: 'short', day: 
 // A member can hold several tickets; the wheel is available any time they hold an
 // unclaimed one, regardless of whether the pool is locked for NEW joins/requests — locking
 // stops new commitments, it doesn't un-grant tickets already handed out.
-export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
+// `openPool` — another of your pools in this sweep that's still selling, offered when this
+// one is sold out.
+export function SweepPoolPanel({ tribeId, openPool }: {
+  tribeId: string
+  openPool?: { name: string; onSelect: () => void } | null
+}) {
   const { session } = useSupabase()
   const [sweep, setSweep]     = useState<SweepState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -256,7 +262,7 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
           <p className="text-xs text-gray-500 mb-3">Grant picks once someone's paid — each pick is one spin of the wheel.</p>
           <div className="flex gap-2 items-center">
             <select value={grantTarget} onChange={e => setGrantTarget(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm">
+              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm">
               <option value="">Choose a member…</option>
               {sweep.roster.map(r => (
                 <option key={r.user_id} value={r.user_id}>{r.display_name} ({r.total_tickets} tickets)</option>
@@ -297,7 +303,24 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
         </div>
       )}
 
-      {!sweep.locked && (
+      {/* Sold out — no Request button that can only fail. */}
+      {!sweep.locked && sweep.tickets_left === 0 && (
+        <div className="border border-gray-200 bg-gray-50 rounded-2xl p-5 mb-5 text-center">
+          <h2 className="font-bold text-gray-900 mb-1">🎟️ This pool is sold out</h2>
+          <p className="text-xs text-gray-500">
+            Every ticket is taken or waiting on approval.
+            {!openPool && !sweep.is_comp_admin && ' Ask your organiser if another pool is opening.'}
+          </p>
+          {openPool && (
+            <button onClick={openPool.onSelect}
+              className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black py-3 rounded-xl">
+              Buy in {openPool.name} — still selling →
+            </button>
+          )}
+        </div>
+      )}
+
+      {!sweep.locked && sweep.tickets_left > 0 && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
           <h2 className="font-bold text-gray-900 mb-1">Buy tickets</h2>
           <p className="text-xs text-gray-500 mb-3">
@@ -309,11 +332,13 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
               : "Your organiser confirms payment before you can spin — pick how you're paying."}
             {!sweep.draw_open && <> Buy now to secure your spot — the draw opens {sweep.draw_opens_label}, once the final field is declared.</>}
           </p>
-          <div className="flex gap-2 items-center mb-3">
+          {/* min-w-0: a long payment label must shrink the select, never push the row wider than
+              the card. The Request button gets its own full-width row — it's the card's main action. */}
+          <div className="flex gap-2 items-center mb-2">
             <input type="number" min="1" value={buyCount} onChange={e => setBuyCount(e.target.value)}
               className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
             <select value={buyMethod} onChange={e => setBuyMethod(e.target.value as any)}
-              className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm">
+              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm">
               <option value="cash">Cash — pay your organiser in person</option>
               {/* Only methods the organiser has switched on. No bank details on file → nowhere to
                   tell the buyer to send money, so no transfer option at all. */}
@@ -321,11 +346,15 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
               {sweep.bank_shared_directly && <option value="bank_transfer">Bank transfer — details from {sweep.organiser_name ?? 'your organiser'}</option>}
               {sweep.allow_iou && <option value="iou">IOU — pay your organiser later</option>}
             </select>
-            <button onClick={handleBuy} disabled={buying}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg whitespace-nowrap">
-              {buying ? 'Requesting…' : 'Request →'}
-            </button>
           </div>
+          <button onClick={handleBuy} disabled={buying}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-black py-3 rounded-xl shadow-md mb-3">
+            {buying ? 'Requesting…' : (() => {
+              const n = parseInt(buyCount, 10)
+              const count = Number.isInteger(n) && n > 0 ? n : 1
+              return `🎟️ Request ${count} ticket${count === 1 ? '' : 's'}${sweep.ticket_price_cents ? ` · ${fmtCents(count * sweep.ticket_price_cents)}` : ''} →`
+            })()}
+          </button>
 
           {/* What happens next, for the method picked — set expectations BEFORE they request. */}
           {(() => {

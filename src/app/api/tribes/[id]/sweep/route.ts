@@ -114,7 +114,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // pool that never fills still reveals before the race. The redaction is a stripped object
   // (no number, name or real id), not a flag, so nothing leaks to a caller reading the raw
   // response.
-  const field = await loadField(admin, tribe.tournament_id)
+  const [field, { data: pendingRows }] = await Promise.all([
+    loadField(admin, tribe.tournament_id),
+    (admin.from('sweep_payment_requests') as any).select('tickets_requested').eq('tribe_id', tribeId).eq('status', 'pending'),
+  ])
+  // Same rule as the request route's oversell guard: granted tickets + pending requests.
+  const ticketsLeft = Math.max(0, field.capacity - (entries ?? []).length
+    - ((pendingRows ?? []) as any[]).reduce((sum, r) => sum + r.tickets_requested, 0))
   const nonScratched = field.runners
   const claimedCount = (entries ?? []).filter((e: any) => e.horse_id).length
   const drawFull = field.drawOpen && nonScratched > 0 && claimedCount >= nonScratched
@@ -148,6 +154,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     ticket_price_cents: price,
     prizes,
     field_size:      field.capacity,
+    tickets_left:    ticketsLeft,   // 0 → sold out (or fully spoken for by pending requests)
     // Selling before the field is known (migration 201): no spinning, and the placeholder
     // horses stay out of the response entirely.
     draw_open:       field.drawOpen,

@@ -998,6 +998,7 @@ type SweepPoolRow = {
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number
   comp_pools: { tribe_id: string; tickets: number; field_size: number; full: boolean }[]
 }
+const isPoolFull = (p: SweepPoolRow) => p.locked || !!p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)?.full
 
 export default function TribePage() {
   const { session, supabase } = useSupabase()
@@ -1159,7 +1160,13 @@ export default function TribePage() {
       if (cancelled) return
       const pools = ((res.data ?? []) as SweepPoolRow[]).filter(p => p.comp_id === sweepCompId)
       setSweepPools(pools)
-      setSelectedPoolId(prev => (prev && pools.some(p => p.tribe_id === prev)) ? prev : (tribe?.id ?? pools[0]?.tribe_id ?? ''))
+      // First open: land where there's something to do — tickets to spin, then a pool still
+      // selling, then the pool last selected. A later refresh keeps whatever's selected.
+      const firstPool =
+        pools.find(p => p.my_unclaimed > 0) ??
+        pools.find(p => !isPoolFull(p)) ??
+        pools.find(p => p.tribe_id === tribe?.id)
+      setSelectedPoolId(prev => (prev && pools.some(p => p.tribe_id === prev)) ? prev : (firstPool?.tribe_id ?? tribe?.id ?? pools[0]?.tribe_id ?? ''))
     })
     return () => { cancelled = true }
   }, [isSweep, sweepCompId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1442,7 +1449,10 @@ export default function TribePage() {
         {/* Draw — sweep tribes only. Pool selection (when this sweep has more than one pool
             relevant to the viewer) happens via the Hero's pills, not here. */}
         {isSweep && tab === 'sweep' && (
-          <SweepPoolPanel tribeId={selectedPoolId || tribe.id} />
+          <SweepPoolPanel tribeId={selectedPoolId || tribe.id} openPool={(() => {
+            const open = sweepPools?.find(p => p.tribe_id !== (selectedPoolId || tribe.id) && !isPoolFull(p))
+            return open ? { name: open.tribe_name, onSelect: () => setSelectedPoolId(open.tribe_id) } : null
+          })()} />
         )}
 
         {/* Standings */}
