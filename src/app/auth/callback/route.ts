@@ -42,8 +42,9 @@ export async function GET(request: NextRequest) {
       // email-confirmation clicks both land here but were NEVER added to
       // user_tournaments — only the email signup form did it — leaving them off
       // every leaderboard. Idempotent; the welcome email is guarded (sent once,
-      // and suppressed for bracket guests).
-      try {
+      // and suppressed for bracket guests). Not for sweep sign-ups (next=/sweep…): joining a
+      // sweep enrols them in its own tournament; a football enrolment would confuse them.
+      if (!next.startsWith('/sweep')) try {
         const t = await getPrimaryTournament(admin)
         const tid = (t as any)?.id
         if (tid) {

@@ -288,10 +288,10 @@ export default function LoginPage() {
 
       // Where this user lands once verified — used below either as the explicit redirect
       // after OTP verification, or (invited path) left to the generic session effect.
-      const destinationUrl = codeParam
+      const destinationUrl = fromSweep
+        ? redirect   // back to /sweep[?code=…] — it has its own join/create flow for both roles
+        : codeParam
         ? `/join?code=${codeParam}`
-        : sweepBrowse
-        ? redirect   // back to /sweep — it has its own join/create flow for both roles
         : role === 'organiser'
         ? `/?flow=create`
         : isBracket
@@ -428,7 +428,9 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError(null); setLoading(true)
-    const nextUrl = codeParam ? `/join?code=${codeParam}` : sweepBrowse ? redirect : role === 'organiser' ? `/?flow=create` : isBracket ? `/bracket` : redirect
+    // From /sweep (invite code or not) → straight back there: it has its own join screen,
+    // and /join would detour via the football homepage.
+    const nextUrl = fromSweep ? redirect : codeParam ? `/join?code=${codeParam}` : role === 'organiser' ? `/?flow=create` : isBracket ? `/bracket` : redirect
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
