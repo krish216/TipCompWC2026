@@ -48,7 +48,12 @@ export async function middleware(request: NextRequest) {
   // the same way — they wouldn't have a session here otherwise.
   if (user && AUTH_ROUTES.some(r => pathname === r)) {
     const emailVerified = !!(user as any).email_confirmed_at
-    const dest = emailVerified ? '/predict' : '/'
+    // Honour ?redirect= (e.g. /sweep?code=… from a sweep QR) — a refresh of /login racing the
+    // client's own post-sign-up redirect otherwise dumped new sweep members on /predict or /.
+    // Same-site paths only: '/x', never '//host' or a full URL.
+    const wanted = request.nextUrl.searchParams.get('redirect')
+    const safeWanted = wanted && wanted.startsWith('/') && !/^\/[\/\\]/.test(wanted) && !wanted.startsWith('/login') ? wanted : null
+    const dest = safeWanted ?? (emailVerified ? '/predict' : '/')
     return NextResponse.redirect(new URL(dest, request.url))
   }
 

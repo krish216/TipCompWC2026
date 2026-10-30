@@ -182,6 +182,9 @@ export default function LoginPage() {
   // When session is established, redirect to destination
   useEffect(() => {
     if (!session) return
+    // Sweep sign-ins: a full page load, not push + refresh — the refresh could re-request
+    // /login and lose the race to the middleware's "signed in, leave /login" redirect.
+    if (fromSweep) { window.location.assign(redirect); return }
     router.push(isBracket ? '/bracket' : redirect)
     router.refresh()
   }, [session])
@@ -551,6 +554,8 @@ export default function LoginPage() {
       // (best-effort; the redirect shouldn't wait on it), then go to the real destination.
       fetch('/api/auth/verify-signup', { method: 'POST' }).catch(() => {})
       setLoading(false)
+      // Full page load (see the session effect above) — push + refresh could race back to /login.
+      if (fromSweep) { window.location.assign(signupDestination); return }
       router.push(signupDestination)
       router.refresh()
     }
