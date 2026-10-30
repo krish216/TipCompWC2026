@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
@@ -34,6 +35,7 @@ type Pool = {
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number; my_open_requests: number
   comp_pools: PoolPill[]; comp_pending_requests: number
   is_practice?: boolean   // practice sweeps (migration 200) — listed in their own card
+  draw_open?: boolean; results_in?: boolean   // for the race countdown
 }
 // One row per SWEEP (comp), not per pool — the pool-level detail (which pools, which one has
 // your horses) lives on /tribe now. Built by collapsing myPools (one row per pool) by comp_id.
@@ -576,6 +578,16 @@ export default function SweepPage() {
             that global selection (see TournamentSheet). */}
         <TournamentSwitcher className="flex-shrink-0 mt-1" leaveOnPick current={sweeps[0] ? { id: sweeps[0].tournament_id, name: sweeps[0].tournament_name ?? 'Sweep' } : undefined} />
       </div>
+
+      {/* Countdown to the next real race you're in (practice sweeps have no race time). */}
+      {(() => {
+        const next = realPools.filter(p => p.race_start_at)
+          .sort((a, b) => a.race_start_at!.localeCompare(b.race_start_at!))[0]
+        return next ? (
+          <RaceCountdown raceStartAt={next.race_start_at!} drawOpen={next.draw_open !== false} resultsIn={!!next.results_in}
+            resultsHref={`/tribe?comp_id=${next.comp_id}`} className="mb-5" />
+        ) : null
+      })()}
 
       {invitesCard}
 

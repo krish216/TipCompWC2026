@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { PRACTICE_SLUG } from '@/lib/sweep/practice'
+import { raceFinishes } from '@/lib/sweep/pool-result'
 import { loadFields } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
@@ -87,7 +88,7 @@ export async function GET() {
   // Pending payment requests only matter to organisers, so only fetch them for pools under
   // comps the caller admins — a plain member never sees anyone else's requests.
   const adminTribeIds = ((allCompTribes ?? []) as any[]).filter(t => adminCompIdSet.has(t.comp_id)).map(t => t.id)
-  const [fields, { data: allEntries }, { data: pendingRows }] = await Promise.all([
+  const [fields, { data: allEntries }, { data: pendingRows }, { data: raceHorses }] = await Promise.all([
     loadFields(admin, tournIds),
     allTribeIds.length
       ? (admin.from('sweep_entries') as any).select('tribe_id').in('tribe_id', allTribeIds)
@@ -95,7 +96,11 @@ export async function GET() {
     adminTribeIds.length
       ? (admin.from('sweep_payment_requests') as any).select('tribe_id').eq('status', 'pending').in('tribe_id', adminTribeIds)
       : Promise.resolve({ data: [] }),
+    // For the race countdown's "Results are in" — has each race's full result been entered?
+    (admin.from('sweep_horses') as any).select('*').in('tournament_id', [...sweepTournIds]),
   ])
+  const horsesByTourn: Record<string, any[]> = {}
+  for (const h of (raceHorses ?? []) as any[]) (horsesByTourn[h.tournament_id] ??= []).push(h)
   const compIdByTribe = Object.fromEntries(((allCompTribes ?? []) as any[]).map(t => [t.id, t.comp_id]))
   const pendingByComp: Record<string, number> = {}
   for (const r of (pendingRows ?? []) as any[]) {
@@ -123,6 +128,8 @@ export async function GET() {
     tournament_id:    t.tournament_id,
     tournament_name:  tournById[t.tournament_id]?.name ?? null,
     race_start_at:    tournById[t.tournament_id]?.race_start_at ?? null,
+    draw_open:        fields[t.tournament_id]?.drawOpen ?? true,
+    results_in:       !!raceFinishes(horsesByTourn[t.tournament_id] ?? [], null),
     // Practice sweeps (migration 200) get their own card on /sweep, apart from real ones.
     is_practice:      tournById[t.tournament_id]?.slug === PRACTICE_SLUG,
     locked:           !!t.sweep_locked_at,

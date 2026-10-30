@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
+import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -262,6 +263,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   return (
     <>
+      {!sweep.is_practice && sweep.race_start_at && (
+        <RaceCountdown raceStartAt={sweep.race_start_at} drawOpen={sweep.draw_open} resultsIn={raceRun} className="mb-4" />
+      )}
+
       {/* Approved tickets waiting to spin come FIRST — it's what the holder came back for.
           Below the buy card, on a phone, it sat several screens down and looked missing. */}
       {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
@@ -331,38 +336,16 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         </div>
       )}
 
-      {sweep.is_comp_admin && (
-        <div className="border border-gray-200 rounded-2xl p-5 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-900">Organiser</h2>
-            <div className="flex items-center gap-3">
-              {!sweep.locked ? (
-                <button onClick={handleLock} disabled={locking}
-                  className="text-xs font-bold text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50 px-3 py-1.5 rounded-lg">
-                  {locking ? 'Locking…' : 'Stop new joins'}
-                </button>
-              ) : (
-                <button onClick={handleUnlock} disabled={locking} title="No new members can join this pool — click to reopen"
-                  className="text-xs font-bold text-gray-500 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 px-3 py-1.5 rounded-lg">
-                  {locking ? 'Reopening…' : '🔒 Locked — reopen joins'}
-                </button>
-              )}
-              <Link href={`/sweep-admin?comp_id=${sweep.comp_id}`} className="text-xs font-bold text-emerald-600 hover:underline whitespace-nowrap">Organiser settings →</Link>
-            </div>
-          </div>
-          {pendingCount > 0 && (
-            <Link href={`/sweep-admin?comp_id=${sweep.comp_id}&tab=requests`}
-              className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-xl px-4 py-3 mb-3">
-              <span className="text-sm font-bold text-amber-800">
-                {pendingCount} ticket request{pendingCount === 1 ? '' : 's'} awaiting approval
-              </span>
-              <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Review →</span>
-            </Link>
-          )}
-          <p className="text-xs text-gray-500">
-            Someone paid you in person? Tick them under <strong>Who&apos;s in this pool</strong> and buy their tickets for them.
-          </p>
-        </div>
+      {/* Organiser: the one urgent thing stays up top. Everything else they do lives in
+          "Who's in this pool" (lock, settings, buy on someone's behalf, draw for them). */}
+      {sweep.is_comp_admin && pendingCount > 0 && (
+        <Link href={`/sweep-admin?comp_id=${sweep.comp_id}&tab=requests`}
+          className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-2xl px-4 py-3 mb-5">
+          <span className="text-sm font-bold text-amber-800">
+            {pendingCount} ticket request{pendingCount === 1 ? '' : 's'} awaiting approval
+          </span>
+          <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Review →</span>
+        </Link>
       )}
 
       {/* Prizes as they stand right now — grows with every ticket sold, so buyers can see
@@ -670,6 +653,25 @@ export function SweepPoolPanel({ tribeId, openPool }: {
             </span>
           </div>
         </div>
+        {sweep.is_comp_admin && (
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
+            <p className="text-xs text-gray-500">Paid you in person? Tick them to buy their tickets.</p>
+            <div className="flex items-center gap-3">
+              {!sweep.locked ? (
+                <button onClick={handleLock} disabled={locking}
+                  className="text-xs font-bold text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-50 px-2.5 py-1 rounded-lg">
+                  {locking ? 'Locking…' : 'Stop new joins'}
+                </button>
+              ) : (
+                <button onClick={handleUnlock} disabled={locking} title="No new members can join this pool — click to reopen"
+                  className="text-xs font-bold text-gray-500 border border-gray-200 hover:bg-gray-100 disabled:opacity-50 px-2.5 py-1 rounded-lg">
+                  {locking ? 'Reopening…' : 'Reopen joins'}
+                </button>
+              )}
+              <Link href={`/sweep-admin?comp_id=${sweep.comp_id}`} className="text-xs font-bold text-emerald-600 hover:underline whitespace-nowrap">Settings →</Link>
+            </div>
+          </div>
+        )}
         {sweep.draw_hidden && (
           <p className="text-xs text-gray-400 mb-3">
             You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here.

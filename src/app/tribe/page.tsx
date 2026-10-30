@@ -1312,11 +1312,13 @@ export default function TribePage() {
           </div>
 
           {/* Pools in this sweep — pills switch which pool's draw/chat shows below; leave
-              is scoped to whichever pool is currently selected. */}
-          {isSweep && sweepPools && sweepPools.length > 1 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                {sweepPools.map(p => {
+              is scoped to whichever pool is currently selected. A practice sweep's organiser
+              gets "Run the race" on the same line (one pretend race for every pool). */}
+          {(() => {
+            const multiPool = isSweep && !!sweepPools && sweepPools.length > 1
+            const showRace = isSweep && isPracticeSlug((selectedTourn as any)?.slug) && !!sweepPools?.some(p => p.is_comp_admin) && !!org?.id
+            if (!multiPool && !showRace) return null
+            const pills = multiPool ? sweepPools!.map(p => {
                   const pill = p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)
                   const isSelected = p.tribe_id === selectedPoolId
                   return (
@@ -1331,10 +1333,14 @@ export default function TribePage() {
                       {p.tribe_name}: {pill?.tickets ?? p.my_tickets}/{pill?.field_size || '—'}
                     </button>
                   )
-                })}
-              </div>
-              {(() => {
-                const selected = sweepPools.find(p => p.tribe_id === selectedPoolId)
+                }) : null
+            return (
+            <div style={{ marginBottom: 10 }}>
+              {showRace
+                ? <PracticeRaceBar compId={org.id} pills={pills} onRaced={() => setRaceVersion(v => v + 1)} />
+                : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>{pills}</div>}
+              {multiPool && (() => {
+                const selected = sweepPools!.find(p => p.tribe_id === selectedPoolId)
                 if (!selected || selected.is_comp_admin) return null
                 return confirmLeavePool === selected.tribe_id ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
@@ -1354,12 +1360,8 @@ export default function TribePage() {
               })()}
               {poolsError && <p style={{ marginTop: 6, fontSize: 11, color: '#fca5a5' }}>{poolsError}</p>}
             </div>
-          )}
-
-          {/* Practice sweep: one pretend race for every pool (organiser only). */}
-          {isSweep && isPracticeSlug((selectedTourn as any)?.slug) && sweepPools?.some(p => p.is_comp_admin) && org?.id && (
-            <PracticeRaceBar compId={org.id} onRaced={() => setRaceVersion(v => v + 1)} />
-          )}
+            )
+          })()}
 
           {/* Tab bar */}
           <div style={{ display: 'flex' }}>
