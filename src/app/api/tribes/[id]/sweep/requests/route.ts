@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { grantTickets } from '@/lib/sweep/tickets'
 import { loadField } from '@/lib/sweep/field'
+import { autoDrawIfRequested } from '@/lib/sweep/draw'
 import { createNotifications } from '@/lib/notifications'
 import { signReceiptUrls } from '@/lib/sweep/receipts'
 import { bankTransferEnabled, getOrganiserDetails } from '@/lib/sweep/organiser'
@@ -79,9 +80,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const priceCents = (comp as any)?.sweep_ticket_price_cents ?? null
   const amount = priceCents ? (priceCents * ticketsRequested) / 100 : null
 
+  // "Draw my horse for me" (migration 203) — only sent when ticked, so requests still save
+  // if the column isn't there yet.
+  const autoDraw = body?.auto_draw === true
   const baseRow = {
     tribe_id: tribeId, comp_id: tribe.comp_id, user_id: user.id,
     tickets_requested: ticketsRequested, payment_method: paymentMethod, amount,
+    ...(autoDraw ? { auto_draw: true } : {}),
   }
 
   if (paymentMethod === 'iou') {
@@ -91,6 +96,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .insert({ ...baseRow, status: 'approved', reviewed_at: new Date().toISOString(), paid_at: null })
       .select().maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await autoDrawIfRequested(admin, { tribeId, tournamentId: tribe.tournament_id, userId: user.id, autoDraw })
     return NextResponse.json({ ok: true, request: inserted })
   }
 

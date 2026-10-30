@@ -88,6 +88,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [pendingCount, setPendingCount] = useState(0)
   const [buyCount,  setBuyCount]  = useState('1')
   const [buyMethod, setBuyMethod] = useState<'cash' | 'bank_transfer' | 'iou'>('cash')
+  const [autoDraw, setAutoDraw] = useState(false)   // "draw my horse for me" (migration 203)
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
@@ -170,7 +171,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     setBuying(true); setError(null)
     const res = await fetch(`/api/tribes/${tribeId}/sweep/requests`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tickets_requested: count, payment_method: buyMethod }),
+      body: JSON.stringify({ tickets_requested: count, payment_method: buyMethod, ...(autoDraw ? { auto_draw: true } : {}) }),
     }).then(r => r.json())
     setBuying(false)
     if (res.error) { setError(res.error); return }
@@ -347,6 +348,13 @@ export function SweepPoolPanel({ tribeId, openPool }: {
               {sweep.allow_iou && <option value="iou">IOU — pay your organiser later</option>}
             </select>
           </div>
+          <label className="flex items-start gap-2 text-xs text-gray-600 mb-3 cursor-pointer">
+            <input type="checkbox" checked={autoDraw} onChange={e => setAutoDraw(e.target.checked)} className="mt-0.5" />
+            <span>
+              Draw my horse for me once I&apos;m approved — skip the wheel.
+              {!sweep.draw_open && <span className="text-gray-400"> We&apos;ll draw it when the draw opens {sweep.draw_opens_label}.</span>}
+            </span>
+          </label>
           <button onClick={handleBuy} disabled={buying}
             className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-black py-3 rounded-xl shadow-md mb-3">
             {buying ? 'Requesting…' : (() => {

@@ -5,6 +5,7 @@ import { receiptPath, SWEEP_RECEIPTS_BUCKET } from '@/lib/sweep/storage'
 import { grantTickets } from '@/lib/sweep/tickets'
 import { sendSweepPaymentConfirmation } from '@/lib/sweep/emails'
 import { loadField } from '@/lib/sweep/field'
+import { autoDrawIfRequested } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (autoApprove) {
+    // Buyer asked for their horse to be drawn for them (migration 203).
+    await autoDrawIfRequested(admin, { tribeId: params.id, tournamentId: (tribe as any).tournament_id, userId: user.id, autoDraw: req.auto_draw })
     const { data: buyer } = await (admin.from('users') as any).select('email, display_name').eq('id', user.id).maybeSingle()
     if ((buyer as any)?.email) {
       sendSweepPaymentConfirmation({

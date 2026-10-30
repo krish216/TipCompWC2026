@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { sendDrawReminders } from '@/lib/sweep/draw-reminders'
+import { drawPendingAutoDraws } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,10 @@ export async function POST(req: NextRequest) {
   const { error } = await (g.admin.from('tournaments') as any).update({ sweep_draw_open: open }).eq('id', t.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Buyers who asked for auto-draw (migration 203) and were approved while the draw was
+  // closed get their horses now, before the "spin now" reminder goes out.
+  const autoDrawn = open ? await drawPendingAutoDraws(g.admin, t.id) : 0
+
   let reminded = null
   if (open && !t.sweep_draw_reminder_sent_at) {
     // Claim the send first so a double-click can't email everyone twice.
@@ -61,5 +66,5 @@ export async function POST(req: NextRequest) {
       .eq('id', t.id).is('sweep_draw_reminder_sent_at', null).select('id').maybeSingle()
     if (claimed) reminded = await sendDrawReminders(g.admin, t.id, 'open')
   }
-  return NextResponse.json({ ok: true, draw_open: open, reminded })
+  return NextResponse.json({ ok: true, draw_open: open, auto_drawn: autoDrawn, reminded })
 }

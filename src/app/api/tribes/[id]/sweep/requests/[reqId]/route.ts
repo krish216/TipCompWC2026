@@ -6,6 +6,7 @@ import { sendSweepPaymentConfirmation, sendSweepRequestRejected } from '@/lib/sw
 import { createNotifications } from '@/lib/notifications'
 import { getOrganiserDetails } from '@/lib/sweep/organiser'
 import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
+import { autoDrawIfRequested } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .eq('id', req.id).select().maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    // Buyer asked for their horse to be drawn for them (migration 203).
+    await autoDrawIfRequested(admin, { tribeId: params.id, tournamentId: (tribe as any).tournament_id, userId: req.user_id, autoDraw: req.auto_draw })
+
     const [{ data: buyer }, { data: comp }, { drawOpen }] = await Promise.all([
       (admin.from('users') as any).select('email, display_name').eq('id', req.user_id).maybeSingle(),
       (admin.from('comps') as any).select('name').eq('id', req.comp_id).maybeSingle(),
@@ -63,7 +67,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       user_id: req.user_id,
       type:    'sweep_request_approved',
       title:   `You're in — ${req.tickets_requested} ticket${req.tickets_requested === 1 ? '' : 's'} approved in ${(comp as any)?.name ?? 'your sweep'}`,
-      body:    drawOpen ? 'Spin the wheel to draw your horse.' : `Ticket secured — the draw opens ${DRAW_OPENS_LABEL}. We'll let you know when you can spin.`,
+      body:    req.auto_draw
+        ? (drawOpen ? 'Your horse has been drawn for you — check your pool.' : `Ticket secured — we'll draw your horse when the draw opens ${DRAW_OPENS_LABEL}.`)
+        : drawOpen ? 'Spin the wheel to draw your horse.' : `Ticket secured — the draw opens ${DRAW_OPENS_LABEL}. We'll let you know when you can spin.`,
       data:    { href: `/tribe?comp_id=${req.comp_id}`, comp_id: req.comp_id, tribe_id: params.id, request_id: req.id },
     })
 

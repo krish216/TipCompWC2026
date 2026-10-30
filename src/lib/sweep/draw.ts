@@ -44,9 +44,10 @@ export async function drawHorseForTicket(
 
 // Draws a horse for every ticket in the pool that's still unspun (skipping a short final
 // field's over-field tickets, which get refunded), then emails each holder their horses.
-// Idempotent — a second run finds nothing to draw. Does nothing while the draw is closed.
+// `userId` narrows it to one holder's tickets (a buyer who asked for auto-draw, migration
+// 203). Idempotent — a second run finds nothing to draw. Does nothing while the draw is closed.
 export async function drawUnspunTickets(
-  admin: any, opts: { tribeId: string; tournamentId: string },
+  admin: any, opts: { tribeId: string; tournamentId: string; userId?: string },
 ): Promise<{ drawn: number; failed: number }> {
   const field = await loadField(admin, opts.tournamentId)
   if (!field.drawOpen) return { drawn: 0, failed: 0 }
@@ -54,16 +55,46 @@ export async function drawUnspunTickets(
   const { data: entries } = await (admin.from('sweep_entries') as any)
     .select('id, user_id, horse_id, joined_at').eq('tribe_id', opts.tribeId)
   const overField = overFieldTicketIds((entries ?? []) as any[], field)
-  const unspun = ((entries ?? []) as any[]).filter(e => !e.horse_id && !overField.has(e.id))
+  const unspun = ((entries ?? []) as any[]).filter(e =>
+    !e.horse_id && !overField.has(e.id) && (!opts.userId || e.user_id === opts.userId))
 
   let drawn = 0, failed = 0
   const holders = new Set<string>()
   for (const ticket of unspun) {
-    const res = await drawHorseForTicket(admin, { ...opts, ticketId: ticket.id })
+    const res = await drawHorseForTicket(admin, { tribeId: opts.tribeId, tournamentId: opts.tournamentId, ticketId: ticket.id })
     if (res.ok) { drawn++; holders.add(ticket.user_id) } else failed++
   }
-  for (const userId of holders) await maybeSendDrawConfirmation(admin, { ...opts, userId })
+  for (const userId of holders) await maybeSendDrawConfirmation(admin, { tribeId: opts.tribeId, tournamentId: opts.tournamentId, userId })
   return { drawn, failed }
+}
+
+// After a request's tickets are granted: if the buyer asked for auto-draw (migration 203),
+// draw their unspun tickets now. Never throws — a failed draw leaves the tickets to spin.
+export async function autoDrawIfRequested(
+  admin: any, opts: { tribeId: string; tournamentId: string; userId: string; autoDraw: boolean | null | undefined },
+): Promise<void> {
+  if (!opts.autoDraw) return
+  try {
+    await drawUnspunTickets(admin, { tribeId: opts.tribeId, tournamentId: opts.tournamentId, userId: opts.userId })
+  } catch (e: any) {
+    console.error('[sweep/draw] auto-draw failed:', e?.message ?? e)
+  }
+}
+
+// When an admin opens a race's draw: draw for every buyer whose auto-draw request was
+// granted while the draw was still closed. Returns how many tickets were drawn.
+export async function drawPendingAutoDraws(admin: any, tournamentId: string): Promise<number> {
+  const { data: tribes } = await (admin.from('tribes') as any).select('id').eq('tournament_id', tournamentId)
+  const tribeIds = ((tribes ?? []) as any[]).map(t => t.id)
+  if (!tribeIds.length) return 0
+  const { data: reqs, error } = await (admin.from('sweep_payment_requests') as any)
+    .select('tribe_id, user_id').in('tribe_id', tribeIds).eq('status', 'approved').eq('auto_draw', true)
+  if (error) return 0   // before migration 203 — nobody can have asked for it
+  const pairs = new Map<string, { tribeId: string; userId: string }>()
+  for (const r of (reqs ?? []) as any[]) pairs.set(`${r.tribe_id}:${r.user_id}`, { tribeId: r.tribe_id, userId: r.user_id })
+  let drawn = 0
+  for (const p of pairs.values()) drawn += (await drawUnspunTickets(admin, { ...p, tournamentId })).drawn
+  return drawn
 }
 
 // Once a holder has no unspun tickets left in the pool, email them every horse they hold
