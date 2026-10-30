@@ -573,7 +573,25 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       )}
 
       <div className="border border-gray-200 rounded-2xl p-5">
-        <h2 className="font-bold text-gray-900 mb-3">Full pool</h2>
+        {/* "Full pool" read as "this pool is full" — the heading is just who's in it; the
+            pool's status lives in its own pills. */}
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <h2 className="font-bold text-gray-900">Who&apos;s in this pool</h2>
+          <div className="flex gap-1.5 flex-wrap">
+            {sweep.locked ? (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">🔒 Locked</span>
+            ) : sweep.tickets_left === 0 ? (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Sold out</span>
+            ) : (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                {sweep.tickets_left} ticket{sweep.tickets_left === 1 ? '' : 's'} left
+              </span>
+            )}
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sweep.draw_hidden ? 'bg-gray-100 text-gray-500' : 'bg-violet-100 text-violet-700'}`}>
+              {!sweep.draw_open ? 'Draw opens soon' : sweep.draw_hidden ? 'Draw hidden' : 'Draw revealed'}
+            </span>
+          </div>
+        </div>
         {sweep.draw_hidden && (
           <p className="text-xs text-gray-400 mb-3">
             You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here.
