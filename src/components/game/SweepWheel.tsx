@@ -99,11 +99,13 @@ export function SweepWheel({ horses, onDraw }: {
     setSpinKey(k => k + 1)
   }
 
-  async function handleTap(e: React.PointerEvent<HTMLDivElement>) {
-    if (phase !== 'fast' || n === 0) return
+  // Tapping the wheel or the prompt below it — the angle is always measured from the wheel's
+  // centre, so a tap on the prompt picks the segment at the bottom.
+  async function handleTap(e: React.PointerEvent<HTMLElement>) {
+    if (phase !== 'fast' || n === 0 || !containerRef.current) return
     setPhase('settling')   // blocks a second tap; the wheel keeps spinning while we draw
 
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+    const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - (rect.left + rect.width / 2)
     const dy = e.clientY - (rect.top + rect.height / 2)
     const screenAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360
@@ -206,17 +208,16 @@ export function SweepWheel({ horses, onDraw }: {
           <circle cx={cxp} cy={cyp} r={22} fill="#0a0a1f" stroke="#22d3ee" strokeWidth={1.5}
             filter="url(#sweep-glow)" style={{ animation: 'sweep-pulse 1.6s ease-in-out infinite' }} />
         </svg>
-
-        {/* Tap-to-pick overlay */}
-        {phase === 'fast' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-white font-black text-sm tracking-widest uppercase px-4 py-2 rounded-full"
-              style={{ background: 'rgba(0,0,0,0.45)', textShadow: '0 0 12px #22d3ee', animation: 'sweep-prompt 0.9s ease-in-out infinite' }}>
-              Tap to pick!
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* Tap prompt — below the wheel, not on it: the container's motion blur would smear it. */}
+      {phase === 'fast' && (
+        <button type="button" onPointerDown={handleTap}
+          className="mt-5 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white text-base font-black tracking-widest uppercase px-6 py-3 rounded-xl select-none"
+          style={{ animation: 'sweep-prompt 0.7s ease-in-out infinite' }}>
+          👆 Tap the wheel to pick!
+        </button>
+      )}
 
       {phase === 'idle' && (
         <button onClick={startSpin}
@@ -255,8 +256,8 @@ export function SweepWheel({ horses, onDraw }: {
           50%      { filter: url(#sweep-glow) drop-shadow(0 0 10px #22d3ee); }
         }
         @keyframes sweep-prompt {
-          0%, 100% { opacity: 0.75; transform: scale(1); }
-          50%      { opacity: 1;    transform: scale(1.08); }
+          0%, 100% { opacity: 1;    transform: scale(1.06); box-shadow: 0 0 24px 4px rgba(34,211,238,0.7); }
+          50%      { opacity: 0.35; transform: scale(1);    box-shadow: 0 0 0 0 rgba(34,211,238,0); }
         }
       `}</style>
     </div>
