@@ -5,7 +5,7 @@ import { grantTickets } from '@/lib/sweep/tickets'
 import { loadField } from '@/lib/sweep/field'
 import { createNotifications } from '@/lib/notifications'
 import { signReceiptUrls } from '@/lib/sweep/receipts'
-import { getOrganiserDetails, hasPaymentDetails } from '@/lib/sweep/organiser'
+import { bankTransferEnabled, getOrganiserDetails } from '@/lib/sweep/organiser'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (paymentMethod === 'iou' && !(comp as any)?.allow_iou) {
     return NextResponse.json({ error: 'IOU is not enabled for this sweep' }, { status: 403 })
   }
-  // No bank details on file → the buyer can't be told where to send the money.
-  if (paymentMethod === 'bank_transfer' && !hasPaymentDetails(await getOrganiserDetails(admin, tribe.comp_id))) {
+  // No bank details on file (and none shared directly) → the buyer can't know where to pay.
+  if (paymentMethod === 'bank_transfer' && !bankTransferEnabled(await getOrganiserDetails(admin, tribe.comp_id))) {
     return NextResponse.json({ error: "Your organiser hasn't added bank details yet — pay by cash, or check back later." }, { status: 409 })
   }
 

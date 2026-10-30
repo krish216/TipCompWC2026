@@ -522,6 +522,11 @@ export default function SweepPage() {
                     {paidPools > 0 && ` You'll pay $${cost.toFixed(2)} by card after creating.`}
                   </p>
                 )}
+                {billing && !billing.enabled && (
+                  <p className="text-[11px] text-gray-400 -mt-1 mb-3">
+                    Free to run this Cup — every pool, no fees from TribePicks.
+                  </p>
+                )}
                 <button
                   onClick={handleCreate} disabled={creating || !name.trim() || !priceCents}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-lg"

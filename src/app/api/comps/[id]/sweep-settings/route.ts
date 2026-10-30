@@ -53,6 +53,14 @@ function parseOrganiserDetails(raw: any): { value: Record<string, any> } | { err
       out.payid = norm.value
     }
   }
+  // "I'll share my bank details directly" (migration 202) — only with the organiser's
+  // confirmation that everyone buying a ticket has, or will get, them.
+  if (raw.bank_shared_directly !== undefined) {
+    if (raw.bank_shared_directly === true && raw.bank_shared_confirmed !== true) {
+      return { error: 'Confirm you\'ve shared, or will share, your bank details with everyone buying a ticket.' }
+    }
+    out.bank_shared_directly = raw.bank_shared_directly === true
+  }
   for (const [key, max] of [['bank_account_name', 80], ['contact_name', 60], ['contact_phone', 30]] as const) {
     const v = text(raw[key], max)
     if (v !== undefined) out[key] = v

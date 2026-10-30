@@ -6,6 +6,7 @@ import Link from 'next/link'
 import QRCode from 'qrcode'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
+import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { PRIZE_PRESETS, fmtCents, isValidSplit, type PoolPrizes } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
@@ -41,11 +42,12 @@ type OrganiserDetails = {
   approval_window_hours: number
   bank_account_name: string; bank_bsb: string; bank_account_number: string; payid: string; payid_kind: PayIdKind
   contact_name: string; contact_phone: string; contact_email: string
+  bank_shared_directly: boolean; bank_shared_confirmed: boolean   // migration 202
 }
 const APPROVAL_WINDOWS = [2, 6, 12, 24]
 const EMPTY_DETAILS: OrganiserDetails = {
   approval_window_hours: 12, bank_account_name: '', bank_bsb: '', bank_account_number: '', payid: '', payid_kind: 'mobile',
-  contact_name: '', contact_phone: '', contact_email: '',
+  contact_name: '', contact_phone: '', contact_email: '', bank_shared_directly: false, bank_shared_confirmed: false,
 }
 const PAYID_KINDS: { kind: PayIdKind; label: string; placeholder: string; inputMode: 'tel' | 'email' | 'numeric' }[] = [
   { kind: 'mobile', label: 'Mobile', placeholder: '0412 345 678', inputMode: 'tel' },
@@ -55,6 +57,9 @@ const PAYID_KINDS: { kind: PayIdKind; label: string; placeholder: string; inputM
 // Same rules as hasPaymentDetails()/hasContact() in lib/sweep/organiser.ts.
 const detailsHavePayment = (d: OrganiserDetails) => !!(d.bank_account_name && ((d.bank_bsb && d.bank_account_number) || d.payid))
 const detailsHaveContact = (d: OrganiserDetails) => !!(d.contact_phone || d.contact_email)
+// …and bankTransferEnabled(): details shown here, or shared directly (and confirmed).
+const detailsAllowTransfer = (d: OrganiserDetails) =>
+  d.bank_shared_directly ? d.bank_shared_confirmed : detailsHavePayment(d)
 
 export default function SweepAdminPage() {
   const { session } = useSupabase()
@@ -169,14 +174,22 @@ export default function SweepAdminPage() {
       bank_account_name: d.bank_account_name ?? '', bank_bsb: d.bank_bsb ?? '',
       bank_account_number: d.bank_account_number ?? '', payid: d.payid ?? '', payid_kind: payIdKind(d.payid ?? null) ?? 'mobile',
       contact_name: d.contact_name ?? '', contact_phone: d.contact_phone ?? '', contact_email: d.contact_email ?? '',
+      // Saved as "shared directly" means it was confirmed when it was saved.
+      bank_shared_directly: !!d.bank_shared_directly, bank_shared_confirmed: !!d.bank_shared_directly,
     }
     setDetails(loaded); setSavedDetails(loaded); setDetailsError(null); setDetailsSavedAt(null)
   }
 
   async function saveDetails() {
     setSavingDetails(true); setDetailsError(null)
+    // Sharing directly → nothing of the bank account stays on TribePicks.
+    // Never switched on → leave the flag out, so saving works before migration 202 too.
+    const { bank_shared_directly: _s, bank_shared_confirmed: _c, ...rest } = details
+    const body = details.bank_shared_directly
+      ? { ...details, bank_account_name: '', bank_bsb: '', bank_account_number: '', payid: '' }
+      : savedDetails.bank_shared_directly ? details : rest
     const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ organiser_details: details }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ organiser_details: body }),
     }).then(r => r.json())
     setSavingDetails(false)
     // Inline on the card, like the delete error — the page-top banner is out of view down here.
@@ -493,13 +506,13 @@ export default function SweepAdminPage() {
       {/* Before sharing the link: which ways buyers can pay, and how to switch the rest on.
           Mirrors what the buy box offers (cash always; transfer needs saved details; IOU is opt-in). */}
       {activeTab === 'sell' && comp && settings && (() => {
-        const bankOn = detailsHavePayment(savedDetails)
+        const bankOn = detailsAllowTransfer(savedDetails)
         const channels = [
           { label: 'Cash', on: true, note: 'You tick each request off once you’ve been paid.' },
           { label: 'Bank transfer', on: bankOn,
             note: bankOn
-              ? `Buyers attach a receipt — ${settings.sweep_approval_mode === 'auto' ? 'approved automatically' : 'you approve each one'}.`
-              : 'Add your bank details or PayID to turn this on.' },
+              ? `${savedDetails.bank_shared_directly ? 'You send buyers your bank details yourself; they' : 'Buyers'} attach a receipt — ${settings.sweep_approval_mode === 'auto' ? 'approved automatically' : 'you approve each one'}.`
+              : 'Add your bank details or PayID — or share them directly — to turn this on.' },
           { label: 'IOU', on: settings.allow_iou,
             note: settings.allow_iou ? 'Buyers get tickets now and pay you later.' : 'Off — turn on if you’re happy to be paid later.' },
         ]
@@ -539,6 +552,13 @@ export default function SweepAdminPage() {
             <a href={`mailto:?subject=${encodeURIComponent(`Join my sweep: ${comp.name}`)}&body=${waText}`} className="text-sm font-bold text-emerald-600 hover:underline">Email →</a>
           </div>
         </div>
+      )}
+
+      {/* Running a sweep is free this Cup — the organiser nudge to chip in. */}
+      {activeTab === 'sell' && comp && !isPracticeComp && (
+        <FeedLuckNudge className="mt-4" source="sweep_organiser"
+          message="Your sweep is free on TribePicks this Cup — feed our doggies to keep it that way 🐾"
+          luckyMessage={name => `🍀 ${name}’s backing your sweep — thanks for feeding the pack!`} />
       )}
 
       {/* The practice crew → this real sweep. Email invites (with /sweep's one-tap Join) for
@@ -790,10 +810,37 @@ export default function SweepAdminPage() {
 
           <div className={cardClass(detailsDirty)}>
             <h2 className="font-bold text-gray-900 mb-1 text-sm">Bank transfer</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              Where buyers pay you. These details show to everyone in your sweep.
-            </p>
+            <p className="text-xs text-gray-500 mb-3">Where buyers pay you.</p>
 
+            {/* Show the details here, or hand them out yourself (migration 202). */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {([[false, 'Show them in my sweep'], [true, "I'll share them directly"]] as const).map(([direct, label]) => (
+                <button key={label} type="button" onClick={() => setDetails(d => ({ ...d, bank_shared_directly: direct }))}
+                  className={`text-xs font-bold px-3 py-2 rounded-lg ${details.bank_shared_directly === direct ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {details.bank_shared_directly ? (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-3">
+                  Send your bank details or PayID to your group yourself — WhatsApp, email or in person. Buyers who pick
+                  bank transfer are told to get them from you, then attach their receipt here as usual.
+                  {detailsHaveContact(details) ? ' Your contact details below show to them, in case they missed yours.' : ' Add a contact mobile or email below so buyers who missed them can ask.'}
+                </p>
+                <label className="flex items-start gap-2 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 cursor-pointer">
+                  <input type="checkbox" checked={details.bank_shared_confirmed} className="mt-0.5"
+                    onChange={e => setDetails(d => ({ ...d, bank_shared_confirmed: e.target.checked }))} />
+                  <span>I've shared, or will share, my bank details with everyone buying a ticket in this sweep.</span>
+                </label>
+                {detailsHavePayment(savedDetails) && (
+                  <p className="text-[11px] text-amber-700 mt-2">Saving this removes the bank details stored on TribePicks.</p>
+                )}
+              </div>
+            ) : (
+            <>
+            <p className="text-xs text-gray-500 mb-3">These details show to everyone in your sweep.</p>
             <div className="space-y-2 mb-1">
               <input value={details.bank_account_name} onChange={e => setDetails(d => ({ ...d, bank_account_name: e.target.value }))}
                 placeholder="Account name" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
@@ -842,19 +889,21 @@ export default function SweepAdminPage() {
                 ? 'Bank transfer is available to buyers.'
                 : 'Needs an account name plus BSB & account number, or a PayID. Until then buyers can only pay cash.'}
             </p>
+            </>
+            )}
             {saveDetailsRow}
 
-            <div className={`border-t border-gray-100 mt-4 pt-4 ${detailsHavePayment(savedDetails) ? '' : 'opacity-50'}`}>
+            <div className={`border-t border-gray-100 mt-4 pt-4 ${detailsAllowTransfer(savedDetails) ? '' : 'opacity-50'}`}>
               <p className="text-xs font-semibold text-gray-700 mb-1">Approving transfers</p>
               <p className="text-xs text-gray-500 mb-3">
-                {detailsHavePayment(savedDetails)
+                {detailsAllowTransfer(savedDetails)
                   ? 'Manual: you review each receipt. Auto: approved the instant a receipt is attached.'
                   : 'Save your bank details above to turn on bank transfers.'}
               </p>
               <div className="flex gap-2">
                 {(['manual', 'auto'] as const).map(m => (
                   <button key={m} onClick={() => updateSetting('sweep_approval_mode', m)}
-                    disabled={savingSetting === 'sweep_approval_mode' || !detailsHavePayment(savedDetails)}
+                    disabled={savingSetting === 'sweep_approval_mode' || !detailsAllowTransfer(savedDetails)}
                     className={`text-xs font-bold px-3 py-1.5 rounded-lg capitalize ${settings.sweep_approval_mode === m ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
                     {m}
                   </button>

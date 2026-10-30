@@ -16,20 +16,24 @@ export type OrganiserDetails = {
   contact_name:          string | null
   contact_phone:         string | null
   contact_email:         string | null
+  bank_shared_directly:  boolean   // migration 202: organiser gives buyers bank details themselves
 }
 
 const EMPTY: OrganiserDetails = {
   approval_window_hours: DEFAULT_APPROVAL_WINDOW,
   bank_account_name: null, bank_bsb: null, bank_account_number: null, payid: null,
-  contact_name: null, contact_phone: null, contact_email: null,
+  contact_name: null, contact_phone: null, contact_email: null, bank_shared_directly: false,
 }
+
+const DETAIL_COLS = 'approval_window_hours, bank_account_name, bank_bsb, bank_account_number, payid, contact_name, contact_phone, contact_email'
 
 // Never throws — a missing row (or the table not existing yet, pre-migration) just means
 // "nothing set up", so callers fall back to the defaults.
 export async function getOrganiserDetails(admin: any, compId: string): Promise<OrganiserDetails> {
-  const { data, error } = await (admin.from('sweep_organiser_details') as any)
-    .select('approval_window_hours, bank_account_name, bank_bsb, bank_account_number, payid, contact_name, contact_phone, contact_email')
-    .eq('comp_id', compId).maybeSingle()
+  const table = () => (admin.from('sweep_organiser_details') as any)
+  let { data, error } = await table().select(`${DETAIL_COLS}, bank_shared_directly`).eq('comp_id', compId).maybeSingle()
+  // Before migration 202 the column doesn't exist — read the rest rather than lose it all.
+  if (error) ({ data, error } = await table().select(DETAIL_COLS).eq('comp_id', compId).maybeSingle())
   if (error || !data) return { ...EMPTY }
   return { ...EMPTY, ...data }
 }
@@ -70,6 +74,12 @@ export function normalisePayId(kind: PayIdKind, raw: string): { value: string } 
 // Bank transfer is only offerable once the buyer can be told where to send the money.
 export function hasPaymentDetails(d: OrganiserDetails): boolean {
   return !!(d.bank_account_name && ((d.bank_bsb && d.bank_account_number) || d.payid))
+}
+
+// Bank transfer is on offer when buyers can find out where to pay: details shown on the
+// page, or the organiser has confirmed they share them directly.
+export function bankTransferEnabled(d: OrganiserDetails): boolean {
+  return hasPaymentDetails(d) || d.bank_shared_directly
 }
 
 export function hasContact(d: OrganiserDetails): boolean {

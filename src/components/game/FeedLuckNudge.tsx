@@ -9,11 +9,20 @@ import { DogAvatar } from '@/components/game/DogAvatar'
 //   • You've fed → your lucky doggie is "rooting for you this round" (the reward). Dismissible
 //     per session (it's a positive charm, not a nag).
 //   • You haven't → a gentle "feed a doggie for luck before kickoff" nudge. Dismissible for good.
-// Feeding is a donation and never affects scoring.
+// Feeding is a donation and never affects scoring (or, in a sweep, which horse you draw).
+// Also used on sweeps (Melbourne Cup is free this year) — `source` tags analytics and keeps
+// each surface's dismissal separate; `message`/`luckyMessage` swap the copy.
 const GEN_KEY   = 'feedLuckDismissed'      // localStorage — hide the generic nudge for good
 const LUCKY_KEY = 'luckyDogDismissed'      // sessionStorage — hide the charm this session
 
-export function FeedLuckNudge({ className }: { className?: string }) {
+export function FeedLuckNudge({ className, source = 'predict_nudge', message, luckyMessage }: {
+  className?: string
+  source?: string
+  message?: string
+  luckyMessage?: (dogName: string) => string
+}) {
+  const suffix = source === 'predict_nudge' ? '' : `:${source}`
+  const genKey = GEN_KEY + suffix, luckyKey = LUCKY_KEY + suffix
   const [dog, setDog] = useState<Dog | null>(null)
   const [hasLucky, setHasLucky] = useState(false)
 
@@ -25,20 +34,20 @@ export function FeedLuckNudge({ className }: { className?: string }) {
         if (cancelled) return
         const lucky = d?.luckyDog ? dogBySlug(d.luckyDog) : null
         if (lucky) {
-          if (sessionStorage.getItem(LUCKY_KEY)) return
+          if (sessionStorage.getItem(luckyKey)) return
           setDog(lucky); setHasLucky(true)
         } else {
-          if (localStorage.getItem(GEN_KEY)) return
+          if (localStorage.getItem(genKey)) return
           setDog(DOGS[Math.floor(Math.random() * DOGS.length)]); setHasLucky(false)
         }
       })
-      .catch(() => { if (!cancelled && !localStorage.getItem(GEN_KEY)) { setDog(DOGS[0]); setHasLucky(false) } })
+      .catch(() => { if (!cancelled && !localStorage.getItem(genKey)) { setDog(DOGS[0]); setHasLucky(false) } })
     return () => { cancelled = true }
-  }, [])
+  }, [genKey, luckyKey])
 
   if (!dog) return null
   const dismiss = () => {
-    try { hasLucky ? sessionStorage.setItem(LUCKY_KEY, '1') : localStorage.setItem(GEN_KEY, '1') } catch {}
+    try { hasLucky ? sessionStorage.setItem(luckyKey, '1') : localStorage.setItem(genKey, '1') } catch {}
     setDog(null)
   }
 
@@ -47,9 +56,11 @@ export function FeedLuckNudge({ className }: { className?: string }) {
       <DogAvatar photo={dog.photo} name={dog.name} className="w-10 h-10 rounded-full flex-shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-amber-900 leading-snug">
-          {hasLucky ? `🍀 ${dog.name}’s got your back this round — good luck!` : 'Feed our hungry doggies for Good Luck 🐾'}
+          {hasLucky
+            ? (luckyMessage?.(dog.name) ?? `🍀 ${dog.name}’s got your back this round — good luck!`)
+            : (message ?? 'Feed our hungry doggies for Good Luck 🐾')}
         </p>
-        <a href="/feed" onClick={() => track('feed_cta_click', { source: 'predict_nudge', state: hasLucky ? 'lucky' : 'new' })}
+        <a href={`/feed?src=${encodeURIComponent(source)}`} onClick={() => track('feed_cta_click', { source, state: hasLucky ? 'lucky' : 'new' })}
           className="text-xs font-bold text-amber-700 hover:text-amber-900">{hasLucky ? 'Feed again →' : 'Feed the pack →'}</a>
       </div>
       <button onClick={dismiss} aria-label="Dismiss" className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0">×</button>

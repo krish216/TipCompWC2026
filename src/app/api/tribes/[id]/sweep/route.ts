@@ -175,7 +175,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       account_number: organiser.bank_account_number,
       payid:          organiser.payid,
     } : null,
-    organiser_contact:     (overdue || isAdmin) && hasContact(organiser)
+    // Bank transfer with the details given out by the organiser (migration 202). Their
+    // contact shows up front then, so a buyer who missed the details can ask for them.
+    bank_shared_directly:  !hasPaymentDetails(organiser) && organiser.bank_shared_directly,
+    organiser_contact:     (overdue || isAdmin || (!hasPaymentDetails(organiser) && organiser.bank_shared_directly)) && hasContact(organiser)
       ? { phone: organiser.contact_phone, email: organiser.contact_email }
       : null,
   })

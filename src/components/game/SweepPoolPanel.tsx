@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
+import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
 import { fmtCents, type PoolPrizes } from '@/lib/sweep/prizes'
@@ -35,7 +36,8 @@ type SweepState = {
   approval_window_hours: number
   race_start_at: string | null
   payment_details: { account_name: string | null; bsb: string | null; account_number: string | null; payid: string | null } | null
-  organiser_contact: { phone: string | null; email: string | null } | null   // only once a request of yours is overdue
+  bank_shared_directly: boolean   // bank transfer, details given out by the organiser (migration 202)
+  organiser_contact: { phone: string | null; email: string | null } | null   // once a request of yours is overdue, or up front when bank details are shared directly
   ticket_price_cents: number | null
   prizes: PoolPrizes | null   // null until the organiser sets a ticket price
   is_practice: boolean        // practice sweep (migration 200): no real money, pretend race
@@ -316,6 +318,7 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
               {/* Only methods the organiser has switched on. No bank details on file → nowhere to
                   tell the buyer to send money, so no transfer option at all. */}
               {sweep.payment_details && <option value="bank_transfer">Bank transfer — attach a receipt</option>}
+              {sweep.bank_shared_directly && <option value="bank_transfer">Bank transfer — details from {sweep.organiser_name ?? 'your organiser'}</option>}
               {sweep.allow_iou && <option value="iou">IOU — pay your organiser later</option>}
             </select>
             <button onClick={handleBuy} disabled={buying}
@@ -349,6 +352,33 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
                     {sweep.approval_mode === 'auto'
                       ? "It's approved the moment you attach it."
                       : `${who} will check it ${windowText} — we'll email you as soon as they approve, then come back and spin.`}
+                  </p>
+                </div>
+              )
+            }
+            if (buyMethod === 'bank_transfer' && sweep.bank_shared_directly) {
+              const c = sweep.organiser_contact
+              return (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 mb-3 text-xs">
+                  <p className="font-semibold text-gray-700 mb-1">Get the bank details from {who}</p>
+                  <p className="text-gray-600">
+                    {who} shares their bank details / PayID directly — check your group chat or messages
+                    {c ? <>, or ask them:{' '}
+                      {c.phone && <a href={`tel:${c.phone}`} className="underline font-semibold">{c.phone}</a>}
+                      {c.phone && c.email && ' · '}
+                      {c.email && <a href={`mailto:${c.email}`} className="underline font-semibold">{c.email}</a>}
+                    </> : '.'}
+                  </p>
+                  <p className="text-gray-500 mt-1.5">
+                    Then attach your receipt to the request below.{' '}
+                    {sweep.approval_mode === 'auto'
+                      ? "It's approved the moment you attach it."
+                      : `${who} will check it ${windowText} — we'll email you as soon as they approve, then come back and spin.`}
+                  </p>
+                  {/* Details passed around a chat are easier to fake than ones shown here. */}
+                  <p className="mt-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-2.5 py-1.5">
+                    ⚠️ Only pay into details that came from {who} themselves. If anyone else sends you
+                    bank details, or they change, check with {who} before you pay. TribePicks never asks you to pay us.
                   </p>
                 </div>
               )
@@ -478,6 +508,14 @@ export function SweepPoolPanel({ tribeId }: { tribeId: string }) {
             <p className="text-xs text-emerald-700 mt-2">🔒 You'll see who drew every horse once the pool fills.</p>
           )}
         </div>
+      )}
+
+      {/* Sweeps are free this Cup — a gentle donation nudge once you're holding a ticket.
+          Never touches the draw. */}
+      {!sweep.is_practice && (sweep.my_horses.length > 0 || sweep.my_unclaimed > 0) && !sweep.podium.some(p => p.horse) && (
+        <FeedLuckNudge className="mb-5" source="sweep_ticket"
+          message="Feed our hungry doggies for luck on your horse 🐾"
+          luckyMessage={name => `🍀 ${name}’s cheering your horse home!`} />
       )}
 
       {sweep.podium.some(p => p.horse) && (
