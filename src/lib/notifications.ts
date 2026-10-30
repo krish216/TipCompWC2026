@@ -17,6 +17,7 @@ export type NotificationType =
   | 'sweep_results_ready'   // a tribe's podium is fully determined — results are in for its members
   | 'sweep_request_approved' // the buyer's ticket request was approved — they can spin
   | 'sweep_request_rejected' // the buyer's ticket request was rejected
+  | 'sweep_request_cancelled' // a buyer withdrew their own pending ticket request
   | 'sweep_payment_reminder' // a buyer nudged the organiser about an overdue request
   | 'sweep_draw_open'        // the final field is in (or it's race morning) — you've tickets to spin
 

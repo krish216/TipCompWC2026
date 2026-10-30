@@ -63,8 +63,9 @@ type SweepState = {
 }
 type MyRequest = {
   id: string; tickets_requested: number; payment_method: 'cash' | 'bank_transfer' | 'iou'
-  status: 'pending' | 'approved' | 'rejected'; amount: number | null; receipt_url: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'; amount: number | null; receipt_url: string | null
   created_at: string; notes: string | null; last_reminded_at: string | null; receipt_attached_at: string | null
+  auto_draw?: boolean
 }
 
 // Mirrors approvalDeadline() in lib/sweep/organiser.ts: the window from when the request
@@ -103,6 +104,12 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   // Errors shown beside the button that caused them — the page-level `error` sits at the very
   // bottom, a screen or more away from the Buy card and hidden behind the buy-on-behalf sheet.
   const [buyError, setBuyError] = useState<string | null>(null)
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
+  // The request just sent — its "what happens next" card says "Request sent" and is scrolled
+  // into view, so the buyer sees it went through (the Buy card is far down the page).
+  const [justRequestedId, setJustRequestedId] = useState<string | null>(null)
+  const topRef = useRef<HTMLDivElement>(null)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [basketError, setBasketError] = useState<string | null>(null)
 
   const [myRequests, setMyRequests] = useState<MyRequest[]>([])
@@ -237,6 +244,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     if (res.error) { setBuyError(res.error); return }
     setBuyCount('1')
     await load()
+    // Pending → the "what happens next" card at the top; an IOU is approved on the spot, so
+    // the wheel (or "tickets secured") is what's at the top instead.
+    setJustRequestedId(res.request?.id ?? null)
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   async function handleReceipt(requestId: string, file: File) {
@@ -246,6 +257,17 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     const res = await fetch(`/api/tribes/${tribeId}/sweep/requests/${requestId}/receipt`, { method: 'POST', body: form }).then(r => r.json())
     setUploadingId(null)
     if (res.error) { setError(res.error); return }
+    await load()
+  }
+
+  // The buyer withdrawing their own pending request — frees the tickets it was holding.
+  async function handleCancelRequest(requestId: string) {
+    setCancellingId(requestId); setConfirmCancelId(null); setBuyError(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/requests/${requestId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel' }),
+    }).then(r => r.json())
+    setCancellingId(null)
+    if (res.error) { setBuyError(res.error); return }
     await load()
   }
 
@@ -272,6 +294,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   return (
     <>
+      <div ref={topRef} className="scroll-mt-20" />
       {/* Approved tickets waiting to spin come FIRST — it's what the holder came back for.
           Below the buy card, on a phone, it sat several screens down and looked missing. */}
       {!sweep.draw_open && sweep.my_unclaimed > 0 ? (
@@ -308,25 +331,97 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         </div>
       )}
 
-      {/* Your horses — straight under the wheel, in its night-sky theme, so the moment the
+      {/* What happens next, for each request still waiting — the confirmation that it went
+          through, and the steps that are now the buyer's (pay, attach a receipt) or the
+          organiser's (approve). Up top: on a phone the Buy card's request list is screens away. */}
+      {myRequests.filter(r => r.status === 'pending').map(r => {
+        const who = sweep.organiser_name ?? 'your organiser'
+        const amount = r.amount != null ? fmtDollars(r.amount) : null
+        const isBank = r.payment_method === 'bank_transfer'
+        const receipt = !!r.receipt_attached_at
+        const pd = sweep.payment_details
+        const steps: { done?: boolean; body: React.ReactNode }[] = []
+        if (isBank) {
+          steps.push({
+            done: receipt,
+            body: receipt ? 'Transfer sent — receipt attached' : (
+              <>
+                Transfer {amount ?? 'the ticket money'} to {who}
+                {pd ? (
+                  <span className="block font-mono text-[11px] text-gray-700 mt-0.5">
+                    {pd.account_name && <>{pd.account_name} · </>}
+                    {pd.bsb && pd.account_number && <>BSB {pd.bsb} · Acc {pd.account_number}</>}
+                    {pd.payid && <>{pd.bsb ? ' · ' : ''}PayID {pd.payid}</>}
+                  </span>
+                ) : <> using the bank details they gave you</>}
+              </>
+            ),
+          })
+          if (!receipt) steps.push({
+            body: (
+              <>
+                Attach your receipt{' '}
+                <label className="text-emerald-700 font-bold underline cursor-pointer">
+                  {uploadingId === r.id ? 'Uploading…' : 'Attach receipt'}
+                  <input type="file" accept="image/*,.pdf" className="hidden" disabled={uploadingId === r.id}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleReceipt(r.id, f) }} />
+                </label>
+              </>
+            ),
+          })
+        } else {
+          steps.push({ body: `Pay ${who}${amount ? ` ${amount}` : ''} in person` })
+        }
+        steps.push({
+          body: isBank && sweep.approval_mode === 'auto'
+            ? 'It’s approved the moment you attach the receipt — we’ll email you'
+            : `${who} approves it — expected by ${fmtWhen(requestDeadline(r, sweep.approval_window_hours, sweep.race_start_at))}. We’ll email you.`,
+        })
+        steps.push({
+          body: r.auto_draw
+            ? (sweep.draw_open ? 'We draw your horse for you straight away' : `We draw your horse for you when the draw opens ${sweep.draw_opens_label}`)
+            : (sweep.draw_open ? 'Come back and spin for your horse' : `Spin for your horse once the draw opens ${sweep.draw_opens_label}`),
+        })
+        return (
+          <div key={r.id} className="border border-sky-200 bg-sky-50 rounded-2xl p-5 mb-5">
+            <p className="text-sm font-bold text-sky-900">{r.id === justRequestedId ? '✅ Request sent' : '⏳ Waiting for approval'}</p>
+            <p className="text-xs text-sky-800 mb-3">
+              {r.tickets_requested} ticket{r.tickets_requested === 1 ? '' : 's'}{amount ? ` · ${amount}` : ''} · {METHOD_LABEL[r.payment_method].replace(' (owed)', '')}
+            </p>
+            <p className="text-[11px] font-bold text-sky-900 uppercase tracking-wide mb-1.5">What happens next</p>
+            <ol className="space-y-1.5">
+              {steps.map((st, i) => (
+                <li key={i} className="flex gap-2 text-xs text-gray-700">
+                  <span className={`w-5 h-5 flex-shrink-0 rounded-full text-[11px] font-bold flex items-center justify-center ${st.done ? 'bg-emerald-600 text-white' : 'bg-white border border-sky-300 text-sky-800'}`}>
+                    {st.done ? '✓' : i + 1}
+                  </span>
+                  <span className="pt-0.5">{st.body}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )
+      })}
+
+      {/* Your horses — straight under the wheel, in its brand greens, so the moment the
           wheel lands the result is right there (with confetti for the one just drawn). */}
       {sweep.my_horses.length > 0 && (
-        <div className="rounded-2xl p-5 mb-5 text-center border border-cyan-400/30"
-          style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a1745 0%, #0b0a26 60%, #050414 100%)', boxShadow: '0 0 32px 2px rgba(34,211,238,0.18)' }}>
-          <p className="text-xs text-cyan-300 font-bold uppercase tracking-widest mb-2">
+        <div className="rounded-2xl p-5 mb-5 text-center border border-amber-400/40"
+          style={{ background: 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)', boxShadow: '0 8px 32px rgba(10,46,28,0.3)' }}>
+          <p className="text-xs text-amber-300 font-bold uppercase tracking-widest mb-2">
             🏇 Your horse{sweep.my_horses.length === 1 ? '' : 's'}
           </p>
           <div className="space-y-1">
             {sweep.my_horses.map(h => isHidden(h) ? null : (
-              <p key={h.id} className={`text-lg font-black ${h.id === justDrawnId ? 'text-fuchsia-300' : 'text-white'}`}
-                style={{ textShadow: h.id === justDrawnId ? '0 0 14px #e879f9' : '0 0 10px rgba(34,211,238,0.6)' }}>
+              <p key={h.id} className={`text-lg font-black ${h.id === justDrawnId ? 'text-amber-300' : 'text-white'}`}
+                style={{ textShadow: h.id === justDrawnId ? '0 0 14px rgba(251,191,36,0.7)' : 'none' }}>
                 {h.id === justDrawnId && '✨ '}#{h.number} {h.name}
                 {h.scratched && <span className="text-xs text-red-300 font-normal ml-2">Scratched — not racing 😬</span>}
               </p>
             ))}
           </div>
           {sweep.draw_hidden && (
-            <p className="text-xs text-cyan-200/70 mt-2">🔒 You'll see who drew every horse once the pool fills.</p>
+            <p className="text-xs text-emerald-200/70 mt-2">🔒 You'll see who drew every horse once the pool fills.</p>
           )}
         </div>
       )}
@@ -535,7 +630,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-gray-600">
                       {r.tickets_requested} ticket{r.tickets_requested === 1 ? '' : 's'} · {r.payment_method.replace('_', ' ')} ·{' '}
-                      <span className={r.status === 'approved' ? 'text-emerald-600 font-semibold' : r.status === 'rejected' ? 'text-red-500' : 'text-amber-600'}>
+                      <span className={r.status === 'approved' ? 'text-emerald-600 font-semibold' : r.status === 'rejected' ? 'text-red-500' : r.status === 'cancelled' ? 'text-gray-400' : 'text-amber-600'}>
                         {r.status}
                       </span>
                     </span>
@@ -550,6 +645,31 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                       <a href={r.receipt_url} target="_blank" rel="noreferrer" className="text-gray-400 underline whitespace-nowrap">Receipt</a>
                     )}
                   </div>
+
+                  {/* Cancel while pending and nothing's been transferred. With a receipt attached the
+                      money has moved, so that's the organiser's to sort out. */}
+                  {r.status === 'pending' && !r.receipt_attached_at && (
+                    confirmCancelId === r.id ? (
+                      <div className="mt-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2">
+                        <p className="text-gray-700">
+                          Cancel this request for {r.tickets_requested} ticket{r.tickets_requested === 1 ? '' : 's'}?
+                          {r.payment_method === 'cash' && ` Only cancel if you haven't paid ${sweep.organiser_name ?? 'your organiser'} yet.`}
+                        </p>
+                        <span className="flex gap-3 mt-1.5">
+                          <button onClick={() => handleCancelRequest(r.id)} className="font-bold text-red-600">Yes, cancel it</button>
+                          <button onClick={() => setConfirmCancelId(null)} className="font-semibold text-gray-500">Keep it</button>
+                        </span>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmCancelId(r.id)} disabled={cancellingId === r.id}
+                        className="mt-0.5 text-gray-400 hover:text-red-600 underline disabled:opacity-50">
+                        {cancellingId === r.id ? 'Cancelling…' : 'Cancel request'}
+                      </button>
+                    )
+                  )}
+                  {r.status === 'pending' && r.receipt_attached_at && (
+                    <p className="text-gray-400 mt-0.5">Already paid? To cancel, ask {sweep.organiser_name ?? 'your organiser'} to sort it out.</p>
+                  )}
 
                   {r.status === 'rejected' && r.notes && (
                     <p className="text-red-500 mt-0.5">Note from your organiser: {r.notes}</p>
@@ -731,8 +851,9 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                 const details = horseDetails(h)
                 return (
                   // Banded rows for scanning a 24-runner sheet; your own horses stay green on top.
+                  // gray-50 vanished: the card has no fill, so it sits on the gray-50 page.
                   <div key={h.id} className={`flex items-start justify-between gap-3 py-2 px-2 -mx-2 rounded-lg text-sm ${
-                    mine.has(h.id) ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-50'}`}>
+                    mine.has(h.id) ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-200/60'}`}>
                     <span className="flex items-start gap-2 min-w-0">
                       {finish && (
                         <span className="w-9 flex-shrink-0 text-xs font-bold text-gray-500 pt-0.5">

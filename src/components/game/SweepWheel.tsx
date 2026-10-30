@@ -5,16 +5,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null }
 type PickResult = { ok: boolean; horse?: Horse; error?: string }
 
-const NEON = ['#22d3ee', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa']
+// TribePicks brand: the dark-green hero card, emerald slices, gold for the "pick" moment.
+const BRAND_BG = 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)'
+const SLICES   = ['#16a34a', '#0f6b34']   // alternating emerald, light / deep
+const GOLD     = '#fbbf24'
 
 // Smoothstep ease — natural accel/decel, no overshoot.
 const smoothstep = (x: number) => x * x * (3 - 2 * x)
 
-/** A futuristic spin-the-wheel horse draw. Starts slow (field is readable), accelerates
+/** A spin-the-wheel horse draw, in the TribePicks greens. Starts slow (field is readable), accelerates
  *  until it's spinning too fast to track, then prompts a tap. The tap asks the SERVER to
  *  draw (onDraw — a uniform random pick; the client never chooses the horse), and the wheel
- *  then eases onto the drawn horse's segment right under the tap point, so it still feels
- *  like "where you tapped is what you got". `slots` is how many horses are still undrawn —
+ *  then eases the slice under the gold pointer to a stop — that's your horse. `slots` is how many horses are still undrawn —
  *  only a count, never which ones: every segment is an identical horse icon, so the wheel
  *  can't reveal the undrawn field. You see the horse you drew; who drew what across the
  *  pool stays hidden until the pool closes. */
@@ -39,19 +41,6 @@ export function SweepWheel({ slots, onDraw }: {
   const [spinKey, setSpinKey] = useState(0)   // bumped only by startSpin — the loop's sole trigger
   const [result, setResult] = useState<PickResult | null>(null)
   const [hover, setHover]   = useState(false)
-
-  // Generated once — a lightweight CSS starfield (no canvas needed).
-  const stars = useMemo(() => {
-    const layers = [1, 2, 3].map(size => {
-      const count = size === 1 ? 90 : size === 2 ? 50 : 24
-      const shadows: string[] = []
-      for (let i = 0; i < count; i++) {
-        shadows.push(`${Math.round(Math.random() * 100)}vw ${Math.round(Math.random() * 100)}vh #fff`)
-      }
-      return { size, boxShadow: shadows.join(',') }
-    })
-    return layers
-  }, [])
 
   const segAngle = 360 / shown
 
@@ -105,22 +94,18 @@ export function SweepWheel({ slots, onDraw }: {
     setSpinKey(k => k + 1)
   }
 
-  // Tapping the wheel or the prompt below it — the angle is always measured from the wheel's
-  // centre, so a tap on the prompt picks the segment at the bottom.
-  async function handleTap(e: React.PointerEvent<HTMLElement>) {
+  // Tapping the wheel or the prompt below it stops the wheel; the slice under the gold pointer
+  // at the top is the one that's "yours" (the slices are identical, so it reveals nothing).
+  async function handleTap() {
     if (phase !== 'fast' || n === 0 || !containerRef.current) return
     setPhase('settling')   // blocks a second tap; the wheel keeps spinning while we draw
-
-    const rect = containerRef.current.getBoundingClientRect()
-    const dx = e.clientX - (rect.left + rect.width / 2)
-    const dy = e.clientY - (rect.top + rect.height / 2)
-    const screenAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360
+    const screenAngle = 0   // the pointer, at 12 o'clock
 
     const res = await onDraw()
     cancelAnimationFrame(frameRef.current)
     if (containerRef.current) containerRef.current.style.filter = 'none'
 
-    // Settle: ease the segment under the tap point onto its centre, so the stop feels
+    // Settle: ease the segment under the pointer onto its centre, so the stop feels
     // intentional rather than an abrupt freeze-frame. Segments are identical horse icons,
     // so where it stops reveals nothing — the drawn horse shows in the result below.
     const idx = res.ok && res.horse ? Math.floor(((screenAngle - angleRef.current) % 360 + 360) % 360 / segAngle) % shown : -1
@@ -153,34 +138,27 @@ export function SweepWheel({ slots, onDraw }: {
         className="relative rounded-3xl overflow-hidden select-none"
         style={{
           width: 320, height: 320,
-          background: 'radial-gradient(ellipse at 50% 30%, #0b0a26 0%, #050414 60%, #020208 100%)',
+          background: BRAND_BG,
           cursor: phase === 'fast' ? 'pointer' : 'default',
-          transform: 'perspective(900px) rotateX(8deg)',
-          boxShadow: hover
-            ? '0 0 60px 6px rgba(34,211,238,0.35), inset 0 0 40px rgba(167,139,250,0.08)'
-            : '0 0 32px 2px rgba(34,211,238,0.18), inset 0 0 30px rgba(167,139,250,0.05)',
+          boxShadow: hover ? '0 10px 40px rgba(10,46,28,0.45)' : '0 8px 32px rgba(10,46,28,0.3)',
           transition: 'box-shadow 300ms ease',
         }}
       >
-        {/* Starfield */}
-        {stars.map((layer, i) => (
-          <div key={i} style={{
-            position: 'absolute', top: 0, left: 0, width: 2 * layer.size, height: 2 * layer.size,
-            borderRadius: '50%', background: 'transparent', boxShadow: layer.boxShadow,
-            opacity: 0.8 - i * 0.15,
-            animation: `sweep-twinkle ${3 + i}s ease-in-out infinite alternate`,
-          }} />
-        ))}
+        {/* The hero card's diagonal texture, so the wheel reads as part of the app. */}
+        <div style={{
+          position: 'absolute', inset: 0, opacity: 0.05,
+          backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)',
+          backgroundSize: '12px 12px',
+        }} />
 
         {/* Wheel */}
         <svg viewBox="0 0 320 320" width={320} height={320} className="absolute inset-0">
           <defs>
-            <filter id="sweep-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation={hover ? 4.5 : 2.5} result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            {/* The hub shows the globe only (public/logo-mark.png, cropped from logo.png) — the
+                full logo's "TribePicks.com" wordmark is unreadable at hub size. */}
+            <clipPath id="sweep-hub-clip"><circle cx={160} cy={160} r={28} /></clipPath>
+            <filter id="sweep-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.35" />
             </filter>
           </defs>
           <g ref={wheelRef} style={{ transformOrigin: '160px 160px' }}>
@@ -190,20 +168,25 @@ export function SweepWheel({ slots, onDraw }: {
               const x0 = cxp + r * Math.cos(a0), y0 = cyp + r * Math.sin(a0)
               const x1 = cxp + r * Math.cos(a1), y1 = cyp + r * Math.sin(a1)
               const large = segAngle > 180 ? 1 : 0
-              const color = NEON[i % NEON.length]
+              // An odd count would put two same-colour slices side by side at the seam.
+              const color = shown % 2 && i === shown - 1 ? '#22c55e' : SLICES[i % 2]
               const mid = (a0 + a1) / 2
-              const lx = cxp + r * 0.68 * Math.cos(mid), ly = cyp + r * 0.68 * Math.sin(mid)
+              // The horse grows with its slice: sized to the slice's width at the icon's radius,
+              // capped by the wheel's depth — 24 runners ≈ 14px, the last two ≈ 64px.
+              const lr = r * 0.6
+              const chord = 2 * lr * Math.sin(Math.min(Math.PI / 2, (segAngle * Math.PI / 180) / 2))
+              const iconSize = Math.round(Math.max(12, Math.min(64, chord * 0.55)))
+              const lx = cxp + lr * Math.cos(mid), ly = cyp + lr * Math.sin(mid)
               return (
                 <g key={i}>
                   <path
                     d={`M${cxp},${cyp} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z`}
-                    fill={color} fillOpacity={0.14} stroke={color} strokeOpacity={0.85}
-                    strokeWidth={1.25} filter="url(#sweep-glow)"
+                    fill={color} stroke="#ffffff" strokeOpacity={0.55} strokeWidth={1.5}
                   />
                   {/* A horse icon, never the number — numbers would show which horses are
                       still undrawn. The drawn horse is only revealed after the spin. */}
                   {segAngle > 8 && (
-                    <text x={lx} y={ly} fontSize={segAngle > 20 ? 18 : 13}
+                    <text x={lx} y={ly} fontSize={iconSize}
                       textAnchor="middle" dominantBaseline="middle"
                       transform={`rotate(${(mid * 180 / Math.PI) + 90}, ${lx}, ${ly})`}>
                       🐎
@@ -213,24 +196,26 @@ export function SweepWheel({ slots, onDraw }: {
               )
             })}
           </g>
-          {/* Hub */}
-          <circle cx={cxp} cy={cyp} r={22} fill="#0a0a1f" stroke="#22d3ee" strokeWidth={1.5}
-            filter="url(#sweep-glow)" style={{ animation: 'sweep-pulse 1.6s ease-in-out infinite' }} />
+          {/* Rim, hub (the TribePicks logo) and a gold pointer at the top. */}
+          <circle cx={cxp} cy={cyp} r={r} fill="none" stroke={GOLD} strokeWidth={3} filter="url(#sweep-shadow)" />
+          <circle cx={cxp} cy={cyp} r={32} fill="#ffffff" stroke={GOLD} strokeWidth={3} filter="url(#sweep-shadow)" />
+          <image href="/logo-mark.png" x={cxp - 28} y={cyp - 28} width={56} height={56} clipPath="url(#sweep-hub-clip)" preserveAspectRatio="xMidYMid slice" />
+          <path d={`M${cxp - 11},2 L${cxp + 11},2 L${cxp},${cyp - r + 14} Z`} fill={GOLD} stroke="#ffffff" strokeWidth={1.5} filter="url(#sweep-shadow)" />
         </svg>
       </div>
 
       {/* Tap prompt — below the wheel, not on it: the container's motion blur would smear it. */}
       {phase === 'fast' && (
         <button type="button" onPointerDown={handleTap}
-          className="mt-5 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white text-base font-black tracking-widest uppercase px-6 py-3 rounded-xl select-none"
+          className="mt-5 bg-amber-400 text-emerald-950 text-base font-black tracking-widest uppercase px-6 py-3 rounded-xl select-none"
           style={{ animation: 'sweep-prompt 0.7s ease-in-out infinite' }}>
-          👆 Tap the wheel to pick!
+          👆 Tap to stop the wheel!
         </button>
       )}
 
       {phase === 'idle' && (
         <button onClick={startSpin}
-          className="mt-5 bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:brightness-110 text-white text-sm font-black px-6 py-3 rounded-xl shadow-lg">
+          className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-6 py-3 rounded-xl shadow-lg">
           Spin for your horse →
         </button>
       )}
@@ -243,7 +228,7 @@ export function SweepWheel({ slots, onDraw }: {
       {phase === 'result' && result && (
         result.ok && result.horse ? (
           <div className="mt-5 text-center">
-            <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wide mb-1">You drew</p>
+            <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">You drew</p>
             <p className="text-xl font-black text-gray-900">#{result.horse.number} {result.horse.name}</p>
             {/* Drawing the last horse closes the pool — the full draw is visible right away then. */}
             <p className="text-xs text-gray-500 mt-1">
@@ -259,14 +244,9 @@ export function SweepWheel({ slots, onDraw }: {
       )}
 
       <style jsx>{`
-        @keyframes sweep-twinkle { from { opacity: 0.25; } to { opacity: 0.9; } }
-        @keyframes sweep-pulse {
-          0%, 100% { filter: url(#sweep-glow) drop-shadow(0 0 2px #22d3ee); }
-          50%      { filter: url(#sweep-glow) drop-shadow(0 0 10px #22d3ee); }
-        }
         @keyframes sweep-prompt {
-          0%, 100% { opacity: 1;    transform: scale(1.06); box-shadow: 0 0 24px 4px rgba(34,211,238,0.7); }
-          50%      { opacity: 0.35; transform: scale(1);    box-shadow: 0 0 0 0 rgba(34,211,238,0); }
+          0%, 100% { opacity: 1;    transform: scale(1.06); box-shadow: 0 0 24px 4px rgba(251,191,36,0.7); }
+          50%      { opacity: 0.4;  transform: scale(1);    box-shadow: 0 0 0 0 rgba(251,191,36,0); }
         }
       `}</style>
     </div>

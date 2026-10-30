@@ -10,11 +10,15 @@ import { autoDrawIfRequested } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
 
-const ACTIONS = ['approve', 'reject', 'mark_paid']
+const ACTIONS = ['approve', 'reject', 'mark_paid', 'cancel']
 
-// PATCH /api/tribes/:id/sweep/requests/:reqId — comp-admin only. Body: { action, notes? }.
-// approve/reject only apply to a pending request; mark_paid only settles an approved request
-// that's still unpaid (the IOU case — tickets already granted, money not yet in hand).
+// PATCH /api/tribes/:id/sweep/requests/:reqId — Body: { action, notes? }.
+// cancel — the BUYER withdrawing their own pending request (migration 208). Not once a
+//   transfer receipt is attached: that money has moved, so the organiser sorts it out (and can
+//   reject it). Frees the tickets the request was holding; the organiser is notified.
+// approve/reject/mark_paid — comp-admin only. approve/reject only apply to a pending request;
+// mark_paid only settles an approved request that's still unpaid (the IOU case — tickets
+// already granted, money not yet in hand).
 export async function PATCH(request: NextRequest, { params }: { params: { id: string; reqId: string } }) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -27,6 +31,34 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { data: req } = await (admin.from('sweep_payment_requests') as any)
     .select('*').eq('id', params.reqId).eq('tribe_id', params.id).maybeSingle()
   if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+
+  if (action === 'cancel') {
+    if (req.user_id !== user.id) return NextResponse.json({ error: 'You can only cancel your own request' }, { status: 403 })
+    if (req.status !== 'pending') return NextResponse.json({ error: 'This request is no longer pending' }, { status: 409 })
+    if (req.receipt_attached_at) {
+      return NextResponse.json({ error: "You've attached a transfer receipt, so the money's already moved — ask your organiser to sort it out." }, { status: 409 })
+    }
+    // Only flips a still-pending row, so it can't race an approval landing at the same moment.
+    const { data: updated, error } = await (admin.from('sweep_payment_requests') as any)
+      .update({ status: 'cancelled', reviewed_at: new Date().toISOString() })
+      .eq('id', req.id).eq('status', 'pending').select().maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!updated) return NextResponse.json({ error: 'This request was just approved or rejected — refresh to see it.' }, { status: 409 })
+
+    const [{ data: buyer }, { data: comp }, { data: admins }] = await Promise.all([
+      (admin.from('users') as any).select('display_name').eq('id', user.id).maybeSingle(),
+      (admin.from('comps') as any).select('name').eq('id', req.comp_id).maybeSingle(),
+      (admin.from('comp_admins') as any).select('user_id').eq('comp_id', req.comp_id),
+    ])
+    await createNotifications(((admins ?? []) as any[]).filter(a => a.user_id !== user.id).map(a => ({
+      user_id: a.user_id,
+      type:    'sweep_request_cancelled' as const,
+      title:   `${(buyer as any)?.display_name ?? 'A buyer'} cancelled their request for ${req.tickets_requested} ticket${req.tickets_requested === 1 ? '' : 's'}`,
+      body:    `${(comp as any)?.name ?? 'Your sweep'} — those tickets are back on sale.${req.payment_method === 'cash' ? ' If they gave you cash, it’s theirs to have back.' : ''}`,
+      data:    { href: `/sweep-admin?comp_id=${req.comp_id}&tab=requests`, comp_id: req.comp_id, tribe_id: params.id, request_id: req.id },
+    })))
+    return NextResponse.json({ ok: true, request: updated })
+  }
 
   const { data: isAdmin } = await (admin.from('comp_admins') as any)
     .select('user_id').eq('comp_id', req.comp_id).eq('user_id', user.id).maybeSingle()
