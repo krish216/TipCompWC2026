@@ -36,17 +36,25 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const { data: tribe } = await (admin.from('tribes') as any)
     .select('id, comp_id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
   if (tribe.sweep_locked_at) return NextResponse.json({ error: 'This pool is locked — no more ticket requests.' }, { status: 409 })
 
+  // An organiser can open any pool in their sweep without being in it. Buying a ticket there
+  // is joining it — no separate "join" step; anyone else must already be a member.
   const { data: membership } = await (admin.from('tribe_members') as any)
     .select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle()
-  if (!membership) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+  if (!membership) {
+    const { data: isOrganiser } = await (admin.from('comp_admins') as any)
+      .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()
+    if (!isOrganiser) return NextResponse.json({ error: "You're not in this pool." }, { status: 403 })
+    await (admin.from('tribe_members') as any)
+      .upsert({ user_id: user.id, tribe_id: tribeId }, { onConflict: 'user_id,tribe_id', ignoreDuplicates: true })
+  }
 
   const { data: tourn } = await (admin.from('tournaments') as any)
     .select('format').eq('id', tribe.tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') {
-    return NextResponse.json({ error: 'This tribe is not a sweep' }, { status: 400 })
+    return NextResponse.json({ error: 'This pool is not a sweep' }, { status: 400 })
   }
 
   const { data: comp } = await (admin.from('comps') as any)
@@ -130,14 +138,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const tribeId = params.id
 
   const { data: tribe } = await (admin.from('tribes') as any).select('id, comp_id').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
 
-  const { data: membership } = await (admin.from('tribe_members') as any)
-    .select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle()
-  if (!membership) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
-
-  const { data: isAdmin } = await (admin.from('comp_admins') as any)
-    .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()
+  // Organisers see every pool's queue in their sweep, whether or not they're in that pool.
+  const [{ data: membership }, { data: isAdmin }] = await Promise.all([
+    (admin.from('tribe_members') as any).select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle(),
+    (admin.from('comp_admins') as any).select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle(),
+  ])
+  if (!membership && !isAdmin) return NextResponse.json({ error: "You're not in this pool." }, { status: 403 })
 
   let query = (admin.from('sweep_payment_requests') as any).select('*').eq('tribe_id', tribeId).order('created_at', { ascending: false })
   if (!isAdmin) query = query.eq('user_id', user.id)

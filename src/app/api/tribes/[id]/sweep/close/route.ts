@@ -22,12 +22,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const { data: tribe } = await (admin.from('tribes') as any)
     .select('id, comp_id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
 
   const { data: tourn } = await (admin.from('tournaments') as any)
     .select('format').eq('id', tribe.tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') {
-    return NextResponse.json({ error: 'This tribe is not a sweep' }, { status: 400 })
+    return NextResponse.json({ error: 'This pool is not a sweep' }, { status: 400 })
   }
 
   const { data: isAdmin } = await (admin.from('comp_admins') as any)

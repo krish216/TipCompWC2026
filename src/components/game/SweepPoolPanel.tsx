@@ -30,6 +30,7 @@ type SweepState = {
   comp_id: string
   locked: boolean
   is_comp_admin: boolean
+  is_member: boolean
   allow_iou: boolean
   approval_mode: 'manual' | 'auto'
   draw_full: boolean
@@ -99,6 +100,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [basket, setBasket] = useState<Record<string, { tickets: string; method: 'cash' | 'bank_transfer' | 'iou' }> | null>(null)
   const [buyingFor, setBuyingFor] = useState(false)
+  // Errors shown beside the button that caused them — the page-level `error` sits at the very
+  // bottom, a screen or more away from the Buy card and hidden behind the buy-on-behalf sheet.
+  const [buyError, setBuyError] = useState<string | null>(null)
+  const [basketError, setBasketError] = useState<string | null>(null)
 
   const [myRequests, setMyRequests] = useState<MyRequest[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -183,7 +188,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   // Recorded as approved purchases — they show in the paid column and the buyer is emailed.
   async function handleBuyOnBehalf() {
     if (!basket) return
-    setBuyingFor(true); setError(null)
+    setBuyingFor(true); setBasketError(null)
     const res = await fetch(`/api/tribes/${tribeId}/sweep/buy-on-behalf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ purchases: Object.entries(basket).map(([user_id, b]) => ({
@@ -191,7 +196,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       })) }),
     }).then(r => r.json())
     setBuyingFor(false)
-    if (res.error) { setError(res.error); return }
+    if (res.error) { setBasketError(res.error); return }
     if (res.failed?.length) setError(`Bought for ${res.bought}, but not everyone: ${res.failed[0].error}`)
     setBasket(null); setPicked(new Set())
     await load()
@@ -223,13 +228,13 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   async function handleBuy() {
     const count = parseInt(buyCount, 10) || 1
-    setBuying(true); setError(null)
+    setBuying(true); setBuyError(null)
     const res = await fetch(`/api/tribes/${tribeId}/sweep/requests`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tickets_requested: count, payment_method: buyMethod, ...(autoDraw ? { auto_draw: true } : {}) }),
     }).then(r => r.json())
     setBuying(false)
-    if (res.error) { setError(res.error); return }
+    if (res.error) { setBuyError(res.error); return }
     setBuyCount('1')
     await load()
   }
@@ -403,13 +408,11 @@ export function SweepPoolPanel({ tribeId, openPool }: {
               : "Your organiser confirms payment before you can spin — pick how you're paying."}
             {!sweep.draw_open && <> Buy now to secure your spot — the draw opens {sweep.draw_opens_label}, once the final field is declared.</>}
           </p>
-          {/* min-w-0: a long payment label must shrink the select, never push the row wider than
-              the card. The Request button gets its own full-width row — it's the card's main action. */}
-          <div className="flex gap-2 items-center mb-2">
-            <input type="number" min="1" value={buyCount} onChange={e => setBuyCount(e.target.value)}
-              className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
-            <select value={buyMethod} onChange={e => setBuyMethod(e.target.value as any)}
-              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm">
+          {/* How they're paying gets its own row; the ticket count sits beside the Request button,
+              since the count is what the button's label and price follow. */}
+          <div className="mb-2">
+            <select value={buyMethod} onChange={e => setBuyMethod(e.target.value as any)} aria-label="How you're paying"
+              className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm">
               <option value="cash">Cash — pay your organiser in person</option>
               {/* Only methods the organiser has switched on. No bank details on file → nowhere to
                   tell the buyer to send money, so no transfer option at all. */}
@@ -425,14 +428,35 @@ export function SweepPoolPanel({ tribeId, openPool }: {
               {!sweep.draw_open && <span className="text-gray-400"> We&apos;ll draw it when the draw opens {sweep.draw_opens_label}.</span>}
             </span>
           </label>
-          <button onClick={handleBuy} disabled={buying}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-black py-3 rounded-xl shadow-md mb-3">
-            {buying ? 'Requesting…' : (() => {
-              const n = parseInt(buyCount, 10)
-              const count = Number.isInteger(n) && n > 0 ? n : 1
-              return `🎟️ Request ${count} ticket${count === 1 ? '' : 's'}${sweep.ticket_price_cents ? ` · ${fmtCents(count * sweep.ticket_price_cents)}` : ''} →`
-            })()}
-          </button>
+          {/* − 1 + stepper and the main action on one line. min-w-0 on the button: a long label
+              must shrink it, never push the row wider than the card (it once ran off-screen). */}
+          {(() => {
+            const n = parseInt(buyCount, 10)
+            const count = Number.isInteger(n) && n > 0 ? n : 1
+            const max = Math.max(1, sweep.tickets_left)
+            const step = (d: number) => setBuyCount(String(Math.min(max, Math.max(1, count + d))))
+            return (
+              <div className="flex gap-2 items-stretch mb-3">
+                <div className="flex items-center border border-gray-300 rounded-xl flex-shrink-0">
+                  <button type="button" onClick={() => step(-1)} disabled={count <= 1} aria-label="One fewer ticket"
+                    className="w-9 h-full text-lg font-bold text-gray-600 disabled:text-gray-300">−</button>
+                  <span className="w-7 text-center text-sm font-bold text-gray-900" aria-live="polite">{count}</span>
+                  <button type="button" onClick={() => step(1)} disabled={count >= max} aria-label="One more ticket"
+                    className="w-9 h-full text-lg font-bold text-gray-600 disabled:text-gray-300">+</button>
+                </div>
+                <button onClick={handleBuy} disabled={buying}
+                  className="flex-1 min-w-0 truncate bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm sm:text-base font-black py-3 px-3 rounded-xl shadow-md">
+                  {buying ? 'Requesting…' : `🎟️ Request ${count} ticket${count === 1 ? '' : 's'}${sweep.ticket_price_cents ? ` · ${fmtCents(count * sweep.ticket_price_cents)}` : ''} →`}
+                </button>
+              </div>
+            )
+          })()}
+          {sweep.is_comp_admin && !sweep.is_member && (
+            <p className="-mt-1 mb-3 text-xs text-gray-500">You&apos;re not in this pool yet — requesting a ticket adds you to it.</p>
+          )}
+          {buyError && (
+            <p role="alert" className="-mt-1 mb-3 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{buyError}</p>
+          )}
 
           {/* What happens next, for the method picked — set expectations BEFORE they request. */}
           {(() => {
@@ -700,13 +724,15 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           const rank = (h: Horse) => h.scratched ? 1e6 : finish ? (finish[h.id] ?? 1e5) : h.number
           const list = [...sweep.horses].sort((a, b) => rank(a) - rank(b) || a.number - b.number)
           return (
-            <div className="divide-y divide-gray-100">
-              {list.map(h => {
+            <div>
+              {list.map((h, i) => {
                 const pos = finish && !h.scratched ? finish[h.id] : undefined
                 const won = prize.get(h.id)
                 const details = horseDetails(h)
                 return (
-                  <div key={h.id} className={`flex items-start justify-between gap-3 py-2 text-sm ${mine.has(h.id) ? 'bg-emerald-50 -mx-2 px-2 rounded-lg' : ''}`}>
+                  // Banded rows for scanning a 24-runner sheet; your own horses stay green on top.
+                  <div key={h.id} className={`flex items-start justify-between gap-3 py-2 px-2 -mx-2 rounded-lg text-sm ${
+                    mine.has(h.id) ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-50'}`}>
                     <span className="flex items-start gap-2 min-w-0">
                       {finish && (
                         <span className="w-9 flex-shrink-0 text-xs font-bold text-gray-500 pt-0.5">
@@ -822,7 +848,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         const over = total > sweep.tickets_left
         const nameOf = (id: string) => sweep.roster.find(r => r.user_id === id)?.display_name ?? 'Member'
         return (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4" onClick={() => !buyingFor && setBasket(null)}>
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4" onClick={() => { if (!buyingFor) { setBasket(null); setBasketError(null) } }}>
             <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
               <h3 className="font-bold text-gray-900 mb-1">Buy on their behalf</h3>
               <p className="text-xs text-gray-500 mb-4">For people who paid you in person. They&apos;re emailed their tickets and spin for their own horse.</p>
@@ -844,12 +870,15 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                   </div>
                 ))}
               </div>
+              {basketError && (
+                <p role="alert" className="mb-3 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{basketError}</p>
+              )}
               <p className={`text-xs mb-4 ${over ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
                 {total} ticket{total === 1 ? '' : 's'}{price != null ? ` · ${fmtCents(price * total)}` : ''} · {sweep.tickets_left} left in this pool
                 {over && ' — that’s too many'}
               </p>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setBasket(null)} disabled={buyingFor} className="text-sm font-semibold text-gray-500 px-3 py-2">Cancel</button>
+                <button onClick={() => { setBasket(null); setBasketError(null) }} disabled={buyingFor} className="text-sm font-semibold text-gray-500 px-3 py-2">Cancel</button>
                 <button onClick={handleBuyOnBehalf} disabled={buyingFor || over || total < 1}
                   className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl">
                   {buyingFor ? 'Buying…' : `Confirm${price != null ? ` ${fmtCents(price * total)}` : ''}`}

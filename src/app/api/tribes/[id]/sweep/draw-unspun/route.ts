@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { data: tribe } = await (admin.from('tribes') as any)
     .select('id, comp_id, tournament_id').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
 
   const { data: isAdmin } = await (admin.from('comp_admins') as any)
     .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()

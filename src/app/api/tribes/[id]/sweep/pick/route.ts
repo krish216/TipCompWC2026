@@ -26,7 +26,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
 
   const { data: tribe } = await (admin.from('tribes') as any)
     .select('id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
   if (tribe.sweep_locked_at) return NextResponse.json({ error: 'This pool is locked — no more picks.' }, { status: 409 })
 
   // Tickets can be sold before the field is known (migration 201), but nobody spins until

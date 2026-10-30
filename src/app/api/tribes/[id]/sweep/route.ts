@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data: tribe } = await (admin.from('tribes') as any)
     .select('id, comp_id, tournament_id, sweep_locked_at, practice_results').eq('id', tribeId).maybeSingle()
-  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+  if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
 
   // Comp admins can view ANY pool under their comp, not just ones they personally joined —
   // the organiser now routinely browses pools they're not a tribe_member of (e.g. an
@@ -33,12 +33,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     (admin.from('tribe_members') as any).select('user_id').eq('tribe_id', tribeId).eq('user_id', user.id).maybeSingle(),
     (admin.from('comp_admins') as any).select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle(),
   ])
-  if (!membership && !isAdmin) return NextResponse.json({ error: 'Not a member of this tribe' }, { status: 403 })
+  if (!membership && !isAdmin) return NextResponse.json({ error: "You're not in this pool." }, { status: 403 })
 
   const { data: tourn } = await (admin.from('tournaments') as any)
     .select('format, race_start_at, slug').eq('id', tribe.tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') {
-    return NextResponse.json({ error: 'This tribe is not a sweep' }, { status: 400 })
+    return NextResponse.json({ error: 'This pool is not a sweep' }, { status: 400 })
   }
 
   const [{ data: comp }, organiser, { data: myPending }] = await Promise.all([
@@ -190,6 +190,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     my_over_field:   myOverField,
     locked:          !!tribe.sweep_locked_at,
     is_comp_admin:   !!isAdmin,
+    is_member:       !!membership,   // an organiser can view a pool they're not in; buying joins it
     allow_iou:       !!(comp as any)?.allow_iou,
     approval_mode:   (comp as any)?.sweep_approval_mode ?? 'manual',
     draw_full:       drawFull,

@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic'
 async function requireTribeAdmin(admin: any, tribeId: string, userId: string) {
   const { data: tribe } = await admin.from('tribes')
     .select('id, comp_id, tournament_id, sweep_locked_at').eq('id', tribeId).maybeSingle()
-  if (!tribe) return { ok: false as const, status: 404, error: 'Tribe not found' }
+  if (!tribe) return { ok: false as const, status: 404, error: 'Pool not found' }
 
   const { data: tourn } = await admin.from('tournaments').select('format').eq('id', tribe.tournament_id).maybeSingle()
-  if ((tourn as any)?.format !== 'sweep') return { ok: false as const, status: 400, error: 'This tribe is not a sweep' }
+  if ((tourn as any)?.format !== 'sweep') return { ok: false as const, status: 400, error: 'This pool is not a sweep' }
 
   const { data: isAdmin } = await admin.from('comp_admins')
     .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', userId).maybeSingle()
