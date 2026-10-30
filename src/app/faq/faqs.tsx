@@ -117,6 +117,34 @@ export const FAQS: { category: string; emoji: string; items: { q: string; a: Rea
     ],
   },
   {
+    category: 'Melbourne Cup Sweeps',
+    emoji: '🏇',
+    items: [
+      {
+        q: 'How does a TribePicks sweep work?',
+        a: (
+          <>
+            Join your organiser&apos;s sweep from their link or QR code, buy tickets (you pay your organiser directly), then spin the wheel for your
+            horse once the draw opens. Full details are in the{' '}
+            <a href="/rules/melbourne-cup-2026" className="text-emerald-600 underline hover:text-emerald-700">sweep rules</a>.
+          </>
+        ),
+      },
+      {
+        q: 'Who wins a sweep pool?',
+        a: 'The three best-finishing horses held in your pool. If nobody in your pool holds a placegetter, its prize rolls down to the next horse home that somebody does hold — so every pool pays out its whole pot, and unsold horses never win.',
+      },
+      {
+        q: 'What if I don\'t spin for my horse?',
+        a: 'You get 2 hours to spin each ticket. After that your organiser can draw for you, and anything still unspun is drawn automatically 30 minutes before the race — always at random.',
+      },
+      {
+        q: 'Does TribePicks hold the money?',
+        a: 'No. Ticket money and prizes stay between you and your organiser — TribePicks only runs the draw and shows who holds what.',
+      },
+    ],
+  },
+  {
     category: 'General',
     emoji: '💬',
     items: [

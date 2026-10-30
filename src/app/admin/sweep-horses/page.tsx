@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
+import { ordinal } from '@/lib/sweep/podium'
 
-type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null }
+type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null; did_not_finish?: boolean }
 
 // Platform-admin-only screen for the ONE shared Melbourne Cup field — entered centrally,
 // not per comp (see docs/plans/melbourne-cup-sweep-plan.md §4). The API routes
@@ -19,6 +20,9 @@ export default function AdminSweepHorsesPage() {
   const [saving, setSaving] = useState(false)
   const [raceStartAt, setRaceStartAt] = useState('')     // datetime-local string, local browser time
   const [savingStart, setSavingStart] = useState(false)
+  const [orderText, setOrderText] = useState('')   // the full finishing order, "7, 3=12, 1, …"
+  const [dnfText, setDnfText] = useState('')
+  const [savingResult, setSavingResult] = useState(false)
 
   async function load() {
     setLoading(true); setError(null)
@@ -28,6 +32,17 @@ export default function AdminSweepHorsesPage() {
     const res = await fetch(`/api/admin/sweep-horses?tournament_id=${ctx.tournament.id}`).then(r => r.json())
     if (res.error) { setError(res.error); setLoading(false); return }
     setHorses(res.data ?? [])
+    // Show any saved result back in the boxes, in the same "7, 3=12, 1" form.
+    const placed = ((res.data ?? []) as Horse[]).filter(h => h.finish_position != null)
+      .sort((a, b) => a.finish_position! - b.finish_position!)
+    const groups: number[][] = []
+    for (const h of placed) {
+      const last = groups[groups.length - 1]
+      if (last && placed.find(x => x.number === last[0])!.finish_position === h.finish_position) last.push(h.number)
+      else groups.push([h.number])
+    }
+    setOrderText(groups.map(g => g.join('=')).join(', '))
+    setDnfText(((res.data ?? []) as Horse[]).filter(h => h.did_not_finish).map(h => h.number).join(', '))
     setRaceStartAt(res.race_start_at ? toLocalInputValue(res.race_start_at) : '')
     setLoading(false)
   }
@@ -69,7 +84,22 @@ export default function AdminSweepHorsesPage() {
     load()
   }
 
-  async function patch(id: string, update: Partial<Pick<Horse, 'scratched' | 'finish_position'>>) {
+  // The whole result in one go — prizes roll down to each pool's best-finishing horses, so
+  // every runner needs a place (or "did not finish"). Saving a complete result sends every
+  // pool its results email.
+  async function saveResult(clear = false) {
+    if (!tournamentId) return
+    setSavingResult(true); setError(null)
+    const res = await fetch('/api/admin/sweep-horses', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(clear ? { tournament_id: tournamentId, clear: true } : { tournament_id: tournamentId, order: orderText, dnf: dnfText }),
+    }).then(r => r.json())
+    setSavingResult(false)
+    if (res.error) { setError(res.error); return }
+    load()
+  }
+
+  async function patch(id: string, update: Partial<Pick<Horse, 'scratched'>>) {
     setHorses(hs => hs.map(h => h.id === id ? { ...h, ...update } : h))
     const res = await fetch('/api/admin/sweep-horses', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -98,7 +128,7 @@ export default function AdminSweepHorsesPage() {
     <main className="max-w-2xl mx-auto px-4 py-10">
       <Link href="/admin" className="text-xs font-bold text-gray-400 hover:text-gray-600 mb-3 inline-block">← Back to Tournament Admin</Link>
       <h1 className="text-xl font-black text-gray-900 mb-1">Melbourne Cup field — admin</h1>
-      <p className="text-xs text-gray-500 mb-6">One shared field for every sweep pool. Scratchings and the result here update every tribe's podium automatically.</p>
+      <p className="text-xs text-gray-500 mb-6">One shared field for every sweep pool. Scratchings and the result here update every pool's winners automatically.</p>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-5">{error}</div>}
 
@@ -130,6 +160,29 @@ export default function AdminSweepHorsesPage() {
         </button>
       </div>
 
+      <div className="border border-gray-200 rounded-2xl p-5 mb-6">
+        <h2 className="font-bold text-gray-900 mb-2 text-sm">Race result</h2>
+        <p className="text-xs text-gray-500 mb-2">
+          Every runner&apos;s number in finishing order, 1st first. Join a dead heat with <code>=</code> — <code>7, 3=12, 1</code> puts
+          3 and 12 equal 2nd. Each pool&apos;s prizes go to the best-finishing horses it holds, so the whole order is needed;
+          saving the complete result emails every pool its winners.
+        </p>
+        <textarea value={orderText} onChange={e => setOrderText(e.target.value)} rows={2} placeholder="7, 3, 12, 1, …"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mb-2" />
+        <label className="block text-xs text-gray-500 mb-1">Did not finish (fell, pulled up) — never win</label>
+        <input value={dnfText} onChange={e => setDnfText(e.target.value)} placeholder="e.g. 5, 9"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mb-3" />
+        <div className="flex gap-3 items-center">
+          <button onClick={() => saveResult()} disabled={savingResult || !orderText.trim()}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-lg">
+            {savingResult ? 'Saving…' : 'Save result →'}
+          </button>
+          {horses.some(h => h.finish_position != null || h.did_not_finish) && (
+            <button onClick={() => saveResult(true)} disabled={savingResult} className="text-xs font-bold text-red-500 hover:underline">Clear result</button>
+          )}
+        </div>
+      </div>
+
       <div className="border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-gray-900 text-sm">Field ({horses.length})</h2>
@@ -149,16 +202,9 @@ export default function AdminSweepHorsesPage() {
                 <input type="checkbox" checked={h.scratched} onChange={e => patch(h.id, { scratched: e.target.checked })} />
                 Scratched
               </label>
-              <select
-                value={h.finish_position ?? ''}
-                onChange={e => patch(h.id, { finish_position: e.target.value ? Number(e.target.value) : null })}
-                className="border border-gray-300 rounded px-2 py-1 text-xs"
-              >
-                <option value="">—</option>
-                <option value="1">🥇 1st</option>
-                <option value="2">🥈 2nd</option>
-                <option value="3">🥉 3rd</option>
-              </select>
+              <span className="w-12 text-right text-xs text-gray-500">
+                {h.did_not_finish ? 'DNF' : h.finish_position != null ? ordinal(h.finish_position) : '—'}
+              </span>
             </div>
           ))}
           {horses.length === 0 && <p className="text-xs text-gray-400 py-2">No horses yet — add the field above.</p>}

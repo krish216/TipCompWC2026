@@ -21,7 +21,7 @@ async function requireTribeAdmin(admin: any, tribeId: string, userId: string) {
 
 // POST /api/tribes/:id/sweep/lock — comp-admin only. Stops new members joining THIS pool
 // (feeds the self-register overflow routing, which skips a locked tribe). Does NOT touch
-// tickets/picks at all — those are granted independently via sweep/grant-tickets, before
+// tickets/picks at all — the organiser can still buy for members (sweep/buy-on-behalf), before
 // or after lock, to whoever's already a member.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
@@ -42,8 +42,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 // DELETE /api/tribes/:id/sweep/lock — comp-admin only. Reopens the pool to new joins —
 // originally "not re-runnable" by design, but an organiser who locks by mistake (or just
 // changes their mind) had no way back except a raw DB edit. Doesn't touch tickets/entries
-// either way — including any already granted by the auto-lock-30-min-before-race cron, or
-// any leftover-horse assignment from a prior "Close pool" — those stand; this only reopens
+// either way — including any horses drawn by the auto-lock-30-min-before-race cron or a
+// prior "Close pool" — those stand; this only reopens
 // joining.
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()

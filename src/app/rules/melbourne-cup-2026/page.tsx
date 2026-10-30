@@ -7,7 +7,7 @@ export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: 'Melbourne Cup 2026 Sweep — how it works | TribePicks',
-  description: 'How a TribePicks Melbourne Cup sweep works: join a pool, buy tickets from your organiser, spin the wheel for your horse once the draw opens, and the pool\'s 1st, 2nd and 3rd place-getters win. TribePicks never handles the money.',
+  description: 'How a TribePicks Melbourne Cup sweep works: join a pool, buy tickets from your organiser, spin the wheel for your horse once the draw opens, and your pool\'s three best-finishing horses win its prizes. TribePicks never handles the money.',
   alternates: { canonical: 'https://tribepicks.com/rules/melbourne-cup-2026' },
 }
 
@@ -21,12 +21,15 @@ const FAQS = [
   { q: 'Why can\'t I see who drew the other horses?', a: 'You always see your own horses. Who holds the rest stays hidden until every horse in your pool is drawn, or the pool locks before the race — then the whole draw is revealed at once.' },
   { q: 'My horse got scratched — now what?', a: 'Bad luck: there\'s no redraw and no replacement, same as a sweep tin in the office.' },
   { q: 'What if the final field is smaller than the tickets sold?', a: 'Pools can sell up to 24 tickets before the field is known. If fewer horses make the final field, the last tickets sold in a full pool have no horse to spin for, and your organiser refunds them.' },
-  { q: 'Who wins, and how much?', a: 'Whoever holds the horses that finish 1st, 2nd and 3rd in your pool. Each pool pays its own prizes from its own pot — tickets sold × ticket price — split the way your organiser chose (70/20/10 unless they picked otherwise). The live prize table is on your pool page. If nobody in your pool holds a place-getter, that place has no winner.' },
+  { q: 'Who wins, and how much?', a: 'Your pool\'s three best-finishing horses. If your pool holds the actual 1st, 2nd and 3rd, they win. Each pool pays its own prizes from its own pot — tickets sold × ticket price — split the way your organiser chose (70/20/10 unless they picked otherwise). The live prize table is on your pool page.' },
+  { q: 'What if nobody in my pool holds the winner?', a: 'The prize rolls down. Your pool\'s 1st prize goes to whoever holds the best-finishing horse in your pool, 2nd prize to the next one home, and 3rd to the next. If the Cup winner went unsold, the holder of, say, the horse that ran 4th could take 1st prize. Every pool always pays out its whole pot.' },
+  { q: 'What about a dead heat?', a: 'Horses that tie share the prizes for the places they span equally — two horses in your pool dead-heating for the top spot split 1st and 2nd prize down the middle.' },
+  { q: 'What if my horse falls or doesn\'t finish?', a: 'A horse that doesn\'t finish can\'t win a prize — the prizes go to the next horses home that your pool holds.' },
   { q: 'Does TribePicks take a cut?', a: 'TribePicks never holds or pays out money — entry fees and prizes stay between you and your organiser. Your organiser\'s first pool is free; if they paid TribePicks for extra pools, they can take that cost out of the pot. If they do, the prize table shows the pot after it, so you always see what\'s actually up for grabs.' },
   { q: 'What if a pool sells out?', a: 'Each pool has one ticket per horse. When yours is full, a new pool opens for the next people to join, up to the number of pools your organiser has.' },
   { q: 'When does buying stop?', a: 'When your organiser closes the pool, and automatically 30 minutes before the race — whichever comes first. A locked pool takes no new joins or ticket requests.' },
-  { q: 'What happens to horses nobody bought?', a: 'Nothing, unless your organiser has chosen to take them when the pool closes. Ask them if you\'re not sure.' },
-  { q: 'When are results in?', a: 'After the race. Every pool member gets an email with the 1st, 2nd and 3rd horses and who held them. Your organiser pays the winners.' },
+  { q: 'What happens to horses nobody bought?', a: 'Nobody holds them — not your organiser, not TribePicks. If one of them places, its prize rolls down to the next horse home that somebody in your pool does hold.' },
+  { q: 'When are results in?', a: 'Shortly after the race, once the full finishing order is official. Every pool member gets an email with your pool\'s winners, where their horses finished, and the prize money. Your organiser pays the winners.' },
 ]
 
 const SECTIONS: { title: string; body: string; tint?: boolean }[] = [
@@ -46,7 +49,7 @@ export default function MelbourneCupRulesPage() {
         <span className="text-[11px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Melbourne Cup 2026</span>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        A digital sweep — buy tickets from your organiser, <strong>spin the wheel</strong> for your horse, and whoever holds the <strong>1st, 2nd or 3rd</strong> place-getter in your pool wins. TribePicks never touches the money.
+        A digital sweep — buy tickets from your organiser, <strong>spin the wheel</strong> for your horse, and your pool&apos;s <strong>three best-finishing horses</strong> win its prizes. TribePicks never touches the money.
       </p>
 
       {SECTIONS.map(sec => (
@@ -63,16 +66,16 @@ export default function MelbourneCupRulesPage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Winning 🏆</h2>
         <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
           {[
-            ['🥇', '1st place — the holder of the winning horse'],
-            ['🥈', '2nd place — the holder of the runner-up'],
-            ['🥉', '3rd place — the holder of 3rd across the line'],
+            ['🥇', '1st prize — the best-finishing horse your pool holds'],
+            ['🥈', '2nd prize — the next one home'],
+            ['🥉', '3rd prize — the one after that'],
           ].map(([medal, text]) => (
             <div key={text} className="flex items-start gap-3">
               <span className="text-base flex-shrink-0">{medal}</span>
               <p className="text-sm text-gray-600">{text}</p>
             </div>
           ))}
-          <p className="text-xs text-gray-400 pt-1">Each pool pays its own prizes from its own pot, split the way your organiser chose — the live prize table is on your pool page. Your organiser pays the winners, not TribePicks.</p>
+          <p className="text-xs text-gray-400 pt-1">If your pool holds the actual 1st, 2nd and 3rd, they win. If a placegetter went unsold, its prize rolls down to the next horse home that someone in your pool holds — so every pool pays out its whole pot, and unsold horses never win. Each pool pays from its own pot, split the way your organiser chose. Your organiser pays the winners, not TribePicks.</p>
         </div>
       </section>
 

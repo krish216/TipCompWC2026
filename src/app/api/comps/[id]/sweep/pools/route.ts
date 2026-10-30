@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!compAdminRow && !platformAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { data: tribes } = await (admin.from('tribes') as any)
-    .select('id, name, invite_code, sweep_locked_at, created_at').eq('comp_id', params.id).order('created_at', { ascending: true })
+    .select('id, name, invite_code, sweep_locked_at, practice_results, created_at').eq('comp_id', params.id).order('created_at', { ascending: true })
   const tribeIds = ((tribes ?? []) as any[]).map(t => t.id)
   if (!tribeIds.length) return NextResponse.json({ data: [] })
 
@@ -70,6 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     members: memberCount[t.id] ?? 0, tickets: ticketCount[t.id] ?? 0, claimed: claimedCount[t.id] ?? 0,
     field_size: fieldSize,
     draw_open: field.drawOpen,
+    race_run: !!t.practice_results?.length,   // practice sweeps: the pretend race has been run
     refunds: Object.entries(refundByTribe[t.id] ?? {}).map(([uid, tickets]) => ({ display_name: nameById[uid] ?? 'Someone', tickets })),
     prizes: price ? computePoolPrizes({ ticketPriceCents: price, ticketsSold: ticketCount[t.id] ?? 0, split, feeCents: feeShares[t.id] ?? 0 }) : null,
   }))

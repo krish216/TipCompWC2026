@@ -11,6 +11,8 @@ import type { RoundId } from '@/types'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { SweepPoolPanel } from '@/components/game/SweepPoolPanel'
+import { PracticeRaceBar } from '@/components/game/PracticeRaceBar'
+import { isPracticeSlug } from '@/lib/sweep/practice'
 import { TipsterPopover } from '@/components/game/TipsterPopover'
 import { linkify } from '@/lib/linkify'
 
@@ -1026,6 +1028,7 @@ export default function TribePage() {
   // member-count/invite-code (those stay about the home pool).
   const [sweepPools,       setSweepPools]       = useState<SweepPoolRow[] | null>(null)
   const [selectedPoolId,   setSelectedPoolId]   = useState('')
+  const [raceVersion,      setRaceVersion]      = useState(0)   // bumps after a practice race → pool reloads
   const [confirmLeavePool, setConfirmLeavePool] = useState<string | null>(null)
   const [leavingPool,      setLeavingPool]      = useState<string | null>(null)
   const [poolsError,       setPoolsError]       = useState<string | null>(null)
@@ -1353,6 +1356,11 @@ export default function TribePage() {
             </div>
           )}
 
+          {/* Practice sweep: one pretend race for every pool (organiser only). */}
+          {isSweep && isPracticeSlug((selectedTourn as any)?.slug) && sweepPools?.some(p => p.is_comp_admin) && org?.id && (
+            <PracticeRaceBar compId={org.id} onRaced={() => setRaceVersion(v => v + 1)} />
+          )}
+
           {/* Tab bar */}
           <div style={{ display: 'flex' }}>
             {TAB_ITEMS.map(item => {
@@ -1396,8 +1404,10 @@ export default function TribePage() {
       {/* ── Tab content ──────────────────────────────────────────── */}
       <div style={{ marginTop: 12 }}>
 
-        {/* ── Welcome banner — new tribe member (joined ≤7 days ago), dismissible ── */}
-        {(() => {
+        {/* ── Welcome banner — new tribe member (joined ≤7 days ago), dismissible. Not for
+            sweeps: the pool page leads with the wheel / Get a ticket, and the "you're in"
+            email explains the steps — a card here only pushed those down. ── */}
+        {!isSweep && (() => {
           const myMember = tribe.members.find(m => m.user_id === myId)
           const joinedAt = myMember?.joined_at ? new Date(myMember.joined_at).getTime() : 0
           const isNewMember = joinedAt > 0 && Date.now() - joinedAt < 7 * 24 * 60 * 60 * 1000
@@ -1408,17 +1418,11 @@ export default function TribePage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-green-800 mb-2">Welcome to {tribe.name}!</p>
               <div className="space-y-1.5 mb-0">
-                {isSweep ? (
-                  <p className="text-xs text-gray-600">
-                    <span className="font-semibold text-gray-700">🐎 Draw —</span> Once your organiser locks entries, tap the <strong>Draw</strong> tab to see your horse and the rest of the pool.
-                  </p>
-                ) : (
-                  <p className="text-xs text-gray-600">
-                    <span className="font-semibold text-gray-700">📊 Tip Sheets —</span> Once a round closes, tap the <strong>Tip Sheets</strong> tab to see how everyone in your tribe tipped. Compare picks and find out who called it right.
-                  </p>
-                )}
                 <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-700">💬 Chat —</span> Head to the <strong>Chat</strong> tab to get in on the banter, react to picks, and celebrate the wins with your {isSweep ? 'pool' : 'tribe'}.
+                  <span className="font-semibold text-gray-700">📊 Tip Sheets —</span> Once a round closes, tap the <strong>Tip Sheets</strong> tab to see how everyone in your tribe tipped. Compare picks and find out who called it right.
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-700">💬 Chat —</span> Head to the <strong>Chat</strong> tab to get in on the banter, react to picks, and celebrate the wins with your tribe.
                 </p>
               </div>
               {(tribe as any)._org?.invite_code && (
@@ -1449,7 +1453,7 @@ export default function TribePage() {
         {/* Draw — sweep tribes only. Pool selection (when this sweep has more than one pool
             relevant to the viewer) happens via the Hero's pills, not here. */}
         {isSweep && tab === 'sweep' && (
-          <SweepPoolPanel tribeId={selectedPoolId || tribe.id} openPool={(() => {
+          <SweepPoolPanel key={`${selectedPoolId || tribe.id}:${raceVersion}`} tribeId={selectedPoolId || tribe.id} openPool={(() => {
             const open = sweepPools?.find(p => p.tribe_id !== (selectedPoolId || tribe.id) && !isPoolFull(p))
             return open ? { name: open.tribe_name, onSelect: () => setSelectedPoolId(open.tribe_id) } : null
           })()} />

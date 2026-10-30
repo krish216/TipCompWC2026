@@ -1,19 +1,21 @@
-import { sendSweepResultsReady } from '@/lib/sweep/emails'
+import { sendSweepResultsReady, type PodiumEntry } from '@/lib/sweep/emails'
+import { poolPodium, raceFinishes } from '@/lib/sweep/pool-result'
 
-// Called (fire-and-forget) whenever a horse's finish_position is set via
-// /api/admin/sweep-horses PATCH. Once all three placegetters are recorded for a
-// tournament, emails every member of every tribe under it that hasn't been notified yet
+// Called once the race result is saved on /admin/sweep-horses (PUT /api/admin/sweep-horses).
+// Only acts on a COMPLETE result — roll-down prizes need every runner's finish — then emails
+// every member of every pool under the tournament that hasn't been told yet
 // (tribes.sweep_results_sent_at guards against re-sending on a later correction).
 export async function checkAndSendSweepResults(admin: any, tournamentId: string): Promise<void> {
   try {
     const { data: horses } = await (admin.from('sweep_horses') as any)
-      .select('id, number, name, finish_position').eq('tournament_id', tournamentId)
-    const placegetters = [1, 2, 3].map(place => (horses ?? []).find((h: any) => h.finish_position === place))
-    if (placegetters.some(h => !h)) return   // not all three recorded yet
+      .select('*').eq('tournament_id', tournamentId)
+    const finishes = raceFinishes((horses ?? []) as any[], null)
+    if (!finishes) return   // result not complete yet
 
     const { data: tribes } = await (admin.from('tribes') as any)
       .select('id, name, comp_id').eq('tournament_id', tournamentId).is('sweep_results_sent_at', null)
     if (!tribes?.length) return
+    const horseById = Object.fromEntries(((horses ?? []) as any[]).map(h => [h.id, h]))
 
     for (const tribe of tribes as any[]) {
       const [{ data: entries }, { data: memberRows }, { data: comp }] = await Promise.all([
@@ -25,12 +27,15 @@ export async function checkAndSendSweepResults(admin: any, tournamentId: string)
       if (!memberIds.length) { await markSent(admin, tribe.id); continue }
 
       const { data: users } = await (admin.from('users') as any).select('id, email, display_name').in('id', memberIds)
-      const horseById = Object.fromEntries(((horses ?? []) as any[]).map(h => [h.id, h]))
-
-      const podium = placegetters.map((h: any, i: number) => {
-        const entry = ((entries ?? []) as any[]).find(e => e.horse_id === h.id)
-        const winner = entry ? (users ?? []).find((u: any) => u.id === entry.user_id) : null
-        return { place: i + 1, horse: { number: h.number, name: h.name }, winner: winner ? { display_name: winner.display_name } : null }
+      const winners = await poolPodium(admin, { tribeId: tribe.id, compId: tribe.comp_id, finishes, entries: (entries ?? []) as any[] })
+      const podium: PodiumEntry[] = winners.map(w => {
+        const h = horseById[w.horseId]
+        const u = (users ?? []).find((x: any) => x.id === w.userId)
+        return {
+          places: w.places, finished: w.position, cents: w.cents,
+          horse: { number: h.number, name: h.name },
+          winner: { display_name: u?.display_name ?? 'A member' },
+        }
       })
 
       for (const userId of memberIds) {
@@ -42,7 +47,7 @@ export async function checkAndSendSweepResults(admin: any, tournamentId: string)
         sendSweepResultsReady({
           email: u.email, name: u.display_name,
           compName: (comp as any)?.name ?? 'your sweep', tribeName: tribe.name,
-          podium, myHorses,
+          podium, myHorses, compId: tribe.comp_id,
         }).catch(() => {})
       }
 

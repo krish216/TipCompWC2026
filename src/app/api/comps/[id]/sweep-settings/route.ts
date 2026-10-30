@@ -69,7 +69,6 @@ function parseOrganiserDetails(raw: any): { value: Record<string, any> } | { err
 }
 
 const APPROVAL_MODES = ['manual', 'auto']
-const LEFTOVER_MODES = ['none', 'auto_assign_organiser']
 
 async function authorize(admin: any, compId: string, userId: string) {
   const [{ data: comp }, { data: compAdminRow }, { data: platformAdmin }] = await Promise.all([
@@ -97,7 +96,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const { data, error } = await (admin.from('comps') as any)
-    .select('allow_iou, sweep_approval_mode, sweep_leftover_mode, max_tribes, owner_name, created_by, sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', params.id).maybeSingle()
+    .select('allow_iou, sweep_approval_mode, max_tribes, owner_name, created_by, sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', params.id).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // For now the pool count can only go up — the floor is the current setting itself.
@@ -157,14 +156,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const body = await request.json().catch(() => null)
   // (reveal_mode is gone — every sweep now works one way: you see only your own horses until
-  // the pool closes. The comps.sweep_reveal_mode column is left in place but no longer read.)
-  const { allow_iou, approval_mode, leftover_horse_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee } = body ?? {}
+  // the pool closes. leftover_horse_mode is gone too — unsold horses are never handed to the
+  // organiser. Both columns are left in place but no longer read.)
+  const { allow_iou, approval_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee } = body ?? {}
 
   if (approval_mode !== undefined && !APPROVAL_MODES.includes(approval_mode)) {
     return NextResponse.json({ error: `approval_mode must be one of: ${APPROVAL_MODES.join(', ')}` }, { status: 400 })
-  }
-  if (leftover_horse_mode !== undefined && !LEFTOVER_MODES.includes(leftover_horse_mode)) {
-    return NextResponse.json({ error: `leftover_horse_mode must be one of: ${LEFTOVER_MODES.join(', ')}` }, { status: 400 })
   }
   // Pool count isn't settable here any more — adding pools is a purchase (even while billing
   // is off, when it's a free one), via POST /api/comps/:id/sweep/pools/purchase. See
@@ -198,7 +195,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const update: Record<string, any> = {}
   if (allow_iou !== undefined) update.allow_iou = !!allow_iou
   if (approval_mode !== undefined) update.sweep_approval_mode = approval_mode
-  if (leftover_horse_mode !== undefined) update.sweep_leftover_mode = leftover_horse_mode
   if (ticket_price_cents !== undefined) update.sweep_ticket_price_cents = ticket_price_cents
   if (prize_split !== undefined) update.sweep_prize_split = prize_split
   if (deduct_fee !== undefined) update.sweep_deduct_fee = !!deduct_fee

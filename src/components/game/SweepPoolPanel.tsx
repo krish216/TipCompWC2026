@@ -10,6 +10,7 @@ import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
 import { fmtCents, type PoolPrizes } from '@/lib/sweep/prizes'
+import { finishedLabel, prizeLabel } from '@/lib/sweep/podium'
 
 type Horse = { id: string; number: number; name: string; scratched: boolean; finish_position: number | null }
 type HiddenHorse = { id: string; hidden: true }
@@ -20,6 +21,7 @@ type RosterRow = {
   user_id: string; display_name: string; avatar_url: string | null
   horses: HorseOrHidden[]; unclaimed: number; total_tickets: number
   draw_unlocks_at?: string | null   // organiser only: when "Draw for them" opens (2-hour window)
+  paid?: number; owed?: number      // organiser only: dollars received, and IOUs still owed
 }
 type SweepState = {
   comp_id: string
@@ -34,7 +36,9 @@ type SweepState = {
   roster: RosterRow[]
   my_horses: HorseOrHidden[]
   my_unclaimed: number
-  podium: { place: number; horse: Horse | null; winner: RosterRow | null }[]
+  // Roll-down prize winners (lib/sweep/podium.ts) — empty until the full result is in.
+  podium: { places: number[]; horse: Horse | null; finished: number; winner: RosterRow | null; cents: number | null }[]
+  race_run: boolean
   organiser_name: string | null
   approval_window_hours: number
   race_start_at: string | null
@@ -67,6 +71,8 @@ function requestDeadline(r: MyRequest, windowHours: number, raceStartAt: string 
   const byLock = raceStartAt ? new Date(raceStartAt).getTime() - AUTO_LOCK_BEFORE_MS : Infinity
   return new Date(Math.min(byWindow, byLock))
 }
+const fmtDollars = (d: number) => fmtCents(Math.round(d * 100))
+const METHOD_LABEL = { cash: 'Cash', bank_transfer: 'Bank transfer', iou: 'IOU (owed)' } as const
 const fmtWhen = (d: Date) => d.toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 // The per-tribe sweep draw — shared by the standalone /sweep page and the tribe page's
@@ -85,9 +91,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [loading, setLoading] = useState(true)
   const [locking, setLocking] = useState(false)
   const [error, setError]     = useState<string | null>(null)
-  const [grantTarget, setGrantTarget] = useState('')
-  const [grantCount,  setGrantCount]  = useState('1')
-  const [granting,    setGranting]    = useState(false)
+  // Organiser "buy on their behalf": ticked members, then a basket of tickets + method each.
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [basket, setBasket] = useState<Record<string, { tickets: string; method: 'cash' | 'bank_transfer' | 'iou' }> | null>(null)
+  const [buyingFor, setBuyingFor] = useState(false)
 
   const [myRequests, setMyRequests] = useState<MyRequest[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -100,18 +107,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
-  const [racing, setRacing] = useState(false)
   const [now, setNow] = useState(() => Date.now())   // ticks the spin-window countdowns
-
-  // Practice sweeps only: the organiser runs a pretend race (random 1st/2nd/3rd for this pool,
-  // which also locks it and reveals the draw), or clears it to try again.
-  async function practiceRace(method: 'POST' | 'DELETE') {
-    setRacing(true); setError(null)
-    const res = await fetch(`/api/tribes/${tribeId}/sweep/practice-race`, { method }).then(r => r.json())
-    setRacing(false)
-    if (res.error) { setError(res.error); return }
-    await load()
-  }
 
   async function load() {
     const s = await fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json())
@@ -175,16 +171,24 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     await load()
   }
 
-  async function handleGrant() {
-    if (!grantTarget || !grantCount) return
-    setGranting(true); setError(null)
-    const res = await fetch(`/api/tribes/${tribeId}/sweep/grant-tickets`, {
+  function openBasket() {
+    setBasket(Object.fromEntries([...picked].map(id => [id, { tickets: '1', method: 'cash' as const }])))
+  }
+
+  // Recorded as approved purchases — they show in the paid column and the buyer is emailed.
+  async function handleBuyOnBehalf() {
+    if (!basket) return
+    setBuyingFor(true); setError(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/buy-on-behalf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: grantTarget, count: parseInt(grantCount, 10) || 1 }),
+      body: JSON.stringify({ purchases: Object.entries(basket).map(([user_id, b]) => ({
+        user_id, tickets: parseInt(b.tickets, 10) || 1, payment_method: b.method,
+      })) }),
     }).then(r => r.json())
-    setGranting(false)
+    setBuyingFor(false)
     if (res.error) { setError(res.error); return }
-    setGrantCount('1')
+    if (res.failed?.length) setError(`Bought for ${res.bought}, but not everyone: ${res.failed[0].error}`)
+    setBasket(null); setPicked(new Set())
     await load()
   }
 
@@ -250,7 +254,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     ? <span className="block text-gray-400 italic">🔒 hidden until the pool fills</span>
     : <span className={`block ${h.scratched ? 'text-red-400 line-through' : 'text-gray-900 font-medium'}`}>#{h.number} {h.name}</span>
 
-  const raceRun = sweep.podium.some(p => p.horse)
+  const raceRun = sweep.race_run
   const hasTickets = sweep.my_horses.length > 0 || sweep.my_unclaimed > 0
     || myRequests.some(r => r.status === 'pending' || r.status === 'approved')
   const showBuyBar = !buyCardVisible && !sweep.locked && sweep.tickets_left > 0
@@ -322,7 +326,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           <p className="text-sm font-bold text-violet-900">🧪 Practice sweep — no real money</p>
           <p className="text-xs text-violet-800 mt-1">
             Everything works like a real sweep: request a ticket, {sweep.is_comp_admin ? 'approve it in Manage, ' : 'your organiser approves it, '}
-            spin for your horse{sweep.is_comp_admin ? ', then run a pretend race (under "Who\'s in this pool") to see the results and prizes.' : ', then wait for the pretend race.'}
+            spin for your horse{sweep.is_comp_admin ? ', then run a pretend race (the button on the sweep card above) to see the results and prizes.' : ', then wait for the pretend race.'}
           </p>
         </div>
       )}
@@ -355,22 +359,9 @@ export function SweepPoolPanel({ tribeId, openPool }: {
               <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Review →</span>
             </Link>
           )}
-          <p className="text-xs text-gray-500 mb-3">Grant picks once someone's paid — each pick is one spin of the wheel.</p>
-          <div className="flex gap-2 items-center">
-            <select value={grantTarget} onChange={e => setGrantTarget(e.target.value)}
-              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm">
-              <option value="">Choose a member…</option>
-              {sweep.roster.map(r => (
-                <option key={r.user_id} value={r.user_id}>{r.display_name} ({r.total_tickets} tickets)</option>
-              ))}
-            </select>
-            <input type="number" min="1" value={grantCount} onChange={e => setGrantCount(e.target.value)}
-              className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center" />
-            <button onClick={handleGrant} disabled={granting || !grantTarget}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg whitespace-nowrap">
-              {granting ? 'Granting…' : 'Grant picks'}
-            </button>
-          </div>
+          <p className="text-xs text-gray-500">
+            Someone paid you in person? Tick them under <strong>Who&apos;s in this pool</strong> and buy their tickets for them.
+          </p>
         </div>
       )}
 
@@ -606,7 +597,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       {sweep.my_unclaimed === 0 && sweep.my_horses.length === 0 && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5 text-center">
           <p className="text-sm text-gray-700">You're in the pool, but no picks yet.</p>
-          <p className="text-xs text-gray-400 mt-1">Buy tickets above, or ask your organiser to grant some once you've paid.</p>
+          <p className="text-xs text-gray-400 mt-1">Buy tickets above, or pay your organiser in person and they can add them for you.</p>
         </div>
       )}
 
@@ -630,26 +621,32 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
       {/* Sweeps are free this Cup — a gentle donation nudge once you're holding a ticket.
           Never touches the draw. */}
-      {!sweep.is_practice && (sweep.my_horses.length > 0 || sweep.my_unclaimed > 0) && !sweep.podium.some(p => p.horse) && (
+      {!sweep.is_practice && (sweep.my_horses.length > 0 || sweep.my_unclaimed > 0) && !raceRun && (
         <FeedLuckNudge className="mb-5" source="sweep_ticket"
           message="Feed our hungry doggies for luck on your horse 🐾"
           luckyMessage={name => `🍀 ${name}’s cheering your horse home!`} />
       )}
 
-      {sweep.podium.some(p => p.horse) && (
+      {raceRun && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
-          <h2 className="font-bold text-gray-900 mb-3">🏆 Podium</h2>
+          <h2 className="font-bold text-gray-900 mb-3">🏆 Winners in this pool</h2>
+          {sweep.podium.length === 0 && <p className="text-sm text-gray-500">No horse in this pool finished the race.</p>}
           {sweep.podium.map(p => (
-            <p key={p.place} className="text-sm text-gray-700 mb-1">
-              {p.place === 1 ? '🥇' : p.place === 2 ? '🥈' : '🥉'}{' '}
-              {p.horse ? `#${p.horse.number} ${p.horse.name}` : 'Result not in yet'}
-              {p.winner ? <> — <strong>{p.winner.display_name}</strong></> : p.horse ? ' (nobody in this pool)' : ''}
-              {(() => {
-                const prize = p.horse && sweep.prizes?.places.find(x => x.place === p.place)
-                return prize && prize.cents > 0 ? <span className="text-amber-700 font-bold"> · {fmtCents(prize.cents)}</span> : null
-              })()}
-            </p>
+            <div key={p.horse?.id ?? p.places.join()} className="flex items-start justify-between gap-3 py-1.5 text-sm">
+              <span className="min-w-0">
+                <span className="block font-semibold text-gray-900">
+                  {prizeLabel(p.places)} — {p.winner?.display_name ?? 'A member'}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  #{p.horse?.number} {p.horse?.name} · {finishedLabel(p.finished)}
+                </span>
+              </span>
+              {p.cents != null && <span className="text-amber-700 font-bold whitespace-nowrap">{fmtCents(p.cents)}</span>}
+            </div>
           ))}
+          <p className="text-[11px] text-gray-400 mt-2">
+            Prizes go to the best-finishing horses held in this pool — if nobody holds a placegetter, its prize rolls down to the next horse home that somebody does.
+          </p>
         </div>
       )}
 
@@ -684,13 +681,36 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           <div className="divide-y divide-gray-100">
             {sweep.roster.map(r => (
               <div key={r.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <span className="text-gray-700 flex-shrink-0">{r.display_name}</span>
+                <span className="flex items-start gap-2 min-w-0">
+                  {/* Organiser: tick members to buy tickets for them. Not yourself — you've
+                      got the Buy card above. */}
+                  {sweep.is_comp_admin && (r.user_id !== session?.user?.id ? (
+                    <input type="checkbox" checked={picked.has(r.user_id)} aria-label={`Buy for ${r.display_name}`}
+                      onChange={e => setPicked(prev => {
+                        const next = new Set(prev)
+                        if (e.target.checked) next.add(r.user_id); else next.delete(r.user_id)
+                        return next
+                      })}
+                      className="mt-1 w-4 h-4 accent-emerald-600 flex-shrink-0" />
+                  ) : <span className="w-4 flex-shrink-0" />)}
+                  <span className="min-w-0">
+                    <span className="block text-gray-700">{r.display_name}</span>
+                    {/* Organiser only: money in, and IOUs still owed. */}
+                    {sweep.is_comp_admin && ((r.paid ?? 0) > 0 || (r.owed ?? 0) > 0) && (
+                      <span className="block text-[11px] text-gray-400">
+                        {(r.paid ?? 0) > 0 && `${fmtDollars(r.paid!)} paid`}
+                        {(r.paid ?? 0) > 0 && (r.owed ?? 0) > 0 && ' · '}
+                        {(r.owed ?? 0) > 0 && <span className="text-amber-700 font-semibold">{fmtDollars(r.owed!)} IOU owed</span>}
+                      </span>
+                    )}
+                  </span>
+                </span>
                 <span className="text-right">
                   {r.horses.length === 0 && r.unclaimed === 0 && <span className="text-gray-300">—</span>}
                   {r.horses.map(h => <span key={h.id}>{renderHorse(h)}</span>)}
                   {r.unclaimed > 0 && (
-                    <span className="block text-gray-400 italic">
-                      {sweep.draw_open ? `${r.unclaimed} still picking…` : `${r.unclaimed} ticket${r.unclaimed === 1 ? '' : 's'} · waiting for the draw`}
+                    <span className="block text-gray-500">
+                      🎟️ {r.unclaimed} {sweep.draw_open ? 'to spin' : `ticket${r.unclaimed === 1 ? '' : 's'} · waiting for the draw`}
                     </span>
                   )}
                   {/* Organiser: draw for someone not spinning — random horse, emailed to them.
@@ -718,40 +738,63 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           </div>
         )}
 
-        {/* Practice: the pretend race lives with the draw it settles. Live only once every
-            ticket sold has a horse — racing while someone's still picking would leave their
-            ticket out. (Not "every horse sold": a practice group rarely fills the field.) */}
-        {sweep.is_practice && sweep.is_comp_admin && (() => {
-          const sold = sweep.roster.reduce((s, r) => s + r.total_tickets, 0)
-          const stillPicking = sweep.roster.reduce((s, r) => s + r.unclaimed, 0)
-          const ready = sold > 0 && stillPicking === 0
-          return (
-            <div className="border-t border-gray-100 mt-4 pt-4">
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => practiceRace('POST')} disabled={racing || (!raceRun && !ready)}
-                  className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
-                  {racing ? 'They\'re racing…' : raceRun ? '🔁 Run the race again' : '🏁 Run the race'}
-                </button>
-                {raceRun && (
-                  <button onClick={() => practiceRace('DELETE')} disabled={racing}
-                    className="text-xs font-bold text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50 px-3 py-2 rounded-xl">
-                    Reset &amp; reopen the pool
-                  </button>
-                )}
-              </div>
-              {!raceRun && !ready && (
-                <p className="text-[11px] text-gray-400 mt-2 text-center">
-                  {sold === 0
-                    ? 'Opens once tickets are sold and drawn.'
-                    : `Opens once everyone has their horse — ${stillPicking} ticket${stillPicking === 1 ? '' : 's'} still to spin (or tap Draw for them).`}
-                </p>
-              )}
-            </div>
-          )
-        })()}
+        {sweep.is_comp_admin && picked.size > 0 && (
+          <button onClick={openBasket}
+            className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2.5 rounded-xl">
+            🎟️ Buy on behalf of {picked.size} →
+          </button>
+        )}
+
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {/* Buy on their behalf: tickets and how each person paid you. Recorded as approved
+          purchases (sweep/buy-on-behalf) — the ticket limit is re-checked on the server. */}
+      {basket && (() => {
+        const rows = Object.entries(basket)
+        const total = rows.reduce((n, [, b]) => n + (parseInt(b.tickets, 10) || 0), 0)
+        const price = sweep.ticket_price_cents
+        const over = total > sweep.tickets_left
+        const nameOf = (id: string) => sweep.roster.find(r => r.user_id === id)?.display_name ?? 'Member'
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4" onClick={() => !buyingFor && setBasket(null)}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 mb-1">Buy on their behalf</h3>
+              <p className="text-xs text-gray-500 mb-4">For people who paid you in person. They&apos;re emailed their tickets and spin for their own horse.</p>
+              <div className="space-y-3 mb-4">
+                {rows.map(([id, b]) => (
+                  <div key={id} className="flex items-center gap-2 text-sm">
+                    <span className="flex-1 min-w-0 truncate text-gray-800">{nameOf(id)}</span>
+                    <input type="number" min="1" value={b.tickets} aria-label={`Tickets for ${nameOf(id)}`}
+                      onChange={e => setBasket(prev => prev && { ...prev, [id]: { ...prev[id], tickets: e.target.value } })}
+                      className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-center" />
+                    <select value={b.method} aria-label={`How ${nameOf(id)} paid`}
+                      onChange={e => setBasket(prev => prev && { ...prev, [id]: { ...prev[id], method: e.target.value as any } })}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs">
+                      {(Object.keys(METHOD_LABEL) as (keyof typeof METHOD_LABEL)[]).map(m => <option key={m} value={m}>{METHOD_LABEL[m]}</option>)}
+                    </select>
+                    {price != null && (
+                      <span className="w-12 text-right text-xs text-gray-500">{fmtCents(price * (parseInt(b.tickets, 10) || 0))}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className={`text-xs mb-4 ${over ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                {total} ticket{total === 1 ? '' : 's'}{price != null ? ` · ${fmtCents(price * total)}` : ''} · {sweep.tickets_left} left in this pool
+                {over && ' — that’s too many'}
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setBasket(null)} disabled={buyingFor} className="text-sm font-semibold text-gray-500 px-3 py-2">Cancel</button>
+                <button onClick={handleBuyOnBehalf} disabled={buyingFor || over || total < 1}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl">
+                  {buyingFor ? 'Buying…' : `Confirm${price != null ? ` ${fmtCents(price * total)}` : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <p className="mt-4 text-center text-xs">
         <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>

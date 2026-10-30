@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
+import { finishedLabel, prizeLabel } from '@/lib/sweep/podium'
 
 // Sweep-organiser emails — payment receipts and results. Follows the established
 // per-feature pattern (own Resend client, own FROM, inline-CSS HTML, esc()-escaped
@@ -236,28 +237,33 @@ export async function sendSweepRequestRejected(opts: {
   }
 }
 
+// One prize winner in a pool (roll-down — lib/sweep/podium.ts): the prize place(s) won,
+// where the horse actually finished, and the money, if the sweep has a ticket price.
 export type PodiumEntry = {
-  place: number
-  horse: { number: number; name: string } | null
-  winner: { display_name: string } | null
+  places: number[]
+  finished: number
+  cents: number | null
+  horse: { number: number; name: string }
+  winner: { display_name: string }
 }
 
-// Sent once a tribe's three placegetters are all recorded (see tribes.sweep_results_sent_at
+
+// Sent once the full race result is in — each pool's roll-down winners (see tribes.sweep_results_sent_at
 // for the idempotency guard — callers must only call this once per tribe).
 export async function sendSweepResultsReady(opts: {
   email: string; name?: string | null
   compName: string; tribeName: string
   podium: PodiumEntry[]
   myHorses: { number: number; name: string }[]
+  compId: string
 }): Promise<void> {
   if (!process.env.RESEND_API_KEY) return
   try {
     const firstName = (opts.name ?? '').trim().split(' ')[0]
     const greeting = firstName ? `Hey ${esc(firstName)} —` : 'Hey —'
-    const place = (p: number) => (p === 1 ? '🥇' : p === 2 ? '🥈' : '🥉')
     const podiumRows = opts.podium.map(p => row(
-      `${place(p.place)} Place ${p.place}`,
-      p.horse ? `#${p.horse.number} ${p.horse.name}${p.winner ? ` — ${p.winner.display_name}` : ' (nobody in this pool)'}` : 'Result not in',
+      prizeLabel(p.places),
+      `${p.winner.display_name} — #${p.horse.number} ${p.horse.name} (${finishedLabel(p.finished)})${p.cents != null ? ` · $${(p.cents / 100).toFixed(2)}` : ''}`,
     )).join('')
     const mine = opts.myHorses.length
       ? `<p style="margin:0 0 16px;font-size:15px;color:#374151;">Your horse${opts.myHorses.length === 1 ? '' : 's'}: <strong>${opts.myHorses.map(h => `#${h.number} ${esc(h.name)}`).join(', ')}</strong></p>`
@@ -270,8 +276,9 @@ export async function sendSweepResultsReady(opts: {
     ${podiumRows}
   </table>
   <div style="text-align:center;margin-bottom:8px;">
-    <a href="https://tribepicks.com/sweep" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">See the full pool →</a>
-  </div>`
+    <a href="https://tribepicks.com/tribe?comp_id=${encodeURIComponent(opts.compId)}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">See the full pool →</a>
+  </div>
+  <p style="margin:14px 0 0;font-size:12px;color:#6b7280;">Prizes go to the best-finishing horses held in your pool — if nobody holds a placegetter, its prize rolls down to the next horse home that somebody does hold.</p>`
 
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
@@ -322,7 +329,7 @@ export async function sendSweepJoined(opts: {
     `<strong>Request a ticket</strong> — choose how many, and how you're paying ${who}. You pay them directly; TribePicks never touches the money.`,
     `<strong>${opts.organiserName ? esc(opts.organiserName) : 'Your organiser'} approves it</strong> — we'll email you when they do.`,
     `<strong>Spin for your horse</strong> — ${opts.drawOpen ? 'the draw is open now' : `the draw opens ${DRAW_OPENS_LABEL}, once the final field is in`}. You get 2 hours to spin each ticket; after that ${who} can draw for you.`,
-    `<strong>Race day</strong> — ${jump ? `${esc(opts.raceName ?? 'the race')} jumps ${esc(jump)}. ` : ''}Whoever holds 1st, 2nd or 3rd in your pool wins.`,
+    `<strong>Race day</strong> — ${jump ? `${esc(opts.raceName ?? 'the race')} jumps ${esc(jump)}. ` : ''}Your pool's three best-finishing horses win its prizes.`,
   ])}
   ${button(`https://tribepicks.com/tribe?comp_id=${encodeURIComponent(opts.compId)}`, 'Get your ticket →')}
   <p style="margin:14px 0 0;font-size:12px;color:#6b7280;text-align:center;"><a href="https://tribepicks.com/rules/melbourne-cup-2026" style="color:#6b7280;">Full sweep rules</a></p>`
@@ -355,7 +362,7 @@ export async function sendSweepOrganiserWelcome(opts: {
     '<strong>Share your invite</strong> — the link or the QR code on your organiser page. Pop the QR on the office fridge.',
     '<strong>Approve tickets</strong> as payments come in. Bank transfers can approve themselves once a receipt is attached, if you turn that on.',
     `<strong>The draw</strong> — opens ${DRAW_OPENS_LABEL}. Everyone gets 2 hours to spin for their horse; after that you can tap <em>Draw for them</em>. Anything still unspun is drawn automatically 30 minutes before the race.`,
-    '<strong>Results</strong> — after the race, every pool gets its 1st, 2nd and 3rd by email. You pay the winners.',
+    '<strong>Results</strong> — after the race, every pool gets its winners by email: its three best-finishing horses, so a prize never goes to an unsold horse. You pay the winners.',
   ])}
   ${button(`https://tribepicks.com/sweep-admin?comp_id=${encodeURIComponent(opts.compId)}`, 'Open your organiser page →')}
   <p style="margin:14px 0 0;font-size:12px;color:#6b7280;text-align:center;"><a href="https://tribepicks.com/rules/melbourne-cup-2026" style="color:#6b7280;">The rules your players see</a></p>`

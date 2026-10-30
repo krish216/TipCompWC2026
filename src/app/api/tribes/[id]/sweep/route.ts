@@ -6,13 +6,14 @@ import { computePoolPrizes, isValidSplit, poolFeeShares } from '@/lib/sweep/priz
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
 import { autoDrawAt, drawForUnlocksAt, loadDrawOpenedAt } from '@/lib/sweep/grace'
+import { poolPodium, raceFinishes } from '@/lib/sweep/pool-result'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/tribes/:id/sweep — this pool's sweep state: the shared race field, every
-// member's tickets (a member can hold several — see grant-tickets), the caller's own
-// unclaimed/claimed tickets, the full member roster (for the admin's grant-tickets UI,
-// including members with zero tickets so far), and the 1st/2nd/3rd podium for this pool.
+// member's tickets (a member can hold several), the caller's own unclaimed/claimed tickets,
+// the full member roster (for the organiser's buy-on-behalf, including members with zero
+// tickets so far), and this pool's prize winners once the race is run.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -58,7 +59,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const [{ data: horses }, { data: entries }, { data: memberRows }] = await Promise.all([
     (admin.from('sweep_horses') as any)
-      .select('id, number, name, scratched, finish_position')
+      .select('*')   // incl. did_not_finish (migration 206) once it exists
       .eq('tournament_id', tribe.tournament_id).order('number', { ascending: true }),
     (admin.from('sweep_entries') as any)
       .select('id, user_id, horse_id, joined_at').eq('tribe_id', tribeId),
@@ -93,21 +94,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const myRoster = roster.find((r: any) => r.user_id === user.id)
 
-  // Podium: for each placegetter horse, which (if any) entrant in THIS pool holds it —
-  // and if several of someone's tickets somehow held it, that can't happen (one horse,
-  // one ticket, UNIQUE(tribe_id, horse_id)) so a single match is always correct.
-  // A practice pool has its own pretend result (tribes.practice_results — the practice field is
-  // shared by every practice sweep, so finish_position can't hold it).
+  // Podium: roll-down prizes (lib/sweep/podium.ts) — the pool's prizes go to the
+  // best-finishing horses it holds, so it's empty until the FULL result is in. A practice pool
+  // has its own pretend result (tribes.practice_results — the practice field is shared by every
+  // practice sweep, so finish_position can't hold it).
   const isPractice = isPracticeSlug((tourn as any)?.slug)
-  const practiceIds: string[] = (tribe as any).practice_results ?? []
-  const podium = [1, 2, 3].map(place => {
-    const horse = isPractice
-      ? (horses ?? []).find((h: any) => h.id === practiceIds[place - 1])
-      : (horses ?? []).find((h: any) => h.finish_position === place)
-    if (!horse) return { place, horse: null, winner: null }
-    const winner = roster.find((r: any) => r.horses.some((h: any) => h.id === horse.id)) ?? null
-    return { place, horse, winner }
-  })
+  const finishes = raceFinishes((horses ?? []) as any[], isPractice ? ((tribe as any).practice_results ?? []) : null)
+  const podium = finishes
+    ? (await poolPodium(admin, { tribeId, compId: tribe.comp_id, finishes, entries: (entries ?? []) as any[] })).map(w => ({
+        places:   w.places,
+        horse:    horseById[w.horseId] ?? null,
+        finished: w.position,
+        winner:   roster.find((r: any) => r.user_id === w.userId) ?? null,
+        cents:    w.cents,
+      }))
+    : []
 
   // One pattern for every sweep: you only ever see your OWN horses; who drew what across the
   // pool is hidden from everyone (organiser included) until the pool closes — every horse
@@ -115,10 +116,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // pool that never fills still reveals before the race. The redaction is a stripped object
   // (no number, name or real id), not a flag, so nothing leaks to a caller reading the raw
   // response.
-  const [field, { data: pendingRows }] = await Promise.all([
+  const [field, { data: pendingRows }, { data: approvedRows }] = await Promise.all([
     loadField(admin, tribe.tournament_id),
     (admin.from('sweep_payment_requests') as any).select('tickets_requested').eq('tribe_id', tribeId).eq('status', 'pending'),
+    isAdmin
+      ? (admin.from('sweep_payment_requests') as any).select('user_id, amount, paid_at').eq('tribe_id', tribeId).eq('status', 'approved')
+      : Promise.resolve({ data: [] }),
   ])
+  // Organiser only: what each member has paid, and what's still owed (an IOU — approved, not
+  // yet marked paid). Tipsters never see each other's money.
+  const moneyByUser: Record<string, { paid: number; owed: number }> = {}
+  for (const r of (approvedRows ?? []) as any[]) {
+    const m = (moneyByUser[r.user_id] ??= { paid: 0, owed: 0 })
+    if (r.paid_at) m.paid += Number(r.amount ?? 0); else m.owed += Number(r.amount ?? 0)
+  }
   // Same rule as the request route's oversell guard: granted tickets + pending requests.
   const ticketsLeft = Math.max(0, field.capacity - (entries ?? []).length
     - ((pendingRows ?? []) as any[]).reduce((sum, r) => sum + r.tickets_requested, 0))
@@ -146,7 +157,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const redactRow = (r: any) => r.user_id === user.id ? r : { ...r, horses: r.horses.map(redact) }
 
   const rosterOut = (hideOthers ? roster.map(redactRow) : roster)
-    .map((r: any) => isAdmin ? { ...r, draw_unlocks_at: unlockByUser[r.user_id] ?? null } : r)
+    .map((r: any) => isAdmin ? {
+      ...r, draw_unlocks_at: unlockByUser[r.user_id] ?? null,
+      paid: moneyByUser[r.user_id]?.paid ?? 0, owed: moneyByUser[r.user_id]?.owed ?? 0,
+    } : r)
   const podiumOut = hideOthers
     ? podium.map(p => ({ ...p, winner: p.winner ? redactRow(p.winner) : p.winner }))
     : podium
@@ -192,6 +206,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     // When TribePicks draws every ticket still unspun (30 minutes before the race).
     auto_draw_at:    isPractice ? null : autoDrawAt(raceStartAt)?.toISOString() ?? null,
     podium:          podiumOut,
+    race_run:        !!finishes,   // the full result is in (or the practice race has been run)
     // ── Buying: who to pay, where, and how long approval should take ──
     organiser_name:        organiser.contact_name ?? (comp as any)?.owner_name ?? null,
     approval_window_hours: organiser.approval_window_hours,

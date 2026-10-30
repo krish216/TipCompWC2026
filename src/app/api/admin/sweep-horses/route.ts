@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { checkAndSendSweepResults } from '@/lib/sweep/results'
+import { parseFinishOrder } from '@/lib/sweep/podium'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const [{ data, error }, { data: tourn }] = await Promise.all([
     (admin.from('sweep_horses') as any)
-      .select('id, number, name, scratched, finish_position')
+      .select('id, number, name, scratched, finish_position, did_not_finish')
       .eq('tournament_id', tournamentId).order('number', { ascending: true }),
     (admin.from('tournaments') as any).select('race_start_at').eq('id', tournamentId).maybeSingle(),
   ])
@@ -57,8 +58,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true, count: rows.length })
 }
 
-// PATCH /api/admin/sweep-horses — flip a scratching or set a race result.
-// Body: { id, scratched? , finish_position? }
+// PATCH /api/admin/sweep-horses — flip a scratching. (The result goes in all at once — PUT.)
+// Body: { id, scratched }
 export async function PATCH(request: NextRequest) {
   if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -68,18 +69,65 @@ export async function PATCH(request: NextRequest) {
 
   const update: Record<string, any> = {}
   if (typeof body.scratched === 'boolean') update.scratched = body.scratched
-  if (body.finish_position === null || typeof body.finish_position === 'number') update.finish_position = body.finish_position
   if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const admin = createAdminClient()
-  const { data: horse, error } = await (admin.from('sweep_horses') as any).update(update).eq('id', id).select('tournament_id').maybeSingle()
+  const { error } = await (admin.from('sweep_horses') as any).update(update).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // A finish_position set here might be the last of the top 3 — check if every tribe
-  // under this tournament can now get its results email (idempotent per tribe).
-  if (typeof update.finish_position === 'number' && (horse as any)?.tournament_id) {
-    await checkAndSendSweepResults(admin, (horse as any).tournament_id)
+  return NextResponse.json({ ok: true })
+}
+
+// PUT /api/admin/sweep-horses — the whole race result in one go (roll-down prizes need the
+// full order, lib/sweep/podium.ts). Body: { tournament_id, order: "7, 3=12, 1, …", dnf: "5, 9" }
+// — every non-scratched horse exactly once across the two; "=" is a dead heat. { clear: true }
+// wipes the result. Once complete, every pool's results email goes out (once per pool).
+export async function PUT(request: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await request.json().catch(() => null)
+  const tournamentId = body?.tournament_id
+  if (!tournamentId) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 })
+
+  const admin = createAdminClient()
+  if (body?.clear === true) {
+    const { error } = await (admin.from('sweep_horses') as any)
+      .update({ finish_position: null, did_not_finish: false }).eq('tournament_id', tournamentId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
   }
 
+  const parsed = parseFinishOrder(String(body?.order ?? ''))
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const dnf = String(body?.dnf ?? '').split(/[,\s]+/).filter(Boolean).map(Number)
+  if (dnf.some(n => !Number.isInteger(n) || n < 1)) return NextResponse.json({ error: 'Did-not-finish must be horse numbers.' }, { status: 400 })
+
+  const { data: horses } = await (admin.from('sweep_horses') as any)
+    .select('id, number, scratched').eq('tournament_id', tournamentId)
+  const byNumber = new Map(((horses ?? []) as any[]).map(h => [h.number, h]))
+  const seen = new Set<number>()
+  for (const n of [...parsed.order.map(([num]) => num), ...dnf]) {
+    const h = byNumber.get(n)
+    if (!h) return NextResponse.json({ error: `There's no horse #${n} in the field.` }, { status: 400 })
+    if (h.scratched) return NextResponse.json({ error: `#${n} is scratched — leave it out.` }, { status: 400 })
+    if (seen.has(n)) return NextResponse.json({ error: `#${n} is listed twice.` }, { status: 400 })
+    seen.add(n)
+  }
+  const missing = ((horses ?? []) as any[]).filter(h => !h.scratched && !seen.has(h.number)).map(h => `#${h.number}`)
+  if (missing.length) {
+    return NextResponse.json({ error: `Every runner needs a place or "did not finish" — missing ${missing.join(', ')}.` }, { status: 400 })
+  }
+
+  const position = new Map(parsed.order)
+  const dnfSet = new Set(dnf)
+  for (const h of (horses ?? []) as any[]) {
+    const { error } = await (admin.from('sweep_horses') as any).update({
+      finish_position: position.get(h.number) ?? null,
+      did_not_finish:  dnfSet.has(h.number),
+    }).eq('id', h.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  await checkAndSendSweepResults(admin, tournamentId)
   return NextResponse.json({ ok: true })
 }

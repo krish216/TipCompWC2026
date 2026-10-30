@@ -2,7 +2,7 @@ import { loadField } from '@/lib/sweep/field'
 
 // Shared ticket-granting logic — inserts N unclaimed sweep_entries rows (horse_id null) for
 // a tribe member, capped so a tribe's total tickets can never exceed its field size (a
-// ticket with no horse left to possibly win isn't a ticket). Used by grant-tickets (the
+// ticket with no horse left to possibly win isn't a ticket). Used by buy-on-behalf (the
 // organiser granting directly), and by the ticket-purchase-request flow (approve, and
 // auto-approve on receipt attach) — kept as one function so the cap check can't drift
 // between call sites.

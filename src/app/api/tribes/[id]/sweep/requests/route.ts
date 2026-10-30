@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const PAYMENT_METHODS = ['cash', 'bank_transfer', 'iou']
 
 // POST /api/tribes/:id/sweep/requests — a buyer asks for N tickets in this pool. Unlike
-// grant-tickets (organiser grants directly, after collecting payment offline themselves),
+// buy-on-behalf (the organiser buys for someone who paid them in person),
 // this is the self-serve path: the request starts `pending` and only becomes real tickets
 // once confirmed — immediately for `iou` (if the comp allows it) and `bank_transfer` in
 // auto-approve mode, or via the organiser's explicit approve for everything else.

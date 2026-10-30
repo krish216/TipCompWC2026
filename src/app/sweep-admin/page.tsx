@@ -27,7 +27,7 @@ const UNSAVED_PROMPT = 'You have unsaved changes on this sweep. Leave and lose t
 type CompLite = { id: string; name: string; logo_url: string | null; invite_code: string; tournament_id: string }
 type CrewMember = { user_id: string; display_name: string; practice_names: string[]; status: 'member' | 'invited' | 'none'; can_email: boolean }
 type Settings = {
-  allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; sweep_leftover_mode: 'none' | 'auto_assign_organiser'; max_tribes: number
+  allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; max_tribes: number
   sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]; sweep_deduct_fee: boolean
 }
 type RequestRow = {
@@ -294,7 +294,7 @@ export default function SweepAdminPage() {
 
   async function updateSetting(key: keyof Settings, value: any) {
     setSavingSetting(key)
-    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : key === 'sweep_leftover_mode' ? 'leftover_horse_mode' : 'allow_iou'
+    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : 'allow_iou'
     const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [bodyKey]: value }),
     }).then(r => r.json())
@@ -1032,17 +1032,6 @@ export default function SweepAdminPage() {
               className={`text-xs font-bold px-3 py-1.5 rounded-lg ${settings.allow_iou ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
               {settings.allow_iou ? 'Enabled' : 'Disabled'}
             </button>
-          </div>
-
-          <div className="border border-gray-200 rounded-2xl p-5">
-            <h2 className="font-bold text-gray-900 mb-1 text-sm">Leftover horses at close</h2>
-            <p className="text-xs text-gray-500 mb-3">If not every horse sells, decide what happens to the rest when you close a pool.</p>
-            <div className="flex gap-2">
-              <button onClick={() => updateSetting('sweep_leftover_mode', 'none')} disabled={savingSetting === 'sweep_leftover_mode'}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg ${settings.sweep_leftover_mode === 'none' ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>Leave unclaimed</button>
-              <button onClick={() => updateSetting('sweep_leftover_mode', 'auto_assign_organiser')} disabled={savingSetting === 'sweep_leftover_mode'}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg ${settings.sweep_leftover_mode === 'auto_assign_organiser' ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>I'll take them</button>
-            </div>
           </div>
 
           <div className="border border-red-200 rounded-2xl p-5">
