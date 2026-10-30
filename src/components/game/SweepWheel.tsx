@@ -14,13 +14,19 @@ const smoothstep = (x: number) => x * x * (3 - 2 * x)
  *  until it's spinning too fast to track, then prompts a tap. The tap asks the SERVER to
  *  draw (onDraw — a uniform random pick; the client never chooses the horse), and the wheel
  *  then eases onto the drawn horse's segment right under the tap point, so it still feels
- *  like "where you tapped is what you got". `horses` is the still-available field (the
- *  caller filters out claimed + scratched). You see the horse you drew; who drew what
- *  across the pool stays hidden until the pool closes. */
-export function SweepWheel({ horses, onDraw }: {
-  horses: Horse[]; onDraw: () => Promise<PickResult>
+ *  like "where you tapped is what you got". `slots` is how many horses are still undrawn —
+ *  only a count, never which ones: every segment is an identical horse icon, so the wheel
+ *  can't reveal the undrawn field. You see the horse you drew; who drew what across the
+ *  pool stays hidden until the pool closes. */
+export function SweepWheel({ slots, onDraw }: {
+  slots: number; onDraw: () => Promise<PickResult>
 }) {
-  const n = horses.length
+  const n = slots
+  // Drawn segments: at least 2 — a lone 360° segment renders as nothing (an arc that starts
+  // and ends at the same point), so the last horse would spin an empty wheel. The segments
+  // are identical icons, so an extra one is purely visual; `n` stays the real count.
+  const shown = Math.max(n, 2)
+  const segments = useMemo(() => Array.from({ length: shown }, (_, i) => i), [shown])
   const wheelRef  = useRef<SVGGElement>(null)
   const frameRef  = useRef<number>(0)
   const startRef  = useRef<number>(0)
@@ -47,7 +53,7 @@ export function SweepWheel({ horses, onDraw }: {
     return layers
   }, [])
 
-  const segAngle = 360 / Math.max(1, n)
+  const segAngle = 360 / shown
 
   // Keyed on spinKey (bumped only by startSpin) rather than `phase` — the loop itself
   // flips phase to 'fast' partway through, and depending on `phase` here would re-trigger
@@ -114,9 +120,10 @@ export function SweepWheel({ horses, onDraw }: {
     cancelAnimationFrame(frameRef.current)
     if (containerRef.current) containerRef.current.style.filter = 'none'
 
-    // Settle: ease the wheel exactly onto the DRAWN horse's segment centre, under the tap
-    // point, so the stop feels intentional rather than an abrupt freeze-frame.
-    const idx = res.ok && res.horse ? horses.findIndex(h => h.id === res.horse!.id) : -1
+    // Settle: ease the segment under the tap point onto its centre, so the stop feels
+    // intentional rather than an abrupt freeze-frame. Segments are identical horse icons,
+    // so where it stops reveals nothing — the drawn horse shows in the result below.
+    const idx = res.ok && res.horse ? Math.floor(((screenAngle - angleRef.current) % 360 + 360) % 360 / segAngle) % shown : -1
     if (idx >= 0 && wheelRef.current) {
       const targetRotation = screenAngle - (idx * segAngle + segAngle / 2)
       wheelRef.current.style.transition = 'transform 550ms cubic-bezier(0.17, 0.84, 0.44, 1)'
@@ -177,7 +184,7 @@ export function SweepWheel({ horses, onDraw }: {
             </filter>
           </defs>
           <g ref={wheelRef} style={{ transformOrigin: '160px 160px' }}>
-            {horses.map((h, i) => {
+            {segments.map(i => {
               const a0 = (i * segAngle - 90) * Math.PI / 180
               const a1 = ((i + 1) * segAngle - 90) * Math.PI / 180
               const x0 = cxp + r * Math.cos(a0), y0 = cyp + r * Math.sin(a0)
@@ -187,17 +194,19 @@ export function SweepWheel({ horses, onDraw }: {
               const mid = (a0 + a1) / 2
               const lx = cxp + r * 0.68 * Math.cos(mid), ly = cyp + r * 0.68 * Math.sin(mid)
               return (
-                <g key={h.id}>
+                <g key={i}>
                   <path
                     d={`M${cxp},${cyp} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z`}
                     fill={color} fillOpacity={0.14} stroke={color} strokeOpacity={0.85}
                     strokeWidth={1.25} filter="url(#sweep-glow)"
                   />
+                  {/* A horse icon, never the number — numbers would show which horses are
+                      still undrawn. The drawn horse is only revealed after the spin. */}
                   {segAngle > 8 && (
-                    <text x={lx} y={ly} fill={color} fontSize={11} fontWeight={800}
+                    <text x={lx} y={ly} fontSize={segAngle > 20 ? 18 : 13}
                       textAnchor="middle" dominantBaseline="middle"
                       transform={`rotate(${(mid * 180 / Math.PI) + 90}, ${lx}, ${ly})`}>
-                      #{h.number}
+                      🐎
                     </text>
                   )}
                 </g>

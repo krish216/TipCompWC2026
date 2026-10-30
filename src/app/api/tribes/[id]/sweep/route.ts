@@ -167,7 +167,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     draw_full:       drawFull,
     draw_hidden:     hideOthers,   // true → other members' horses are redacted until the pool closes
     horses:          field.drawOpen ? horses ?? [] : [],
-    available:       field.drawOpen ? (horses ?? []).filter((h: any) => !(entries ?? []).some((e: any) => e.horse_id === h.id)) : [],
+    // Only HOW MANY horses are left to draw — never which: the wheel shows identical icons,
+    // and a list of undrawn horses would give the draw away in the network response.
+    available_count: field.drawOpen ? (horses ?? []).filter((h: any) => !h.scratched && !(entries ?? []).some((e: any) => e.horse_id === h.id)).length : 0,
     roster:          rosterOut,
     my_horses:       myRoster?.horses ?? [],
     my_unclaimed:    Math.max(0, (myRoster?.unclaimed ?? 0) - myOverField),

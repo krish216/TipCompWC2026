@@ -28,7 +28,7 @@ type SweepState = {
   draw_full: boolean
   draw_hidden: boolean   // other members' horses are redacted until the pool closes
   horses: Horse[]
-  available: Horse[]
+  available_count: number   // horses still undrawn — a count only, never which
   roster: RosterRow[]
   my_horses: HorseOrHidden[]
   my_unclaimed: number
@@ -260,8 +260,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           <p className="text-center text-sm font-bold text-gray-900 mb-2">
             🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
           </p>
-          {/* Scratched horses can't be drawn (the server skips them), so keep them off the wheel. */}
-          <SweepWheel key={sweep.my_unclaimed} horses={sweep.available.filter(h => !h.scratched)} onDraw={handleDraw} />
+          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} />
         </div>
       )}
 
