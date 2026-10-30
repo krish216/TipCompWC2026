@@ -98,6 +98,8 @@ export default function SweepAdminPage() {
   const [nameError, setNameError] = useState<string | null>(null)
   const [nameSavedAt, setNameSavedAt] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDrawPool, setConfirmDrawPool] = useState<string | null>(null)   // pool id awaiting "Draw now" confirm
+  const [drawingPool, setDrawingPool] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [requests, setRequests] = useState<RequestRow[]>([])
@@ -412,6 +414,15 @@ export default function SweepAdminPage() {
     await loadPools(compId)
   }
 
+  // Random draw for every ticket its holder hasn't spun — the organiser never picks the horse.
+  async function drawUnspun(tribeId: string) {
+    setDrawingPool(tribeId); setConfirmDrawPool(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/draw-unspun`, { method: 'POST' }).then(r => r.json())
+    setDrawingPool(null)
+    if (res.error) { setError(res.error); return }
+    await loadPools(compId)
+  }
+
   async function reopenPool(tribeId: string) {
     const res = await fetch(`/api/tribes/${tribeId}/sweep/lock`, { method: 'DELETE' }).then(r => r.json())
     if (res.error) { setError(res.error); return }
@@ -700,6 +711,31 @@ export default function SweepAdminPage() {
                     These were the last tickets sold and have no horse to spin for.
                   </p>
                 )}
+                {/* Tickets bought but not spun — one slow member holds the whole pool's reveal
+                    back, and can't spin at all once it locks. Draw them at random. */}
+                {(() => {
+                  const unspun = p.tickets - p.claimed - p.refunds.reduce((s, r) => s + r.tickets, 0)
+                  if (!p.draw_open || unspun <= 0) return null
+                  return (
+                    <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
+                      <p className="text-amber-900">
+                        {unspun} ticket{unspun === 1 ? '' : 's'} not spun yet. Draw a random horse for them — each holder is emailed theirs.
+                        {!isPracticeComp && ' This happens automatically 30 minutes before the race.'}
+                      </p>
+                      {confirmDrawPool === p.id ? (
+                        <span className="flex gap-2 mt-1.5">
+                          <button onClick={() => drawUnspun(p.id)} className="font-bold text-white bg-amber-600 hover:bg-amber-700 px-2.5 py-1 rounded-lg">Yes, draw now</button>
+                          <button onClick={() => setConfirmDrawPool(null)} className="font-semibold text-gray-500">Cancel</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmDrawPool(p.id)} disabled={drawingPool === p.id}
+                          className="mt-1.5 font-bold text-amber-800 border border-amber-300 hover:bg-amber-100 disabled:opacity-50 px-2.5 py-1 rounded-lg">
+                          {drawingPool === p.id ? 'Drawing…' : `🎲 Draw for ${unspun} unspun ticket${unspun === 1 ? '' : 's'}`}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               {!p.locked ? (
                 <button onClick={() => closePool(p.id)} className="text-xs font-bold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg whitespace-nowrap">Close pool</button>

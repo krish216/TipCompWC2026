@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
+import { drawUnspunTickets } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
 
 // POST /api/tribes/:id/sweep/close — comp-admin only. Distinct from sweep/lock: lock only
 // ever meant "stop new joins" (migration 190) and isn't re-runnable; close is the explicit
-// "finalize this draw" action — it locks if not already locked, and then, if the comp has
+// "finalize this draw" action — it locks if not already locked, draws a horse for every
+// ticket its holder never spun (lib/sweep/draw.ts), and then, if the comp has
 // opted into sweep_leftover_mode='auto_assign_organiser', hands every still-unclaimed,
 // unscratched horse straight to the organiser (no ticket-then-claim step needed — there's
 // no contention over who gets a horse nobody bought).
@@ -42,6 +44,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .update({ sweep_locked_at: new Date().toISOString() }).eq('id', tribeId).is('sweep_locked_at', null)
   }
 
+  // Paid-but-unspun tickets get their horse FIRST — otherwise the leftover hand-out below
+  // would give the organiser the horses those ticket holders paid to draw.
+  const { drawn: unspunDrawn } = await drawUnspunTickets(admin, { tribeId, tournamentId: tribe.tournament_id })
+
   const { data: comp } = await (admin.from('comps') as any)
     .select('sweep_leftover_mode').eq('id', tribe.comp_id).maybeSingle()
 
@@ -64,5 +70,5 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  return NextResponse.json({ ok: true, locked: true, leftover_horses_assigned: leftoverHorsesAssigned })
+  return NextResponse.json({ ok: true, locked: true, unspun_drawn: unspunDrawn, leftover_horses_assigned: leftoverHorsesAssigned })
 }

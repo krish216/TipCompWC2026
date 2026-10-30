@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { sendDrawReminders } from '@/lib/sweep/draw-reminders'
+import { drawUnspunTickets } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60   // race day: drawing unspun tickets across every pool
 
 const NUDGE_BEFORE_MS = 6 * 60 * 60 * 1000   // 9am AEDT for a 3pm jump
 
@@ -35,12 +37,24 @@ export async function GET(request: NextRequest) {
   }
 
   const { data: tourns } = await (admin.from('tournaments') as any)
-    .select('id')
+    .select('id, race_start_at')
     .eq('format', 'sweep')
     .not('race_start_at', 'is', null)
     .lte('race_start_at', new Date(Date.now() + 30 * 60 * 1000).toISOString())
   const tournIds = ((tourns ?? []) as any[]).map(t => t.id)
   if (!tournIds.length) return NextResponse.json({ locked: 0, nudged, reason: 'no tournament within 30 minutes of race_start_at' })
+
+  // Nobody can spin once a pool locks, so draw for every ticket still unspun first — a paid
+  // ticket always gets its horse, and one slow member never holds the pool back. Every run
+  // from 30 minutes out until the jump (idempotent), so manually locked pools are covered too.
+  const upcoming = ((tourns ?? []) as any[]).filter(t => new Date(t.race_start_at).getTime() > Date.now()).map(t => t.id)
+  let unspunDrawn = 0
+  if (upcoming.length) {
+    const { data: pools } = await (admin.from('tribes') as any).select('id, tournament_id').in('tournament_id', upcoming)
+    for (const p of (pools ?? []) as any[]) {
+      unspunDrawn += (await drawUnspunTickets(admin, { tribeId: p.id, tournamentId: p.tournament_id })).drawn
+    }
+  }
 
   const { data: locked, error } = await (admin.from('tribes') as any)
     .update({ sweep_locked_at: new Date().toISOString() })
@@ -49,5 +63,5 @@ export async function GET(request: NextRequest) {
     .select('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ locked: (locked ?? []).length, nudged })
+  return NextResponse.json({ locked: (locked ?? []).length, unspun_drawn: unspunDrawn, nudged })
 }

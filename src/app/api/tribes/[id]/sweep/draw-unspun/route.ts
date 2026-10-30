@@ -1,0 +1,35 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase'
+import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
+import { drawUnspunTickets } from '@/lib/sweep/draw'
+
+export const dynamic = 'force-dynamic'
+
+// POST /api/tribes/:id/sweep/draw-unspun — comp-admin only. Draws a horse, at random, for
+// every ticket in the pool its holder hasn't spun yet, so one slow member can't hold the pool
+// back; each holder is emailed their horse(s). The organiser never chooses a horse. Works on a
+// locked pool too — that's exactly when an unspun ticket is stuck (holders can't spin then).
+export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const tribeId = params.id
+
+  const { data: tribe } = await (admin.from('tribes') as any)
+    .select('id, comp_id, tournament_id').eq('id', tribeId).maybeSingle()
+  if (!tribe) return NextResponse.json({ error: 'Tribe not found' }, { status: 404 })
+
+  const { data: isAdmin } = await (admin.from('comp_admins') as any)
+    .select('user_id').eq('comp_id', tribe.comp_id).eq('user_id', user.id).maybeSingle()
+  if (!isAdmin) return NextResponse.json({ error: 'Only a comp admin can draw for unspun tickets' }, { status: 403 })
+
+  if (!(await loadField(admin, tribe.tournament_id)).drawOpen) {
+    return NextResponse.json({ error: `The draw opens ${DRAW_OPENS_LABEL}, once the final field is declared.` }, { status: 409 })
+  }
+
+  const { drawn, failed } = await drawUnspunTickets(admin, { tribeId, tournamentId: tribe.tournament_id })
+  if (failed > 0 && drawn === 0) return NextResponse.json({ error: 'Couldn’t draw for those tickets — try again in a moment.' }, { status: 409 })
+  return NextResponse.json({ ok: true, drawn, failed })
+}
