@@ -1,6 +1,7 @@
 import { randomInt } from 'crypto'
 import { sendSweepDrawConfirmation } from '@/lib/sweep/emails'
 import { loadField, overFieldTicketIds } from '@/lib/sweep/field'
+import { drawForUnlocksAt, loadDrawOpenedAt } from '@/lib/sweep/grace'
 
 // The one random draw behind every horse a ticket gets — the buyer's own wheel spin
 // (sweep/pick), the organiser's "Draw for unspun tickets" (sweep/draw-unspun), closing a
@@ -45,18 +46,34 @@ export async function drawHorseForTicket(
 // Draws a horse for every ticket in the pool that's still unspun (skipping a short final
 // field's over-field tickets, which get refunded), then emails each holder their horses.
 // `userId` narrows it to one holder's tickets (a buyer who asked for auto-draw, migration
-// 203). Idempotent — a second run finds nothing to draw. Does nothing while the draw is closed.
+// 203). `respectGrace` (the organiser drawing for people) leaves alone any ticket whose holder
+// is still inside their 2 hours to spin it (lib/sweep/grace.ts); those come back as `waiting`,
+// with `nextUnlock` the soonest one opens up. Idempotent — a second run finds nothing to draw.
+// Does nothing while the draw is closed.
 export async function drawUnspunTickets(
-  admin: any, opts: { tribeId: string; tournamentId: string; userId?: string },
-): Promise<{ drawn: number; failed: number }> {
+  admin: any, opts: { tribeId: string; tournamentId: string; userId?: string; respectGrace?: boolean },
+): Promise<{ drawn: number; failed: number; waiting: number; nextUnlock: Date | null }> {
   const field = await loadField(admin, opts.tournamentId)
-  if (!field.drawOpen) return { drawn: 0, failed: 0 }
+  if (!field.drawOpen) return { drawn: 0, failed: 0, waiting: 0, nextUnlock: null }
 
   const { data: entries } = await (admin.from('sweep_entries') as any)
     .select('id, user_id, horse_id, joined_at').eq('tribe_id', opts.tribeId)
   const overField = overFieldTicketIds((entries ?? []) as any[], field)
-  const unspun = ((entries ?? []) as any[]).filter(e =>
+  let unspun = ((entries ?? []) as any[]).filter(e =>
     !e.horse_id && !overField.has(e.id) && (!opts.userId || e.user_id === opts.userId))
+
+  let waiting = 0, nextUnlock: Date | null = null
+  if (opts.respectGrace) {
+    const openedAt = await loadDrawOpenedAt(admin, opts.tournamentId)
+    const now = Date.now()
+    unspun = unspun.filter(e => {
+      const unlocks = drawForUnlocksAt(e.joined_at, openedAt)
+      if (!unlocks || unlocks.getTime() <= now) return true
+      waiting++
+      if (!nextUnlock || unlocks < nextUnlock) nextUnlock = unlocks
+      return false
+    })
+  }
 
   let drawn = 0, failed = 0
   const holders = new Set<string>()
@@ -65,7 +82,7 @@ export async function drawUnspunTickets(
     if (res.ok) { drawn++; holders.add(ticket.user_id) } else failed++
   }
   for (const userId of holders) await maybeSendDrawConfirmation(admin, { tribeId: opts.tribeId, tournamentId: opts.tournamentId, userId })
-  return { drawn, failed }
+  return { drawn, failed, waiting, nextUnlock }
 }
 
 // After a request's tickets are granted: if the buyer asked for auto-draw (migration 203),

@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
+import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
@@ -18,6 +19,7 @@ const isHidden = (h: HorseOrHidden): h is HiddenHorse => (h as any)?.hidden === 
 type RosterRow = {
   user_id: string; display_name: string; avatar_url: string | null
   horses: HorseOrHidden[]; unclaimed: number; total_tickets: number
+  draw_unlocks_at?: string | null   // organiser only: when "Draw for them" opens (2-hour window)
 }
 type SweepState = {
   comp_id: string
@@ -47,6 +49,8 @@ type SweepState = {
   draw_open: boolean         // false → selling before the field is known: no spinning yet (migration 201)
   draw_opens_label: string
   my_over_field: number       // my tickets with no horse after a short final field — refunded
+  my_spin_by: string | null   // spin by then, or the organiser may draw for you (lib/sweep/grace.ts)
+  auto_draw_at: string | null // TribePicks draws whatever's still unspun (30 min before the race)
 }
 type MyRequest = {
   id: string; tickets_requested: number; payment_method: 'cash' | 'bank_transfer' | 'iou'
@@ -97,6 +101,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [racing, setRacing] = useState(false)
+  const [now, setNow] = useState(() => Date.now())   // ticks the spin-window countdowns
 
   // Practice sweeps only: the organiser runs a pretend race (random 1st/2nd/3rd for this pool,
   // which also locks it and reveals the draw), or clears it to try again.
@@ -132,6 +137,15 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   }
 
   useEffect(() => { load() }, [tribeId, session?.user?.id])
+
+  // Tick the countdowns while any are running (the holder's own, or the organiser's
+  // "Draw for them" unlocks).
+  const countingDown = !!sweep && (!!sweep.my_spin_by || sweep.roster.some(r => r.draw_unlocks_at))
+  useEffect(() => {
+    if (!countingDown) return
+    const t = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [countingDown])
 
   // Is the Buy tickets card on screen? Drives the slim sticky "Get a ticket" bar on phones.
   const buyCardRef = useRef<HTMLDivElement>(null)
@@ -261,6 +275,22 @@ export function SweepPoolPanel({ tribeId, openPool }: {
             🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
           </p>
           <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} />
+          {/* The 2-hour window: a soft deadline, so a calm line — amber only in the last 15 min. */}
+          {sweep.my_spin_by && (() => {
+            const left = new Date(sweep.my_spin_by).getTime() - now
+            return (
+              <p className={`text-center text-xs mt-3 ${left <= 0 ? 'text-gray-500' : left <= 15 * 60_000 ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>
+                {left > 0
+                  ? `⏱ Spin within ${fmtLeft(left)}, or your organiser can draw for you.`
+                  : 'Your organiser can now draw for you. Spin now to do it yourself.'}
+              </p>
+            )
+          })()}
+          {sweep.auto_draw_at && (
+            <p className="text-center text-[11px] text-gray-400 mt-1">
+              Any ticket still unspun is drawn automatically at {fmtWhen(new Date(sweep.auto_draw_at))}.
+            </p>
+          )}
         </div>
       )}
 
@@ -666,7 +696,11 @@ export function SweepPoolPanel({ tribeId, openPool }: {
                   {/* Organiser: draw for someone not spinning — random horse, emailed to them.
                       Not for your own tickets: you've got the wheel above. */}
                   {sweep.is_comp_admin && sweep.draw_open && r.unclaimed > 0 && r.user_id !== session?.user?.id && (
-                    confirmDrawFor === r.user_id ? (
+                    r.draw_unlocks_at && new Date(r.draw_unlocks_at).getTime() > now ? (
+                      <span className="block mt-1 text-xs text-gray-400" title="Everyone gets 2 hours to spin for themselves first">
+                        Draw in {fmtLeft(new Date(r.draw_unlocks_at).getTime() - now)}
+                      </span>
+                    ) : confirmDrawFor === r.user_id ? (
                       <span className="inline-flex gap-2 mt-1 text-xs">
                         <button onClick={() => drawFor(r.user_id)} className="font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded-lg">Yes, draw</button>
                         <button onClick={() => setConfirmDrawFor(null)} className="font-semibold text-gray-500">Cancel</button>
@@ -718,6 +752,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      <p className="mt-4 text-center text-xs">
+        <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>
+      </p>
 
       {/* Phones: a slim "get a ticket" bar above the bottom menu while the Buy card is off
           screen — only for members with no tickets and nothing pending, so it never nags. */}

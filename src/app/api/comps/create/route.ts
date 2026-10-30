@@ -4,6 +4,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { z } from 'zod'
 import { buyPools, SWEEP_PRICING, sweepBillingEnabled } from '@/lib/sweep/billing'
 import { isPracticeTournament } from '@/lib/sweep/practice'
+import { welcomeOrganiserIfFirst } from '@/lib/sweep/welcome'
+import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 const CreateSchema = z.object({
   name:        z.string().min(2).max(80).trim(),
@@ -197,6 +199,10 @@ export async function POST(request: NextRequest) {
       { user_id, tournament_id: tournId, selected_comp_id: compId },
       { onConflict: 'user_id,tournament_id' }
     )
+    // A sweep organiser's guide on their first sweep; a league's own welcome (its rules) for
+    // anyone else new to the tournament — sent once per enrolment, only if one is written.
+    if (isSweepComp) await welcomeOrganiserIfFirst(adminClient, { userId: user_id, compId })
+    else await sendWelcomeIfNeeded(user_id, tournId).catch(() => {})
   }
 
   // Extra pools beyond the free allowance: hand back a checkout URL for the client to follow.

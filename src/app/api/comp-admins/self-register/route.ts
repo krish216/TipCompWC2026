@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
 import { loadField } from '@/lib/sweep/field'
+import { sendJoinedEmail } from '@/lib/sweep/welcome'
+import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
 // POST /api/comp-admins/self-register
 // Assigns a user to an org using the org's invite code.
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest) {
   // (tribes_closed_at). Past that, no tribe is created or assigned; the admin gets a
   // notification instead so they can raise max_tribes or reopen if they want this person in.
   let tribeAssigned = false
+  let newlyJoined = false
   let compFull = false
   const { data: compTribes } = await (adminClient.from('tribes') as any)
     .select('id, is_default, created_at, sweep_locked_at').eq('comp_id', comp_id).order('created_at', { ascending: true })
@@ -133,6 +136,7 @@ export async function POST(request: NextRequest) {
       await (adminClient.from('tribe_members') as any)
         .upsert({ user_id: user.id, tribe_id: targetTribeId }, { onConflict: 'user_id,tribe_id', ignoreDuplicates: true })
       tribeAssigned = true
+      newlyJoined = true
     } else {
       // Every tribe full, and either closed or at the tribe-count cap — nowhere to put them.
       compFull = true
@@ -178,6 +182,10 @@ export async function POST(request: NextRequest) {
       { user_id: user.id, tournament_id: compTournId, selected_comp_id: comp_id },
       { onConflict: 'user_id,tournament_id' }
     )
+    // Welcomes belong to the enrolment: a sweep joiner gets "you're in" (their first email
+    // from us, for most), anyone else this tournament's own welcome if one is written.
+    if (isSweepTourn) { if (newlyJoined) await sendJoinedEmail(adminClient, { userId: user.id, compId: comp_id }) }
+    else await sendWelcomeIfNeeded(user.id, compTournId).catch(() => {})
   }
 
   return NextResponse.json({

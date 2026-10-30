@@ -284,3 +284,91 @@ export async function sendSweepResultsReady(opts: {
     console.error('[sweep/emails] results error:', e?.message ?? e)
   }
 }
+
+function steps(items: string[]): string {
+  return `<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">${items.map((html, i) =>
+    `<tr><td style="padding:6px 12px 6px 0;vertical-align:top;font-size:14px;font-weight:900;color:#16a34a;">${i + 1}</td>` +
+    `<td style="padding:6px 0;font-size:14px;line-height:1.5;color:#374151;">${html}</td></tr>`).join('')}</table>`
+}
+
+const raceTime = (raceStartAt: string | null) => raceStartAt
+  ? new Date(raceStartAt).toLocaleString('en-AU', {
+      weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+      timeZone: 'Australia/Melbourne', timeZoneName: 'short',
+    })
+  : null
+
+const button = (href: string, label: string) => `
+  <div style="text-align:center;margin-bottom:8px;">
+    <a href="${href}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">${label}</a>
+  </div>`
+
+// "You're in" — sent when someone joins a sweep (self-register). For most it's their first
+// email from TribePicks — they scanned a QR at work — so it doubles as the welcome: what
+// happens next, and when. Not for practice sweeps (no real race, no real money).
+export async function sendSweepJoined(opts: {
+  email: string; name?: string | null
+  compName: string; compId: string; organiserName: string | null
+  raceName: string | null; raceStartAt: string | null; drawOpen: boolean
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+  try {
+    const firstName = (opts.name ?? '').trim().split(' ')[0]
+    const who = opts.organiserName ? esc(opts.organiserName) : 'your organiser'
+    const jump = raceTime(opts.raceStartAt)
+    const body = `
+  <p style="margin:0 0 14px;font-size:15px;color:#374151;">You've joined <strong>${esc(opts.compName)}</strong>. Here's how it works:</p>
+  ${steps([
+    `<strong>Request a ticket</strong> — choose how many, and how you're paying ${who}. You pay them directly; TribePicks never touches the money.`,
+    `<strong>${opts.organiserName ? esc(opts.organiserName) : 'Your organiser'} approves it</strong> — we'll email you when they do.`,
+    `<strong>Spin for your horse</strong> — ${opts.drawOpen ? 'the draw is open now' : `the draw opens ${DRAW_OPENS_LABEL}, once the final field is in`}. You get 2 hours to spin each ticket; after that ${who} can draw for you.`,
+    `<strong>Race day</strong> — ${jump ? `${esc(opts.raceName ?? 'the race')} jumps ${esc(jump)}. ` : ''}Whoever holds 1st, 2nd or 3rd in your pool wins.`,
+  ])}
+  ${button(`https://tribepicks.com/tribe?comp_id=${encodeURIComponent(opts.compId)}`, 'Get your ticket →')}
+  <p style="margin:14px 0 0;font-size:12px;color:#6b7280;text-align:center;"><a href="https://tribepicks.com/rules/melbourne-cup-2026" style="color:#6b7280;">Full sweep rules</a></p>`
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { error } = await resend.emails.send({
+      from: FROM, to: opts.email, subject: `You're in — ${opts.compName} 🏇`,
+      html: wrap(`${firstName ? `${esc(firstName)}, you're` : "You're"} in the sweep! 🏇`, body,
+        "You're receiving this because you joined a TribePicks sweep. TribePicks never handles the money itself."),
+    })
+    if (error) console.error('[sweep/emails] joined send failed:', error)
+  } catch (e: any) {
+    console.error('[sweep/emails] joined error:', e?.message ?? e)
+  }
+}
+
+// The organiser's welcome — sent once, on their first real sweep (users.sweep_organiser_welcomed_at,
+// migration 204). Practice runs get none.
+export async function sendSweepOrganiserWelcome(opts: {
+  email: string; name?: string | null
+  compName: string; compId: string
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+  try {
+    const firstName = (opts.name ?? '').trim().split(' ')[0]
+    const body = `
+  <p style="margin:0 0 14px;font-size:15px;color:#374151;"><strong>${esc(opts.compName)}</strong> is set up. Here's how running it goes:</p>
+  ${steps([
+    '<strong>Add your payment details</strong> — bank details or PayID, so buyers know how to pay you. TribePicks never touches the money.',
+    '<strong>Share your invite</strong> — the link or the QR code on your organiser page. Pop the QR on the office fridge.',
+    '<strong>Approve tickets</strong> as payments come in. Bank transfers can approve themselves once a receipt is attached, if you turn that on.',
+    `<strong>The draw</strong> — opens ${DRAW_OPENS_LABEL}. Everyone gets 2 hours to spin for their horse; after that you can tap <em>Draw for them</em>. Anything still unspun is drawn automatically 30 minutes before the race.`,
+    '<strong>Results</strong> — after the race, every pool gets its 1st, 2nd and 3rd by email. You pay the winners.',
+  ])}
+  ${button(`https://tribepicks.com/sweep-admin?comp_id=${encodeURIComponent(opts.compId)}`, 'Open your organiser page →')}
+  <p style="margin:14px 0 0;font-size:12px;color:#6b7280;text-align:center;"><a href="https://tribepicks.com/rules/melbourne-cup-2026" style="color:#6b7280;">The rules your players see</a></p>`
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { error } = await resend.emails.send({
+      from: FROM, to: opts.email,
+      subject: `${opts.compName} is set up — here’s how to run it 🏇`,
+      html: wrap(`${firstName ? `Welcome, ${esc(firstName)}` : 'Welcome'} — you're running a sweep! 🏇`, body,
+        "You're receiving this because you created your first TribePicks sweep."),
+    })
+    if (error) console.error('[sweep/emails] organiser-welcome send failed:', error)
+  } catch (e: any) {
+    console.error('[sweep/emails] organiser-welcome error:', e?.message ?? e)
+  }
+}

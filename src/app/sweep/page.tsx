@@ -552,6 +552,10 @@ export default function SweepPage() {
         <div className="mt-5">{practiceCard}</div>
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+        <p className="mt-4 text-center text-xs">
+          <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>
+        </p>
       </main>
     )
   }
@@ -588,6 +592,9 @@ export default function SweepPage() {
       {practiceCard}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      <p className="mt-2 text-center text-xs">
+        <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>
+      </p>
     </main>
   )
 }

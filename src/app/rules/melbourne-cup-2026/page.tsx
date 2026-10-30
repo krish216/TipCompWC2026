@@ -1,26 +1,40 @@
 import type { Metadata } from 'next'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { faqJsonLd } from '@/lib/seo'
+import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 
 export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: 'Melbourne Cup 2026 Sweep — how it works | TribePicks',
-  description: 'How the TribePicks Melbourne Cup sweep works: join a pool, your organiser grants you picks once you\'ve paid, spin the wheel to claim your horse, and the pool\'s top 3 place-getters win. Free to run — no money handled by TribePicks.',
+  description: 'How a TribePicks Melbourne Cup sweep works: join a pool, buy tickets from your organiser, spin the wheel for your horse once the draw opens, and the pool\'s 1st, 2nd and 3rd place-getters win. TribePicks never handles the money.',
   alternates: { canonical: 'https://tribepicks.com/rules/melbourne-cup-2026' },
 }
 
 const FAQS = [
-  { q: 'How do I get a pick?', a: 'Join your organiser\'s comp, then request however many tickets you want and how you\'re paying (cash, bank transfer, or IOU if allowed). TribePicks never handles the money — cash and IOU are settled with your organiser directly, and a bank-transfer request is approved once your organiser (or an automatic check) confirms your receipt.' },
-  { q: 'Can I hold more than one horse?', a: 'Yes — request as many tickets as you like (or your organiser can grant you some directly), each one a separate spin of the wheel for its own horse. Nothing stops you holding two, three or more.' },
-  { q: 'How does the draw work?', a: 'Once you have a pick, spin the wheel — it starts slow so you can see the field, speeds up, then prompts you to tap. Wherever you tap locks in whichever horse is under that spot at that instant. No favourites, no rigging — it\'s a genuine random draw.' },
-  { q: 'Why can\'t I see what horse I got?', a: 'Some organisers hide every pick — including yours — until the whole field is claimed, then reveal the pool at once. If that\'s how your organiser set theirs up, your spin still happened for real; you just won\'t see the name until the reveal.' },
-  { q: 'My horse got scratched — now what?', a: 'You simply have no chance of winning with that pick. There\'s no redraw and no replacement horse — the same way it goes in a physical sweep, bad luck is part of the game.' },
-  { q: 'Who wins?', a: 'Whoever holds the horse that finishes 1st, 2nd or 3rd in your pool. If nobody in your specific pool happens to hold a placegetter, your pool simply has no winner for that place — can happen in smaller pools that haven\'t claimed the whole field.' },
-  { q: 'Does TribePicks take a cut, or hold the prize money?', a: 'No. TribePicks only runs the draw and shows who holds what. All money — entry fees and payouts — stays entirely between you and your organiser, same as a sweep tin in the office kitchen.' },
-  { q: 'What if my organiser\'s pool fills up?', a: 'A new pool opens automatically for the next person who joins (up to a limit your organiser sets), or your organiser can close new pools entirely — ask them if you\'re not sure which applies.' },
-  { q: 'When does the pool stop taking new joins or picks?', a: 'Whenever your organiser manually closes it, and automatically 30 minutes before the race starts regardless — whichever comes first.' },
-  { q: 'Is it free to play?', a: 'Yes — TribePicks itself is free. Whatever entry fee applies is set and collected by your organiser, not by TribePicks.' },
+  { q: 'How do I get a ticket?', a: 'Join your organiser\'s sweep from their link or QR code, then request however many tickets you want and say how you\'re paying — cash, bank transfer (attach your receipt), or IOU if your organiser allows it. You pay your organiser directly. Once they approve it, your tickets are yours. You can buy before the draw opens.' },
+  { q: 'Can I hold more than one horse?', a: 'Yes. Each ticket is its own spin for its own horse, so hold as many as your pool has room for.' },
+  { q: 'When can I spin?', a: `Once the draw opens — ${DRAW_OPENS_LABEL}, after the barrier draw sets the final field. Tickets bought before then wait until it opens; we email you the moment you can spin.` },
+  { q: 'Is the draw fair?', a: 'Yes. Every horse on the wheel looks the same, and your horse is drawn at random by TribePicks from the horses still left in your pool. Nobody — not you, not your organiser — chooses a horse.' },
+  { q: 'What if I don\'t spin?', a: 'You get 2 hours to spin each ticket, counted from when it can first be spun (when it\'s approved, or when the draw opens if that\'s later). After that your organiser can draw a horse for you. Anything still unspun is drawn automatically 30 minutes before the race. Either way it\'s the same random draw, and we email you your horse.' },
+  { q: 'Can I skip the wheel?', a: 'Yes — tick "draw my horse for me" when you request tickets, and your horse is drawn the moment your tickets are approved (or when the draw opens).' },
+  { q: 'Why can\'t I see who drew the other horses?', a: 'You always see your own horses. Who holds the rest stays hidden until every horse in your pool is drawn, or the pool locks before the race — then the whole draw is revealed at once.' },
+  { q: 'My horse got scratched — now what?', a: 'Bad luck: there\'s no redraw and no replacement, same as a sweep tin in the office.' },
+  { q: 'What if the final field is smaller than the tickets sold?', a: 'Pools can sell up to 24 tickets before the field is known. If fewer horses make the final field, the last tickets sold in a full pool have no horse to spin for, and your organiser refunds them.' },
+  { q: 'Who wins, and how much?', a: 'Whoever holds the horses that finish 1st, 2nd and 3rd in your pool. Each pool pays its own prizes from its own pot — tickets sold × ticket price — split the way your organiser chose (70/20/10 unless they picked otherwise). The live prize table is on your pool page. If nobody in your pool holds a place-getter, that place has no winner.' },
+  { q: 'Does TribePicks take a cut?', a: 'TribePicks never holds or pays out money — entry fees and prizes stay between you and your organiser. Your organiser\'s first pool is free; if they paid TribePicks for extra pools, they can take that cost out of the pot. If they do, the prize table shows the pot after it, so you always see what\'s actually up for grabs.' },
+  { q: 'What if a pool sells out?', a: 'Each pool has one ticket per horse. When yours is full, a new pool opens for the next people to join, up to the number of pools your organiser has.' },
+  { q: 'When does buying stop?', a: 'When your organiser closes the pool, and automatically 30 minutes before the race — whichever comes first. A locked pool takes no new joins or ticket requests.' },
+  { q: 'What happens to horses nobody bought?', a: 'Nothing, unless your organiser has chosen to take them when the pool closes. Ask them if you\'re not sure.' },
+  { q: 'When are results in?', a: 'After the race. Every pool member gets an email with the 1st, 2nd and 3rd horses and who held them. Your organiser pays the winners.' },
+]
+
+const SECTIONS: { title: string; body: string; tint?: boolean }[] = [
+  { title: 'Get your tickets 🎟️', body: 'Join your organiser\'s sweep from their link or QR code, then request tickets and say how you\'re paying. You pay your organiser directly — TribePicks never touches the money. Once they approve your request, the tickets are yours, and we email you to confirm.' },
+  { title: 'Spin for your horse 🎡', tint: true, body: `The draw opens ${DRAW_OPENS_LABEL}, once the barrier draw sets the final field. Each ticket is one spin: tap to stop the wheel, and TribePicks draws your horse at random from the horses left in your pool. One horse per ticket, and a horse can only be drawn once per pool.` },
+  { title: 'Your 2 hours ⏱', body: 'You get 2 hours to spin each ticket, from when it can first be spun. After that your organiser can draw for you, and anything still unspun is drawn automatically 30 minutes before the race. It\'s always the same random draw — nobody picks a horse for you.' },
+  { title: 'Reveal & lock 🔒', body: 'You see your own horses straight away. Everyone else\'s stay hidden until every horse in the pool is drawn, or the pool locks — which happens automatically 30 minutes before the race, if your organiser hasn\'t closed it sooner.' },
+  { title: 'Scratchings 😬', body: 'If your horse is scratched after you\'ve drawn it, there\'s no redraw and no replacement — the luck of the draw.' },
 ]
 
 export default function MelbourneCupRulesPage() {
@@ -32,49 +46,17 @@ export default function MelbourneCupRulesPage() {
         <span className="text-[11px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Melbourne Cup 2026</span>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        A digital sweepstake — join a pool, get your picks once you've paid your organiser, <strong>spin the wheel</strong> to claim your horse, and whoever holds the <strong>1st, 2nd or 3rd</strong> place-getter wins. Free to run — TribePicks never touches the money.
+        A digital sweep — buy tickets from your organiser, <strong>spin the wheel</strong> for your horse, and whoever holds the <strong>1st, 2nd or 3rd</strong> place-getter in your pool wins. TribePicks never touches the money.
       </p>
 
-      {/* Joining a pool */}
-      <section className="mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Join a pool 🎟️</h2>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-700">
-            Your organiser shares a comp invite link — join it to get into their pool. Being a member doesn't hand you a horse automatically: <strong>request</strong> however many tickets you want and how you're paying — cash, bank transfer (attach a receipt), or IOU if your organiser allows it. Cash and IOU are settled with your organiser directly; a bank-transfer request is approved either by your organiser reviewing your receipt, or automatically the instant you attach it, depending on how they've set up their sweep.
-          </p>
-        </div>
-      </section>
-
-      {/* Reveal & lock */}
-      <section className="mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Reveal & lock 🔒</h2>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-700">
-            Some organisers reveal every pick immediately as it's spun; others keep every pick hidden — even from the person who just spun it — until the very last horse in the field is claimed, then reveal the whole pool at once. Either way, every pool also locks automatically 30 minutes before the race (on top of your organiser's own "stop new joins" switch), so no new joins, picks, or ticket requests can sneak in right on race time.
-          </p>
-        </div>
-      </section>
-
-      {/* The wheel */}
-      <section className="mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Spin for your horse 🎡</h2>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-          <p className="text-sm text-gray-700 mb-3">
-            Every pick is one spin. The wheel starts slow — you can see the whole field — then speeds up until it's too fast to track, and prompts you to tap. Whichever horse is under your tap at that exact instant is yours. Hold multiple picks? Spin again for each one.
-          </p>
-          <p className="text-xs text-gray-500">A horse can only ever be claimed once per pool — once it's taken, it's off the wheel for everyone else in that pool.</p>
-        </div>
-      </section>
-
-      {/* Scratchings */}
-      <section className="mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Scratchings 😬</h2>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-sm text-gray-700">
-            If your horse is scratched before the race, you simply have no chance of winning with that pick — <strong>no redraw, no replacement</strong>. Exactly how a physical sweep works: it's the luck of the draw.
-          </p>
-        </div>
-      </section>
+      {SECTIONS.map(sec => (
+        <section key={sec.title} className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">{sec.title}</h2>
+          <div className={`rounded-xl p-4 ${sec.tint ? 'bg-emerald-50 border border-emerald-200' : 'bg-white border border-gray-200'}`}>
+            <p className="text-sm text-gray-700">{sec.body}</p>
+          </div>
+        </section>
+      ))}
 
       {/* Winning */}
       <section className="mb-8">
@@ -90,7 +72,7 @@ export default function MelbourneCupRulesPage() {
               <p className="text-sm text-gray-600">{text}</p>
             </div>
           ))}
-          <p className="text-xs text-gray-400 pt-1">Smaller pools don't always claim the whole field — if nobody in your pool holds a place-getter, that pool has no winner for that place. Payouts are arranged by your organiser, not TribePicks.</p>
+          <p className="text-xs text-gray-400 pt-1">Each pool pays its own prizes from its own pot, split the way your organiser chose — the live prize table is on your pool page. Your organiser pays the winners, not TribePicks.</p>
         </div>
       </section>
 

@@ -11,6 +11,7 @@ import { payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { PRIZE_PRESETS, fmtCents, isValidSplit, type PoolPrizes } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
+import { DRAW_GRACE_HOURS, fmtLeft } from '@/lib/sweep/grace'
 
 type Tab = 'sell' | 'requests' | 'allocation' | 'pools' | 'settings'
 const TABS: { id: Tab; icon: string; label: string }[] = [
@@ -111,6 +112,8 @@ export default function SweepAdminPage() {
   const [pools, setPools] = useState<Pool[]>([])
   const [allocTribeId, setAllocTribeId] = useState('')
   const [allocRoster, setAllocRoster] = useState<any[] | null>(null)
+  const [now, setNow] = useState(() => Date.now())   // ticks "Draw in 1h 12m" (the 2-hour spin window)
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [details, setDetails] = useState<OrganiserDetails>(EMPTY_DETAILS)       // the form
   const [savedDetails, setSavedDetails] = useState<OrganiserDetails>(EMPTY_DETAILS)  // what's on file
@@ -677,6 +680,7 @@ export default function SweepAdminPage() {
           <p className="text-xs text-gray-500 mb-3">
             Who holds which tickets. Someone not spinning? Tap <span className="font-bold text-amber-800">🎲 Draw for them</span> next
             to their name for a random horse — they&apos;re emailed it.
+            {!isPracticeComp && ` Everyone gets ${DRAW_GRACE_HOURS} hours to spin for themselves first.`}
           </p>
           {pools.length > 1 && (
             <select value={allocTribeId} onChange={e => setAllocTribeId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3">
@@ -698,7 +702,11 @@ export default function SweepAdminPage() {
                     {r.unclaimed > 0 && <span className="block text-gray-400 italic">{r.unclaimed} still picking…</span>}
                     {/* Draw for them — once the draw's open; a random horse, emailed to them. */}
                     {r.unclaimed > 0 && pools.find(p => p.id === allocTribeId)?.draw_open && (
-                      confirmDrawMember === r.user_id ? (
+                      r.draw_unlocks_at && new Date(r.draw_unlocks_at).getTime() > now ? (
+                        <span className="block mt-1 text-xs text-gray-400">
+                          Draw in {fmtLeft(new Date(r.draw_unlocks_at).getTime() - now)}
+                        </span>
+                      ) : confirmDrawMember === r.user_id ? (
                         <span className="inline-flex gap-2 mt-1 text-xs">
                           <button onClick={() => drawForMember(allocTribeId, r.user_id)} className="font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded-lg">Yes, draw</button>
                           <button onClick={() => setConfirmDrawMember(null)} className="font-semibold text-gray-500">Cancel</button>
@@ -756,7 +764,7 @@ export default function SweepAdminPage() {
                     <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
                       <p className="text-amber-900">
                         {unspun} ticket{unspun === 1 ? '' : 's'} not spun yet. Draw a random horse for them — each holder is emailed theirs.
-                        {!isPracticeComp && ' This happens automatically 30 minutes before the race.'}
+                        {!isPracticeComp && ` Holders get ${DRAW_GRACE_HOURS} hours to spin for themselves first — tickets still inside that window are left alone. Anything left is drawn automatically 30 minutes before the race.`}
                       </p>
                       {confirmDrawPool === p.id ? (
                         <span className="flex gap-2 mt-1.5">
@@ -1059,6 +1067,10 @@ export default function SweepAdminPage() {
           </div>
         </div>
       )}
+
+      <p className="mt-6 text-center text-xs">
+        <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">The rules your players see</Link>
+      </p>
     </main>
   )
 }

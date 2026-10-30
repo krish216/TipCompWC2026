@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
   const { error } = await (g.admin.from('tournaments') as any).update({ sweep_draw_open: open }).eq('id', t.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // The first opening starts everyone's 2 hours to spin (migration 205, lib/sweep/grace.ts).
+  // Re-opening after a close keeps the original time. Ignored before the migration has run.
+  if (open) {
+    await (g.admin.from('tournaments') as any)
+      .update({ sweep_draw_opened_at: new Date().toISOString() })
+      .eq('id', t.id).is('sweep_draw_opened_at', null)
+  }
+
   // Buyers who asked for auto-draw (migration 203) and were approved while the draw was
   // closed get their horses now, before the "spin now" reminder goes out.
   const autoDrawn = open ? await drawPendingAutoDraws(g.admin, t.id) : 0

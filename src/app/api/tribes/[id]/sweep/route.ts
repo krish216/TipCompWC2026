@@ -5,6 +5,7 @@ import { approvalClockStart, approvalDeadline, getOrganiserDetails, hasContact, 
 import { computePoolPrizes, isValidSplit, poolFeeShares } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
+import { autoDrawAt, drawForUnlocksAt, loadDrawOpenedAt } from '@/lib/sweep/grace'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,12 +128,25 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // Short final field: the caller's tickets that can't spin (lib/sweep/field.ts).
   const overField = overFieldTicketIds((entries ?? []) as any[], field)
   const myOverField = ((entries ?? []) as any[]).filter(e => e.user_id === user.id && overField.has(e.id)).length
+  // The 2-hour spin window (lib/sweep/grace.ts): for each holder, when the organiser can first
+  // draw for their earliest unspun ticket. Only the holder sees their own; only the organiser
+  // sees everyone's (as the "Draw for them" button unlocking). No window in a practice sweep.
+  const drawOpenedAt = field.drawOpen && !isPractice ? await loadDrawOpenedAt(admin, tribe.tournament_id) : null
+  const unlockByUser: Record<string, string> = {}
+  if (field.drawOpen && !isPractice && !tribe.sweep_locked_at) {
+    for (const e of (entries ?? []) as any[]) {
+      if (e.horse_id || overField.has(e.id)) continue
+      const at = drawForUnlocksAt(e.joined_at, drawOpenedAt)?.toISOString()
+      if (at && (!unlockByUser[e.user_id] || at < unlockByUser[e.user_id])) unlockByUser[e.user_id] = at
+    }
+  }
   const poolClosed = drawFull || !!tribe.sweep_locked_at
   const hideOthers = !poolClosed
   const redact = (h: any) => (h ? { id: `hidden-${Math.random().toString(36).slice(2, 10)}`, hidden: true } : h)
   const redactRow = (r: any) => r.user_id === user.id ? r : { ...r, horses: r.horses.map(redact) }
 
-  const rosterOut = hideOthers ? roster.map(redactRow) : roster
+  const rosterOut = (hideOthers ? roster.map(redactRow) : roster)
+    .map((r: any) => isAdmin ? { ...r, draw_unlocks_at: unlockByUser[r.user_id] ?? null } : r)
   const podiumOut = hideOthers
     ? podium.map(p => ({ ...p, winner: p.winner ? redactRow(p.winner) : p.winner }))
     : podium
@@ -173,6 +187,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     roster:          rosterOut,
     my_horses:       myRoster?.horses ?? [],
     my_unclaimed:    Math.max(0, (myRoster?.unclaimed ?? 0) - myOverField),
+    // Spin by this time, or the organiser may draw for you (null → no window applies).
+    my_spin_by:      unlockByUser[user.id] ?? null,
+    // When TribePicks draws every ticket still unspun (30 minutes before the race).
+    auto_draw_at:    isPractice ? null : autoDrawAt(raceStartAt)?.toISOString() ?? null,
     podium:          podiumOut,
     // ── Buying: who to pay, where, and how long approval should take ──
     organiser_name:        organiser.contact_name ?? (comp as any)?.owner_name ?? null,
