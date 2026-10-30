@@ -1032,6 +1032,7 @@ export default function TribePage() {
   const [sweepPools,       setSweepPools]       = useState<SweepPoolRow[] | null>(null)
   const [selectedPoolId,   setSelectedPoolId]   = useState('')
   const [raceVersion,      setRaceVersion]      = useState(0)   // bumps after a practice race → pool reloads
+  const [playRace,         setPlayRace]         = useState(false)   // …and plays the race animation
   const [confirmLeavePool, setConfirmLeavePool] = useState<string | null>(null)
   const [leavingPool,      setLeavingPool]      = useState<string | null>(null)
   const [poolsError,       setPoolsError]       = useState<string | null>(null)
@@ -1344,7 +1345,7 @@ export default function TribePage() {
             return (
             <div style={{ marginBottom: 10 }}>
               {showRace
-                ? <PracticeRaceBar compId={org.id} pills={pills} onRaced={() => setRaceVersion(v => v + 1)} />
+                ? <PracticeRaceBar compId={org.id} pills={pills} onRaced={ran => { setPlayRace(ran); setRaceVersion(v => v + 1) }} />
                 : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>{pills}</div>}
               {multiPool && (() => {
                 const selected = sweepPools!.find(p => p.tribe_id === selectedPoolId)
@@ -1470,7 +1471,8 @@ export default function TribePage() {
         {/* Draw — sweep tribes only. Pool selection (when this sweep has more than one pool
             relevant to the viewer) happens via the Hero's pills, not here. */}
         {isSweep && tab === 'sweep' && (
-          <SweepPoolPanel key={`${selectedPoolId || tribe.id}:${raceVersion}`} tribeId={selectedPoolId || tribe.id} openPool={(() => {
+          <SweepPoolPanel key={`${selectedPoolId || tribe.id}:${raceVersion}`} tribeId={selectedPoolId || tribe.id}
+            playRace={playRace} onRacePlayed={() => setPlayRace(false)} openPool={(() => {
             const open = sweepPools?.find(p => p.tribe_id !== (selectedPoolId || tribe.id) && !isPoolFull(p))
             return open ? { name: open.tribe_name, onSelect: () => setSelectedPoolId(open.tribe_id) } : null
           })()} />

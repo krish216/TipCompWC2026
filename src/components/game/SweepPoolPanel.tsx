@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
+import { PracticeRaceModal } from '@/components/game/PracticeRaceModal'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -88,9 +89,11 @@ const fmtWhen = (d: Date) => d.toLocaleString('en-AU', { weekday: 'short', day: 
 // stops new commitments, it doesn't un-grant tickets already handed out.
 // `openPool` — another of your pools in this sweep that's still selling, offered when this
 // one is sold out.
-export function SweepPoolPanel({ tribeId, openPool }: {
+export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
   tribeId: string
   openPool?: { name: string; onSelect: () => void } | null
+  // A practice race was just run from the sweep card — act it out once this pool has loaded.
+  playRace?: boolean; onRacePlayed?: () => void
 }) {
   const { session } = useSupabase()
   const [sweep, setSweep]     = useState<SweepState | null>(null)
@@ -124,6 +127,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())   // ticks the spin-window countdowns
+  const [watchingRace, setWatchingRace] = useState(false)   // the practice-race animation
   const [rosterView, setRosterView] = useState<'person' | 'horse'>('person')   // "Who's in this pool": the people, or the sweep sheet
 
   async function load() {
@@ -150,6 +154,11 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   }
 
   useEffect(() => { load() }, [tribeId, session?.user?.id])
+
+  // "Run the race" on the sweep card → play it here once the result has loaded.
+  useEffect(() => {
+    if (playRace && sweep?.is_practice && sweep.race_run) { setWatchingRace(true); onRacePlayed?.() }
+  }, [playRace, sweep])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tick the countdowns while any are running (the holder's own, or the organiser's
   // "Draw for them" unlocks).
@@ -289,6 +298,8 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const raceRun = sweep.race_run
   const hasTickets = sweep.my_horses.length > 0 || sweep.my_unclaimed > 0
     || myRequests.some(r => r.status === 'pending' || r.status === 'approved')
+  // Organiser "buy on their behalf" only while there's something left to sell.
+  const canBuyForOthers = sweep.is_comp_admin && sweep.tickets_left > 0
   const showBuyBar = !buyCardVisible && !sweep.locked && sweep.tickets_left > 0
     && !hasTickets && !sweep.is_comp_admin
 
@@ -756,7 +767,12 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
       {raceRun && (
         <div className="border border-gray-200 rounded-2xl p-5 mb-5">
-          <h2 className="font-bold text-gray-900 mb-3">🏆 Winners in this pool</h2>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="font-bold text-gray-900">🏆 Winners in this pool</h2>
+            {sweep.is_practice && sweep.finish_by_horse && (
+              <button onClick={() => setWatchingRace(true)} className="text-xs font-bold text-violet-700 hover:underline">▶ Watch the race</button>
+            )}
+          </div>
           {sweep.podium.length === 0 && <p className="text-sm text-gray-500">No horse in this pool finished the race.</p>}
           {sweep.podium.map(p => (
             <div key={p.horse?.id ?? p.places.join()} className="flex items-start justify-between gap-3 py-1.5 text-sm">
@@ -799,7 +815,9 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         </div>
         {sweep.is_comp_admin && (
           <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
-            <p className="text-xs text-gray-500">Paid you in person? Tick them to buy their tickets.</p>
+            <p className="text-xs text-gray-500">
+              {canBuyForOthers ? 'Paid you in person? Tick them to buy their tickets.' : 'This pool is sold out.'}
+            </p>
             <div className="flex items-center gap-3">
               {!sweep.locked ? (
                 <button onClick={handleLock} disabled={locking}
@@ -889,13 +907,15 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         })() : sweep.roster.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-4">No horses drawn in this pool yet.</p>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {sweep.roster.map(r => (
-              <div key={r.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
+          <div>
+            {/* Banded like the by-horse sheet (gray-200/60 — gray-50 vanishes on this page). */}
+            {sweep.roster.map((r, i) => (
+              <div key={r.user_id} className={`flex items-center justify-between gap-2 py-2 px-2 -mx-2 rounded-lg text-sm ${
+                r.user_id === session?.user?.id ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-200/60'}`}>
                 <span className="flex items-start gap-2 min-w-0">
                   {/* Organiser: tick members to buy tickets for them. Not yourself — you've
                       got the Buy card above. */}
-                  {sweep.is_comp_admin && (r.user_id !== session?.user?.id ? (
+                  {canBuyForOthers && (r.user_id !== session?.user?.id ? (
                     <input type="checkbox" checked={picked.has(r.user_id)} aria-label={`Buy for ${r.display_name}`}
                       onChange={e => setPicked(prev => {
                         const next = new Set(prev)
@@ -949,7 +969,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
           </div>
         )}
 
-        {sweep.is_comp_admin && picked.size > 0 && (
+        {canBuyForOthers && picked.size > 0 && (
           <button onClick={openBasket}
             className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2.5 rounded-xl">
             🎟️ Buy on behalf of {picked.size} →
@@ -959,6 +979,21 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {watchingRace && sweep.finish_by_horse && (() => {
+        const finish = sweep.finish_by_horse
+        const holderOf = new Map<string, string>()
+        for (const r of sweep.roster) for (const h of r.horses) if (!isHidden(h)) holderOf.set(h.id, r.display_name)
+        const mine = new Set(sweep.my_horses.filter(h => !isHidden(h)).map(h => h.id))
+        const runners = sweep.horses
+          .filter(h => !h.scratched && finish[h.id] != null)
+          .map(h => ({ id: h.id, number: h.number, name: h.name, position: finish[h.id]!, holder: holderOf.get(h.id) ?? null, mine: mine.has(h.id) }))
+        const winners = sweep.podium.filter(p => p.horse).map(p => ({
+          places: p.places, horseNumber: p.horse!.number, horseName: p.horse!.name,
+          holder: p.winner?.display_name ?? 'A member', cents: p.cents,
+        }))
+        return <PracticeRaceModal runners={runners} winners={winners} onClose={() => setWatchingRace(false)} />
+      })()}
 
       {/* Buy on their behalf: tickets and how each person paid you. Recorded as approved
           purchases (sweep/buy-on-behalf) — the ticket limit is re-checked on the server. */}

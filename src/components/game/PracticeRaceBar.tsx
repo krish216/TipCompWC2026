@@ -9,7 +9,7 @@ type PoolStat = { id: string; name: string; tickets: number; claimed: number; ra
 // (/api/comps/:id/sweep/practice-race). Organisers only. Ready once at least one ticket is sold
 // and every ticket sold, in every pool, has a horse. `onRaced` refreshes the pool below.
 // `pills` — the sweep card's pool pills, laid out on the same line as the buttons.
-export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pills?: ReactNode; onRaced: () => void }) {
+export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pills?: ReactNode; onRaced: (ran: boolean) => void }) {
   const [pools, setPools] = useState<PoolStat[] | null>(null)
   const [racing, setRacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +26,7 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
     setRacing(false)
     if (res.error) { setError(res.error); return }
     await load()
-    onRaced()
+    onRaced(method === 'POST')   // a fresh result → the pool below acts it out
   }
 
   if (!pools) return pills ? <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>{pills}</div> : null
