@@ -9,11 +9,20 @@ describe('POST /api/predictions', () => {
   const VALID_PREDICTION = { fixture_id: 1, home: 2, away: 1 }
 
   it('rejects unauthenticated requests', async () => {
-    const res = await fetch('/api/predictions', {
+    // Call the route handler directly — no server — with no session user.
+    jest.resetModules()
+    jest.doMock('@/lib/supabase-server', () => ({
+      createServerSupabaseClient: jest.fn(),
+      getSessionUser: jest.fn().mockResolvedValue(null),
+    }))
+    jest.doMock('@/lib/supabase', () => ({ createAdminClient: jest.fn(() => ({})) }))
+    const { POST } = await import('@/app/api/predictions/route')
+    const { NextRequest } = await import('next/server')
+    const res = await POST(new NextRequest('http://localhost/api/predictions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(VALID_PREDICTION),
-    })
+    }))
     expect(res.status).toBe(401)
   })
 

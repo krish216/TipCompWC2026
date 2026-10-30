@@ -10,7 +10,7 @@ describe('getOutcome', () => {
 
 // ─── calcPoints ──────────────────────────────────────────────────────────────
 describe('calcPoints — group stage (result:3, exact:0)', () => {
-  const round = 'gs' as const
+  const round = 'gs1' as const
   const config = getDefaultScoringConfig()
 
   it('returns null when no result yet', () =>
@@ -37,7 +37,7 @@ describe('calcPoints — escalating rounds', () => {
   const wrongPred = { home: 0, away: 1 }
 
   const cases: Array<[string, number, number]> = [
-    ['gs',  0,  3],   // exact bonus is 0, result pts is 3
+    ['gs1',  0,  3],   // exact bonus is 0, result pts is 3
     ['r32', 0,  5],   // exact bonus is 0, result pts is 5
     ['r16', 0,  7],   // exact bonus is 0, result pts is 7
     ['qf',  0,  10],  // exact bonus is 0, result pts is 10
@@ -71,7 +71,8 @@ describe('SCORING config', () => {
   })
 
   it('points increase with round progression', () => {
-    const rounds = ['gs', 'r32', 'r16', 'qf', 'sf', 'tp', 'f'] as const
+    // 3rd place (tp) is deliberately worth less, so it's left out
+    const rounds = ['gs1', 'r32', 'r16', 'qf', 'sf', 'f'] as const
     for (let i = 1; i < rounds.length; i++) {
       const prev = config.rounds[rounds[i-1]]
       const curr = config.rounds[rounds[i]]
