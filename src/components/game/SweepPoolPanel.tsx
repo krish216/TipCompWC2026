@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import confetti from 'canvas-confetti'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
@@ -91,6 +92,7 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   const [autoDraw, setAutoDraw] = useState(false)   // "draw my horse for me" (migration 203)
   const [confirmDrawFor, setConfirmDrawFor] = useState<string | null>(null)   // organiser "draw for them"
   const [drawingFor, setDrawingFor] = useState<string | null>(null)
+  const [justDrawnId, setJustDrawnId] = useState<string | null>(null)   // highlight in Your horses
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
@@ -131,6 +133,18 @@ export function SweepPoolPanel({ tribeId, openPool }: {
 
   useEffect(() => { load() }, [tribeId, session?.user?.id])
 
+  // Is the Buy tickets card on screen? Drives the slim sticky "Get a ticket" bar on phones.
+  const buyCardRef = useRef<HTMLDivElement>(null)
+  const [buyCardVisible, setBuyCardVisible] = useState(true)
+  const buyCardMounted = !!sweep && !sweep.locked && sweep.tickets_left > 0
+  useEffect(() => {
+    const el = buyCardRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setBuyCardVisible(e.isIntersecting), { threshold: 0.2 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [buyCardMounted])
+
   async function handleLock() {
     setLocking(true); setError(null)
     const res = await fetch(`/api/tribes/${tribeId}/sweep/lock`, { method: 'POST' }).then(r => r.json())
@@ -164,7 +178,12 @@ export function SweepPoolPanel({ tribeId, openPool }: {
   async function handleDraw() {
     const res = await fetch(`/api/tribes/${tribeId}/sweep/pick`, { method: 'POST' }).then(r => r.json())
     if (res.error) return { ok: false, error: res.error }
-    await load()   // refresh so ticket counts / draw list / available horses stay in sync
+    // Let the wheel settle onto the horse (~600ms) before celebrating, and refresh only after
+    // — refreshing at once re-keyed the wheel mid-settle, so the result never showed.
+    setTimeout(() => {
+      try { confetti({ particleCount: 140, spread: 85, origin: { y: 0.35 }, colors: ['#22d3ee', '#e879f9', '#a78bfa', '#fbbf24', '#ffffff'] }) } catch {}
+    }, 650)
+    setTimeout(async () => { await load(); setJustDrawnId((res.horse as Horse).id) }, 2600)
     return { ok: true, horse: res.horse as Horse }
   }
 
@@ -218,6 +237,10 @@ export function SweepPoolPanel({ tribeId, openPool }: {
     : <span className={`block ${h.scratched ? 'text-red-400 line-through' : 'text-gray-900 font-medium'}`}>#{h.number} {h.name}</span>
 
   const raceRun = sweep.podium.some(p => p.horse)
+  const hasTickets = sweep.my_horses.length > 0 || sweep.my_unclaimed > 0
+    || myRequests.some(r => r.status === 'pending' || r.status === 'approved')
+  const showBuyBar = !buyCardVisible && !sweep.locked && sweep.tickets_left > 0
+    && !hasTickets && !sweep.is_comp_admin
 
   return (
     <>
@@ -242,27 +265,36 @@ export function SweepPoolPanel({ tribeId, openPool }: {
         </div>
       )}
 
+      {/* Your horses — straight under the wheel, in its night-sky theme, so the moment the
+          wheel lands the result is right there (with confetti for the one just drawn). */}
+      {sweep.my_horses.length > 0 && (
+        <div className="rounded-2xl p-5 mb-5 text-center border border-cyan-400/30"
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, #1a1745 0%, #0b0a26 60%, #050414 100%)', boxShadow: '0 0 32px 2px rgba(34,211,238,0.18)' }}>
+          <p className="text-xs text-cyan-300 font-bold uppercase tracking-widest mb-2">
+            🏇 Your horse{sweep.my_horses.length === 1 ? '' : 's'}
+          </p>
+          <div className="space-y-1">
+            {sweep.my_horses.map(h => isHidden(h) ? null : (
+              <p key={h.id} className={`text-lg font-black ${h.id === justDrawnId ? 'text-fuchsia-300' : 'text-white'}`}
+                style={{ textShadow: h.id === justDrawnId ? '0 0 14px #e879f9' : '0 0 10px rgba(34,211,238,0.6)' }}>
+                {h.id === justDrawnId && '✨ '}#{h.number} {h.name}
+                {h.scratched && <span className="text-xs text-red-300 font-normal ml-2">Scratched — not racing 😬</span>}
+              </p>
+            ))}
+          </div>
+          {sweep.draw_hidden && (
+            <p className="text-xs text-cyan-200/70 mt-2">🔒 You'll see who drew every horse once the pool fills.</p>
+          )}
+        </div>
+      )}
+
       {sweep.is_practice && (
         <div className="border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
           <p className="text-sm font-bold text-violet-900">🧪 Practice sweep — no real money</p>
           <p className="text-xs text-violet-800 mt-1">
             Everything works like a real sweep: request a ticket, {sweep.is_comp_admin ? 'approve it in Manage, ' : 'your organiser approves it, '}
-            spin for your horse{sweep.is_comp_admin ? ', then run a pretend race to see the results and prizes.' : ', then wait for the pretend race.'}
+            spin for your horse{sweep.is_comp_admin ? ', then run a pretend race (under "Who\'s in this pool") to see the results and prizes.' : ', then wait for the pretend race.'}
           </p>
-          {sweep.is_comp_admin && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              <button onClick={() => practiceRace('POST')} disabled={racing}
-                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg">
-                {racing ? 'They\'re racing…' : raceRun ? '🔁 Run the race again' : '🏁 Run the race'}
-              </button>
-              {raceRun && (
-                <button onClick={() => practiceRace('DELETE')} disabled={racing}
-                  className="text-xs font-bold text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50 px-3 py-2 rounded-lg">
-                  Reset &amp; reopen the pool
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -356,8 +388,9 @@ export function SweepPoolPanel({ tribeId, openPool }: {
       )}
 
       {!sweep.locked && sweep.tickets_left > 0 && (
-        <div className="border border-gray-200 rounded-2xl p-5 mb-5">
-          <h2 className="font-bold text-gray-900 mb-1">Buy tickets</h2>
+        <div ref={buyCardRef} className="border border-gray-200 rounded-2xl p-5 mb-5">
+          {/* Already holding (or waiting on) tickets → this card is for buying MORE. */}
+          <h2 className="font-bold text-gray-900 mb-1">{hasTickets ? 'More tickets?' : 'Buy tickets'}</h2>
           <p className="text-xs text-gray-500 mb-3">
             {sweep.ticket_price_cents
               ? <>Tickets are <span className="font-bold text-gray-700">{fmtCents(sweep.ticket_price_cents)}</span> each{(() => {
@@ -651,9 +684,52 @@ export function SweepPoolPanel({ tribeId, openPool }: {
             ))}
           </div>
         )}
+
+        {/* Practice: the pretend race lives with the draw it settles. Live only once every
+            ticket sold has a horse — racing while someone's still picking would leave their
+            ticket out. (Not "every horse sold": a practice group rarely fills the field.) */}
+        {sweep.is_practice && sweep.is_comp_admin && (() => {
+          const sold = sweep.roster.reduce((s, r) => s + r.total_tickets, 0)
+          const stillPicking = sweep.roster.reduce((s, r) => s + r.unclaimed, 0)
+          const ready = sold > 0 && stillPicking === 0
+          return (
+            <div className="border-t border-gray-100 mt-4 pt-4">
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => practiceRace('POST')} disabled={racing || (!raceRun && !ready)}
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
+                  {racing ? 'They\'re racing…' : raceRun ? '🔁 Run the race again' : '🏁 Run the race'}
+                </button>
+                {raceRun && (
+                  <button onClick={() => practiceRace('DELETE')} disabled={racing}
+                    className="text-xs font-bold text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-50 px-3 py-2 rounded-xl">
+                    Reset &amp; reopen the pool
+                  </button>
+                )}
+              </div>
+              {!raceRun && !ready && (
+                <p className="text-[11px] text-gray-400 mt-2 text-center">
+                  {sold === 0
+                    ? 'Opens once tickets are sold and drawn.'
+                    : `Opens once everyone has their horse — ${stillPicking} ticket${stillPicking === 1 ? '' : 's'} still to spin (or tap Draw for them).`}
+                </p>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {/* Phones: a slim "get a ticket" bar above the bottom menu while the Buy card is off
+          screen — only for members with no tickets and nothing pending, so it never nags. */}
+      {showBuyBar && (
+        <div className="sm:hidden fixed inset-x-0 z-40 px-4 bottom-[calc(3.6rem_+_env(safe-area-inset-bottom))]">
+          <button onClick={() => buyCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black py-3 rounded-xl shadow-lg">
+            🎟️ Get a ticket{sweep.ticket_price_cents ? ` · ${fmtCents(sweep.ticket_price_cents)}` : ''} →
+          </button>
+        </div>
+      )}
     </>
   )
 }
