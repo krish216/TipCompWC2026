@@ -8,21 +8,28 @@ import { prizeLabel } from '@/lib/sweep/podium'
 type Runner = { id: string; number: number; name: string; position: number; holder: string | null; mine: boolean }
 type Winner = { places: number[]; horseNumber: number; horseName: string; holder: string; cents: number | null }
 
-const WINNER_MS = 13_000   // the winner crosses the line ~13s in at 1×
+const WINNER_MS = 28_000   // the winner crosses the line ~28s in at 1× (14s at 2×)
 
 // "#7 Vauban (Greg's)" — horses called with whoever holds them in this pool.
 const say = (r?: { number: number; name: string; holder: string | null }) =>
   r ? `#${r.number} ${r.name}${r.holder ? ` (${r.holder.split(' ')[0]}'s)` : ''}` : ''
 
 type Called = { number: number; name: string; holder: string | null; mine: boolean }
-// The caller's script — `at` is how far through the race (of the winner's time) each call comes.
+// The caller's script, in the classic Australian race-calling style — quick, rhythmic,
+// building through the straight (a style, not an impression of any real caller). `at` is how
+// far through the race (of the winner's time) each call comes; `o` is the order right then.
+const last = (o: Called[]) => o[o.length - 1]
 const CALLS: { at: number; line: (o: Called[]) => string }[] = [
-  { at: 0,    line: () => "And they're away in the Practice Cup! 🏁" },
-  { at: 0.14, line: o => `${say(o[0])} shoots to the lead, ${say(o[1])} tucked in behind.` },
-  { at: 0.34, line: o => `Down the back it's ${say(o[0])}, from ${say(o[1])} and ${say(o[2])}.` },
-  { at: 0.54, line: o => `Approaching the turn — ${say(o[0])} still in front, ${say(o[3])} starting to improve!` },
-  { at: 0.72, line: o => `Into the straight! ${say(o[0])} kicks clear — ${say(o[1])} chasing hard!` },
-  { at: 0.88, line: o => `200 to go — ${say(o[0])} and ${say(o[1])} locked together!` },
+  { at: 0,    line: () => "They've jumped and they're racing in the Practice Cup! 🏁" },
+  { at: 0.08, line: o => `Settling down now — ${say(o[0])} goes forward, ${say(o[1])} handy on the rails, ${say(o[2])} just behind them.` },
+  { at: 0.18, line: o => `Back marker is ${say(last(o))} — they'll need to sprint home from there.` },
+  { at: 0.30, line: o => `Down the back straight: ${say(o[0])} leads from ${say(o[1])}, then ${say(o[2])} and ${say(o[3])}.` },
+  { at: 0.42, line: o => `Passing the 800 — ${say(o[0])} still in charge, ${say(o[4])} starting to work into it out wide!` },
+  { at: 0.52, line: o => `600 to go and the pace is on! ${say(o[0])}, ${say(o[1])}, ${say(o[2])} — they're all bunched up!` },
+  { at: 0.62, line: o => `Coming to the turn — ${say(o[0])} and ${say(o[1])} together, ${say(o[3])} looming on the outside!` },
+  { at: 0.72, line: o => `Into the straight! ${say(o[0])} kicks for home! ${say(o[1])} goes with it!` },
+  { at: 0.82, line: o => `200 to go — ${say(o[0])} and ${say(o[1])} fighting it out, ${say(o[2])} flying late!` },
+  { at: 0.92, line: o => `100 metres — ${say(o[0])} holding on… ${say(o[1])} coming hard!` },
 ]
 // "…and look at yours, #12 Buckaroo!" when your horse is in the first four at a call.
 function mineShout(order: Called[]): string {
@@ -37,10 +44,10 @@ function speak(text: string, speed: number) {
   const u = new SpeechSynthesisUtterance(text.replace(/#(\d+)/g, 'number $1').replace(/[🏁🏆]/gu, ''))
   u.voice = window.speechSynthesis.getVoices().find(v => v.lang === 'en-AU') ?? null
   u.lang = 'en-AU'
-  u.rate = Math.min(2, 1.15 * speed)
+  u.rate = Math.min(2, 1.2 * speed)   // brisk — calls come every ~3s at 1×
   window.speechSynthesis.speak(u)
 }
-const GAP_MS    = 220      // each later finisher a beat behind
+const TAIL_MS   = 4_000    // the whole field is home within ~4s of the winner
 
 // Seeded so a horse's run doesn't change between frames (or between Watch-again replays).
 function rng(seed: number) {
@@ -66,8 +73,8 @@ export function PracticeRaceModal({ runners, winners, onClose }: {
     const rand = rng(r.number * 7919 + r.position)
     return {
       id: r.id,
-      finishMs: WINNER_MS + (r.position - 1) * GAP_MS,
-      amp: 0.05 + rand() * 0.07, freq: 1 + rand() * 1.5, phase: rand() * Math.PI * 2,
+      finishMs: WINNER_MS + (r.position - 1) * Math.min(350, TAIL_MS / Math.max(1, runners.length - 1)),
+      amp: 0.05 + rand() * 0.07, freq: 1.5 + rand() * 2, phase: rand() * Math.PI * 2,
     }
   }), [runners])
   const endMs = Math.max(...plans.map(p => p.finishMs)) + 400
@@ -113,7 +120,7 @@ export function PracticeRaceModal({ runners, winners, onClose }: {
     const order = [...runners].sort((a, b) => progress(b.id) - progress(a.id))
     const byFinish = [...runners].sort((a, b) => a.position - b.position)
     const text = callIdx >= CALLS.length
-      ? `${say(byFinish[0])} wins the Practice Cup! ${say(byFinish[1])} second, ${say(byFinish[2])} third.`
+      ? `${say(byFinish[0])} wins the Practice Cup! What a run! ${say(byFinish[1])} second, ${say(byFinish[2])} third — and the race is over!`
       : CALLS[Math.max(0, callIdx)].line(order) + mineShout(order)
     setCall(text)
     if (voice) speak(text, speed)
