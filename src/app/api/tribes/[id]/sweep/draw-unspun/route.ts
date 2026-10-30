@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic'
 // every ticket in the pool its holder hasn't spun yet, so one slow member can't hold the pool
 // back; each holder is emailed their horse(s). The organiser never chooses a horse. Works on a
 // locked pool too — that's exactly when an unspun ticket is stuck (holders can't spin then).
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+// Body { user_id } (optional) narrows it to one member's tickets — "draw for them".
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -29,7 +30,11 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: `The draw opens ${DRAW_OPENS_LABEL}, once the final field is declared.` }, { status: 409 })
   }
 
-  const { drawn, failed } = await drawUnspunTickets(admin, { tribeId, tournamentId: tribe.tournament_id })
+  const body = await req.json().catch(() => null)
+  const userId = typeof body?.user_id === 'string' ? body.user_id : undefined
+
+  const { drawn, failed } = await drawUnspunTickets(admin, { tribeId, tournamentId: tribe.tournament_id, userId })
   if (failed > 0 && drawn === 0) return NextResponse.json({ error: 'Couldn’t draw for those tickets — try again in a moment.' }, { status: 409 })
+  if (userId && drawn === 0) return NextResponse.json({ error: 'They have no tickets left to draw for in this pool.' }, { status: 409 })
   return NextResponse.json({ ok: true, drawn, failed })
 }

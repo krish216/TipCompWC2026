@@ -100,6 +100,8 @@ export default function SweepAdminPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmDrawPool, setConfirmDrawPool] = useState<string | null>(null)   // pool id awaiting "Draw now" confirm
   const [drawingPool, setDrawingPool] = useState<string | null>(null)
+  const [confirmDrawMember, setConfirmDrawMember] = useState<string | null>(null)   // user id awaiting confirm
+  const [drawingMember, setDrawingMember] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [requests, setRequests] = useState<RequestRow[]>([])
@@ -414,6 +416,18 @@ export default function SweepAdminPage() {
     await loadPools(compId)
   }
 
+  // One member's unspun tickets ("draw for them") — same random draw, never a chosen horse.
+  async function drawForMember(tribeId: string, userId: string) {
+    setDrawingMember(userId); setConfirmDrawMember(null)
+    const res = await fetch(`/api/tribes/${tribeId}/sweep/draw-unspun`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }),
+    }).then(r => r.json())
+    setDrawingMember(null)
+    if (res.error) { setError(res.error); return }
+    fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json()).then(s => setAllocRoster(s.roster ?? []))
+    await loadPools(compId)
+  }
+
   // Random draw for every ticket its holder hasn't spun — the organiser never picks the horse.
   async function drawUnspun(tribeId: string) {
     setDrawingPool(tribeId); setConfirmDrawPool(null)
@@ -674,6 +688,20 @@ export default function SweepAdminPage() {
                       </span>
                     ))}
                     {r.unclaimed > 0 && <span className="block text-gray-400 italic">{r.unclaimed} still picking…</span>}
+                    {/* Draw for them — once the draw's open; a random horse, emailed to them. */}
+                    {r.unclaimed > 0 && pools.find(p => p.id === allocTribeId)?.draw_open && (
+                      confirmDrawMember === r.user_id ? (
+                        <span className="inline-flex gap-2 mt-1 text-xs">
+                          <button onClick={() => drawForMember(allocTribeId, r.user_id)} className="font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded-lg">Yes, draw</button>
+                          <button onClick={() => setConfirmDrawMember(null)} className="font-semibold text-gray-500">Cancel</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmDrawMember(r.user_id)} disabled={drawingMember === r.user_id}
+                          className="mt-1 text-xs font-bold text-amber-800 border border-amber-300 hover:bg-amber-50 disabled:opacity-50 px-2 py-0.5 rounded-lg">
+                          {drawingMember === r.user_id ? 'Drawing…' : '🎲 Draw for them'}
+                        </button>
+                      )
+                    )}
                   </span>
                 </div>
               ))}
