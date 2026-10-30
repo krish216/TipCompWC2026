@@ -181,6 +181,15 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const bracketSlugMatch = pathname.match(/^\/bracket\/leaderboard\/([^/]+)/)
   const bracketPlayHref = bracketSlugMatch ? `/bracket?challenge=${bracketSlugMatch[1]}` : '/bracket'
 
+  // Sweep pages (incl. /melbourne-cup): Sign in / Register must carry the sweep along —
+  // a bare /login is a football sign-up (EPL), which pulled QR scanners out of their sweep.
+  // /login keys its sweep flow off a redirect starting /sweep (with any ?code= inside it).
+  const sweepAuthQs = pathname.startsWith('/sweep') || pathname === '/melbourne-cup'
+    ? `&redirect=${encodeURIComponent(pathname.startsWith('/sweep')
+        ? pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '')
+        : '/sweep')}`
+    : ''
+
   // Desktop nav items (shown in top bar on sm+)
   const desktopItems = isCompAdminPage
     ? [
@@ -461,14 +470,14 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/login?tab=login" className="text-xs text-gray-500 hover:text-gray-700">Sign in</Link>
+                <Link href={`/login?tab=login${sweepAuthQs}`} className="text-xs text-gray-500 hover:text-gray-700">Sign in</Link>
                 {isBracketPage ? (
                   <Link href={bracketPlayHref}
                     className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
                     🏆 Play free
                   </Link>
                 ) : (
-                  <Link href="/login?tab=register"
+                  <Link href={`/login?tab=register${sweepAuthQs}`}
                     className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
                     Register
                   </Link>

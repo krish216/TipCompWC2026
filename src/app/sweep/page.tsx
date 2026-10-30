@@ -234,9 +234,14 @@ export default function SweepPage() {
     return (
       <main className="max-w-xl mx-auto px-4 py-16 text-center">
         <h1 className="text-2xl font-black text-gray-900 mb-2">🐎 {comp?.name ?? tourn?.name ?? 'Sweep'}</h1>
-        <p className="text-sm text-gray-500 mb-6">Log in to start or join a sweep.</p>
-        <Link href={`/login?redirect=${encodeURIComponent(redirect)}`}
-          className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-6 py-3 rounded-xl">Log in →</Link>
+        <p className="text-sm text-gray-500 mb-6">Create a free account or log in to start or join a sweep.</p>
+        {/* Both carry the sweep (redirect) — a bare /login?tab=register is a football sign-up. */}
+        <div className="flex flex-col items-center gap-3">
+          <Link href={`/login?tab=register&redirect=${encodeURIComponent(redirect)}`}
+            className="inline-block w-full max-w-xs bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-6 py-3 rounded-xl">Create a free account →</Link>
+          <Link href={`/login?tab=login&redirect=${encodeURIComponent(redirect)}`}
+            className="inline-block w-full max-w-xs border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-bold px-6 py-3 rounded-xl">I already have an account</Link>
+        </div>
       </main>
     )
   }
