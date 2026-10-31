@@ -26,7 +26,11 @@ const PLACE_STYLE = ['bg-amber-400 text-emerald-950', 'bg-gray-200 text-gray-800
 // One element per sound, started inside the "Run the race" tap (the voice on the intro, the
 // effects muted then paused) — mobile Safari only lets an element play once a tap has started
 // it, after which the modal can play it freely. Sound is on by default for the same reason.
+// The race calls alternate between `voice` and `voice2`: one plays while the other loads the
+// next call, so each starts the moment the last one ends — no gap, and no call cut short by a
+// slow load.
 let voice: HTMLAudioElement | null = null
+let voice2: HTMLAudioElement | null = null
 let crowd: HTMLAudioElement | null = null
 let bell: HTMLAudioElement | null = null
 let muted = false
@@ -34,10 +38,12 @@ const clipUrl = (id: string, clip: string) => `/race-calls/${id}/${clip}.mp3`
 const callClip = (i: number) => `call-${String(i).padStart(2, '0')}`
 export function primeRaceAudio(script: DemoScript) {
   voice ??= new Audio()
+  voice2 ??= new Audio()
   crowd ??= Object.assign(new Audio('/race-calls/sfx/crowd.mp3'), { loop: true })
   bell ??= new Audio('/race-calls/sfx/bell.mp3')
   play(voice, clipUrl(script.id, 'intro'), 1)
-  for (const a of [crowd, bell]) {
+  voice2.src = clipUrl(script.id, callClip(0))
+  for (const a of [voice2, crowd, bell]) {
     a.muted = true
     a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = muted }).catch(() => {})
   }
@@ -53,12 +59,23 @@ function play(a: HTMLAudioElement | null, src: string, rate: number) {
   a.muted = muted
   a.play().catch(() => {})
 }
-const stopAll = () => { for (const a of [voice, crowd, bell]) a?.pause() }
+const stopAll = () => { for (const a of [voice, voice2, crowd, bell]) a?.pause() }
+// Queue a clip on an element without playing it, so it's loaded by the time it's wanted.
+function load(a: HTMLAudioElement | null, src: string, rate: number) {
+  if (!a) return
+  a.preload = 'auto'
+  a.src = src
+  a.defaultPlaybackRate = rate
+  a.playbackRate = rate
+  a.load()
+}
 
 // Where the voice is in `src`, in seconds — from the audio itself when it's playing (muted
 // counts), else `fallback` (blocked or not loaded yet), so the words still come up on time.
 function voiceAt(src: string, fallback: number) {
-  if (voice && voice.src.endsWith(src) && (!voice.paused || voice.currentTime > 0)) return voice.currentTime
+  for (const a of [voice, voice2]) {
+    if (a && a.src.endsWith(src) && (!a.paused || a.currentTime > 0)) return a.currentTime
+  }
   return fallback
 }
 
@@ -125,19 +142,45 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta }: {
     }
   }, [script, clips])
 
+  // The race follows the voice: while a call is playing, race time is wherever that call is
+  // up to, so the field never gets ahead of what Vicky's saying. `live` drops (and the clock
+  // takes over) once the last call ends — or if the audio stalls, is blocked, or is skipped.
+  const sim = useRef(0)
+  const race = useRef({ cur: 0, live: true, lastPos: -1, lastAt: 0 })
+  const fallbackPlayed = useRef(-1)
+  const raceClock = (dt: number, now: number) => {
+    const r = race.current, n = starts.length
+    const el = r.cur % 2 ? voice2 : voice
+    if (r.live && r.cur < n && el) {
+      const pos = starts[r.cur] + (el.currentTime * 1000) / RATE
+      if (pos > r.lastPos + 1) { r.lastPos = pos; r.lastAt = now }
+      else if (now - r.lastAt > 2500) {   // no progress — carry on by the clock, silently
+        r.live = false
+        fallbackPlayed.current = r.cur
+        voice?.pause(); voice2?.pause()
+      }
+      sim.current = Math.max(sim.current, Math.min(pos, r.cur + 1 < n ? starts[r.cur + 1] : Infinity))
+    } else {
+      sim.current += dt
+    }
+    return sim.current
+  }
+
   // One clock for every phase, restarted at each.
   useEffect(() => {
     setMs(0)
+    sim.current = 0
     let frame = 0, last: number | null = null
     const tick = (now: number) => {
       const dt = last == null ? 0 : now - last
       last = now
-      setMs(t => t + dt)
+      if (phase === 'race') setMs(raceClock(dt, now))
+      else setMs(t => t + dt)
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [phase, run])
+  }, [phase, run])   // eslint-disable-line react-hooks/exhaustive-deps -- raceClock only reads refs and fixed timings
 
   // Before the jump: the banter (already started by the tap — restarted only if something
   // stopped it, e.g. React's dev double-mount), then they're off when it ends.
@@ -149,19 +192,38 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta }: {
   }, [phase, ms, clips])
 
   const simMs = phase === 'race' ? Math.min(ms, finishMs) : 0
-  const lastPlayed = useRef(-1)
+
+  // They're off: the first call plays, the second loads on the other element, and each call
+  // hands over to the next as it ends.
   useEffect(() => {
     if (phase !== 'race') return
-    lastPlayed.current = -1
+    const n = script.race.length
+    const els = [voice, voice2]
+    race.current = { cur: 0, live: true, lastPos: -1, lastAt: performance.now() }
+    fallbackPlayed.current = -1
+    voice2?.pause()
+    play(voice, clipUrl(script.id, callClip(0)), RATE)
+    if (n > 1) load(voice2, clipUrl(script.id, callClip(1)), RATE)
+    const next = () => {
+      const r = race.current
+      if (!r.live) return
+      r.cur += 1
+      if (r.cur >= n) { r.live = false; fallbackPlayed.current = n; return }
+      const el = els[r.cur % 2]
+      if (el) { el.playbackRate = RATE; el.muted = muted; el.play().catch(() => {}) }
+      if (r.cur + 1 < n) load(els[(r.cur + 1) % 2], clipUrl(script.id, callClip(r.cur + 1)), RATE)
+    }
+    for (const el of els) if (el) el.onended = next
     play(bell, '', 1)
     if (crowd) { crowd.volume = 0.25; play(crowd, '', 1) }
-  }, [phase, run])
+    return () => { for (const el of els) if (el) el.onended = null }
+  }, [phase, run, script])
 
-  // Each call starts on its slot, back to back.
   const callIdx = phase === 'race' ? starts.filter(s => simMs >= s).length - 1 : -1
+  // Fallback only (audio stalled or blocked): play each call on its slot, as the clock says.
   useEffect(() => {
-    if (callIdx < 0 || callIdx === lastPlayed.current || ms > finishMs) return
-    lastPlayed.current = callIdx
+    if (race.current.live || callIdx <= fallbackPlayed.current || ms > finishMs) return
+    fallbackPlayed.current = callIdx
     play(voice, clipUrl(script.id, callClip(callIdx)), RATE)
   }, [callIdx, script.id, ms, finishMs])
 
@@ -215,13 +277,17 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta }: {
 
   const toggleSound = () => {
     muted = sound
-    for (const a of [voice, crowd, bell]) if (a) a.muted = muted
+    for (const a of [voice, voice2, crowd, bell]) if (a) a.muted = muted
     setSound(!muted)
   }
   const skip = () => {
-    voice?.pause()
+    voice?.pause(); voice2?.pause()
     if (phase === 'intro') setPhase('race')
-    else { lastPlayed.current = starts.length; setMs(finishMs) }
+    else {
+      race.current.live = false
+      fallbackPlayed.current = starts.length
+      sim.current = finishMs
+    }
   }
   const restart = () => { setPhase('race'); setRun(r => r + 1) }
 
