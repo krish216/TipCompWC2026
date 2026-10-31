@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { track } from '@vercel/analytics'
+import confetti from 'canvas-confetti'
 import { SweepWheel } from '@/components/game/SweepWheel'
 import { ordinal } from '@/lib/sweep/podium'
 import { DEMO_SCRIPTS, type DemoScript } from '@/lib/sweep/demo-race-scripts'
@@ -61,7 +62,10 @@ export function DemoRace() {
 
   const draw = async () => {
     const h = FIELD[Math.floor(Math.random() * FIELD.length)]
-    setTimeout(() => setYours(h), 650)   // after the wheel settles, like the real draw
+    setTimeout(() => {   // after the wheel settles, like the real draw
+      setYours(h)
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.55 }, zIndex: 40 })
+    }, 650)
     track('demo_race_spin')
     return { ok: true, horse: { ...h, scratched: false, finish_position: null } }
   }
@@ -94,7 +98,15 @@ export function DemoRace() {
       {/* Step 2 lives on the wheel's hub, like "Tap to spin" — the wheel is the one thing to tap. */}
       <SweepWheel key={spin} slots={FIELD.length} onDraw={draw}
         resultAction={{ label: last ? '🔁 Race Replay' : '🏁 Run the race', onClick: run }}
-        resultNote="The rest of the field went to the office. Tap the wheel to race 🔊" />
+        resultNote="The rest of the field went to the office." />
+      {/* The same action as the hub, as a proper button — on a phone the hub reads as part of
+          the wheel, and this is the one thing to do next. */}
+      {yours && !race && (
+        <button onClick={run}
+          className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25">
+          {last ? '🔁 Race Replay' : '🏁 Run the race'} <span className="text-sm font-bold text-emerald-100">· sound on 🔊</span>
+        </button>
+      )}
       {last && !race && yours && (
         <p className="mt-3 text-sm text-gray-600 text-center">
           #{yours.number} {yours.name} ran <strong>{ordinal(last.runners.find(r => r.mine)!.position)}</strong>.{' '}
