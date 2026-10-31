@@ -21,8 +21,11 @@ const smoothstep = (x: number) => x * x * (3 - 2 * x)
  *  can't reveal the undrawn field. You see the horse you drew; who drew what across the
  *  pool stays hidden until the pool closes. */
 // `resultNote` replaces the line under "You drew" (the public demo has no pool to fill).
-export function SweepWheel({ slots, onDraw, resultNote }: {
+// `resultAction` — what tapping the wheel does once it's landed, labelled on the hub (the
+// public demo's "Run the race"). A click, not a pointerdown: phones only unlock sound on one.
+export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
   slots: number; onDraw: () => Promise<PickResult>; resultNote?: string
+  resultAction?: { label: string; onClick: () => void }
 }) {
   const n = slots
   // Drawn segments: at least 2 — a lone 360° segment renders as nothing (an arc that starts
@@ -122,6 +125,9 @@ export function SweepWheel({ slots, onDraw, resultNote }: {
     if (wheelRef.current) wheelRef.current.style.transition = ''
   }
 
+  // Only once a horse is drawn — never during the spin, so the stopping tap can't also fire it.
+  const action = phase === 'result' && result?.ok ? resultAction : undefined
+
   if (n === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">No horses left to pick — the pool's full.</p>
   }
@@ -131,18 +137,21 @@ export function SweepWheel({ slots, onDraw, resultNote }: {
 
   return (
     <div className="flex flex-col items-center">
-      {/* The wheel itself is the button: tap to spin it, tap again to stop it. */}
+      {/* The wheel itself is the button: tap to spin it, tap again to stop it — and, with a
+          `resultAction`, tap once more for what's next. */}
       <div
         ref={containerRef}
         role="button"
-        tabIndex={phase === 'idle' || phase === 'fast' ? 0 : -1}
-        aria-label={phase === 'idle' ? 'Spin the wheel for your horse' : phase === 'fast' ? 'Stop the wheel' : 'The wheel'}
+        tabIndex={phase === 'idle' || phase === 'fast' || action ? 0 : -1}
+        aria-label={phase === 'idle' ? 'Spin the wheel for your horse' : phase === 'fast' ? 'Stop the wheel' : action ? action.label : 'The wheel'}
         onPointerDown={phase === 'fast' ? handleTap : phase === 'idle' ? startSpin : undefined}
+        onClick={action?.onClick}
         onKeyDown={e => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
           if (phase === 'fast') handleTap()
           else if (phase === 'idle') startSpin()
+          else action?.onClick()
         }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
@@ -150,7 +159,7 @@ export function SweepWheel({ slots, onDraw, resultNote }: {
         style={{
           width: 320, height: 320,
           background: BRAND_BG,
-          cursor: phase === 'fast' || phase === 'idle' ? 'pointer' : 'default',
+          cursor: phase === 'fast' || phase === 'idle' || action ? 'pointer' : 'default',
           boxShadow: hover ? '0 10px 40px rgba(10,46,28,0.45)' : '0 8px 32px rgba(10,46,28,0.3)',
           transition: 'box-shadow 300ms ease',
         }}
@@ -214,12 +223,12 @@ export function SweepWheel({ slots, onDraw, resultNote }: {
           <path d={`M${cxp - 11},2 L${cxp + 11},2 L${cxp},${cyp - r + 14} Z`} fill={GOLD} stroke="#ffffff" strokeWidth={1.5} filter="url(#sweep-shadow)" />
         </svg>
         {/* On the wheel while it's still — once it moves, the motion blur would smear it. */}
-        {phase === 'idle' && (
+        {(phase === 'idle' || action) && (
           // Centred on the hub. The pulse animates `transform`, so the centring sits on a wrapper.
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <span className="block bg-amber-400 text-emerald-950 text-xs font-black tracking-wide uppercase px-3 py-2 rounded-full shadow-lg whitespace-nowrap ring-2 ring-white"
               style={{ animation: 'sweep-prompt 0.7s ease-in-out infinite' }}>
-              👆 Tap to spin
+              {phase === 'idle' ? '👆 Tap to spin' : action!.label}
             </span>
           </span>
         )}

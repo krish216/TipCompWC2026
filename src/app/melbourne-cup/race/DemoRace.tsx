@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { track } from '@vercel/analytics'
 import { SweepWheel } from '@/components/game/SweepWheel'
@@ -58,12 +58,6 @@ export function DemoRace() {
   const [race, setRace] = useState<Race | null>(null)
   const [last, setLast] = useState<Race | null>(null)
   const played = useRef<string[]>([])                       // work through all six before repeating
-  const runRef = useRef<HTMLDivElement>(null)
-
-  // Once the wheel lands, bring step 2 into view — on a phone it's below the wheel.
-  useEffect(() => {
-    if (yours && !last) runRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [yours, last])
 
   const draw = async () => {
     const h = FIELD[Math.floor(Math.random() * FIELD.length)]
@@ -97,22 +91,15 @@ export function DemoRace() {
           </li>
         ))}
       </ol>
+      {/* Step 2 lives on the wheel's hub, like "Tap to spin" — the wheel is the one thing to tap. */}
       <SweepWheel key={spin} slots={FIELD.length} onDraw={draw}
-        resultNote="The rest of the field went to the office. Now let's race." />
-      {yours && (
-        <div ref={runRef} className="mt-4 flex flex-col items-center gap-2 scroll-mt-24">
-          <button onClick={run}
-            className="bg-amber-400 hover:bg-amber-300 text-emerald-950 text-lg font-black px-8 py-3.5 rounded-xl shadow-lg animate-pulse hover:animate-none">
-            {last ? '🔁 Race Replay' : '🏁 Run the race'}
-          </button>
-          {!last && <p className="text-xs text-gray-500">🔊 Sound on — Vicky and Gordo call it.</p>}
-          {last && !race && (
-            <p className="text-sm text-gray-600 text-center">
-              #{yours.number} {yours.name} ran <strong>{ordinal(last.runners.find(r => r.mine)!.position)}</strong>.{' '}
-              <button onClick={respin} className="font-bold text-emerald-700 hover:underline">Spin for a new horse</button>
-            </p>
-          )}
-        </div>
+        resultAction={{ label: last ? '🔁 Race Replay' : '🏁 Run the race', onClick: run }}
+        resultNote="The rest of the field went to the office. Tap the wheel to race — sound on 🔊" />
+      {last && !race && yours && (
+        <p className="mt-3 text-sm text-gray-600 text-center">
+          #{yours.number} {yours.name} ran <strong>{ordinal(last.runners.find(r => r.mine)!.position)}</strong>.{' '}
+          <button onClick={respin} className="font-bold text-emerald-700 hover:underline">Spin for a new horse</button>
+        </p>
       )}
       {race && (
         <ScriptedRaceModal script={race.script} runners={race.runners} winners={race.winners} onClose={() => setRace(null)}
