@@ -4,12 +4,13 @@
 //
 //   npx tsx scripts/generate-race-calls.mjs            # only what's missing
 //   npx tsx scripts/generate-race-calls.mjs race-2     # redo one race
+//   … --no-align                                       # skip the word timings below
 //
 // Writes src/lib/sweep/demo-race-audio.json — each clip's length in seconds — so the demo can
 // time the horses to the voice.
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEMO_SCRIPTS } from '../src/lib/sweep/demo-race-scripts.ts'
+import { DEMO_SCRIPTS, banter } from '../src/lib/sweep/demo-race-scripts.ts'
 
 const key = readFileSync('.env.local', 'utf8').match(/^ELEVENLABS_API_KEY=["']?([^"'\s]+)/m)?.[1]
 if (!key) throw new Error('ELEVENLABS_API_KEY missing from .env.local')
@@ -17,7 +18,7 @@ if (!key) throw new Error('ELEVENLABS_API_KEY missing from .env.local')
 const VOICES = { vicky: 'vcedRTI2CgypSP2qMCLB', gordon: 'ThXZu2AntqfxXDVXmhMp' }
 const OUT = 'public/race-calls'
 const API = 'https://api.elevenlabs.io/v1'
-const redo = new Set(process.argv.slice(2))
+const redo = new Set(process.argv.slice(2).filter(a => !a.startsWith('--')))
 
 // mp3_44100_128 is constant bitrate, so the length falls straight out of the file size.
 const secs = file => Math.round((statSync(file).size * 8 / 128_000) * 100) / 100
@@ -74,6 +75,16 @@ for (const s of DEMO_SCRIPTS) {
     race.push(secs(file))
   }
   manifest[s.id] = { intro: secs(intro), race, outro: secs(outro) }
+
+  // Practice sweeps' money-free banter (banter() in the scripts) — only where it differs.
+  const { intro: pIntro, outro: pOutro } = banter(s, true)
+  for (const [b, excite] of [[pIntro, false], [pOutro, true]]) {
+    if (!b.clip.endsWith('-practice')) continue
+    const file = join(dir, `${b.clip}.mp3`)
+    const [first, ...rest] = b.lines
+    if (need(file)) await post('/text-to-dialogue', dialogue(excite ? [{ ...first, text: `[excited] ${first.text}` }, ...rest] : b.lines), file)
+    manifest[s.id][b.clip] = secs(file)
+  }
 }
 
 writeFileSync('src/lib/sweep/demo-race-audio.json', JSON.stringify(manifest, null, 2) + '\n')
@@ -104,6 +115,7 @@ async function align(file, lines) {
   return timings
 }
 
+if (process.argv.includes('--no-align')) process.exit(0)
 for (const s of DEMO_SCRIPTS) {
   const w = (words[s.id] = redo.has(s.id) ? {} : words[s.id] ?? {})
   const dir = join(OUT, s.id)

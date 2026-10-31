@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { pickScript } from '@/lib/sweep/demo-race-scripts'
+import { primeRaceAudio, stopRaceAudio } from '@/components/game/ScriptedRaceModal'
 
 type PoolStat = { id: string; name: string; tickets: number; claimed: number; race_run: boolean }
 
@@ -13,6 +15,7 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
   const [pools, setPools] = useState<PoolStat[] | null>(null)
   const [racing, setRacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const lastScript = useRef<string | null>(null)
 
   async function load() {
     const res = await fetch(`/api/comps/${compId}/sweep/pools`).then(r => r.json()).catch(() => null)
@@ -22,9 +25,15 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
 
   async function race(method: 'POST' | 'DELETE') {
     setRacing(true); setError(null)
-    const res = await fetch(`/api/comps/${compId}/sweep/practice-race`, { method }).then(r => r.json())
+    // A run picks one of the voiced races and unlocks its sound here, inside the tap — phones
+    // won't play it later otherwise. The pool below plays it once the result is in.
+    const script = method === 'POST' ? pickScript(lastScript.current) : null
+    if (script) { primeRaceAudio(script, { intro: false, practice: true }); lastScript.current = script.id }
+    const res = await fetch(`/api/comps/${compId}/sweep/practice-race`, {
+      method, ...(script && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script_id: script.id }) }),
+    }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
     setRacing(false)
-    if (res.error) { setError(res.error); return }
+    if (res.error) { stopRaceAudio(); setError(res.error); return }
     await load()
     onRaced(method === 'POST')   // a fresh result → the pool below acts it out
   }

@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase'
 import { PRACTICE_SLUG } from '@/lib/sweep/practice'
 import { raceFinishes } from '@/lib/sweep/pool-result'
 import { loadFields } from '@/lib/sweep/field'
+import { AUTO_LOCK_BEFORE_MS, memberQrByComp } from '@/lib/sweep/organiser'
+import { SWEEP_PRICING } from '@/lib/sweep/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,9 +76,10 @@ export async function GET() {
   // Pool pills need EVERY pool under each represented comp (not just the ones directly
   // relevant above) — a comp the caller organises may have pools with no personal
   // connection at all, but the pills should still cover the whole sweep.
-  const [{ data: comps }, { data: allCompTribes }] = await Promise.all([
+  const [{ data: comps }, { data: allCompTribes }, memberQr] = await Promise.all([
     (admin.from('comps') as any).select('id, name, invite_code').in('id', compIds),
     (admin.from('tribes') as any).select('id, comp_id, tournament_id').in('comp_id', compIds),
+    memberQrByComp(admin, compIds),
   ])
   const compById = Object.fromEntries(((comps ?? []) as any[]).map(c => [c.id, c]))
   const adminCompIdSet = new Set(adminCompIds)
@@ -119,12 +122,27 @@ export async function GET() {
     ;(poolsByComp[t.comp_id] ??= []).push({ tribe_id: t.id, tickets, field_size: fieldSize, full })
   }
 
+  // The sweep card's "Add a pool": for the organiser of a sweep whose every pool has sold out,
+  // while there's room under the pool cap and before the pools lock for the race. Pools are all
+  // created up front (comps/create), so every pool full means nobody else can get in. Practice
+  // sweeps too — rehearsing a sell-out is part of the point, and their pools are always free.
+  const canAddPool = (t: any) => {
+    const pools = poolsByComp[t.comp_id] ?? []
+    const start = tournById[t.tournament_id]?.race_start_at
+    return adminCompIdSet.has(t.comp_id)
+      && pools.length > 0 && pools.length < SWEEP_PRICING.maxPools && pools.every(p => p.full)
+      && !raceFinishes(horsesByTourn[t.tournament_id] ?? [], null)
+      && !(start && Date.now() >= new Date(start).getTime() - AUTO_LOCK_BEFORE_MS)
+  }
+
   const data = sweepTribes.map(t => ({
     tribe_id:        t.id,
     tribe_name:       t.name,
     comp_id:          t.comp_id,
     comp_name:        compById[t.comp_id]?.name ?? null,
     comp_invite_code: compById[t.comp_id]?.invite_code ?? null,
+    // My Pool's "Bring a colleague in" QR — the organiser can switch it off (migration 209).
+    member_qr:        memberQr[t.comp_id] ?? true,
     tournament_id:    t.tournament_id,
     tournament_name:  tournById[t.tournament_id]?.name ?? null,
     race_start_at:    tournById[t.tournament_id]?.race_start_at ?? null,
@@ -140,6 +158,7 @@ export async function GET() {
     comp_pools:       poolsByComp[t.comp_id] ?? [],
     // Comp-wide (every pool), and only populated for organisers.
     comp_pending_requests: pendingByComp[t.comp_id] ?? 0,
+    can_add_pool:     canAddPool(t),
   }))
 
   return NextResponse.json({ data })

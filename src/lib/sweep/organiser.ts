@@ -38,6 +38,20 @@ export async function getOrganiserDetails(admin: any, compId: string): Promise<O
   return { ...EMPTY, ...data }
 }
 
+// Whether My Pool shows members the sweep's join QR (migration 209), per comp. Read on its
+// own and never throws — before the migration the column is missing, and the QR stays on.
+export async function memberQrByComp(admin: any, compIds: string[]): Promise<Record<string, boolean>> {
+  const on = Object.fromEntries(compIds.map(id => [id, true]))
+  if (!compIds.length) return on
+  const { data, error } = await (admin.from('comps') as any).select('id, sweep_member_qr').in('id', compIds)
+  if (!error) for (const c of (data ?? []) as any[]) on[c.id] = c.sweep_member_qr !== false
+  return on
+}
+
+export async function memberQrOn(admin: any, compId: string): Promise<boolean> {
+  return (await memberQrByComp(admin, [compId]))[compId]
+}
+
 // PayID comes in three everyday forms. The kind isn't stored — it's read off the value, so
 // a mobile, an email and an ABN can't be confused for one another.
 export type PayIdKind = 'mobile' | 'email' | 'abn'

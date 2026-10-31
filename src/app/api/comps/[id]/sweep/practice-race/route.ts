@@ -3,6 +3,7 @@ import { randomInt } from 'crypto'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { isPracticeTournament } from '@/lib/sweep/practice'
+import { DEMO_SCRIPTS } from '@/lib/sweep/demo-race-scripts'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,13 +31,17 @@ async function gate(compId: string) {
   return { admin, comp, tribeIds: ((tribes ?? []) as any[]).map(t => t.id) }
 }
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+// { script_id } — the organiser's tap picked one of the voiced races (lib/sweep/demo-race-scripts.ts),
+// so the result is that race's finishing order and the pool plays it called. Only when the field is
+// exactly the practice twelve, numbered as the scripts know them; otherwise a random order.
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const g = await gate(params.id)
   if ('error' in g) return g.error
   const { admin, comp, tribeIds } = g
+  const scriptId = (await req.json().catch(() => null))?.script_id
 
   const [{ data: horses }, { data: entries }] = await Promise.all([
-    (admin.from('sweep_horses') as any).select('id').eq('tournament_id', comp.tournament_id).eq('scratched', false),
+    (admin.from('sweep_horses') as any).select('id, number').eq('tournament_id', comp.tournament_id).eq('scratched', false),
     tribeIds.length ? (admin.from('sweep_entries') as any).select('horse_id').in('tribe_id', tribeIds) : Promise.resolve({ data: [] }),
   ])
   const sold = ((entries ?? []) as any[]).length
@@ -44,11 +49,17 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!sold) return NextResponse.json({ error: 'Sell and draw some tickets first.' }, { status: 409 })
   if (unspun) return NextResponse.json({ error: `${unspun} ticket${unspun === 1 ? ' is' : 's are'} still to spin — draw for them first.` }, { status: 409 })
 
-  const order = ((horses ?? []) as any[]).map(h => h.id)
+  let order = ((horses ?? []) as any[]).map(h => h.id)
   if (order.length < 3) return NextResponse.json({ error: 'The practice field needs at least 3 horses' }, { status: 400 })
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1)
-    ;[order[i], order[j]] = [order[j], order[i]]
+  const idByNumber = new Map(((horses ?? []) as any[]).map(h => [h.number, h.id]))
+  const script = DEMO_SCRIPTS.find(s => s.id === scriptId)
+  if (script && idByNumber.size === script.finish.length && script.finish.every(n => idByNumber.has(n))) {
+    order = script.finish.map(n => idByNumber.get(n))
+  } else {
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1)
+      ;[order[i], order[j]] = [order[j], order[i]]
+    }
   }
   const { error } = await (admin.from('tribes') as any)
     .update({ practice_results: order, sweep_locked_at: new Date().toISOString() }).in('id', tribeIds)

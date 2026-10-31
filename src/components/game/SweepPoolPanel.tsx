@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
 import { PracticeRaceModal } from '@/components/game/PracticeRaceModal'
+import { ScriptedRaceModal, primeRaceAudio } from '@/components/game/ScriptedRaceModal'
+import { scriptForFinish } from '@/lib/sweep/demo-race-scripts'
 import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
@@ -297,6 +299,13 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
     : <span className={`block ${h.scratched ? 'text-red-400 line-through' : 'text-gray-900 font-medium'}`}>#{h.number} {h.name}</span>
 
   const raceRun = sweep.race_run
+  // A practice race run to one of the voiced scripts (PracticeRaceBar picks one) plays called;
+  // any other result — older races, a different field — gets the plain animation.
+  const finishOrder = sweep.is_practice && sweep.finish_by_horse ? sweep.horses
+    .filter(h => !h.scratched && sweep.finish_by_horse![h.id] != null)
+    .sort((a, b) => sweep.finish_by_horse![a.id]! - sweep.finish_by_horse![b.id]!)
+    .map(h => h.number) : []
+  const raceScript = finishOrder.length ? scriptForFinish(finishOrder) : null
   const hasTickets = sweep.my_horses.length > 0 || sweep.my_unclaimed > 0
     || myRequests.some(r => r.status === 'pending' || r.status === 'approved')
   // Organiser "buy on their behalf" only while there's something left to sell.
@@ -771,7 +780,8 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="font-bold text-gray-900">🏆 Winners in this pool</h2>
             {sweep.is_practice && sweep.finish_by_horse && (
-              <button onClick={() => setWatchingRace(true)} className="text-xs font-bold text-violet-700 hover:underline">▶ Watch the race</button>
+              <button onClick={() => { if (raceScript) primeRaceAudio(raceScript, { practice: true }); setWatchingRace(true) }}
+                className="text-xs font-bold text-violet-700 hover:underline">▶ Watch the race{raceScript ? ' 🔊' : ''}</button>
             )}
           </div>
           {sweep.podium.length === 0 && <p className="text-sm text-gray-500">No horse in this pool finished the race.</p>}
@@ -940,7 +950,9 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
           places: p.places, horseNumber: p.horse!.number, horseName: p.horse!.name,
           holder: p.winner?.display_name ?? 'A member', cents: p.cents,
         }))
-        return <PracticeRaceModal runners={runners} winners={winners} onClose={() => setWatchingRace(false)} />
+        return raceScript
+          ? <ScriptedRaceModal practice script={raceScript} runners={runners} winners={winners} onClose={() => setWatchingRace(false)} />
+          : <PracticeRaceModal runners={runners} winners={winners} onClose={() => setWatchingRace(false)} />
       })()}
 
       {/* Buy on their behalf: tickets and how each person paid you. Recorded as approved

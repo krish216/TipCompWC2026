@@ -36,6 +36,7 @@ type Pool = {
   comp_pools: PoolPill[]; comp_pending_requests: number
   is_practice?: boolean   // practice sweeps (migration 200) — listed in their own card
   draw_open?: boolean; results_in?: boolean   // for the race countdown
+  can_add_pool?: boolean   // organiser, every pool sold out, room for another (my-pools)
 }
 // One row per SWEEP (comp), not per pool — the pool-level detail (which pools, which one has
 // your horses) lives on /tribe now. Built by collapsing myPools (one row per pool) by comp_id.
@@ -43,7 +44,7 @@ type SweepGroup = {
   comp_id: string; comp_name: string | null; comp_invite_code: string | null
   tournament_id: string; tournament_name: string | null; race_start_at: string | null
   is_comp_admin: boolean; my_tickets: number; my_unclaimed: number; my_open_requests: number
-  comp_pools: PoolPill[]; pending_requests: number
+  comp_pools: PoolPill[]; pending_requests: number; can_add_pool: boolean
 }
 
 function groupByComp(pools: Pool[]): SweepGroup[] {
@@ -54,6 +55,7 @@ function groupByComp(pools: Pool[]): SweepGroup[] {
       tournament_id: p.tournament_id, tournament_name: p.tournament_name, race_start_at: p.race_start_at,
       is_comp_admin: false, my_tickets: 0, my_unclaimed: 0, my_open_requests: 0, comp_pools: p.comp_pools,
       pending_requests: p.comp_pending_requests ?? 0,   // already comp-wide, so not summed
+      can_add_pool: !!p.can_add_pool,                   // comp-wide too
     }
     g.is_comp_admin = g.is_comp_admin || p.is_comp_admin
     g.my_tickets += p.my_tickets
@@ -301,6 +303,13 @@ export default function SweepPage() {
               <Link href={`/sweep-admin?comp_id=${g.comp_id}&tab=requests`} onClick={e => e.stopPropagation()}
                 className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 whitespace-nowrap">
                 {g.pending_requests} to approve
+              </Link>
+            )}
+            {/* Sold out with room for another pool — the next person who asks has nowhere to go. */}
+            {g.can_add_pool && (
+              <Link href={`/sweep-admin?comp_id=${g.comp_id}&tab=settings`} onClick={e => e.stopPropagation()}
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap">
+                ➕ Add a pool
               </Link>
             )}
             <Link href={`/sweep-admin?comp_id=${g.comp_id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">⚙️ Manage</Link>

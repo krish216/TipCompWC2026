@@ -213,3 +213,43 @@ export const DEMO_SCRIPTS: DemoScript[] = [
     ],
   },
 ]
+
+// The demo is always twelve $5 tickets, so its banter can talk about the $60 pot. A practice
+// sweep's pot is whatever sold, at whatever price the organiser set — so it plays these lines
+// instead, voiced separately (intro-practice.mp3 / outro-practice.mp3). Keyed by the demo line.
+const NO_MONEY: Record<string, string> = {
+  'Welcome to the Practice Cup — twelve runners, sixty dollars in the office pot.': 'Welcome to the Practice Cup — twelve runners, and the whole office watching.',
+  'Sixty dollars, Vicky. People have changed jobs for less.': 'Bragging rights, Vicky. People have changed jobs for less.',
+  'Welcome back to the Practice Cup — twelve runners, sixty dollars on the line.': 'Welcome back to the Practice Cup — twelve runners, bragging rights on the line.',
+  'Twelve go round in the Practice Cup, sixty dollars in the pot. Gordo, your pick?': 'Twelve go round in the Practice Cup, the whole office tuned in. Gordo, your pick?',
+  'The Practice Cup — twelve runners, sixty dollars in the office pot.': "The Practice Cup — twelve runners, and nobody's answering emails.",
+  'Welcome to the Practice Cup — twelve runners, sixty dollars up for grabs.': 'Welcome to the Practice Cup — twelve runners, office pride up for grabs.',
+  'The Practice Cup — twelve runners, sixty dollars in the pot. Gordo, your selection?': "The Practice Cup — twelve runners, and the kettle's gone cold. Gordo, your selection?",
+  "That's why I need the sixty dollars.": "That's why I need the win.",
+  "We're a team. I'm taking the twelve dollars and I'm framing it.": "We're a team. I'm taking the ribbon and I'm framing it.",
+}
+
+export type Banter = { lines: Line[]; clip: string }
+
+// The banter before and after the race — the money-free version for a practice sweep, where
+// a script has one.
+export function banter(script: DemoScript, practice = false): { intro: Banter; outro: Banter } {
+  const pick = (lines: Line[], clip: string): Banter => {
+    if (!practice || !lines.some(l => NO_MONEY[l.text])) return { lines, clip }
+    return { lines: lines.map(l => NO_MONEY[l.text] ? { ...l, text: NO_MONEY[l.text] } : l), clip: `${clip}-practice` }
+  }
+  return { intro: pick(script.intro, 'intro'), outro: pick(script.outro, 'outro') }
+}
+
+// A practice sweep's race (/api/comps/:id/sweep/practice-race) runs to one of these scripts
+// when the organiser's tap picks one, so the pool page can play it called. The result itself
+// is just the finishing order, so the script is found again by matching it.
+export function scriptForFinish(numbers: number[]): DemoScript | null {
+  return DEMO_SCRIPTS.find(s => s.finish.length === numbers.length && s.finish.every((n, i) => n === numbers[i])) ?? null
+}
+
+// A script to race next, other than `not` (the last one run), so "again" sounds different.
+export function pickScript(not?: string | null): DemoScript {
+  const pool = DEMO_SCRIPTS.filter(s => s.id !== not)
+  return pool[Math.floor(Math.random() * pool.length)]
+}

@@ -30,6 +30,7 @@ type CrewMember = { user_id: string; display_name: string; practice_names: strin
 type Settings = {
   allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; max_tribes: number
   sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]; sweep_deduct_fee: boolean
+  sweep_member_qr: boolean   // migration 209: My Pool shows members this QR too
 }
 type RequestRow = {
   id: string; tribe_id: string; tickets_requested: number; payment_method: string; status: string
@@ -82,11 +83,13 @@ export default function SweepAdminPage() {
   const [priceInput, setPriceInput] = useState('')
   const [splitInput, setSplitInput] = useState<[string, string, string]>(['70', '20', '10'])
   const [priceLocked, setPriceLocked] = useState(false)
+  const [prizesLocked, setPrizesLocked] = useState(false)   // split + fee-from-pot, once anything's sold
   const [savingPrizes, setSavingPrizes] = useState(false)
   const [prizesSavedAt, setPrizesSavedAt] = useState<number | null>(null)
   const [minMaxTribes, setMinMaxTribes] = useState(1)
   const [maxTribesInput, setMaxTribesInput] = useState('')
   const [savingMaxTribes, setSavingMaxTribes] = useState(false)
+  const [poolsAdded, setPoolsAdded] = useState<string | null>(null)   // "compId:count" just added, for the ✓ line
   const [billing, setBilling] = useState<{ enabled: boolean; included_pools: number; per_pool_cents: number; max_pools: number } | null>(null)
   // Back from Stripe Checkout. The webhook adds the pools, possibly a moment after the
   // redirect lands, so poll briefly rather than trusting the redirect.
@@ -175,6 +178,7 @@ export default function SweepAdminPage() {
     const res = await fetch(`/api/comps/${id}/sweep-settings`).then(r => r.json())
     if (res.data) setSettings(res.data)
     setPriceLocked(!!res.price_locked)
+    setPrizesLocked(!!res.prizes_locked)
     resetPrizeInputs(res.data)
     setMinMaxTribes(res.min_max_tribes ?? 1)
     setBilling(res.billing ?? null)
@@ -296,7 +300,7 @@ export default function SweepAdminPage() {
 
   async function updateSetting(key: keyof Settings, value: any) {
     setSavingSetting(key)
-    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : 'allow_iou'
+    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : key === 'sweep_member_qr' ? 'member_qr' : 'allow_iou'
     const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [bodyKey]: value }),
     }).then(r => r.json())
@@ -338,6 +342,7 @@ export default function SweepAdminPage() {
     if (res.error) { setSavingMaxTribes(false); setError(res.error); return }
     if (res.checkout_url) { window.location.href = res.checkout_url; return }
     setSavingMaxTribes(false)
+    setPoolsAdded(`${compId}:${n}`)
     setSettings(s => s ? { ...s, max_tribes: n } : s)
     setMinMaxTribes(n)   // can't go back down below what was just saved
     loadPools(compId)
@@ -585,6 +590,18 @@ export default function SweepAdminPage() {
             <a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer" className="text-sm font-bold text-emerald-600 hover:underline">WhatsApp →</a>
             <a href={`mailto:?subject=${encodeURIComponent(`Join my sweep: ${comp.name}`)}&body=${waText}`} className="text-sm font-bold text-emerald-600 hover:underline">Email →</a>
           </div>
+          {settings && (
+            <label className="mt-4 pt-3 border-t border-gray-100 flex items-start justify-center gap-2 text-left cursor-pointer">
+              <input type="checkbox" checked={settings.sweep_member_qr !== false}
+                disabled={savingSetting === 'sweep_member_qr'}
+                onChange={e => updateSetting('sweep_member_qr', e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-emerald-600" />
+              <span className="text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">Show this QR on My Pool</span>
+                <span className="block text-gray-500">So anyone in your sweep can sign up a colleague. Ticket requests still come to you.</span>
+              </span>
+            </label>
+          )}
         </div>
       )}
 
@@ -848,6 +865,17 @@ export default function SweepAdminPage() {
               </button>
               {unsavedNote(poolsDirty, discardPools)}
             </div>
+            {/* Where the sweep stands — the input alone shows the number being asked for, not
+                what's there now. */}
+            {(maxTribesInput === '' || maxTribesValid) && (
+              <p className="text-xs mt-2">
+                {poolsToAdd > 0
+                  ? <span className="text-gray-600">Now <strong>{settings.max_tribes}</strong> pool{settings.max_tribes === 1 ? '' : 's'} → <strong>{maxTribesN}</strong> after adding {poolsToAdd}.</span>
+                  : poolsAdded === `${compId}:${settings.max_tribes}`
+                  ? <span className="font-semibold text-emerald-700">✓ Added — this sweep now has {settings.max_tribes} pools.</span>
+                  : <span className="text-gray-500">This sweep has <strong>{settings.max_tribes}</strong> pool{settings.max_tribes === 1 ? '' : 's'} (up to 5).</span>}
+              </p>
+            )}
             {maxTribesInput !== '' && !maxTribesValid && (
               <p className="text-xs text-red-600 mt-2">
                 {maxTribesN < minMaxTribes && minMaxTribes > 1
@@ -860,6 +888,13 @@ export default function SweepAdminPage() {
           <div className={cardClass(prizesDirty)}>
             <h2 className="font-bold text-gray-900 mb-1 text-sm">Ticket price &amp; prizes</h2>
             <p className="text-xs text-gray-500 mb-3">Each pool pays its own 1st, 2nd and 3rd from the tickets sold in it. Buyers see the prizes before they buy.</p>
+            {/* Buyers paid for the price and prizes they were shown, so both lock at the first
+                sale or request (the API enforces it too). */}
+            {prizesLocked && (
+              <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-3">
+                🔒 Locked — tickets are already sold or requested, so {priceLocked ? 'the price and prizes stay' : 'the prizes stay'} as buyers saw them.
+              </p>
+            )}
 
             <label className="flex items-center justify-between gap-3 mb-3">
               <span className="text-xs font-semibold text-gray-700">Ticket price</span>
@@ -869,13 +904,12 @@ export default function SweepAdminPage() {
                   placeholder="5" className={`w-20 border rounded-lg px-2 py-1.5 text-sm text-center disabled:bg-gray-50 disabled:text-gray-500 ${priceInput && !priceCentsInput ? 'border-red-400' : 'border-gray-300'}`} />
               </span>
             </label>
-            {priceLocked && <p className="text-[11px] text-gray-400 -mt-2 mb-3">Locked — tickets are already sold or requested.</p>}
 
             <p className="text-xs font-semibold text-gray-700 mb-1.5">Prize split</p>
             <div className="flex flex-wrap gap-2 mb-2">
               {PRIZE_PRESETS.map(p => (
-                <button key={p.id} type="button" onClick={() => setSplitInput(p.split.map(String) as [string, string, string])}
-                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg ${JSON.stringify(splitNums) === JSON.stringify(p.split) ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                <button key={p.id} type="button" onClick={() => setSplitInput(p.split.map(String) as [string, string, string])} disabled={prizesLocked}
+                  className={`text-xs font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50 ${JSON.stringify(splitNums) === JSON.stringify(p.split) ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
                   {p.label}
                 </button>
               ))}
@@ -884,16 +918,16 @@ export default function SweepAdminPage() {
               {(['🥇', '🥈', '🥉'] as const).map((medal, i) => (
                 <label key={medal} className="flex items-center gap-1 text-xs text-gray-500">
                   {medal}
-                  <input value={splitInput[i]} inputMode="numeric"
+                  <input value={splitInput[i]} inputMode="numeric" disabled={prizesLocked}
                     onChange={e => setSplitInput(s => { const n = [...s] as [string, string, string]; n[i] = e.target.value.replace(/\D/g, '').slice(0, 3); return n })}
-                    className="w-12 border border-gray-300 rounded-lg px-1.5 py-1 text-sm text-center" />%
+                    className="w-12 border border-gray-300 rounded-lg px-1.5 py-1 text-sm text-center disabled:bg-gray-50 disabled:text-gray-500" />%
                 </label>
               ))}
             </div>
             {!splitValid && <p className="text-[11px] text-red-600 mb-1">The three percentages must add up to 100.</p>}
 
             <label className="flex items-start gap-2 mt-3 mb-3">
-              <input type="checkbox" checked={settings.sweep_deduct_fee} disabled={savingSetting === 'sweep_deduct_fee'}
+              <input type="checkbox" checked={settings.sweep_deduct_fee} disabled={prizesLocked || savingSetting === 'sweep_deduct_fee'}
                 onChange={async e => {
                   const next = e.target.checked
                   setSavingSetting('sweep_deduct_fee')
@@ -910,7 +944,7 @@ export default function SweepAdminPage() {
               </span>
             </label>
 
-            <div className="flex items-center gap-3">
+            {!(priceLocked && prizesLocked) && <div className="flex items-center gap-3">
               <button onClick={savePrizes} disabled={savingPrizes || !priceCentsInput || !splitValid || !prizesDirty}
                 className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
                 {savingPrizes ? 'Saving…' : 'Save'}
@@ -918,7 +952,7 @@ export default function SweepAdminPage() {
               {prizesSavedAt && !prizesDirty && <span className="text-xs text-emerald-600 font-semibold">✓ Saved</span>}
               {unsavedNote(prizesDirty, discardPrizes)}
               {!settings.sweep_ticket_price_cents && <span className="text-[11px] text-amber-700">Set a price so buyers can see the prizes.</span>}
-            </div>
+            </div>}
           </div>
 
           <div className={cardClass(detailsDirty)}>

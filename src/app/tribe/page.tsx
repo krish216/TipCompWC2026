@@ -11,6 +11,8 @@ import type { RoundId } from '@/types'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { CountdownBanner } from '@/components/game/CountdownBanner'
 import { SweepPoolPanel } from '@/components/game/SweepPoolPanel'
+import { PoolInviteCard } from '@/components/game/PoolInviteCard'
+import { AUTO_LOCK_BEFORE_MS } from '@/lib/sweep/organiser'
 import { PracticeRaceBar } from '@/components/game/PracticeRaceBar'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
@@ -1002,6 +1004,7 @@ type SweepPoolRow = {
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number
   comp_pools: { tribe_id: string; tickets: number; field_size: number; full: boolean }[]
   race_start_at?: string | null; draw_open?: boolean; results_in?: boolean; is_practice?: boolean
+  comp_name?: string | null; comp_invite_code?: string | null; member_qr?: boolean
 }
 const isPoolFull = (p: SweepPoolRow) => p.locked || !!p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)?.full
 
@@ -1477,6 +1480,17 @@ export default function TribePage() {
             return open ? { name: open.tribe_name, onSelect: () => setSelectedPoolId(open.tribe_id) } : null
           })()} />
         )}
+
+        {/* "Bring a colleague in" — the sweep's join QR, under the draw. Only while someone
+            new could still get a ticket: not once results are in, the pools lock before the
+            race, or every pool is locked; and not if the organiser switched it off. */}
+        {isSweep && tab === 'sweep' && (() => {
+          const p = sweepPools?.[0]
+          if (!p?.comp_invite_code || p.member_qr === false || p.results_in) return null
+          if (p.race_start_at && !p.is_practice && Date.now() >= new Date(p.race_start_at).getTime() - AUTO_LOCK_BEFORE_MS) return null
+          if (sweepPools!.every(x => x.locked)) return null
+          return <PoolInviteCard className="mt-4" inviteCode={p.comp_invite_code} sweepName={p.comp_name ?? tribe.name} />
+        })()}
 
         {/* Standings */}
         {!isSweep && tab === 'leaderboard' && (

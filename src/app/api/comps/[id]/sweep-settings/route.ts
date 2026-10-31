@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { APPROVAL_WINDOWS, getOrganiserDetails, normalisePayId, payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
+import { APPROVAL_WINDOWS, getOrganiserDetails, memberQrOn, normalisePayId, payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { billingInfo } from '@/lib/sweep/billing'
 import { isValidSplit } from '@/lib/sweep/prizes'
 
@@ -110,11 +110,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     details.contact_name = (data as any)?.owner_name ?? (creator as any)?.display_name ?? null
   }
   const { owner_name: _o, created_by: _c, ...settings } = (data ?? {}) as any
+  const sold = await hasSales(admin, params.id)
   return NextResponse.json({
-    data: settings, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo(),
+    data: { ...settings, sweep_member_qr: await memberQrOn(admin, params.id) }, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo(),
     // A sweep with no price yet (created before migration 199) can always set one, even
     // with sales — those buyers paid whatever the organiser asked; only CHANGING it locks.
-    price_locked: (data as any)?.sweep_ticket_price_cents != null && await hasSales(admin, params.id),
+    price_locked: (data as any)?.sweep_ticket_price_cents != null && sold,
+    prizes_locked: sold,   // the split and the fee-from-pot choice lock once anything's sold
   })
 }
 
@@ -158,7 +160,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // (reveal_mode is gone — every sweep now works one way: you see only your own horses until
   // the pool closes. leftover_horse_mode is gone too — unsold horses are never handed to the
   // organiser. Both columns are left in place but no longer read.)
-  const { allow_iou, approval_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee } = body ?? {}
+  const { allow_iou, approval_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee, member_qr } = body ?? {}
 
   if (approval_mode !== undefined && !APPROVAL_MODES.includes(approval_mode)) {
     return NextResponse.json({ error: `approval_mode must be one of: ${APPROVAL_MODES.join(', ')}` }, { status: 400 })
@@ -183,6 +185,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (prize_split !== undefined && !isValidSplit(prize_split)) {
     return NextResponse.json({ error: 'Prize split must be three whole percentages that add up to 100.' }, { status: 400 })
   }
+  // The prizes are part of the same deal as the price — buyers saw them before they paid — so
+  // they lock with it. Re-sending the current values is fine (the card saves price + split together).
+  if (prize_split !== undefined || deduct_fee !== undefined) {
+    const { data: cur } = await (admin.from('comps') as any).select('sweep_prize_split, sweep_deduct_fee').eq('id', params.id).maybeSingle()
+    const splitChanged = prize_split !== undefined && JSON.stringify(prize_split) !== JSON.stringify((cur as any)?.sweep_prize_split ?? [70, 20, 10])
+    const feeChanged = deduct_fee !== undefined && !!deduct_fee !== !!(cur as any)?.sweep_deduct_fee
+    if ((splitChanged || feeChanged) && await hasSales(admin, params.id)) {
+      return NextResponse.json({ error: "Tickets are already sold or requested, so the prizes can't change now." }, { status: 409 })
+    }
+  }
 
   // Payment + contact details go to sweep_organiser_details, not comps (see migration 195).
   let details: Record<string, any> | null = null
@@ -198,6 +210,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (ticket_price_cents !== undefined) update.sweep_ticket_price_cents = ticket_price_cents
   if (prize_split !== undefined) update.sweep_prize_split = prize_split
   if (deduct_fee !== undefined) update.sweep_deduct_fee = !!deduct_fee
+  if (member_qr !== undefined) update.sweep_member_qr = !!member_qr
   if (Object.keys(update).length === 0 && !details) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (Object.keys(update).length > 0) {

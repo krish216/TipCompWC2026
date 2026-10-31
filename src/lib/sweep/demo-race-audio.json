@@ -16,7 +16,8 @@
       4.7,
       4.86
     ],
-    "outro": 20.64
+    "outro": 20.64,
+    "intro-practice": 22.62
   },
   "race-2": {
     "intro": 15.83,
@@ -33,7 +34,8 @@
       4.23,
       5.98
     ],
-    "outro": 17.97
+    "outro": 17.97,
+    "intro-practice": 15.34
   },
   "race-3": {
     "intro": 19.91,
@@ -50,7 +52,8 @@
       4.39,
       5.36
     ],
-    "outro": 17.82
+    "outro": 17.82,
+    "intro-practice": 19.83
   },
   "race-4": {
     "intro": 19.75,
@@ -67,7 +70,8 @@
       4.63,
       4.55
     ],
-    "outro": 15.18
+    "outro": 15.18,
+    "intro-practice": 19.67
   },
   "race-5": {
     "intro": 17.82,
@@ -84,7 +88,8 @@
       4.55,
       6.38
     ],
-    "outro": 15.34
+    "outro": 15.34,
+    "intro-practice": 18.16
   },
   "race-6": {
     "intro": 17.82,
@@ -101,6 +106,8 @@
       4.63,
       6.38
     ],
-    "outro": 15.75
+    "outro": 15.75,
+    "intro-practice": 16.38,
+    "outro-practice": 15.1
   }
 }

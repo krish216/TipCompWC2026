@@ -6,7 +6,7 @@ import { track } from '@vercel/analytics'
 import { SweepWheel } from '@/components/game/SweepWheel'
 import { ordinal } from '@/lib/sweep/podium'
 import { DEMO_SCRIPTS, type DemoScript } from '@/lib/sweep/demo-race-scripts'
-import { ScriptedRaceModal, primeRaceAudio } from './ScriptedRaceModal'
+import { ScriptedRaceModal, primeRaceAudio } from '@/components/game/ScriptedRaceModal'
 
 // The practice field (migration 200) — past Cup winners, never this year's runners.
 const FIELD = [

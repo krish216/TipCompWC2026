@@ -71,10 +71,13 @@ export default function AdminSweepHorsesPage() {
 
   async function addBulk() {
     if (!tournamentId || !bulk.trim()) return
-    // "number, name" or "number, name, barrier, jockey, trainer, weight" — details optional.
+    // "number, name" or "number, name, trainer, jockey, weight, barrier" (the race-card order) —
+    // details optional. Tab-separated works too (pasted straight from a spreadsheet); a header
+    // row is skipped, since its "number" isn't one.
     const horsesToAdd = bulk.trim().split('\n').map(line => {
-      const [number, name, barrier, jockey, trainer, weight] = line.split(',').map(x => x?.trim() ?? '')
-      return { number: Number(number), name, barrier, jockey, trainer, weight_kg: weight?.replace(/kg$/i, '') }
+      const cells = line.split(line.includes('\t') ? '\t' : ',').map(x => x?.trim() ?? '')
+      const [number, name, trainer, jockey, weight, barrier] = cells
+      return { number: Number(number), name, trainer, jockey, weight_kg: weight?.replace(/\s*kg$/i, ''), barrier: barrier?.replace(/[()]/g, '') }
     }).filter(h => h.number && h.name)
     if (!horsesToAdd.length) return
     setSaving(true)
@@ -152,12 +155,13 @@ export default function AdminSweepHorsesPage() {
       <div className="border border-gray-200 rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-gray-900 mb-2 text-sm">Add/update the field</h2>
         <p className="text-xs text-gray-500 mb-2">
-          One horse per line: <code>number, name, barrier, jockey, trainer, weight</code>. The last four are optional and shown
-          on every pool&apos;s sweep sheet; re-pasting just <code>number, name</code> keeps them.
+          One horse per line: <code>number, name, trainer, jockey, weight, barrier</code>, comma- or tab-separated (paste
+          straight from a spreadsheet; a header row is ignored). The last four are optional and shown on every pool&apos;s
+          sweep sheet; re-pasting just <code>number, name</code> keeps them.
         </p>
         <textarea
           value={bulk} onChange={e => setBulk(e.target.value)}
-          placeholder={'1, Vauban, 4, J McDonald, W Mullins, 57.5\n2, Buckaroo, 12, D Lane, C Waller, 56'}
+          placeholder={'1, Vauban, W Mullins, J McDonald, 57.5, 4\n2, Buckaroo, C Waller, D Lane, 56, 12'}
           rows={6}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono mb-3"
         />
