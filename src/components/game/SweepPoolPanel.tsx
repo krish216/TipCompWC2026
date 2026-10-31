@@ -6,12 +6,13 @@ import Link from 'next/link'
 import { Spinner } from '@/components/ui'
 import { SweepWheel } from '@/components/game/SweepWheel'
 import { PracticeRaceModal } from '@/components/game/PracticeRaceModal'
+import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { payIdKind } from '@/lib/sweep/organiser'
 import { fmtCents, type PoolPrizes } from '@/lib/sweep/prizes'
-import { finishedLabel, horseDetails, ordinal, prizeLabel } from '@/lib/sweep/podium'
+import { finishedLabel, prizeLabel } from '@/lib/sweep/podium'
 
 type Horse = {
   id: string; number: number; name: string; scratched: boolean; finish_position: number | null
@@ -847,64 +848,11 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
             You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here.
           </p>
         )}
-        {rosterView === 'horse' ? (() => {
-          // The sweep sheet. Before the reveal it marks only YOUR horses — flagging the others
-          // as taken or free would give the draw away (it's why the wheel shows no numbers).
-          if (!sweep.horses.length) {
-            return <p className="text-sm text-gray-400 text-center py-4">The field is listed here once the draw opens ({sweep.draw_opens_label}).</p>
-          }
-          const mine = new Set(sweep.my_horses.filter(h => !isHidden(h)).map(h => (h as Horse).id))
-          const holder = new Map<string, string>()
-          for (const r of sweep.roster) for (const h of r.horses) if (!isHidden(h)) holder.set(h.id, r.display_name)
-          const finish = sweep.finish_by_horse
-          const prize = new Map(sweep.podium.filter(p => p.horse).map(p => [p.horse!.id, p]))
-          // After the race: finishing order (non-finishers, then scratchings, last). Before: by number.
-          const rank = (h: Horse) => h.scratched ? 1e6 : finish ? (finish[h.id] ?? 1e5) : h.number
-          const list = [...sweep.horses].sort((a, b) => rank(a) - rank(b) || a.number - b.number)
-          return (
-            <div>
-              {list.map((h, i) => {
-                const pos = finish && !h.scratched ? finish[h.id] : undefined
-                const won = prize.get(h.id)
-                const details = horseDetails(h)
-                return (
-                  // Banded rows for scanning a 24-runner sheet; your own horses stay green on top.
-                  // gray-50 vanished: the card has no fill, so it sits on the gray-50 page.
-                  <div key={h.id} className={`flex items-start justify-between gap-3 py-2 px-2 -mx-2 rounded-lg text-sm ${
-                    mine.has(h.id) ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-200/60'}`}>
-                    <span className="flex items-start gap-2 min-w-0">
-                      {finish && (
-                        <span className="w-9 flex-shrink-0 text-xs font-bold text-gray-500 pt-0.5">
-                          {h.scratched ? '' : pos == null ? 'DNF' : ordinal(pos)}
-                        </span>
-                      )}
-                      <span className="min-w-0">
-                        <span className={`block ${h.scratched ? 'line-through text-red-400' : 'font-semibold text-gray-900'}`}>#{h.number} {h.name}</span>
-                        {h.scratched
-                          ? <span className="block text-[11px] text-red-400">Scratched</span>
-                          : details && <span className="block text-[11px] text-gray-400">{details}</span>}
-                      </span>
-                    </span>
-                    <span className="text-right flex-shrink-0">
-                      {mine.has(h.id)
-                        ? <span className="block font-bold text-emerald-700">You</span>
-                        : !sweep.draw_hidden && !h.scratched && (
-                            holder.has(h.id)
-                              ? <span className="block text-gray-700">{holder.get(h.id)}</span>
-                              : <span className="block text-gray-300 italic">unsold</span>
-                          )}
-                      {won && (
-                        <span className="block text-xs font-bold text-amber-700">
-                          {prizeLabel(won.places)}{won.cents != null ? ` · ${fmtCents(won.cents)}` : ''}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })() : sweep.roster.length === 0 ? (
+        {rosterView === 'horse' ? (
+          <SweepHorseSheet horses={sweep.horses} roster={sweep.roster} podium={sweep.podium}
+            mine={new Set(sweep.my_horses.filter(h => !isHidden(h)).map(h => h.id))}
+            finishByHorse={sweep.finish_by_horse} drawHidden={sweep.draw_hidden} drawOpensLabel={sweep.draw_opens_label} />
+        ) : sweep.roster.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-4">No horses drawn in this pool yet.</p>
         ) : (
           <div>

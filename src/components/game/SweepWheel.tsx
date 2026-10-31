@@ -20,8 +20,9 @@ const smoothstep = (x: number) => x * x * (3 - 2 * x)
  *  only a count, never which ones: every segment is an identical horse icon, so the wheel
  *  can't reveal the undrawn field. You see the horse you drew; who drew what across the
  *  pool stays hidden until the pool closes. */
-export function SweepWheel({ slots, onDraw }: {
-  slots: number; onDraw: () => Promise<PickResult>
+// `resultNote` replaces the line under "You drew" (the public demo has no pool to fill).
+export function SweepWheel({ slots, onDraw, resultNote }: {
+  slots: number; onDraw: () => Promise<PickResult>; resultNote?: string
 }) {
   const n = slots
   // Drawn segments: at least 2 — a lone 360° segment renders as nothing (an arc that starts
@@ -130,16 +131,26 @@ export function SweepWheel({ slots, onDraw }: {
 
   return (
     <div className="flex flex-col items-center">
+      {/* The wheel itself is the button: tap to spin it, tap again to stop it. */}
       <div
         ref={containerRef}
-        onPointerDown={phase === 'fast' ? handleTap : undefined}
+        role="button"
+        tabIndex={phase === 'idle' || phase === 'fast' ? 0 : -1}
+        aria-label={phase === 'idle' ? 'Spin the wheel for your horse' : phase === 'fast' ? 'Stop the wheel' : 'The wheel'}
+        onPointerDown={phase === 'fast' ? handleTap : phase === 'idle' ? startSpin : undefined}
+        onKeyDown={e => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          if (phase === 'fast') handleTap()
+          else if (phase === 'idle') startSpin()
+        }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         className="relative rounded-3xl overflow-hidden select-none"
         style={{
           width: 320, height: 320,
           background: BRAND_BG,
-          cursor: phase === 'fast' ? 'pointer' : 'default',
+          cursor: phase === 'fast' || phase === 'idle' ? 'pointer' : 'default',
           boxShadow: hover ? '0 10px 40px rgba(10,46,28,0.45)' : '0 8px 32px rgba(10,46,28,0.3)',
           transition: 'box-shadow 300ms ease',
         }}
@@ -202,6 +213,16 @@ export function SweepWheel({ slots, onDraw }: {
           <image href="/logo-mark.png" x={cxp - 28} y={cyp - 28} width={56} height={56} clipPath="url(#sweep-hub-clip)" preserveAspectRatio="xMidYMid slice" />
           <path d={`M${cxp - 11},2 L${cxp + 11},2 L${cxp},${cyp - r + 14} Z`} fill={GOLD} stroke="#ffffff" strokeWidth={1.5} filter="url(#sweep-shadow)" />
         </svg>
+        {/* On the wheel while it's still — once it moves, the motion blur would smear it. */}
+        {phase === 'idle' && (
+          // Centred on the hub. The pulse animates `transform`, so the centring sits on a wrapper.
+          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <span className="block bg-amber-400 text-emerald-950 text-xs font-black tracking-wide uppercase px-3 py-2 rounded-full shadow-lg whitespace-nowrap ring-2 ring-white"
+              style={{ animation: 'sweep-prompt 0.7s ease-in-out infinite' }}>
+              👆 Tap to spin
+            </span>
+          </span>
+        )}
       </div>
 
       {/* Tap prompt — below the wheel, not on it: the container's motion blur would smear it. */}
@@ -213,12 +234,6 @@ export function SweepWheel({ slots, onDraw }: {
         </button>
       )}
 
-      {phase === 'idle' && (
-        <button onClick={startSpin}
-          className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black px-6 py-3 rounded-xl shadow-lg">
-          Spin for your horse →
-        </button>
-      )}
       {(phase === 'spinning') && (
         <p className="mt-4 text-xs text-gray-400">Watch the field… it'll speed up.</p>
       )}
@@ -229,10 +244,14 @@ export function SweepWheel({ slots, onDraw }: {
         result.ok && result.horse ? (
           <div className="mt-5 text-center">
             <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">You drew</p>
-            <p className="text-xl font-black text-gray-900">#{result.horse.number} {result.horse.name}</p>
+            <p className="text-xl font-black text-gray-900 flex items-center justify-center gap-2">
+              {/* 🏇 faces left — mirrored so it runs the same way as the race */}
+              <span className="inline-block text-2xl" style={{ transform: 'scaleX(-1)' }} aria-hidden>🏇</span>
+              #{result.horse.number} {result.horse.name}
+            </p>
             {/* Drawing the last horse closes the pool — the full draw is visible right away then. */}
             <p className="text-xs text-gray-500 mt-1">
-              {n === 1 ? '🎉 That was the last horse — the full draw is now open in the app.' : "🔒 You'll see who drew every horse once the pool fills."}
+              {resultNote ?? (n === 1 ? '🎉 That was the last horse — the full draw is now open in the app.' : "🔒 You'll see who drew every horse once the pool fills.")}
             </p>
           </div>
         ) : (

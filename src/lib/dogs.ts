@@ -1,7 +1,7 @@
 // "Feed the doggies" cast + config. The dogs are TribePicks' mascots (real dog photos live in
 // public/dogs/<slug>.jpg — drop them in to replace the emoji fallback). Feeding is a donation:
 // it NEVER affects scoring or standings — it's for good luck, to keep TribePicks free, to fund
-// what's next (EPL/NBA/Champions League), and a slice goes to dog rescues.
+// what's next (Champions League knockouts, then EPL/NBA), and a slice goes to dog rescues.
 
 export interface Dog { slug: string; name: string; photo: string; blurb: string }
 
@@ -47,7 +47,7 @@ export function feederTier(cents: number): FeederTier | null {
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`
 
 // Community campaign goal for the "feed the pack" progress bar. Adjust freely.
-export const FEED_CAMPAIGN = { goalCents: 100000, label: 'Fund what’s next (EPL)' }
+export const FEED_CAMPAIGN = { goalCents: 100000, label: 'Fund what’s next (Champions League)' }
 
 // Charity split — a PUBLIC commitment: 15% of every feed is donated to the RSPCA. This must be
 // actually remitted (keep receipts). null would revert to a soft "a slice goes to dog rescues".

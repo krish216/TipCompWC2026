@@ -115,6 +115,9 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
         <Link href="/sweep" className="inline-block mt-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold px-4 py-2 rounded-lg">
           Start a practice sweep →
         </Link>
+        <Link href="/melbourne-cup/race" className="inline-block mt-3 ml-3 text-sm font-bold text-violet-700 hover:underline">
+          🏇 Or watch a practice race now — no sign-up
+        </Link>
       </div>
 
       <div id="register" className="mt-8 scroll-mt-20">

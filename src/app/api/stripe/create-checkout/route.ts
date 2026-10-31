@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
       }
       const dog = dogBySlug(typeof body.dog_slug === 'string' ? body.dog_slug : null)
+      // Where the feeder came from (sweep_ticket, predict_nudge, …) — reporting only, and it
+      // keeps /feed's copy in context after checkout. The money is one platform-wide pot.
+      const source = typeof body.source === 'string' && /^[a-z_]{1,40}$/.test(body.source) ? body.source : null
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
@@ -54,10 +57,10 @@ export async function POST(request: NextRequest) {
         billing_address_collection: 'auto',
         customer_email: user.email,
         client_reference_id: user.id,
-        metadata: { user_id: user.id, kind: 'donation', ...(dog ? { dog_slug: dog.slug } : {}) },
+        metadata: { user_id: user.id, kind: 'donation', ...(dog ? { dog_slug: dog.slug } : {}), ...(source ? { source } : {}) },
         // Carry the dog slug so the thank-you renders instantly, before the webhook records it.
-        success_url: `${appUrl}/feed?fed=1${dog ? `&dog=${dog.slug}` : ''}`,
-        cancel_url:  `${appUrl}/feed`,
+        success_url: `${appUrl}/feed?fed=1${dog ? `&dog=${dog.slug}` : ''}${source ? `&src=${source}` : ''}`,
+        cancel_url:  `${appUrl}/feed${source ? `?src=${source}` : ''}`,
       })
       return NextResponse.json({ url: session.url })
     }

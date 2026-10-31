@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
 }
 
-export default async function FeedPage({ searchParams }: { searchParams: { fed?: string; dog?: string } }) {
+export default async function FeedPage({ searchParams }: { searchParams: { fed?: string; dog?: string; src?: string } }) {
   const user = await getSessionUser()
   const admin = createAdminClient()
 
@@ -57,6 +57,14 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
   const justFed = searchParams?.fed === '1'
   const keepsakeDog = dogBySlug(searchParams?.dog ?? null) ?? lucky
   const goalPct = Math.min(100, Math.round((communityCents / FEED_CAMPAIGN.goalCents) * 100))
+  // Came from a sweep (FeedLuckNudge ?src=sweep_ticket / sweep_organiser): talk horses, not
+  // football rounds. Same platform-wide pot either way; `src` is passed on to tag the donation.
+  const src = /^[a-z_]{1,40}$/.test(searchParams?.src ?? '') ? searchParams.src! : undefined
+  const sweep = src?.startsWith('sweep_') ?? false
+  const rooting = sweep ? 'rooting for your horse in the Cup' : 'rooting for you this round'
+  const shareLine = sweep
+    ? 'for luck in my Melbourne Cup sweep 🐾 Run your sweep free, feed the pack'
+    : 'for good luck 🐾 Predict the football, feed the pack'
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
@@ -65,8 +73,8 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
         <div className="text-5xl mb-2">🐾</div>
         <h1 className="text-2xl font-black text-gray-900">Feed the doggies</h1>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-          Drop a treat for good luck. It keeps TribePicks <strong>free &amp; ad-light</strong>, funds
-          what’s next (<strong>EPL · NBA · Champions League</strong>), and{' '}
+          Drop a treat for good luck{sweep ? ' on your horse' : ''}. It keeps TribePicks{sweep ? ' sweeps' : ''} <strong>free &amp; ad-light</strong>, funds
+          what’s next (<strong>Champions League knockouts · EPL · NBA</strong>), and{' '}
           {FEED_CHARITY
             ? <><strong>{FEED_CHARITY.splitPct}%</strong> is donated to <strong>{FEED_CHARITY.name}</strong>.</>
             : <>a slice goes to <strong>dog rescues</strong>.</>}
@@ -81,7 +89,7 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
             <>
               <DogAvatar photo={keepsakeDog.photo} name={keepsakeDog.name} className="w-16 h-16 rounded-full mx-auto border-2 border-emerald-200" />
               <p className="text-base font-black text-emerald-900 mt-2">🎉 You fed {keepsakeDog.name}! Thank you 🐾</p>
-              <p className="text-sm text-emerald-700">{keepsakeDog.name}’s got your back this round — good luck!</p>
+              <p className="text-sm text-emerald-700">{keepsakeDog.name}’s {sweep ? 'cheering your horse home' : 'got your back this round'} — good luck!</p>
             </>
           ) : (
             <>
@@ -92,7 +100,7 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
           )}
           <div className="mt-3 flex justify-center">
             <WhatsAppShareButton label="Share the love 🐾"
-              message={`I just fed ${keepsakeDog ? keepsakeDog.name : 'the pack'} on TribePicks for good luck 🐾 Predict the football, feed the pack → https://tribepicks.com/feed`} />
+              message={`I just fed ${keepsakeDog ? keepsakeDog.name : 'the pack'} on TribePicks ${shareLine} → https://tribepicks.com/feed`} />
           </div>
         </div>
       )}
@@ -120,7 +128,7 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
             <p className="text-sm font-bold text-amber-900 mt-0.5">
               {tier ? <>{tier.icon} {tier.label}</> : 'Not fed yet — say hello 🐾'}
             </p>
-            {lucky && <p className="text-[12px] text-amber-700 mt-1">🍀 Lucky doggie: <strong>{lucky.name}</strong> — rooting for you this round</p>}
+            {lucky && <p className="text-[12px] text-amber-700 mt-1">🍀 Lucky doggie: <strong>{lucky.name}</strong> — {rooting}</p>}
           </div>
           <div className="text-right">
             <p className="text-lg font-black text-amber-900 tabular-nums leading-none">{dollars(totalFed)}</p>
@@ -131,7 +139,7 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
 
       {/* Feed panel */}
       <div className="mt-6">
-        <FeedPanel signedIn={!!user} />
+        <FeedPanel signedIn={!!user} source={src} />
       </div>
 
       {/* Meet the pack */}
@@ -159,7 +167,8 @@ export default async function FeedPage({ searchParams }: { searchParams: { fed?:
       </section>
 
       <p className="mt-8 text-center text-[11px] text-gray-400">
-        TribePicks is free to play. Feeding is a voluntary donation and never affects scoring, standings or prizes.
+        TribePicks is free to play. Feeding is a voluntary donation and never affects scoring, standings or prizes
+        {sweep ? ' — or which horse you draw' : ''}.
       </p>
     </main>
   )

@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { Spinner } from '@/components/ui'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
+import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
 import { payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { PRIZE_PRESETS, fmtCents, isValidSplit, type PoolPrizes } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
@@ -111,7 +112,8 @@ export default function SweepAdminPage() {
   const [owingOnly, setOwingOnly] = useState(true)
   const [pools, setPools] = useState<Pool[]>([])
   const [allocTribeId, setAllocTribeId] = useState('')
-  const [allocRoster, setAllocRoster] = useState<any[] | null>(null)
+  const [allocSweep, setAllocSweep] = useState<any | null>(null)   // GET /api/tribes/:id/sweep for the picked pool
+  const [allocView, setAllocView] = useState<'person' | 'horse'>('person')
   const [now, setNow] = useState(() => Date.now())   // ticks "Draw in 1h 12m" (the 2-hour spin window)
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -240,7 +242,7 @@ export default function SweepAdminPage() {
 
   useEffect(() => {
     if (!allocTribeId) return
-    fetch(`/api/tribes/${allocTribeId}/sweep`).then(r => r.json()).then(s => setAllocRoster(s.roster ?? []))
+    fetch(`/api/tribes/${allocTribeId}/sweep`).then(r => r.json()).then(setAllocSweep)
   }, [allocTribeId])
 
   const comp = comps?.find(c => c.id === compId) ?? null
@@ -431,7 +433,7 @@ export default function SweepAdminPage() {
     }).then(r => r.json())
     setDrawingMember(null)
     if (res.error) { setError(res.error); return }
-    fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json()).then(s => setAllocRoster(s.roster ?? []))
+    fetch(`/api/tribes/${tribeId}/sweep`).then(r => r.json()).then(setAllocSweep)
     await loadPools(compId)
   }
 
@@ -687,11 +689,37 @@ export default function SweepAdminPage() {
               {pools.map(p => <option key={p.id} value={p.id}>{p.name}{p.draw_open && poolUnspun(p) > 0 ? ` · ${poolUnspun(p)} to spin` : ''}</option>)}
             </select>
           )}
+          {/* Same look as My Pool → "Who's in this pool": By person / By horse, banded rows. */}
           <div className="border border-gray-200 rounded-2xl p-5">
-            <div className="divide-y divide-gray-100">
-              {(allocRoster ?? []).map((r: any) => (
-                <div key={r.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="text-gray-700">{r.display_name}</span>
+            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 mb-3 text-xs font-bold">
+              {(['person', 'horse'] as const).map(v => (
+                <button key={v} onClick={() => setAllocView(v)}
+                  className={`px-3 py-1 rounded-md ${allocView === v ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'}`}>
+                  {v === 'person' ? 'By person' : 'By horse'}
+                </button>
+              ))}
+            </div>
+            {allocView === 'horse' ? (
+              <SweepHorseSheet horses={allocSweep?.horses ?? []} roster={allocSweep?.roster ?? []} podium={allocSweep?.podium ?? []}
+                mine={new Set((allocSweep?.my_horses ?? []).filter((h: any) => !h.hidden).map((h: any) => h.id))}
+                finishByHorse={allocSweep?.finish_by_horse ?? null} drawHidden={allocSweep?.draw_hidden ?? false}
+                drawOpensLabel={DRAW_OPENS_LABEL} />
+            ) : (
+            <div>
+              {(allocSweep?.roster ?? []).map((r: any, i: number) => (
+                <div key={r.user_id} className={`flex items-center justify-between gap-2 py-2 px-2 -mx-2 rounded-lg text-sm ${
+                  r.user_id === session?.user?.id ? 'bg-emerald-50 ring-1 ring-emerald-200' : i % 2 ? '' : 'bg-gray-200/60'}`}>
+                  <span className="min-w-0">
+                    <span className="block text-gray-700">{r.display_name}</span>
+                    {/* Money in, and IOUs still owed. */}
+                    {((r.paid ?? 0) > 0 || (r.owed ?? 0) > 0) && (
+                      <span className="block text-[11px] text-gray-400">
+                        {(r.paid ?? 0) > 0 && `${fmtCents(Math.round(r.paid * 100))} paid`}
+                        {(r.paid ?? 0) > 0 && (r.owed ?? 0) > 0 && ' · '}
+                        {(r.owed ?? 0) > 0 && <span className="text-amber-700 font-semibold">{fmtCents(Math.round(r.owed * 100))} IOU owed</span>}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-right">
                     {r.horses.length === 0 && r.unclaimed === 0 && <span className="text-gray-300">—</span>}
                     {r.horses.map((h: any) => (
@@ -699,7 +727,11 @@ export default function SweepAdminPage() {
                         {h.hidden ? '🔒 hidden' : `#${h.number} ${h.name}`}
                       </span>
                     ))}
-                    {r.unclaimed > 0 && <span className="block text-gray-400 italic">{r.unclaimed} still picking…</span>}
+                    {r.unclaimed > 0 && (
+                      <span className="block text-gray-500">
+                        🎟️ {r.unclaimed} {allocSweep?.draw_open ? 'to spin' : `ticket${r.unclaimed === 1 ? '' : 's'} · waiting for the draw`}
+                      </span>
+                    )}
                     {/* Draw for them — once the draw's open; a random horse, emailed to them. */}
                     {r.unclaimed > 0 && pools.find(p => p.id === allocTribeId)?.draw_open && (
                       r.draw_unlocks_at && new Date(r.draw_unlocks_at).getTime() > now ? (
@@ -721,8 +753,9 @@ export default function SweepAdminPage() {
                   </span>
                 </div>
               ))}
-              {(allocRoster ?? []).length === 0 && <p className="text-xs text-gray-400 py-2">No members yet.</p>}
+              {(allocSweep?.roster ?? []).length === 0 && <p className="text-xs text-gray-400 py-2">No members yet.</p>}
             </div>
+            )}
           </div>
         </div>
       )}
