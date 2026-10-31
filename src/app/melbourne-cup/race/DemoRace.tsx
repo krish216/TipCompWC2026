@@ -94,7 +94,7 @@ export function DemoRace() {
       {/* Step 2 lives on the wheel's hub, like "Tap to spin" — the wheel is the one thing to tap. */}
       <SweepWheel key={spin} slots={FIELD.length} onDraw={draw}
         resultAction={{ label: last ? '🔁 Race Replay' : '🏁 Run the race', onClick: run }}
-        resultNote="The rest of the field went to the office. Tap the wheel to race — sound on 🔊" />
+        resultNote="The rest of the field went to the office. Tap the wheel to race 🔊" />
       {last && !race && yours && (
         <p className="mt-3 text-sm text-gray-600 text-center">
           #{yours.number} {yours.name} ran <strong>{ordinal(last.runners.find(r => r.mine)!.position)}</strong>.{' '}

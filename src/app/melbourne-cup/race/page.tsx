@@ -55,6 +55,9 @@ export default function DemoRacePage() {
         saved, and it&apos;s not this year&apos;s runners or a prediction. The real Cup has no animated race:
         results come from the official finishing order.
       </p>
+      <p className="mt-2 text-center text-[10px] text-gray-300">
+        Horse graphic: <a href="https://github.com/jdecked/twemoji" className="underline" rel="noopener noreferrer" target="_blank">Twemoji</a>, CC-BY 4.0.
+      </p>
     </main>
   )
 }

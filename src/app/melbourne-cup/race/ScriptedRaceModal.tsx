@@ -21,6 +21,7 @@ const HOLD_MS = 3000 // the field stays up, placings showing, before the results
 const NAMES = { vicky: 'Vicky', gordon: 'Gordo' } as const
 const TAG = '7.5rem' // room behind the start for the longest name tag ("⭐ Might And Power")
 const POST = '2rem'  // past the post, where 1st / 2nd / 3rd go up
+const HORSE = '1.5rem' // public/img/horse-racing.svg — Twemoji (CC-BY 4.0), credited on the page
 const PLACE_STYLE = ['bg-amber-400 text-emerald-950', 'bg-gray-200 text-gray-800', 'bg-orange-300 text-orange-950']
 
 // One element per sound, started inside the "Run the race" tap (the voice on the intro, the
@@ -333,7 +334,7 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta }: {
               const p = progress(r.number)
               const placed = p >= 1 && r.position <= 3
               return (
-                <div key={r.id} className={`relative h-6 rounded-md overflow-hidden ${r.mine ? 'bg-emerald-400/25 ring-1 ring-emerald-300/60' : 'bg-white/[0.06]'}`}>
+                <div key={r.id} className={`relative h-7 rounded-md overflow-hidden ${r.mine ? 'bg-emerald-400/25 ring-1 ring-emerald-300/60' : 'bg-white/[0.06]'}`}>
                   <span className="absolute top-0 bottom-0 w-px bg-white/40" style={{ right: POST }} />
                   {placed && (
                     <span className={`absolute right-1 top-1/2 -translate-y-1/2 text-[10px] font-black px-1 py-0.5 rounded leading-none ${PLACE_STYLE[r.position - 1]}`}>
@@ -341,13 +342,17 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta }: {
                     </span>
                   )}
                   {/* The name rides with its horse: the field starts a gutter in so every tag fits
-                      behind it, and runs to the post. 🏇 faces left — mirrored to run left to right. */}
+                      behind it, and runs to the post. The horse is a picture, not the 🏇 emoji —
+                      every phone draws that differently, and some too small to make out. It faces
+                      left, so it's mirrored to run left to right. */}
                   <span className="absolute top-1/2 -translate-y-1/2 leading-none"
-                    style={{ left: `calc(${TAG} + ${p} * (100% - ${TAG} - ${POST} - 1.25rem))` }}>
+                    style={{ left: `calc(${TAG} + ${p} * (100% - ${TAG} - ${POST} - ${HORSE}))` }}>
                     <span className={`absolute right-full mr-0.5 top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] ${r.mine ? 'font-black text-emerald-200' : 'text-white/70'}`}>
                       {r.mine ? '⭐ ' : ''}{r.name}
                     </span>
-                    <span className="inline-block text-base" style={{ transform: 'scaleX(-1)' }}>🏇</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/img/horse-racing.svg" alt="" draggable={false}
+                      className="block" style={{ width: HORSE, height: HORSE, transform: 'scaleX(-1)' }} />
                   </span>
                 </div>
               )

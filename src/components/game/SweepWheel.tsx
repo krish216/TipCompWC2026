@@ -227,7 +227,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
           // Centred on the hub. The pulse animates `transform`, so the centring sits on a wrapper.
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <span className="block bg-amber-400 text-emerald-950 text-xs font-black tracking-wide uppercase px-3 py-2 rounded-full shadow-lg whitespace-nowrap ring-2 ring-white"
-              style={{ animation: 'sweep-prompt 0.7s ease-in-out infinite' }}>
+              style={{ animation: 'sweep-hub 0.9s ease-in-out infinite' }}>
               {phase === 'idle' ? '👆 Tap to spin' : action!.label}
             </span>
           </span>
@@ -275,6 +275,11 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
         @keyframes sweep-prompt {
           0%, 100% { opacity: 1;    transform: scale(1.06); box-shadow: 0 0 24px 4px rgba(251,191,36,0.7); }
           50%      { opacity: 0.4;  transform: scale(1);    box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+        }
+        /* On the hub the label sits over the logo, so it pulses by size and glow, never fading. */
+        @keyframes sweep-hub {
+          0%, 100% { transform: scale(1.08); box-shadow: 0 0 22px 4px rgba(251,191,36,0.75); }
+          50%      { transform: scale(1);    box-shadow: 0 0 0 0 rgba(251,191,36,0); }
         }
       `}</style>
     </div>
