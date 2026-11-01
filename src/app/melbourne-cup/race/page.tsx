@@ -20,7 +20,9 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title: 'Run a practice Melbourne Cup race 🏇', description: DESC },
 }
 
-export default function DemoRacePage() {
+// ?callers=off — the same demo without Vicky & Gordo (shared for offices). Same canonical URL.
+export default function DemoRacePage({ searchParams }: { searchParams: { callers?: string } }) {
+  const callers = searchParams.callers !== 'off'
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
       <div className="text-center">
@@ -28,12 +30,16 @@ export default function DemoRacePage() {
         <h1 className="text-2xl font-black text-gray-900">Run a practice Cup race</h1>
         <p className="text-sm text-gray-500 mt-2 leading-relaxed">
           You&apos;re in a pretend 12-person office sweep, $5 a ticket. Spin for your horse, then watch them
-          race — called by Vicky, with Gordo in her ear backing the wrong horse. Sound on 🔊.
+          race{callers ? <> — called by Vicky, with Gordo in her ear backing the wrong horse. Sound on 🔊.</> : ' — no sound, just the commentary on screen.'}
         </p>
+        <Link href={callers ? '/melbourne-cup/race?callers=off' : '/melbourne-cup/race'} replace
+          className="inline-block mt-2 text-xs font-semibold text-gray-500 hover:text-gray-800 underline">
+          {callers ? '🔇 At work? Run it without the callers' : '🔊 Hear it called by Vicky & Gordo'}
+        </Link>
       </div>
 
       <div className="mt-6">
-        <DemoRace />
+        <DemoRace key={String(callers)} callers={callers} />
       </div>
 
       <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-4">

@@ -8,6 +8,7 @@ import { SweepWheel } from '@/components/game/SweepWheel'
 import { ordinal } from '@/lib/sweep/podium'
 import { DEMO_SCRIPTS, type DemoScript } from '@/lib/sweep/demo-race-scripts'
 import { ScriptedRaceModal, primeRaceAudio } from '@/components/game/ScriptedRaceModal'
+import { PracticeRaceModal } from '@/components/game/PracticeRaceModal'
 import { drawCallClips } from '@/lib/sweep/cup-calls'
 
 // The practice field (migration 200) — past Cup winners, never this year's runners.
@@ -54,7 +55,9 @@ function newRace(yours: (typeof FIELD)[number], script: DemoScript): Race {
 }
 
 // Spin the real wheel (a local random pick stands in for the server draw), then race.
-export function DemoRace() {
+// `callers: false` (?callers=off) — no Vicky & Gordo: a silent wheel, and the plain race
+// animation with its written commentary instead of the called one. For offices, mostly.
+export function DemoRace({ callers = true }: { callers?: boolean }) {
   const [spin, setSpin] = useState(0)                       // re-keys the wheel for a fresh spin
   const [yours, setYours] = useState<(typeof FIELD)[number] | null>(null)
   const [race, setRace] = useState<Race | null>(null)
@@ -76,10 +79,10 @@ export function DemoRace() {
     if (!fresh.length) { played.current = played.current.slice(-1); fresh = DEMO_SCRIPTS.filter(s => !played.current.includes(s.id)) }
     const script = fresh[Math.floor(Math.random() * fresh.length)]
     played.current.push(script.id)
-    primeRaceAudio(script)   // inside the tap, so phones allow the sound
+    if (callers) primeRaceAudio(script)   // inside the tap, so phones allow the sound
     const r = newRace(yours, script)
     setRace(r); setLast(r)
-    track('demo_race_start', { again: !!last, script: script.id })
+    track('demo_race_start', { again: !!last, script: script.id, callers })
   }
   const respin = () => { setYours(null); setLast(null); setSpin(s => s + 1) }
 
@@ -97,7 +100,7 @@ export function DemoRace() {
         ))}
       </ol>
       {/* Step 2 lives on the wheel's hub, like "Tap to spin" — the wheel is the one thing to tap. */}
-      <SweepWheel key={spin} slots={FIELD.length} onDraw={draw} announce={drawCallClips}
+      <SweepWheel key={spin} slots={FIELD.length} onDraw={draw} announce={callers ? drawCallClips : undefined}
         resultAction={{ label: last ? '🔁 Race Replay' : '🏁 Run the race', onClick: run }}
         resultNote="The rest of the field went to the office." />
       {/* The same action as the hub, as a proper button — on a phone the hub reads as part of
@@ -105,7 +108,7 @@ export function DemoRace() {
       {yours && !race && (
         <button onClick={run}
           className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25">
-          {last ? '🔁 Race Replay' : '🏁 Run the race'} <span className="text-sm font-bold text-emerald-100">· sound on 🔊</span>
+          {last ? '🔁 Race Replay' : '🏁 Run the race'}{callers && <span className="text-sm font-bold text-emerald-100">· sound on 🔊</span>}
         </button>
       )}
       {last && !race && yours && (
@@ -114,7 +117,8 @@ export function DemoRace() {
           <button onClick={respin} className="font-bold text-emerald-700 hover:underline">Spin for a new horse</button>
         </p>
       )}
-      {race && (
+      {race && !callers && <PracticeRaceModal runners={race.runners} winners={race.winners} onClose={() => setRace(null)} />}
+      {race && callers && (
         <ScriptedRaceModal script={race.script} runners={race.runners} winners={race.winners} onClose={() => setRace(null)}
           cta={
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
