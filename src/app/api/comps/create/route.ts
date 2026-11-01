@@ -4,6 +4,7 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { z } from 'zod'
 import { buyPools, SWEEP_PRICING, sweepBillingEnabled } from '@/lib/sweep/billing'
 import { isPracticeTournament } from '@/lib/sweep/practice'
+import { prizeCapError } from '@/lib/sweep/prizes'
 import { welcomeOrganiserIfFirst } from '@/lib/sweep/welcome'
 import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
@@ -108,6 +109,11 @@ export async function POST(request: NextRequest) {
   const requestedPools = isSweepComp ? Math.max(1, Math.min(SWEEP_PRICING.maxPools, max_tribes ?? 1)) : 1
   const poolCount = isSweepComp && sweepBillingEnabled() ? Math.min(requestedPools, SWEEP_PRICING.includedPools) : requestedPools
   const poolsToBuy = requestedPools - poolCount
+  // Victoria's $5,000 prize cap — the price × every pool full, checked before anything's created.
+  if (isSweepComp) {
+    const capError = prizeCapError(ticket_price_cents, requestedPools)
+    if (capError) return NextResponse.json({ error: capError }, { status: 400 })
+  }
 
   // Step 3: create the org — user row is now guaranteed to exist
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')

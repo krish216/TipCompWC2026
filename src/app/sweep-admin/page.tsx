@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
 import { payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
-import { PRIZE_PRESETS, fmtCents, isValidSplit, type PoolPrizes } from '@/lib/sweep/prizes'
+import { PRIZE_PRESETS, fmtCents, isValidSplit, maxPayoutCents, prizeCapError, type PoolPrizes } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 import { DRAW_GRACE_HOURS, fmtLeft } from '@/lib/sweep/grace'
@@ -29,7 +29,7 @@ type CompLite = { id: string; name: string; logo_url: string | null; invite_code
 type CrewMember = { user_id: string; display_name: string; practice_names: string[]; status: 'member' | 'invited' | 'none'; can_email: boolean }
 type Settings = {
   allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; max_tribes: number
-  sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]; sweep_deduct_fee: boolean
+  sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]
   sweep_member_qr: boolean   // migration 209: My Pool shows members this QR too
 }
 type RequestRow = {
@@ -83,7 +83,7 @@ export default function SweepAdminPage() {
   const [priceInput, setPriceInput] = useState('')
   const [splitInput, setSplitInput] = useState<[string, string, string]>(['70', '20', '10'])
   const [priceLocked, setPriceLocked] = useState(false)
-  const [prizesLocked, setPrizesLocked] = useState(false)   // split + fee-from-pot, once anything's sold
+  const [prizesLocked, setPrizesLocked] = useState(false)   // the prize split, once anything's sold
   const [savingPrizes, setSavingPrizes] = useState(false)
   const [prizesSavedAt, setPrizesSavedAt] = useState<number | null>(null)
   const [minMaxTribes, setMinMaxTribes] = useState(1)
@@ -353,11 +353,14 @@ export default function SweepAdminPage() {
     return Number.isFinite(n) && n >= 50 && n <= 100000 ? n : null
   })()
   const splitNums = splitInput.map(v => parseInt(v, 10)) as [number, number, number]
+  const priceCapError = settings && priceCentsInput ? prizeCapError(priceCentsInput, settings.max_tribes) : null
   const splitValid = isValidSplit(splitNums)
   const prizesDirty = !!settings && (
     priceCentsInput !== settings.sweep_ticket_price_cents ||
     JSON.stringify(splitNums) !== JSON.stringify(settings.sweep_prize_split))
   const poolsDirty = !!settings && maxTribesInput !== String(settings.max_tribes)
+  // Victoria's $5,000 prize cap (lib/sweep/prizes.ts) — the API checks it too.
+  const poolsCapError = settings && poolsToAdd > 0 ? prizeCapError(settings.sweep_ticket_price_cents, maxTribesN) : null
   // Bank details and approvals/contact are one saved record split across two cards, so both
   // cards share one dirty flag and one Save row (either one saves everything).
   const detailsDirty = JSON.stringify(details) !== JSON.stringify(savedDetails)
@@ -795,7 +798,7 @@ export default function SweepAdminPage() {
                 </p>
                 {p.prizes && (
                   <p className="text-xs text-amber-800 mt-0.5">
-                    Pot {fmtCents(p.prizes.pot_cents)}{p.prizes.fee_cents > 0 ? ` (after ${fmtCents(p.prizes.fee_cents)} fee)` : ''} →{' '}
+                    Pot {fmtCents(p.prizes.pot_cents)} →{' '}
                     {p.prizes.places.map(x => `${['🥇', '🥈', '🥉'][x.place - 1]} ${fmtCents(x.cents)}`).join(' · ')}
                   </p>
                 )}
@@ -859,7 +862,7 @@ export default function SweepAdminPage() {
             <div className="flex items-center gap-2">
               <input type="number" min={Math.max(1, minMaxTribes)} max={5} value={maxTribesInput} onChange={e => setMaxTribesInput(e.target.value)}
                 className={`w-20 border rounded-lg px-2 py-1.5 text-sm text-center ${maxTribesInput !== '' && !maxTribesValid ? 'border-red-400' : 'border-gray-300'}`} />
-              <button onClick={saveMaxTribes} disabled={savingMaxTribes || !maxTribesValid || maxTribesN === settings.max_tribes}
+              <button onClick={saveMaxTribes} disabled={savingMaxTribes || !maxTribesValid || maxTribesN === settings.max_tribes || !!poolsCapError}
                 className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
                 {savingMaxTribes ? 'Saving…' : addPoolsCost > 0 ? `Add ${poolsToAdd} · pay $${addPoolsCost.toFixed(2)}` : poolsToAdd > 0 ? `Add ${poolsToAdd}` : 'Save'}
               </button>
@@ -876,6 +879,7 @@ export default function SweepAdminPage() {
                   : <span className="text-gray-500">This sweep has <strong>{settings.max_tribes}</strong> pool{settings.max_tribes === 1 ? '' : 's'} (up to 5).</span>}
               </p>
             )}
+            {poolsCapError && <p className="text-xs text-red-600 mt-2">{poolsCapError}</p>}
             {maxTribesInput !== '' && !maxTribesValid && (
               <p className="text-xs text-red-600 mt-2">
                 {maxTribesN < minMaxTribes && minMaxTribes > 1
@@ -925,27 +929,21 @@ export default function SweepAdminPage() {
               ))}
             </div>
             {!splitValid && <p className="text-[11px] text-red-600 mb-1">The three percentages must add up to 100.</p>}
+            {priceCapError
+              ? <p className="text-[11px] text-red-600 mt-2">{priceCapError}</p>
+              : priceCentsInput && <p className="text-[11px] text-gray-500 mt-2">
+                  Most this sweep can pay out: {fmtCents(maxPayoutCents(priceCentsInput, settings.max_tribes))} ({settings.max_tribes} pool{settings.max_tribes === 1 ? '' : 's'} × 24 tickets). Victoria caps sweep prizes at $5,000.
+                </p>}
 
-            <label className="flex items-start gap-2 mt-3 mb-3">
-              <input type="checkbox" checked={settings.sweep_deduct_fee} disabled={prizesLocked || savingSetting === 'sweep_deduct_fee'}
-                onChange={async e => {
-                  const next = e.target.checked
-                  setSavingSetting('sweep_deduct_fee')
-                  const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
-                    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deduct_fee: next }),
-                  }).then(r => r.json())
-                  setSavingSetting(null)
-                  if (res.error) { setError(res.error); return }
-                  setSettings(s => s ? { ...s, sweep_deduct_fee: next } : s)
-                  loadPools(compId)
-                }} className="mt-0.5" />
-              <span className="text-xs text-gray-600">
-                Take any TribePicks pool fee out of the prize pot <span className="text-gray-400">(shared across your pools; buyers see it as its own line. Free pools have no fee.)</span>
-              </span>
-            </label>
+            {/* Victorian sweep rules: every dollar collected goes back as prizes — no cut for
+                TribePicks or the organiser. (There used to be a "take the pool fee out of the
+                pot" option; it's gone for that reason.) */}
+            <p className="text-xs text-gray-600 mt-3 mb-3">
+              💯 Every dollar from tickets goes back as prizes. TribePicks never takes a cut.
+            </p>
 
             {!(priceLocked && prizesLocked) && <div className="flex items-center gap-3">
-              <button onClick={savePrizes} disabled={savingPrizes || !priceCentsInput || !splitValid || !prizesDirty}
+              <button onClick={savePrizes} disabled={savingPrizes || !priceCentsInput || !splitValid || !prizesDirty || !!priceCapError}
                 className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
                 {savingPrizes ? 'Saving…' : 'Save'}
               </button>

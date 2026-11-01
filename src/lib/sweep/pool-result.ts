@@ -1,5 +1,5 @@
 import { rollDownPodium, winnerCents, type Finish } from '@/lib/sweep/podium'
-import { computePoolPrizes, isValidSplit, poolFeeShares } from '@/lib/sweep/prizes'
+import { computePoolPrizes, isValidSplit } from '@/lib/sweep/prizes'
 
 // The race result a pool's podium is built from — null until it's complete. A real race:
 // every non-scratched horse has a finish_position or did_not_finish (migration 206), entered
@@ -32,7 +32,7 @@ export async function poolPodium(
 ): Promise<PoolPodiumRow[]> {
   const holderOf = new Map(opts.entries.filter(e => e.horse_id).map(e => [e.horse_id as string, e.user_id]))
   const { data: comp } = await (admin.from('comps') as any)
-    .select('sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', opts.compId).maybeSingle()
+    .select('sweep_ticket_price_cents, sweep_prize_split').eq('id', opts.compId).maybeSingle()
   const split: [number, number, number] = isValidSplit((comp as any)?.sweep_prize_split) ? (comp as any).sweep_prize_split : [70, 20, 10]
 
   // Places with no share of the pot (e.g. winner takes all) aren't prizes at all.
@@ -41,10 +41,7 @@ export async function poolPodium(
   const price = (comp as any)?.sweep_ticket_price_cents ?? null
   let cents: (number | null)[] = winners.map(() => null)
   if (price) {
-    const prizes = computePoolPrizes({
-      ticketPriceCents: price, ticketsSold: opts.entries.length, split,
-      feeCents: (await poolFeeShares(admin, opts.compId, (comp as any)?.sweep_deduct_fee !== false))[opts.tribeId] ?? 0,
-    })
+    const prizes = computePoolPrizes({ ticketPriceCents: price, ticketsSold: opts.entries.length, split })
     cents = winnerCents(winners, Object.fromEntries(prizes.places.map(p => [p.place, p.cents])))
   }
   return winners.map((w, i) => ({

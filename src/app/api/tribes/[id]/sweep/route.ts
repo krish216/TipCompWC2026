@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { approvalClockStart, approvalDeadline, getOrganiserDetails, hasContact, hasPaymentDetails } from '@/lib/sweep/organiser'
-import { computePoolPrizes, isValidSplit, poolFeeShares } from '@/lib/sweep/prizes'
+import { computePoolPrizes, isValidSplit } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
 import { autoDrawAt, drawForUnlocksAt, loadDrawOpenedAt } from '@/lib/sweep/grace'
@@ -43,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const [{ data: comp }, organiser, { data: myPending }] = await Promise.all([
     (admin.from('comps') as any)
-      .select('allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split, sweep_deduct_fee').eq('id', tribe.comp_id).maybeSingle(),
+      .select('allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split').eq('id', tribe.comp_id).maybeSingle(),
     getOrganiserDetails(admin, tribe.comp_id),
     (admin.from('sweep_payment_requests') as any)
       .select('created_at, receipt_attached_at, payment_method').eq('tribe_id', tribeId).eq('user_id', user.id).eq('status', 'pending'),
@@ -165,15 +165,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     ? podium.map(p => ({ ...p, winner: p.winner ? redactRow(p.winner) : p.winner }))
     : podium
 
-  // Live prize table for THIS pool — tickets sold so far × price, less its share of any
-  // TribePicks fee. Null until the organiser sets a ticket price.
+  // Live prize table for THIS pool — tickets sold so far × price, all of it paid out.
+  // Null until the organiser sets a ticket price.
   const price = (comp as any)?.sweep_ticket_price_cents ?? null
   const split = isValidSplit((comp as any)?.sweep_prize_split) ? (comp as any).sweep_prize_split : [70, 20, 10]
   const prizes = price
-    ? computePoolPrizes({
-        ticketPriceCents: price, ticketsSold: (entries ?? []).length, split,
-        feeCents: (await poolFeeShares(admin, tribe.comp_id, (comp as any)?.sweep_deduct_fee !== false))[tribeId] ?? 0,
-      })
+    ? computePoolPrizes({ ticketPriceCents: price, ticketsSold: (entries ?? []).length, split })
     : null
 
   return NextResponse.json({

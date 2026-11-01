@@ -488,7 +488,6 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
           </div>
           <p className="text-[11px] text-amber-900 mt-3">
             {sweep.prizes.tickets_sold} of {sweep.field_size || '—'} tickets sold · pot {fmtCents(sweep.prizes.pot_cents)}
-            {sweep.prizes.fee_cents > 0 && ` (after ${fmtCents(sweep.prizes.fee_cents)} TribePicks fee)`}
             {!sweep.locked && sweep.field_size > sweep.prizes.tickets_sold && ' · grows with every ticket sold'}
           </p>
         </div>

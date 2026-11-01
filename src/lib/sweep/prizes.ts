@@ -2,10 +2,30 @@
 // (later) the results email can't disagree. All money in cents.
 //
 // Each POOL pays its own 1st/2nd/3rd from its own pot:
-//   pot = tickets sold in the pool × ticket price − the pool's share of the TribePicks fee
+//   pot = tickets sold in the pool × ticket price
+// Every dollar goes back as prizes — nothing comes out for TribePicks or the organiser
+// (Victorian sweep rules; a cut would be a breach). Anything TribePicks charges an organiser
+// is paid by them separately, never from a pot.
 // 2nd and 3rd are rounded down to the nearest 5c (payable in cash); 1st gets everything
-// left, so the prizes always add up to exactly the pot (1st can end in odd cents when a
-// fee is deducted, e.g. $82.89).
+// left, so the prizes always add up to exactly the pot.
+
+// Victoria caps a Melbourne Cup sweep's prizes at $5,000 in total (VGCCC, "Melbourne Cup
+// sweeps"). Every dollar is paid out, so the most a sweep can pay is price × tickets — and
+// tickets can reach the race's maximum field in every pool. Applied to the whole sweep (all
+// its pools together), the cautious reading. Checked wherever that maximum can grow: the
+// price at creation, a price change, and adding pools.
+export const PRIZE_CAP_CENTS = 500_000
+export const MAX_FIELD_FOR_CAP = 24   // = MAX_FIELD in field.ts (the Cup's maximum field)
+
+export const maxPayoutCents = (priceCents: number, pools: number) => priceCents * MAX_FIELD_FOR_CAP * pools
+
+// null when within the cap, else the reason — worded for the organiser.
+export function prizeCapError(priceCents: number | null | undefined, pools: number): string | null {
+  if (!priceCents || maxPayoutCents(priceCents, pools) <= PRIZE_CAP_CENTS) return null
+  const maxPrice = Math.floor(PRIZE_CAP_CENTS / (MAX_FIELD_FOR_CAP * pools) / 50) * 50   // down to the 50c
+  return `Victoria caps a sweep's prizes at $5,000. At ${fmtCents(priceCents)} a ticket, ${pools} pool${pools === 1 ? '' : 's'} of up to ${MAX_FIELD_FOR_CAP} tickets could pay out ${fmtCents(maxPayoutCents(priceCents, pools))}` +
+    ` — keep the price at ${fmtCents(maxPrice)} or less${pools > 1 ? ', or use fewer pools' : ''}.`
+}
 
 export const PRIZE_PRESETS: { id: string; label: string; split: [number, number, number] }[] = [
   { id: '70-20-10',  label: '70 / 20 / 10',     split: [70, 20, 10] },
@@ -22,50 +42,24 @@ export function isValidSplit(s: unknown): s is [number, number, number] {
 export type PoolPrizes = {
   ticket_price_cents: number
   tickets_sold: number
-  gross_cents: number
-  fee_cents: number          // this pool's share of the TribePicks fee taken out (0 if none)
   pot_cents: number
   places: { place: 1 | 2 | 3; pct: number; cents: number }[]   // only places with pct > 0
 }
 
 export function computePoolPrizes(opts: {
-  ticketPriceCents: number; ticketsSold: number; split: [number, number, number]; feeCents: number
+  ticketPriceCents: number; ticketsSold: number; split: [number, number, number]
 }): PoolPrizes {
-  const gross = opts.ticketPriceCents * opts.ticketsSold
-  const fee = Math.min(gross, Math.max(0, opts.feeCents))   // never deduct more than the pot holds
-  const pot = gross - fee
+  const pot = opts.ticketPriceCents * opts.ticketsSold
   const raw = opts.split.map(pct => Math.floor(pot * pct / 100 / 5) * 5)   // 1st is recomputed below
   raw[0] += pot - raw.reduce((a, b) => a + b, 0)
   return {
     ticket_price_cents: opts.ticketPriceCents,
     tickets_sold: opts.ticketsSold,
-    gross_cents: gross,
-    fee_cents: fee,
     pot_cents: pot,
     places: ([1, 2, 3] as const)
       .map((place, i) => ({ place, pct: opts.split[i], cents: raw[i] }))
       .filter(p => p.pct > 0),
   }
-}
-
-// Each pool's share of what the organiser actually paid TribePicks (paid Stripe purchases
-// only — free / admin / billing-off pools cost nothing, so deduct nothing). Split equally
-// across the sweep's pools; the first pool absorbs any leftover cent. Keyed by tribe id.
-export async function poolFeeShares(admin: any, compId: string, deduct: boolean): Promise<Record<string, number>> {
-  const { data: tribes } = await (admin.from('tribes') as any)
-    .select('id, created_at').eq('comp_id', compId).order('created_at', { ascending: true })
-  const ids = ((tribes ?? []) as any[]).map(t => t.id)
-  const shares: Record<string, number> = Object.fromEntries(ids.map(id => [id, 0]))
-  if (!deduct || !ids.length) return shares
-
-  const { data: purchases } = await (admin.from('sweep_pool_purchases') as any)
-    .select('amount_cents').eq('comp_id', compId).eq('status', 'paid').eq('provider', 'stripe')
-  const total = ((purchases ?? []) as any[]).reduce((a, p) => a + (p.amount_cents ?? 0), 0)
-  if (!total) return shares
-
-  const each = Math.floor(total / ids.length)
-  ids.forEach((id, i) => { shares[id] = each + (i === 0 ? total - each * ids.length : 0) })
-  return shares
 }
 
 export const fmtCents = (c: number) => `$${(c / 100).toFixed(2).replace(/\.00$/, '')}`

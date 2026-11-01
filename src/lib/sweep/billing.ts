@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { isPracticeTournament } from '@/lib/sweep/practice'
+import { prizeCapError } from '@/lib/sweep/prizes'
 
 // ── Sweep billing: organisers buying pools from TribePicks ────────────────────────────────
 // The one seam every pool increase goes through — creating a sweep with more than the free
@@ -97,7 +98,7 @@ export async function buyPools(admin: any, opts: { compId: string; userId: strin
   if (!Number.isInteger(opts.pools) || opts.pools < 1) return { error: 'Add at least one pool.', status: 400 }
 
   const [{ data: comp }, { data: platformAdmin }, { data: buyer }] = await Promise.all([
-    (admin.from('comps') as any).select('name, max_tribes, tournament_id').eq('id', opts.compId).maybeSingle(),
+    (admin.from('comps') as any).select('name, max_tribes, tournament_id, sweep_ticket_price_cents').eq('id', opts.compId).maybeSingle(),
     (admin.from('admin_users') as any).select('user_id').eq('user_id', opts.userId).maybeSingle(),
     (admin.from('users') as any).select('email').eq('id', opts.userId).maybeSingle(),
   ])
@@ -106,6 +107,9 @@ export async function buyPools(admin: any, opts: { compId: string; userId: strin
   if (current + opts.pools > SWEEP_PRICING.maxPools) {
     return { error: `A sweep can have up to ${SWEEP_PRICING.maxPools} pools — this one has ${current}.`, status: 400 }
   }
+  // More pools means more tickets — keep the whole sweep under Victoria's $5,000 prize cap.
+  const capError = prizeCapError((comp as any).sweep_ticket_price_cents, current + opts.pools)
+  if (capError) return { error: capError, status: 400 }
 
   const provider = pickProvider(!!platformAdmin, await isPracticeTournament(admin, (comp as any).tournament_id))
   const { data: purchase, error } = await (admin.from('sweep_pool_purchases') as any)
