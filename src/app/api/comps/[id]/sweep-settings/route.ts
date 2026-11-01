@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { APPROVAL_WINDOWS, getOrganiserDetails, memberQrOn, normalisePayId, payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
+import { APPROVAL_WINDOWS, getOrganiserDetails, memberQrOn, normalisePayId, payIdKind, sweepVoicesOn, type PayIdKind } from '@/lib/sweep/organiser'
 import { billingInfo } from '@/lib/sweep/billing'
 import { isValidSplit, prizeCapError } from '@/lib/sweep/prizes'
 import { voicesFor } from '@/lib/sweep/voices'
@@ -114,12 +114,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { owner_name: _o, created_by: _c, ...settings } = (data ?? {}) as any
   const sold = await hasSales(admin, params.id)
   return NextResponse.json({
-    data: { ...settings, sweep_member_qr: await memberQrOn(admin, params.id) }, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo(),
+    data: { ...settings, sweep_member_qr: await memberQrOn(admin, params.id), sweep_voices: await sweepVoicesOn(admin, params.id) }, min_max_tribes: minMaxTribes, organiser_details: details, billing: billingInfo(),
     // A sweep with no price yet (created before migration 199) can always set one, even
     // with sales — those buyers paid whatever the organiser asked; only CHANGING it locks.
     price_locked: (data as any)?.sweep_ticket_price_cents != null && sold,
     prizes_locked: sold,   // the prize split locks once anything's sold
-    voices: gate.voices,   // which of Vicky & Gordo are on (migrations 210, 211)
+    voices: gate.voices,   // which of Vicky & Gordo the tournament allows (migrations 210, 211) — before this sweep's own switch
   })
 }
 
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // (reveal_mode is gone — every sweep now works one way: you see only your own horses until
   // the pool closes. leftover_horse_mode is gone too — unsold horses are never handed to the
   // organiser. Both columns are left in place but no longer read.)
-  const { allow_iou, approval_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee, member_qr } = body ?? {}
+  const { allow_iou, approval_mode, max_tribes, ticket_price_cents, prize_split, deduct_fee, member_qr, voices } = body ?? {}
   // Taking a fee out of the pot breaches Victorian sweep rules (every dollar goes back as
   // prizes), so the old option is refused outright rather than stored.
   if (deduct_fee) return NextResponse.json({ error: 'Every dollar from tickets goes back as prizes — nothing can come out of the pot.' }, { status: 400 })
@@ -217,6 +217,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (ticket_price_cents !== undefined) update.sweep_ticket_price_cents = ticket_price_cents
   if (prize_split !== undefined) update.sweep_prize_split = prize_split
   if (member_qr !== undefined) update.sweep_member_qr = !!member_qr
+  if (voices !== undefined) update.sweep_voices = !!voices   // migration 212
   if (Object.keys(update).length === 0 && !details) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   if (Object.keys(update).length > 0) {

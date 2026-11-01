@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { approvalClockStart, approvalDeadline, getOrganiserDetails, hasContact, hasPaymentDetails } from '@/lib/sweep/organiser'
+import { approvalClockStart, approvalDeadline, getOrganiserDetails, hasContact, hasPaymentDetails, sweepVoicesOn } from '@/lib/sweep/organiser'
 import { computePoolPrizes, isValidSplit } from '@/lib/sweep/prizes'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
@@ -43,12 +43,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'This pool is not a sweep' }, { status: 400 })
   }
 
-  const [{ data: comp }, organiser, { data: myPending }] = await Promise.all([
+  const [{ data: comp }, organiser, { data: myPending }, sweepVoices] = await Promise.all([
     (admin.from('comps') as any)
       .select('allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split').eq('id', tribe.comp_id).maybeSingle(),
     getOrganiserDetails(admin, tribe.comp_id),
     (admin.from('sweep_payment_requests') as any)
       .select('created_at, receipt_attached_at, payment_method').eq('tribe_id', tribeId).eq('user_id', user.id).eq('status', 'pending'),
+    sweepVoicesOn(admin, tribe.comp_id),
   ])
   const raceStartAt = (tourn as any)?.race_start_at ?? null
   // The organiser's phone/email is only handed to a buyer who's actually waiting too long —
@@ -178,7 +179,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     comp_id:         tribe.comp_id,
     is_practice:     isPractice,
-    voices:          voicesFor(tourn),   // which of Vicky & Gordo are on (migrations 210, 211)
+    voices:          voicesFor(tourn, sweepVoices),   // which of Vicky & Gordo are on (migrations 210–212)
     ticket_price_cents: price,
     prizes,
     field_size:      field.capacity,

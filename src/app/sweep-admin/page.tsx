@@ -14,6 +14,7 @@ import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 import { DRAW_GRACE_HOURS, fmtLeft } from '@/lib/sweep/grace'
 import { SweepInviteCard } from '@/components/game/SweepInviteCard'
+import { ORGANISER_PARTS } from '@/lib/sweep/voices'
 import { SweepApprovalModal,playRequestCall, useApprovalPrefs, type PendingRequest } from '@/components/game/SweepApprovalModal'
 
 type Tab = 'sell' | 'requests' | 'allocation' | 'pools' | 'settings'
@@ -33,6 +34,7 @@ type Settings = {
   allow_iou: boolean; sweep_approval_mode: 'manual' | 'auto'; max_tribes: number
   sweep_ticket_price_cents: number | null; sweep_prize_split: [number, number, number]
   sweep_member_qr: boolean   // migration 209: My Pool shows members this QR too
+  sweep_voices: boolean      // migration 212: Vicky & Gordo on for this sweep's people
 }
 type RequestRow = {
   id: string; tribe_id: string; tickets_requested: number; payment_method: string; status: string
@@ -121,6 +123,9 @@ export default function SweepAdminPage() {
   const seenPending = useRef<Set<string> | null>(null)   // null until the first load
   const approvalPrefs = useApprovalPrefs()
   const [voices, setVoices] = useState(true)   // the new-request call is on for the tournament (lib/sweep/voices.ts)
+  // Any of the parts this sweep's own switch covers still on for the tournament — if /admin has
+  // them all off, the organiser's switch has nothing to turn on, so it's shown as off.
+  const [tournVoices, setTournVoices] = useState(true)
   const [pools, setPools] = useState<Pool[]>([])
   const [allocTribeId, setAllocTribeId] = useState('')
   const [allocSweep, setAllocSweep] = useState<any | null>(null)   // GET /api/tribes/:id/sweep for the picked pool
@@ -188,6 +193,7 @@ export default function SweepAdminPage() {
     setPriceLocked(!!res.price_locked)
     setPrizesLocked(!!res.prizes_locked)
     setVoices(res.voices?.request_call !== false)
+    setTournVoices(ORGANISER_PARTS.some(p => res.voices?.[p] !== false))
     resetPrizeInputs(res.data)
     setMinMaxTribes(res.min_max_tribes ?? 1)
     setBilling(res.billing ?? null)
@@ -338,7 +344,8 @@ export default function SweepAdminPage() {
 
   async function updateSetting(key: keyof Settings, value: any) {
     setSavingSetting(key)
-    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : key === 'sweep_member_qr' ? 'member_qr' : 'allow_iou'
+    const bodyKey = key === 'sweep_approval_mode' ? 'approval_mode' : key === 'sweep_member_qr' ? 'member_qr'
+      : key === 'sweep_voices' ? 'voices' : 'allow_iou'
     const res = await fetch(`/api/comps/${compId}/sweep-settings`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [bodyKey]: value }),
     }).then(r => r.json())
@@ -1163,6 +1170,22 @@ export default function SweepAdminPage() {
             <button onClick={() => updateSetting('allow_iou', !settings.allow_iou)} disabled={savingSetting === 'allow_iou'}
               className={`text-xs font-bold px-3 py-1.5 rounded-lg ${settings.allow_iou ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
               {settings.allow_iou ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
+
+          <div className="border border-gray-200 rounded-2xl p-5">
+            <h2 className="font-bold text-gray-900 mb-1 text-sm">🎙️ Vicky &amp; Gordo</h2>
+            <p className="text-xs text-gray-500 mb-3">
+              {tournVoices
+                ? 'Our race callers, for everyone in your sweep: Vicky calls each horse as the wheel lands, with Gordo’s good-luck line, plus their sweep intro'
+                  + (isPracticeComp ? ' and the called practice race.' : '.')
+                  + ' Turn them off for a quieter sweep — anyone can still mute them on their own device.'
+                : 'Vicky & Gordo are switched off for this race by TribePicks, so there’s nothing to turn on here right now.'}
+            </p>
+            <button onClick={() => updateSetting('sweep_voices', settings.sweep_voices === false)}
+              disabled={!tournVoices || savingSetting === 'sweep_voices'}
+              className={`text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 ${tournVoices && settings.sweep_voices !== false ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+              {tournVoices && settings.sweep_voices !== false ? '🔊 On' : '🔇 Off'}
             </button>
           </div>
 

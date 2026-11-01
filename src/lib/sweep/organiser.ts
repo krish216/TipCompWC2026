@@ -52,6 +52,20 @@ export async function memberQrOn(admin: any, compId: string): Promise<boolean> {
   return (await memberQrByComp(admin, [compId]))[compId]
 }
 
+// The organiser's Vicky & Gordo switch (migration 212), per comp — on unless switched off, and
+// read apart from the other columns so the routes keep working before the migration runs.
+export async function sweepVoicesByComp(admin: any, compIds: string[]): Promise<Record<string, boolean>> {
+  const on = Object.fromEntries(compIds.map(id => [id, true]))
+  if (!compIds.length) return on
+  const { data, error } = await (admin.from('comps') as any).select('id, sweep_voices').in('id', compIds)
+  if (!error) for (const c of (data ?? []) as any[]) on[c.id] = c.sweep_voices !== false
+  return on
+}
+
+export async function sweepVoicesOn(admin: any, compId: string): Promise<boolean> {
+  return (await sweepVoicesByComp(admin, [compId]))[compId]
+}
+
 // PayID comes in three everyday forms. The kind isn't stored — it's read off the value, so
 // a mobile, an email and an ABN can't be confused for one another.
 export type PayIdKind = 'mobile' | 'email' | 'abn'

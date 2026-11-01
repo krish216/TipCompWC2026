@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { PRACTICE_SLUG } from '@/lib/sweep/practice'
 import { raceFinishes } from '@/lib/sweep/pool-result'
 import { loadFields } from '@/lib/sweep/field'
-import { AUTO_LOCK_BEFORE_MS, memberQrByComp } from '@/lib/sweep/organiser'
+import { AUTO_LOCK_BEFORE_MS, memberQrByComp, sweepVoicesByComp } from '@/lib/sweep/organiser'
 import { SWEEP_PRICING } from '@/lib/sweep/billing'
 import { voicesFor } from '@/lib/sweep/voices'
 
@@ -77,10 +77,11 @@ export async function GET() {
   // Pool pills need EVERY pool under each represented comp (not just the ones directly
   // relevant above) — a comp the caller organises may have pools with no personal
   // connection at all, but the pills should still cover the whole sweep.
-  const [{ data: comps }, { data: allCompTribes }, memberQr] = await Promise.all([
+  const [{ data: comps }, { data: allCompTribes }, memberQr, sweepVoices] = await Promise.all([
     (admin.from('comps') as any).select('id, name, invite_code').in('id', compIds),
     (admin.from('tribes') as any).select('id, comp_id, tournament_id').in('comp_id', compIds),
     memberQrByComp(admin, compIds),
+    sweepVoicesByComp(admin, compIds),
   ])
   const compById = Object.fromEntries(((comps ?? []) as any[]).map(c => [c.id, c]))
   const adminCompIdSet = new Set(adminCompIds)
@@ -151,7 +152,7 @@ export async function GET() {
     results_in:       !!raceFinishes(horsesByTourn[t.tournament_id] ?? [], null),
     // Practice sweeps (migration 200) get their own card on /sweep, apart from real ones.
     is_practice:      tournById[t.tournament_id]?.slug === PRACTICE_SLUG,
-    voices:           voicesFor(tournById[t.tournament_id]),   // which of Vicky & Gordo are on (migrations 210, 211)
+    voices:           voicesFor(tournById[t.tournament_id], sweepVoices[t.comp_id] ?? true),   // which of Vicky & Gordo are on (migrations 210–212)
     locked:           !!t.sweep_locked_at,
     is_comp_admin:    adminCompIdSet.has(t.comp_id),
     my_tickets:       ownTicketsByTribe[t.id]?.total ?? 0,
