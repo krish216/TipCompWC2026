@@ -9,6 +9,7 @@ type PickResult = { ok: boolean; horse?: Horse; error?: string }
 const BRAND_BG = 'linear-gradient(160deg, #0a2e1c 0%, #153d26 50%, #0d3320 100%)'
 const SLICES   = ['#16a34a', '#0f6b34']   // alternating emerald, light / deep
 const GOLD     = '#fbbf24'
+const UNLOCK_CLIP = '/race-calls/sfx/bell.mp3'   // any small clip — played muted, only to unlock sound on phones
 
 // Smoothstep ease — natural accel/decel, no overshoot.
 const smoothstep = (x: number) => x * x * (3 - 2 * x)
@@ -23,9 +24,13 @@ const smoothstep = (x: number) => x * x * (3 - 2 * x)
 // `resultNote` replaces the line under "You drew" (the public demo has no pool to fill).
 // `resultAction` — what tapping the wheel does once it's landed, labelled on the hub (the
 // public demo's "Run the race"). A click, not a pointerdown: phones only unlock sound on one.
-export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
+// `announce` — the clip(s) that call out the drawn horse (Vicky's "you drew", then sometimes
+// Gordo), played in turn as the wheel lands, or null for none. The taps that spun it unlock
+// the element on phones.
+export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }: {
   slots: number; onDraw: () => Promise<PickResult>; resultNote?: string
   resultAction?: { label: string; onClick: () => void }
+  announce?: (horse: Horse) => string[] | null
 }) {
   const n = slots
   // Drawn segments: at least 2 — a lone 360° segment renders as nothing (an arc that starts
@@ -40,6 +45,8 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
   const angleRef  = useRef<number>(0)              // current rotation, degrees
   const velRef    = useRef<number>(30)
   const containerRef = useRef<HTMLDivElement>(null)
+  const callRef   = useRef<HTMLAudioElement | null>(null)   // the "you drew" call
+  const queueRef  = useRef<string[]>([])                     // what it said, for "Hear it again"
 
   const [phase, setPhase]   = useState<'idle' | 'spinning' | 'fast' | 'settling' | 'result'>('idle')
   const [spinKey, setSpinKey] = useState(0)   // bumped only by startSpin — the loop's sole trigger
@@ -123,7 +130,40 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
     setResult(res)
     setPhase('result')
     if (wheelRef.current) wheelRef.current.style.transition = ''
+    playCall(res.ok ? res.horse : undefined)
   }
+
+  // Phones only let an element play once a tap has started it: each tap's click starts the
+  // call element silently, so it can speak when the wheel lands (after an await, outside the tap).
+  // It plays a real (muted) clip: an empty element's play() just waits, and would pause the
+  // call itself when that finally loads. And it only pauses if that clip's still the one loaded.
+  function unlockCall() {
+    if (!announce) return
+    const a = (callRef.current ??= new Audio())
+    if (!a.paused) return
+    a.src = UNLOCK_CLIP
+    a.muted = true
+    a.play().then(() => { if (a.src.endsWith(UNLOCK_CLIP)) { a.pause(); a.muted = false } }).catch(() => {})
+  }
+  // Plays the clips one after another on the one unlocked element. `again` replays what was
+  // said, rather than drawing a fresh Gordo line.
+  function playCall(horse?: Horse, again = false) {
+    const clips = again ? queueRef.current : (horse && announce?.(horse)) || []
+    const a = callRef.current
+    if (!clips.length || !a) return
+    queueRef.current = clips
+    let i = 0
+    const next = () => {
+      if (i >= clips.length) { a.onended = null; return }
+      a.src = clips[i++]
+      a.muted = false
+      a.currentTime = 0
+      a.play().catch(() => {})
+    }
+    a.onended = next
+    next()
+  }
+  useEffect(() => () => callRef.current?.pause(), [])
 
   // Only once a horse is drawn — never during the spin, so the stopping tap can't also fire it.
   const action = phase === 'result' && result?.ok ? resultAction : undefined
@@ -145,7 +185,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
         tabIndex={phase === 'idle' || phase === 'fast' || action ? 0 : -1}
         aria-label={phase === 'idle' ? 'Spin the wheel for your horse' : phase === 'fast' ? 'Stop the wheel' : action ? action.label : 'The wheel'}
         onPointerDown={phase === 'fast' ? handleTap : phase === 'idle' ? startSpin : undefined}
-        onClick={action?.onClick}
+        onClick={() => { unlockCall(); action?.onClick() }}
         onKeyDown={e => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()
@@ -258,6 +298,11 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction }: {
               <span className="inline-block text-2xl" style={{ transform: 'scaleX(-1)' }} aria-hidden>🏇</span>
               #{result.horse.number} {result.horse.name}
             </p>
+            {queueRef.current.length > 0 && (
+              <button onClick={() => playCall(result.horse, true)}   // a tap of its own — no unlock needed (its pause would cut this off)
+               
+                className="mt-1 text-xs font-semibold text-emerald-700 hover:underline">🔊 Hear Vicky call it</button>
+            )}
             {/* Drawing the last horse closes the pool — the full draw is visible right away then. */}
             <p className="text-xs text-gray-500 mt-1">
               {resultNote ?? (n === 1 ? '🎉 That was the last horse — the full draw is now open in the app.' : "🔒 You'll see who drew every horse once the pool fills.")}

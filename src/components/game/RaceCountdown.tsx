@@ -14,12 +14,15 @@ function fmtUntil(ms: number): string {
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`
 }
 
-// The viewer's own time, with Melbourne's alongside when they're somewhere else.
+// The viewer's own time.
 function fmtTime(d: Date, withDay: boolean): string {
-  const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(withDay ? { weekday: 'short', day: 'numeric', month: 'short' } : {}) }
-  const local = d.toLocaleString('en-AU', opts)
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-  return tz === MELBOURNE ? local : `${local} (${d.toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: MELBOURNE })} Melbourne)`
+  return d.toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', ...(withDay ? { weekday: 'short', day: 'numeric', month: 'short' } : {}) })
+}
+// The jump in Melbourne time — only when the viewer's clock says something else. Compared by
+// the time itself, not the zone's name: Sydney, Canberra and Hobart are on Melbourne time too.
+function melbourneNote(d: Date): string {
+  const at = (timeZone?: string) => d.toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone })
+  return at() === at(MELBOURNE) ? '' : ` (${at(MELBOURNE)} Melbourne)`
 }
 
 // A slim race-day strip for a real sweep (never practice — no race time): it changes with
@@ -58,7 +61,7 @@ export function RaceCountdown({ raceStartAt, drawOpen, resultsIn, resultsHref, d
     body = (
       <>
         <span className="font-bold">🏇 Race in {fmtUntil(toStart)}</span>
-        <span className="opacity-70"> · {fmtTime(start, true)} · pools lock {fmtTime(lockAt, false)}</span>
+        <span className="opacity-70"> · {fmtTime(start, true)}{melbourneNote(start)} · pools lock {fmtTime(lockAt, false)}</span>
       </>
     )
   }

@@ -408,6 +408,8 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta, prac
         ) : (
           <div className="px-4 pb-4 space-y-3">
             <div className="bg-white rounded-xl p-4 space-y-2">
+              {/* A pool with no drawn horses (nothing sold, or nothing spun) has nobody to pay. */}
+              {winners.length === 0 && <p className="text-sm text-gray-500">No horse in this pool placed.</p>}
               {winners.map(w => (
                 <div key={w.horseNumber} className="flex items-start justify-between gap-3 text-sm">
                   <span className="min-w-0">

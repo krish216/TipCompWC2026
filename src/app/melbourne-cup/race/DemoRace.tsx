@@ -8,6 +8,7 @@ import { SweepWheel } from '@/components/game/SweepWheel'
 import { ordinal } from '@/lib/sweep/podium'
 import { DEMO_SCRIPTS, type DemoScript } from '@/lib/sweep/demo-race-scripts'
 import { ScriptedRaceModal, primeRaceAudio } from '@/components/game/ScriptedRaceModal'
+import { drawCallClips } from '@/lib/sweep/cup-calls'
 
 // The practice field (migration 200) — past Cup winners, never this year's runners.
 const FIELD = [
@@ -96,7 +97,7 @@ export function DemoRace() {
         ))}
       </ol>
       {/* Step 2 lives on the wheel's hub, like "Tap to spin" — the wheel is the one thing to tap. */}
-      <SweepWheel key={spin} slots={FIELD.length} onDraw={draw}
+      <SweepWheel key={spin} slots={FIELD.length} onDraw={draw} announce={drawCallClips}
         resultAction={{ label: last ? '🔁 Race Replay' : '🏁 Run the race', onClick: run }}
         resultNote="The rest of the field went to the office." />
       {/* The same action as the hub, as a proper button — on a phone the hub reads as part of

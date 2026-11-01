@@ -1,6 +1,6 @@
 # Melbourne Cup sweeps: handover brief
 
-State as of Sun 1 Nov 2026 (main at `b87c404`). The race is **Tue 3 Nov, 3pm AEDT**.
+State as of Sun 1 Nov 2026 (main at `68889ec`). The race is **Tue 3 Nov, 3pm AEDT**.
 Everything below lives in this repo (`wc2026`), deployed to tribepicks.com by Vercel on push to `main`.
 
 ## What it is
@@ -22,7 +22,8 @@ Each comp has 1–5 **pools** (`tribes`, one ticket per horse). Tickets are `swe
 | `/melbourne-cup/race` | public | Voiced practice race demo, no sign-in. The link used for Reddit/socials |
 | `/sweep` | signed in | Open sweeps, "My Sweeps" cards (pool pills, "N to approve", **➕ Add a pool**), join via `?code=` |
 | `/tribe` (labelled "My Pool") | member | `SweepPoolPanel`: buy tickets, spin, sweep sheet, winners; **Bring a colleague in** QR |
-| `/sweep-admin` | organiser | Tabs: Sell (QR + "Show this QR on My Pool"), Requests, Allocation, Pools, Settings |
+| `/sweep-admin` | organiser | Tabs: Sell (QR + "Show this QR on My Pool"), Requests, Allocation, Pools, Settings (price, split, pools; shows the sweep's maximum payout against the $5,000 cap) |
+| `/rules/melbourne-cup-2026` | public | Rules and FAQ for buyers, including "Does TribePicks take a cut?" (no; every dollar is paid out) |
 | `/admin/sweep-horses` | platform admin | Race start, field paste, scratchings, the result |
 | `/admin` (tournament) | platform admin | "New sweeps" switch (`enrollment_open`), **Draw open** switch + reminder emails |
 
@@ -32,10 +33,13 @@ Each comp has 1–5 **pools** (`tribes`, one ticket per horse). Tickets are `swe
   - `draw.ts`: the only random draw. `UNIQUE(tribe_id, horse_id)` guards races between draws.
   - `field.ts`: pool capacity. Before the draw opens, pools sell up to the maximum field size; after, one ticket per runner.
   - `grace.ts`: holders get 2h to spin before the organiser may draw for them.
-  - `prizes.ts`, `podium.ts`, `pool-result.ts`, `results.ts`: pot maths, roll-down prizes, dead heats, results emails.
+  - `prizes.ts`: pot maths (pot = tickets × price, no deductions) and the $5,000 cap (`PRIZE_CAP_CENTS`,
+    `maxPayoutCents`, `prizeCapError`).
+  - `podium.ts`, `pool-result.ts`, `results.ts`: roll-down prizes, dead heats, results emails.
   - `tickets.ts`: ticket grants, capped at field size.
   - `organiser.ts`: payment and contact details, approval window, `AUTO_LOCK_BEFORE_MS`, the member-QR flag.
   - `billing.ts`: buying pools. **Off** unless `SWEEP_BILLING_ENABLED=true`; prices are placeholders.
+    `buyPools` refuses a pool that would take the sweep over the prize cap.
   - `practice.ts`: practice sweeps (slug `practice-sweep`).
   - `emails.ts`, `welcome.ts`, `draw-reminders.ts`: Resend emails; none of them throw.
   - `demo-race-scripts.ts` (+ `demo-race-audio.json`): the voiced races.
@@ -59,13 +63,25 @@ Each comp has 1–5 **pools** (`tribes`, one ticket per horse). Tickets are `swe
    organiser, because taking one breaches Victorian sweep rules. Anything TribePicks charges for pools is
    paid by the organiser separately, never from a pot. The old "take the pool fee out of the pot" option was
    removed on 1 Nov, and `sweep-settings` refuses `deduct_fee`. The `comps.sweep_deduct_fee` column remains but is unread.
-   **Prizes are capped at $5,000 per sweep** (VGCCC, "Melbourne Cup sweeps"), applied to all pools together:
-   price × 24 (the maximum field) × pools ≤ $5,000. `prizeCapError()` in `lib/sweep/prizes.ts` is checked at
-   creation, on a price change and when adding pools.
-5. **Price and prize split lock** once any ticket is sold or requested. Both the UI and the `sweep-settings`
+   No fee was ever deducted, because no pool has been bought through Stripe.
+5. **Prizes are capped at $5,000 per sweep**, applied to all pools together (the cautious reading):
+   price × 24 (the maximum field) × pools ≤ $5,000. That allows up to about $208 a ticket with 1 pool and
+   $41.50 with 5. `prizeCapError()` is checked by the API at creation, on a price change and when adding
+   pools, and sweep-admin blocks going over before saving. On 1 Nov the largest live sweep could pay $240.
+6. **Price and prize split lock** once any ticket is sold or requested. Both the UI and the `sweep-settings`
    PATCH enforce this.
-6. **Pools can be added, never removed.** All pools are created up front (and when bought), not as earlier ones fill.
-7. **Every new table needs explicit PostgREST grants.** See `CLAUDE.md`, and note it is enforced from 30 Oct.
+7. **Pools can be added, never removed.** All pools are created up front (and when bought), not as earlier ones fill.
+8. **Every new table needs explicit PostgREST grants.** See `CLAUDE.md`, and note it is enforced from 30 Oct.
+
+## Victorian sweep rules
+
+Source: VGCCC, [Melbourne Cup sweeps](https://www.vgccc.vic.gov.au/for-community/community-and-charitable-fundraising/melbourne-cup-sweeps).
+- **Prize cap:** the total value of prizes distributed must not be more than $5,000 (rule 5 above).
+- **No retention:** all money collected must be returned as prizes; the organiser can't keep any for costs or expenses (rule 4).
+- **Entry fee:** there is no minimum or maximum.
+- **Prize list:** it must be finalised and clear to entrants before the sweep starts. Ours is fixed percentages of a pot
+  that grows with tickets sold; the split locks at the first sale, and buyers see live amounts before buying.
+  Whether a growing pot counts as "finalised" hasn't been confirmed with the VGCCC (see Open items).
 
 ## Race-week runbook
 
@@ -127,7 +143,15 @@ Each comp has 1–5 **pools** (`tribes`, one ticket per horse). Tickets are `swe
 - **After the Cup:**
   - Pull numbers: sweeps needing a second pool, organiser donations, member feeds.
   - Then decide on pool billing: pay-what-you-want with a floor, sold as a purchase, not a donation.
+    Any charge is paid by the organiser separately; it can never come out of a pot.
+- **Compliance:**
+  - Confirm with the VGCCC (or a lawyer) that a percentage-of-pot prize list meets "finalised before the sweep
+    commences". If not, the alternative is fixed dollar prizes set before the first sale.
+  - The cap is per sweep across all pools. If the VGCCC treats each pool as its own sweep, `prizeCapError` could
+    be relaxed to per pool.
 - **Known limits:**
   - Practice-race banter is money-free, but the demo's still says "$60" (correct for the demo).
   - Organisers can change a practice sweep's price before sales.
   - The member QR is hidden once results are in, within 30 minutes of the race, or when every pool is locked.
+  - The cap uses the maximum field (24) even when the real field is smaller, so it's slightly stricter than needed.
+  - Cap messages show amounts without a thousands separator (e.g. "$5040"); `fmtCents` is shared, so it was left alone.

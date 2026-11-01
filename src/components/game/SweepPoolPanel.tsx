@@ -8,6 +8,7 @@ import { SweepWheel } from '@/components/game/SweepWheel'
 import { PracticeRaceModal } from '@/components/game/PracticeRaceModal'
 import { ScriptedRaceModal, primeRaceAudio } from '@/components/game/ScriptedRaceModal'
 import { scriptForFinish } from '@/lib/sweep/demo-race-scripts'
+import { drawCallClips } from '@/lib/sweep/cup-calls'
 import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
@@ -332,7 +333,7 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
           <p className="text-center text-sm font-bold text-gray-900 mb-2">
             🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
           </p>
-          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} />
+          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} announce={drawCallClips} />
           {/* The 2-hour window: a soft deadline, so a calm line — amber only in the last 15 min. */}
           {sweep.my_spin_by && (() => {
             const left = new Date(sweep.my_spin_by).getTime() - now

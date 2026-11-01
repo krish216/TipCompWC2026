@@ -222,7 +222,7 @@ function AdminResultRow({ fixture, result, onSave, onClear, knockoutRounds }: {
 // ─── Admin Page ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { session, supabase } = useSupabase()
-  const { scoringConfig, selectedTournId, activeTournaments, flag, refreshTournaments } = useUserPrefs()
+  const { scoringConfig, selectedTournId, activeTournaments, flag, refreshTournaments, pickTournament } = useUserPrefs()
 
   const [activeTab,   setActiveTab]   = useState<AdminTab>('results')
 
@@ -279,6 +279,7 @@ export default function AdminPage() {
   // Tournament tab state
   const [tournLoading,    setTournLoading]    = useState(false)
   const [tournamentData,  setTournamentData]  = useState<any>(null)
+  const [allTourns,       setAllTourns]       = useState<{ id: string; name: string }[]>([])   // the header's picker
   const isSweepTourn = tournamentData?.format === 'sweep'
 
   // The hardcoded 'results' default (useState<AdminTab>('results') above) is wrong once the
@@ -345,6 +346,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!selectedTournId) return
     fetch('/api/tournaments').then(r => r.json()).then(d => {
+      setAllTourns((d.data ?? []).map((t: any) => ({ id: t.id, name: t.name })))
       const t = (d.data ?? []).find((t: any) => t.id === selectedTournId)
       if (t) setTournamentData(t)
     })
@@ -870,10 +872,17 @@ export default function AdminPage() {
           </div>
           <div>
             <h1 className="text-base font-bold text-gray-900 tracking-tight">Tournament Admin</h1>
-            <p className="text-[11px] text-gray-400">
-              {tournamentData?.name ?? 'Loading…'}
-              {tournamentData?.format !== 'sweep' && ` · ${totalEntered}/${totalFixtures} results entered`}
-            </p>
+            {/* Which tournament every setting below applies to — its own picker, since the app's
+                switcher hides the practice sweep and opening a practice sweep quietly selects it. */}
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <select value={selectedTournId ?? ''} onChange={e => e.target.value && pickTournament(e.target.value)}
+                aria-label="Tournament to manage"
+                className="text-xs font-semibold text-gray-800 border border-gray-300 rounded-md px-1.5 py-0.5 bg-white">
+                {!allTourns.some(t => t.id === selectedTournId) && <option value={selectedTournId ?? ''}>{tournamentData?.name ?? 'Loading…'}</option>}
+                {allTourns.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              {tournamentData && tournamentData.format !== 'sweep' && <span>{totalEntered}/{totalFixtures} results entered</span>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

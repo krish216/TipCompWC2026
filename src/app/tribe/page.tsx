@@ -15,6 +15,7 @@ import { PoolInviteCard } from '@/components/game/PoolInviteCard'
 import { AUTO_LOCK_BEFORE_MS } from '@/lib/sweep/organiser'
 import { PracticeRaceBar } from '@/components/game/PracticeRaceBar'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
+import { CupIntroButton } from '@/components/game/CupIntroButton'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { TipsterPopover } from '@/components/game/TipsterPopover'
@@ -1378,7 +1379,11 @@ export default function TribePage() {
           {(() => {
             const p = sweepPools?.find(x => x.race_start_at && !x.is_practice)
             return isSweep && p ? (
-              <RaceCountdown dark raceStartAt={p.race_start_at!} drawOpen={p.draw_open !== false} resultsIn={!!p.results_in} className="mb-2" />
+              <>
+                <RaceCountdown dark raceStartAt={p.race_start_at!} drawOpen={p.draw_open !== false} resultsIn={!!p.results_in} className="mb-2" />
+                {/* Vicky & Gordo's intro to the sweep — until the race is run. */}
+                {!p.results_in && <div className="flex justify-center mb-2"><CupIntroButton /></div>}
+              </>
             ) : null
           })()}
 

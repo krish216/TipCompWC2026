@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
+import { CupIntroButton } from '@/components/game/CupIntroButton'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
@@ -593,8 +594,12 @@ export default function SweepPage() {
         const next = realPools.filter(p => p.race_start_at)
           .sort((a, b) => a.race_start_at!.localeCompare(b.race_start_at!))[0]
         return next ? (
-          <RaceCountdown raceStartAt={next.race_start_at!} drawOpen={next.draw_open !== false} resultsIn={!!next.results_in}
-            resultsHref={`/tribe?comp_id=${next.comp_id}`} className="mb-5" />
+          <div className="mb-5">
+            <RaceCountdown raceStartAt={next.race_start_at!} drawOpen={next.draw_open !== false} resultsIn={!!next.results_in}
+              resultsHref={`/tribe?comp_id=${next.comp_id}`} />
+            {/* Vicky & Gordo's intro to the sweep (also on My Pool) — until the race is run. */}
+            {!next.results_in && <div className="mt-2 flex justify-center"><CupIntroButton light /></div>}
+          </div>
         ) : null
       })()}
 
