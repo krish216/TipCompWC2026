@@ -25,7 +25,7 @@
     "23": "Zakouma",
     "24": "Shockletz"
   },
-  "intro": 40.39,
+  "intro": 37.44,
   "practice": {
     "1": "Phar Lap",
     "2": "Makybe Diva",
@@ -40,6 +40,7 @@
     "11": "Light Fingers",
     "12": "Van Der Hum"
   },
+  "requestText": "Ka-ching! You've got a new ticket request.",
   "luck": 8,
   "luckText": [
     "Best of luck, mate!",

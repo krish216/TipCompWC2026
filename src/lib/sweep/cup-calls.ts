@@ -62,7 +62,7 @@ export function drawCallClip(h: { number: number; name: string }): string | null
   return null
 }
 
-// Gordo's sign-off after Vicky's call, on about half the spins — about your luck, never the
+// Gordo's sign-off after every Vicky call — about your luck, never the
 // horse's chances, so the same lines suit the real Cup, practice sweeps and the demo.
 export const GORDO_LUCK: string[] = [
   'Best of luck, mate!',
@@ -77,12 +77,16 @@ export const GORDO_LUCK: string[] = [
 export const GORDO_DIR = '/race-calls/gordo'
 export const luckClipName = (i: number) => `luck-${i + 1}`
 
-// What plays as the wheel lands: Vicky's call, and Gordo after it half the time.
+// What plays as the wheel lands: Vicky's call, then a random one of Gordo's.
 export function drawCallClips(h: { number: number; name: string }): string[] | null {
   const vicky = drawCallClip(h)
   if (!vicky) return null
   const n = (CALLS as Calls).luck ?? 0
-  return n && Math.random() < 0.5 ? [vicky, `${GORDO_DIR}/${luckClipName(Math.floor(Math.random() * n))}.mp3`] : [vicky]
+  return n ? [vicky, `${GORDO_DIR}/${luckClipName(Math.floor(Math.random() * n))}.mp3`] : [vicky]
 }
 
-export const cupIntroClip = (): string | null => ((CALLS as Calls).intro ? `${CUP_DIR}/intro.mp3` : null)
+// Vicky's heads-up to an organiser on sweep-admin when a ticket request comes in
+// (components/game/SweepApprovalModal.tsx), into public/race-calls/organiser/.
+export const REQUEST_CALL = "Ka-ching! You've got a new ticket request."
+
+export const cupIntroClip =(): string | null => ((CALLS as Calls).intro ? `${CUP_DIR}/intro.mp3` : null)

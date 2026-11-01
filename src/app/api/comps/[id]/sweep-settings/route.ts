@@ -80,10 +80,11 @@ async function authorize(admin: any, compId: string, userId: string) {
   if ((comp as any).created_by !== userId && !compAdminRow && !platformAdmin) {
     return { ok: false as const, status: 403, error: 'Forbidden' }
   }
+  // '*' so it still works before migration 210 adds sweep_voices.
   const { data: tourn } = await (admin.from('tournaments') as any)
-    .select('format').eq('id', (comp as any).tournament_id).maybeSingle()
+    .select('*').eq('id', (comp as any).tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') return { ok: false as const, status: 400, error: 'This comp is not a sweep' }
-  return { ok: true as const, tournamentId: (comp as any).tournament_id as string }
+  return { ok: true as const, tournamentId: (comp as any).tournament_id as string, voices: (tourn as any)?.sweep_voices !== false }
 }
 
 // GET /api/comps/:id/sweep-settings — the organiser's own settings for their sweep comp.
@@ -117,6 +118,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     // with sales — those buyers paid whatever the organiser asked; only CHANGING it locks.
     price_locked: (data as any)?.sweep_ticket_price_cents != null && sold,
     prizes_locked: sold,   // the prize split locks once anything's sold
+    voices: gate.voices,   // Vicky & Gordo on for this tournament (migration 210)
   })
 }
 

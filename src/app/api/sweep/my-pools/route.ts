@@ -64,7 +64,7 @@ export async function GET() {
 
   const tournIds = [...new Set(allTribes.map(t => t.tournament_id).filter(Boolean))]
   const { data: tourns } = await (admin.from('tournaments') as any)
-    .select('id, name, format, race_start_at, slug').in('id', tournIds)
+    .select('*').in('id', tournIds)   // '*' so it works before migration 210 (sweep_voices)
   const sweepTournIds = new Set(((tourns ?? []) as any[]).filter(t => t.format === 'sweep').map(t => t.id))
   const tournById = Object.fromEntries(((tourns ?? []) as any[]).map(t => [t.id, t]))
 
@@ -150,6 +150,7 @@ export async function GET() {
     results_in:       !!raceFinishes(horsesByTourn[t.tournament_id] ?? [], null),
     // Practice sweeps (migration 200) get their own card on /sweep, apart from real ones.
     is_practice:      tournById[t.tournament_id]?.slug === PRACTICE_SLUG,
+    voices:           tournById[t.tournament_id]?.sweep_voices !== false,   // Vicky & Gordo (migration 210)
     locked:           !!t.sweep_locked_at,
     is_comp_admin:    adminCompIdSet.has(t.comp_id),
     my_tickets:       ownTicketsByTribe[t.id]?.total ?? 0,

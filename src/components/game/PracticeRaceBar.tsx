@@ -11,7 +11,8 @@ type PoolStat = { id: string; name: string; tickets: number; claimed: number; ra
 // (/api/comps/:id/sweep/practice-race). Organisers only. Ready once at least one ticket is sold
 // and every ticket sold, in every pool, has a horse. `onRaced` refreshes the pool below.
 // `pills` — the sweep card's pool pills, laid out on the same line as the buttons.
-export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pills?: ReactNode; onRaced: (ran: boolean) => void }) {
+// `voices` false (migration 210) → no sound is primed; the pool plays the plain animation.
+export function PracticeRaceBar({ compId, pills, voices = true, onRaced }: { compId: string; pills?: ReactNode; voices?: boolean; onRaced: (ran: boolean) => void }) {
   const [pools, setPools] = useState<PoolStat[] | null>(null)
   const [racing, setRacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +29,7 @@ export function PracticeRaceBar({ compId, pills, onRaced }: { compId: string; pi
     // A run picks one of the voiced races and unlocks its sound here, inside the tap — phones
     // won't play it later otherwise. The pool below plays it once the result is in.
     const script = method === 'POST' ? pickScript(lastScript.current) : null
-    if (script) { primeRaceAudio(script, { intro: false, practice: true }); lastScript.current = script.id }
+    if (script) { if (voices) primeRaceAudio(script, { intro: false, practice: true }); lastScript.current = script.id }
     const res = await fetch(`/api/comps/${compId}/sweep/practice-race`, {
       method, ...(script && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script_id: script.id }) }),
     }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))

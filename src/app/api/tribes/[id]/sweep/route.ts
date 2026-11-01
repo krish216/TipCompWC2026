@@ -35,8 +35,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   ])
   if (!membership && !isAdmin) return NextResponse.json({ error: "You're not in this pool." }, { status: 403 })
 
+  // '*' rather than a list, so it still works before migration 210 adds sweep_voices.
   const { data: tourn } = await (admin.from('tournaments') as any)
-    .select('format, race_start_at, slug').eq('id', tribe.tournament_id).maybeSingle()
+    .select('*').eq('id', tribe.tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') {
     return NextResponse.json({ error: 'This pool is not a sweep' }, { status: 400 })
   }
@@ -176,6 +177,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     comp_id:         tribe.comp_id,
     is_practice:     isPractice,
+    voices:          (tourn as any)?.sweep_voices !== false,   // Vicky & Gordo (migration 210)
     ticket_price_cents: price,
     prizes,
     field_size:      field.capacity,

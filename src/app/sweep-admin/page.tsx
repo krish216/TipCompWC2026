@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import QRCode from 'qrcode'
@@ -13,6 +13,7 @@ import { PRIZE_PRESETS, fmtCents, isValidSplit, maxPayoutCents, prizeCapError, t
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 import { DRAW_GRACE_HOURS, fmtLeft } from '@/lib/sweep/grace'
+import { SweepApprovalModal, playRequestCall, useApprovalPrefs, type PendingRequest } from '@/components/game/SweepApprovalModal'
 
 type Tab = 'sell' | 'requests' | 'allocation' | 'pools' | 'settings'
 const TABS: { id: Tab; icon: string; label: string }[] = [
@@ -113,6 +114,12 @@ export default function SweepAdminPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [requests, setRequests] = useState<RequestRow[]>([])
   const [owingOnly, setOwingOnly] = useState(true)
+  // Pending requests for the approvals pop-up, re-checked while the page is open.
+  const [pending, setPending] = useState<PendingRequest[]>([])
+  const [showApprovals, setShowApprovals] = useState(false)
+  const seenPending = useRef<Set<string> | null>(null)   // null until the first load
+  const approvalPrefs = useApprovalPrefs()
+  const [voices, setVoices] = useState(true)   // Vicky & Gordo on for the tournament (migration 210)
   const [pools, setPools] = useState<Pool[]>([])
   const [allocTribeId, setAllocTribeId] = useState('')
   const [allocSweep, setAllocSweep] = useState<any | null>(null)   // GET /api/tribes/:id/sweep for the picked pool
@@ -179,6 +186,7 @@ export default function SweepAdminPage() {
     if (res.data) setSettings(res.data)
     setPriceLocked(!!res.price_locked)
     setPrizesLocked(!!res.prizes_locked)
+    setVoices(res.voices !== false)
     resetPrizeInputs(res.data)
     setMinMaxTribes(res.min_max_tribes ?? 1)
     setBilling(res.billing ?? null)
@@ -232,6 +240,35 @@ export default function SweepAdminPage() {
   }, [compId])
 
   useEffect(() => { if (compId) loadRequests(compId, owingOnly) }, [owingOnly])
+
+  // The backlog pops up on arrival; after that, only a request that's new since the last
+  // check reopens it (and plays Vicky's call, if that's on). Checks pause in a hidden tab.
+  async function loadPending(id: string) {
+    const res = await fetch(`/api/comps/${id}/sweep/requests?status=pending`).then(r => r.json()).catch(() => null)
+    if (!res?.data) return
+    const rows = res.data as PendingRequest[]
+    const first = seenPending.current === null
+    const fresh = rows.filter(r => !seenPending.current?.has(r.id))
+    seenPending.current = new Set(rows.map(r => r.id))
+    setPending(rows)
+    if (!rows.length) { setShowApprovals(false); return }
+    if (!fresh.length) return
+    if (latest.current.popup) setShowApprovals(true)
+    if (!first) {
+      if (latest.current.sound) playRequestCall()
+      loadRequests(id, latest.current.owingOnly)
+    }
+  }
+  // The interval's closure is from the first render — it reads the switches through this.
+  const latest = useRef({ popup: true, sound: false, owingOnly })
+  latest.current = { popup: approvalPrefs.popup, sound: approvalPrefs.sound && voices, owingOnly }
+  useEffect(() => {
+    if (!compId) return
+    seenPending.current = null
+    loadPending(compId)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') loadPending(compId) }, 20_000)
+    return () => clearInterval(t)
+  }, [compId])
 
   useEffect(() => {
     if (!poolsPaid || !compId) return
@@ -425,6 +462,7 @@ export default function SweepAdminPage() {
     if (res.error) { setError(res.error); return }
     await loadRequests(compId, owingOnly)
     await loadPools(compId)
+    await loadPending(compId)
   }
 
   async function closePool(tribeId: string) {
@@ -533,11 +571,21 @@ export default function SweepAdminPage() {
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">{error}</div>}
 
+      {showApprovals && pending.length > 0 && (
+        <SweepApprovalModal requests={pending}
+          onAct={(r, action) => act(r.tribe_id, r.id, action)}
+          onClose={() => setShowApprovals(false)}
+          onPopupOff={() => { approvalPrefs.setPopup(false); setShowApprovals(false) }} />
+      )}
+
       <div className="flex gap-1 overflow-x-auto bg-sky-50 border border-sky-200 rounded-2xl p-1 mb-6">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 whitespace-nowrap text-xs font-bold px-3 py-2 rounded-xl ${activeTab === t.id ? 'bg-white ring-1 ring-sky-200 text-gray-900' : 'text-gray-500'}`}>
             {t.icon} {t.label}
+            {t.id === 'requests' && pending.length > 0 && (
+              <span className="ml-1 px-1.5 rounded-full bg-amber-400 text-amber-950 text-[10px] align-middle">{pending.length}</span>
+            )}
             {t.id === 'settings' && settingsDirty && (
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 align-middle" title="Unsaved changes" />
             )}
@@ -665,10 +713,26 @@ export default function SweepAdminPage() {
 
       {activeTab === 'requests' && (
         <div>
-          <label className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-            <input type="checkbox" checked={owingOnly} onChange={e => setOwingOnly(e.target.checked)} />
-            Show only pending / owing
-          </label>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500 mb-2">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={owingOnly} onChange={e => setOwingOnly(e.target.checked)} />
+              Show only pending / owing
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={approvalPrefs.popup} onChange={e => approvalPrefs.setPopup(e.target.checked)} />
+              Pop up new requests
+            </label>
+            {voices && (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={approvalPrefs.sound}
+                  onChange={e => { approvalPrefs.setSound(e.target.checked); if (e.target.checked) playRequestCall() }} />
+                🔊 Vicky calls new requests
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Approving gives the buyer their tickets <strong className="text-gray-700">and marks them as paid</strong>, so approve once the money&apos;s with you.
+          </p>
           <div className="space-y-2">
             {requests.map(r => (
               <div key={r.id} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">

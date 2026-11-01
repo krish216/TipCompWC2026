@@ -519,7 +519,7 @@ export default function AdminPage() {
   // Sweeps only: "Draw open" (migration 201) — tickets sell before the field is known, but
   // nobody spins until this is on. Turning it on the first time emails + notifies every
   // ticket holder ("the field's in — spin for your horse"), so confirm with the head count.
-  const [sweepDraw, setSweepDraw] = useState<{ draw_open: boolean; reminder_sent_at: string | null; nudge_sent_at: string | null; waiting: { people: number; tickets: number } } | null>(null)
+  const [sweepDraw, setSweepDraw] = useState<{ draw_open: boolean; voices: boolean; reminder_sent_at: string | null; nudge_sent_at: string | null; waiting: { people: number; tickets: number } } | null>(null)
   const [savingSweepDraw, setSavingSweepDraw] = useState(false)
   useEffect(() => {
     setSweepDraw(null)
@@ -546,6 +546,22 @@ export default function AdminPage() {
     if (res.error) { toast.error(res.error); return }
     setSweepDraw(d => d ? { ...d, draw_open: open, reminder_sent_at: res.reminded ? new Date().toISOString() : d.reminder_sent_at } : d)
     toast.success(open ? (res.reminded ? `Draw open — reminded ${res.reminded.people} ticket holder${res.reminded.people === 1 ? '' : 's'}` : 'Draw open') : 'Draw closed')
+  }
+
+  // Vicky & Gordo on/off for the whole tournament (migration 210) — no emails, so no confirm.
+  const [savingVoices, setSavingVoices] = useState(false)
+  const handleVoicesToggle = async () => {
+    if (!tournamentData || !sweepDraw) return
+    const voices = !sweepDraw.voices
+    setSavingVoices(true)
+    const res = await fetch('/api/admin/sweep-draw', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: tournamentData.id, voices }),
+    }).then(r => r.json()).catch(() => ({ error: 'Failed' }))
+    setSavingVoices(false)
+    if (res.error) { toast.error(res.error); return }
+    setSweepDraw(d => d ? { ...d, voices } : d)
+    toast.success(voices ? 'Vicky & Gordo on' : 'Vicky & Gordo off')
   }
 
   const handleStatusChange = async (next: string) => {
@@ -1285,6 +1301,25 @@ export default function AdminPage() {
                         ? `Spinning is on.${sweepDraw.reminder_sent_at ? ` "Spin now" reminder sent ${new Date(sweepDraw.reminder_sent_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : ''}`
                         : `Tickets sell (up to 24 a pool) but nobody spins. Load the final field, then open it — ${sweepDraw.waiting.people} holder${sweepDraw.waiting.people === 1 ? '' : 's'} will be reminded.`}
                       {sweepDraw.nudge_sent_at && ` Race-morning nudge sent.`}
+                    </p>
+                  </div>
+                )}
+                {tournamentData.format === 'sweep' && sweepDraw && (
+                  <div className="py-1.5 border-b border-gray-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 font-medium">Vicky &amp; Gordo</span>
+                      <div className="flex items-center gap-2">
+                        {savingVoices && <Spinner className="w-3 h-3" />}
+                        <button onClick={handleVoicesToggle} disabled={savingVoices}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-50 ${sweepDraw.voices ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
+                          {sweepDraw.voices ? 'On' : 'Off — tap to turn on'}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {sweepDraw.voices
+                        ? 'Draw calls, Gordo’s good-luck line, the sweep intro, the voiced practice race and the new-request call.'
+                        : 'All silent: the wheel lands without a call, no intro button, and practice races run as the plain animation.'}
                     </p>
                   </div>
                 )}

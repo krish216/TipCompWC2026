@@ -61,6 +61,7 @@ type SweepState = {
   field_size: number
   tickets_left: number        // capacity less granted tickets and pending requests
   draw_open: boolean         // false → selling before the field is known: no spinning yet (migration 201)
+  voices?: boolean           // false → Vicky & Gordo off for the tournament (migration 210)
   draw_opens_label: string
   my_over_field: number       // my tickets with no horse after a short final field — refunded
   my_spin_by: string | null   // spin by then, or the organiser may draw for you (lib/sweep/grace.ts)
@@ -301,8 +302,9 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
 
   const raceRun = sweep.race_run
   // A practice race run to one of the voiced scripts (PracticeRaceBar picks one) plays called;
-  // any other result — older races, a different field — gets the plain animation.
-  const finishOrder = sweep.is_practice && sweep.finish_by_horse ? sweep.horses
+  // any other result — older races, a different field, voices switched off — gets the plain animation.
+  const voices = sweep.voices !== false
+  const finishOrder = voices && sweep.is_practice && sweep.finish_by_horse ? sweep.horses
     .filter(h => !h.scratched && sweep.finish_by_horse![h.id] != null)
     .sort((a, b) => sweep.finish_by_horse![a.id]! - sweep.finish_by_horse![b.id]!)
     .map(h => h.number) : []
@@ -333,7 +335,7 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
           <p className="text-center text-sm font-bold text-gray-900 mb-2">
             🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
           </p>
-          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} announce={drawCallClips} />
+          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} announce={voices ? drawCallClips : undefined} />
           {/* The 2-hour window: a soft deadline, so a calm line — amber only in the last 15 min. */}
           {sweep.my_spin_by && (() => {
             const left = new Date(sweep.my_spin_by).getTime() - now
