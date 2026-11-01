@@ -129,6 +129,12 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
   const [confirmDrawFor, setConfirmDrawFor] = useState<string | null>(null)   // organiser "draw for them"
   const [drawingFor, setDrawingFor] = useState<string | null>(null)
   const [justDrawnId, setJustDrawnId] = useState<string | null>(null)   // highlight in Your horses
+  // The wheel holds its result (and Vicky & Gordo play out) until the holder taps on, like the
+  // /melbourne-cup/race demo — the refresh after a draw no longer re-keys or unmounts it.
+  // `slots` is frozen at the draw so the landed wheel doesn't redraw under the pointer.
+  // `synced` once the refresh after the draw has landed (until then my_unclaimed still counts it).
+  const [held, setHeld] = useState<{ slots: number; synced: boolean } | null>(null)
+  const [wheelKey, setWheelKey] = useState(0)
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [remindingId, setRemindingId] = useState<string | null>(null)
@@ -228,12 +234,15 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
   async function handleDraw() {
     const res = await fetch(`/api/tribes/${tribeId}/sweep/pick`, { method: 'POST' }).then(r => r.json())
     if (res.error) return { ok: false, error: res.error }
-    // Let the wheel settle onto the horse (~600ms) before celebrating, and refresh only after
-    // — refreshing at once re-keyed the wheel mid-settle, so the result never showed.
+    setHeld({ slots: sweep!.available_count, synced: false })
+    // Let the wheel settle onto the horse (~600ms) before celebrating.
     setTimeout(() => {
       try { confetti({ particleCount: 140, spread: 85, origin: { y: 0.35 }, colors: ['#22d3ee', '#e879f9', '#a78bfa', '#fbbf24', '#ffffff'] }) } catch {}
     }, 650)
-    setTimeout(async () => { await load(); setJustDrawnId((res.horse as Horse).id) }, 2600)
+    setTimeout(async () => {
+      await load(); setJustDrawnId((res.horse as Horse).id)
+      setHeld(h => h && { ...h, synced: true })
+    }, 2600)
     return { ok: true, horse: res.horse as Horse }
   }
 
@@ -331,14 +340,30 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
             The draw opens {sweep.draw_opens_label}, once the final field is declared. We'll email you the moment you can spin for your horse.
           </p>
         </div>
-      ) : sweep.my_unclaimed > 0 && (
+      ) : (sweep.my_unclaimed > 0 || held) && (() => {
+        const picksLeft = sweep.my_unclaimed - (held && !held.synced ? 1 : 0)
+        return (
         <div className="mb-5">
           <p className="text-center text-sm font-bold text-gray-900 mb-2">
-            🎡 {sweep.my_unclaimed} pick{sweep.my_unclaimed === 1 ? '' : 's'} left to spin for
+            {held
+              ? (picksLeft > 0 ? `🎡 ${picksLeft} more pick${picksLeft === 1 ? '' : 's'} to spin for` : '🎉 All your picks are drawn')
+              : `🎡 ${picksLeft} pick${picksLeft === 1 ? '' : 's'} left to spin for`}
           </p>
-          <SweepWheel key={sweep.my_unclaimed} slots={sweep.available_count} onDraw={handleDraw} announce={voices.draw_calls || voices.gordo_luck ? h => drawCallClips(h, { vicky: voices.draw_calls, gordo: voices.gordo_luck }) : undefined} />
+          {/* Next step on the wheel's hub, like the demo: another spin, or done. */}
+          <SweepWheel key={wheelKey} slots={held?.slots ?? sweep.available_count} onDraw={handleDraw}
+            announce={voices.draw_calls || voices.gordo_luck ? h => drawCallClips(h, { vicky: voices.draw_calls, gordo: voices.gordo_luck }) : undefined}
+            resultAction={{
+              label: picksLeft > 0 ? '🎡 Spin again' : '✓ Done',
+              onClick: () => { setHeld(null); setWheelKey(k => k + 1) },
+            }} />
+          {held?.synced && picksLeft > 0 && (
+            <button onClick={() => { setHeld(null); setWheelKey(k => k + 1) }}
+              className="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-black py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25">
+              🎡 Spin for your next horse
+            </button>
+          )}
           {/* The 2-hour window: a soft deadline, so a calm line — amber only in the last 15 min. */}
-          {sweep.my_spin_by && (() => {
+          {sweep.my_spin_by && picksLeft > 0 && (() => {
             const left = new Date(sweep.my_spin_by).getTime() - now
             return (
               <p className={`text-center text-xs mt-3 ${left <= 0 ? 'text-gray-500' : left <= 15 * 60_000 ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>
@@ -348,13 +373,14 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
               </p>
             )
           })()}
-          {sweep.auto_draw_at && (
+          {sweep.auto_draw_at && picksLeft > 0 && (
             <p className="text-center text-[11px] text-gray-400 mt-1">
               Any ticket still unspun is drawn automatically at {fmtWhen(new Date(sweep.auto_draw_at))}.
             </p>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* What happens next, for each request still waiting — the confirmation that it went
           through, and the steps that are now the buyer's (pay, attach a receipt) or the

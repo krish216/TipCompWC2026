@@ -43,11 +43,13 @@ export function playRequestCall() {
   new Audio(REQUEST_CALL_CLIP).play().catch(() => {})
 }
 
+// `onPopupOff` only where it pops up by itself (sweep-admin) — /sweep's "N to approve" pill
+// opens it on a tap, so there's nothing to switch off there.
 export function SweepApprovalModal({ requests, onAct, onClose, onPopupOff }: {
   requests: PendingRequest[]
   onAct: (r: PendingRequest, action: 'approve' | 'reject') => Promise<void>
   onClose: () => void
-  onPopupOff: () => void
+  onPopupOff?: () => void
 }) {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -96,7 +98,7 @@ export function SweepApprovalModal({ requests, onAct, onClose, onPopupOff }: {
         </div>
         <div className="flex items-center justify-between mt-3 text-xs">
           <button onClick={onClose} className="font-semibold text-gray-500 hover:text-gray-800">Later</button>
-          <button onClick={onPopupOff} className="text-gray-400 hover:text-gray-700 underline">Don&apos;t pop these up</button>
+          {onPopupOff && <button onClick={onPopupOff} className="text-gray-400 hover:text-gray-700 underline">Don&apos;t pop these up</button>}
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
 import { PRIZE_PRESETS } from '@/lib/sweep/prizes'
+import { SweepApprovalModal, type PendingRequest } from '@/components/game/SweepApprovalModal'
 
 type Tournament = { id: string; name: string; race_date: string; enrollment_open?: boolean }
 type MyTribe = {
@@ -99,6 +100,31 @@ export default function SweepPage() {
   const [invites, setInvites]   = useState<PendingInvite[]>([])
   const [inviteBusy, setInviteBusy] = useState<string | null>(null)   // invitation_id being joined/declined
   const [startingPractice, setStartingPractice] = useState(false)
+  // The "N to approve" pill opens the approval pop-up here, rather than sending the organiser
+  // off to sweep-admin — the same pop-up and API sweep-admin uses.
+  const [approving, setApproving] = useState<{ compId: string; requests: PendingRequest[] } | null>(null)
+  const [approveBusy, setApproveBusy] = useState<string | null>(null)   // comp_id whose requests are loading
+
+  async function openApprovals(compId: string) {
+    setApproveBusy(compId)
+    const res = await fetch(`/api/comps/${compId}/sweep/requests?status=pending`).then(r => r.json()).catch(() => null)
+    setApproveBusy(null)
+    // Couldn't load them → the Requests tab, as before.
+    if (!res?.data) { router.push(`/sweep-admin?comp_id=${compId}&tab=requests`); return }
+    if (res.data.length) setApproving({ compId, requests: res.data })
+    else loadContext()   // already dealt with elsewhere — refresh the stale count
+  }
+
+  async function actOnRequest(r: PendingRequest, action: 'approve' | 'reject') {
+    if (!approving) return
+    const res = await fetch(`/api/tribes/${r.tribe_id}/sweep/requests/${r.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+    }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
+    if (res.error) { setError(res.error); setApproving(null); return }
+    const left = approving.requests.filter(x => x.id !== r.id)
+    setApproving(left.length ? { ...approving, requests: left } : null)
+    loadContext()   // the pill's count and the pool pills
+  }
 
   async function loadContext() {
     const qs = code ? `?code=${encodeURIComponent(code)}` : compIdParam ? `?comp_id=${encodeURIComponent(compIdParam)}` : ''
@@ -303,10 +329,10 @@ export default function SweepPage() {
         {g.is_comp_admin ? (
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
             {g.pending_requests > 0 && (
-              <Link href={`/sweep-admin?comp_id=${g.comp_id}&tab=requests`} onClick={e => e.stopPropagation()}
-                className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 whitespace-nowrap">
-                {g.pending_requests} to approve
-              </Link>
+              <button onClick={e => { e.stopPropagation(); openApprovals(g.comp_id) }} disabled={approveBusy === g.comp_id}
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-60 whitespace-nowrap">
+                {approveBusy === g.comp_id ? 'Opening…' : `${g.pending_requests} to approve`}
+              </button>
             )}
             {/* Sold out with room for another pool — the next person who asks has nowhere to go. */}
             {g.can_add_pool && (
@@ -341,6 +367,11 @@ export default function SweepPage() {
         </div>
       )}
     </div>
+  )
+
+  // Rendered by both the My Sweeps list and the browse screen — practice sweeps show on each.
+  const approvalModal = approving && (
+    <SweepApprovalModal requests={approving.requests} onAct={actOnRequest} onClose={() => setApproving(null)} />
   )
 
   const practiceCard = (
@@ -566,6 +597,7 @@ export default function SweepPage() {
         <div className="mt-5">{practiceCard}</div>
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {approvalModal}
 
         <p className="mt-4 text-center text-xs">
           <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>
@@ -620,6 +652,7 @@ export default function SweepPage() {
       {practiceCard}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {approvalModal}
       <p className="mt-2 text-center text-xs">
         <Link href="/rules/melbourne-cup-2026" className="text-gray-400 hover:text-gray-600 underline">How the sweep works · rules</Link>
       </p>

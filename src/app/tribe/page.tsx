@@ -1174,10 +1174,12 @@ export default function TribePage() {
       const pools = ((res.data ?? []) as SweepPoolRow[]).filter(p => p.comp_id === sweepCompId)
       setSweepPools(pools)
       // First open: land where there's something to do — tickets to spin, then a pool still
-      // selling, then the pool last selected. A later refresh keeps whatever's selected.
+      // selling, then a pool you hold a horse in, then the pool last selected. A later refresh
+      // keeps whatever's selected.
       const firstPool =
         pools.find(p => p.my_unclaimed > 0) ??
         pools.find(p => !isPoolFull(p)) ??
+        pools.find(p => p.my_tickets > 0) ??
         pools.find(p => p.tribe_id === tribe?.id)
       setSelectedPoolId(prev => (prev && pools.some(p => p.tribe_id === prev)) ? prev : (firstPool?.tribe_id ?? tribe?.id ?? pools[0]?.tribe_id ?? ''))
     })
