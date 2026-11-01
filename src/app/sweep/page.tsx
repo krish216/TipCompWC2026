@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { CupIntroButton } from '@/components/game/CupIntroButton'
+import type { Voices } from '@/lib/sweep/voices'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
 import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import { Spinner } from '@/components/ui'
@@ -37,7 +38,7 @@ type Pool = {
   comp_pools: PoolPill[]; comp_pending_requests: number
   is_practice?: boolean   // practice sweeps (migration 200) — listed in their own card
   draw_open?: boolean; results_in?: boolean   // for the race countdown
-  voices?: boolean   // Vicky & Gordo on for the tournament (migration 210)
+  voices?: Voices   // which of Vicky & Gordo are on for the tournament (migrations 210, 211)
   can_add_pool?: boolean   // organiser, every pool sold out, room for another (my-pools)
 }
 // One row per SWEEP (comp), not per pool — the pool-level detail (which pools, which one has
@@ -599,7 +600,7 @@ export default function SweepPage() {
             <RaceCountdown raceStartAt={next.race_start_at!} drawOpen={next.draw_open !== false} resultsIn={!!next.results_in}
               resultsHref={`/tribe?comp_id=${next.comp_id}`} />
             {/* Vicky & Gordo's intro to the sweep (also on My Pool) — until the race is run. */}
-            {!next.results_in && next.voices !== false && <div className="mt-2 flex justify-center"><CupIntroButton light /></div>}
+            {!next.results_in && next.voices?.intro !== false && <div className="mt-2 flex justify-center"><CupIntroButton light /></div>}
           </div>
         ) : null
       })()}

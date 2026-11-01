@@ -3,18 +3,20 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { sendDrawReminders } from '@/lib/sweep/draw-reminders'
 import { drawPendingAutoDraws } from '@/lib/sweep/draw'
+import { VOICE_PARTS, voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
 
 // /api/admin/sweep-draw — platform admin only. The "Draw open" switch for a sweep tournament
 // (migration 201): while it's off, tickets sell but nobody can spin.
 //
-// GET  ?tournament_id=  → { draw_open, voices, reminder_sent_at, nudge_sent_at, waiting: { people, tickets } }
+// GET  ?tournament_id=  → { draw_open, voices, voice_parts, reminder_sent_at, nudge_sent_at, waiting: { people, tickets } }
 //      (waiting = who the "field's in" reminder would reach right now — a dry run, nothing sent)
 // POST { tournament_id, open } → flips the switch. Opening it the FIRST time also sends the
 //      "spin for your horse" email + notification to every ticket holder; reopening after a
 //      close never re-sends (sweep_draw_reminder_sent_at).
 // POST { tournament_id, voices } → Vicky & Gordo on/off for the tournament (migration 210).
+// POST { tournament_id, voice_part, on } → one part on/off under it (migration 211).
 async function gate() {
   const user = await getSessionUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -38,7 +40,8 @@ export async function GET(req: NextRequest) {
   if (!t) return NextResponse.json({ error: 'Sweep tournament not found' }, { status: 404 })
   return NextResponse.json({
     draw_open: t.sweep_draw_open !== false,
-    voices: t.sweep_voices !== false,
+    voices: t.sweep_voices !== false,   // the master switch
+    voice_parts: voicesFor({ sweep_voice_parts: t.sweep_voice_parts }),   // each part, ignoring the master
     reminder_sent_at: t.sweep_draw_reminder_sent_at,
     nudge_sent_at: t.sweep_draw_nudge_sent_at,
     waiting: await sendDrawReminders(g.admin, t.id, 'open', { dryRun: true }),
@@ -56,6 +59,13 @@ export async function POST(req: NextRequest) {
     const { error } = await (g.admin.from('tournaments') as any).update({ sweep_voices: body.voices }).eq('id', t.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, voices: body.voices })
+  }
+  if (typeof body?.voice_part === 'string' && typeof body?.on === 'boolean') {
+    if (!VOICE_PARTS.some(p => p.key === body.voice_part)) return NextResponse.json({ error: 'Unknown voice part' }, { status: 400 })
+    const parts = { ...((t as any).sweep_voice_parts ?? {}), [body.voice_part]: body.on }
+    const { error } = await (g.admin.from('tournaments') as any).update({ sweep_voice_parts: parts }).eq('id', t.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, voice_parts: voicesFor({ sweep_voice_parts: parts }) })
   }
 
   const open = !!body?.open

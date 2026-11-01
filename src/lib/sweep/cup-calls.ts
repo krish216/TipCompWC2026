@@ -77,12 +77,18 @@ export const GORDO_LUCK: string[] = [
 export const GORDO_DIR = '/race-calls/gordo'
 export const luckClipName = (i: number) => `luck-${i + 1}`
 
-// What plays as the wheel lands: Vicky's call, then a random one of Gordo's.
-export function drawCallClips(h: { number: number; name: string }): string[] | null {
-  const vicky = drawCallClip(h)
-  if (!vicky) return null
+// What plays as the wheel lands: Vicky's call, then a random one of Gordo's — either can be
+// switched off for the tournament (lib/sweep/voices.ts). Gordo only follows a horse Vicky has
+// a call for, so a horse without one stays silent either way.
+export function drawCallClips(h: { number: number; name: string }, { vicky = true, gordo = true } = {}): string[] | null {
+  const call = drawCallClip(h)
+  if (!call) return null
   const n = (CALLS as Calls).luck ?? 0
-  return n ? [vicky, `${GORDO_DIR}/${luckClipName(Math.floor(Math.random() * n))}.mp3`] : [vicky]
+  const clips = [
+    ...(vicky ? [call] : []),
+    ...(gordo && n ? [`${GORDO_DIR}/${luckClipName(Math.floor(Math.random() * n))}.mp3`] : []),
+  ]
+  return clips.length ? clips : null
 }
 
 // Vicky's heads-up to an organiser on sweep-admin when a ticket request comes in

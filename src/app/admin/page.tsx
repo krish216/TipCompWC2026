@@ -11,6 +11,7 @@ import { useUserPrefs } from '@/components/layout/UserPrefsContext'
 import toast from 'react-hot-toast'
 import { SCORED_SLOTS } from '@/lib/bracket-scoring'
 import { SweepEoiQrButton } from '@/components/game/SweepEoiQrButton'
+import { VOICE_PARTS, type VoicePart, type Voices } from '@/lib/sweep/voices'
 
 const SIM_ROUND_DEFS: { round: string; label: string }[] = [
   { round: 'r32', label: 'Round of 32' }, { round: 'r16', label: 'Round of 16' },
@@ -519,7 +520,7 @@ export default function AdminPage() {
   // Sweeps only: "Draw open" (migration 201) — tickets sell before the field is known, but
   // nobody spins until this is on. Turning it on the first time emails + notifies every
   // ticket holder ("the field's in — spin for your horse"), so confirm with the head count.
-  const [sweepDraw, setSweepDraw] = useState<{ draw_open: boolean; voices: boolean; reminder_sent_at: string | null; nudge_sent_at: string | null; waiting: { people: number; tickets: number } } | null>(null)
+  const [sweepDraw, setSweepDraw] = useState<{ draw_open: boolean; voices: boolean; voice_parts?: Voices; reminder_sent_at: string | null; nudge_sent_at: string | null; waiting: { people: number; tickets: number } } | null>(null)
   const [savingSweepDraw, setSavingSweepDraw] = useState(false)
   useEffect(() => {
     setSweepDraw(null)
@@ -548,20 +549,33 @@ export default function AdminPage() {
     toast.success(open ? (res.reminded ? `Draw open — reminded ${res.reminded.people} ticket holder${res.reminded.people === 1 ? '' : 's'}` : 'Draw open') : 'Draw closed')
   }
 
-  // Vicky & Gordo on/off for the whole tournament (migration 210) — no emails, so no confirm.
-  const [savingVoices, setSavingVoices] = useState(false)
+  // Vicky & Gordo for the whole tournament: the master switch (migration 210) and each part
+  // under it (migration 211, lib/sweep/voices.ts). No emails go out, so no confirm.
+  const [savingVoices, setSavingVoices] = useState<'master' | VoicePart | null>(null)
   const handleVoicesToggle = async () => {
     if (!tournamentData || !sweepDraw) return
     const voices = !sweepDraw.voices
-    setSavingVoices(true)
+    setSavingVoices('master')
     const res = await fetch('/api/admin/sweep-draw', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tournament_id: tournamentData.id, voices }),
     }).then(r => r.json()).catch(() => ({ error: 'Failed' }))
-    setSavingVoices(false)
+    setSavingVoices(null)
     if (res.error) { toast.error(res.error); return }
     setSweepDraw(d => d ? { ...d, voices } : d)
     toast.success(voices ? 'Vicky & Gordo on' : 'Vicky & Gordo off')
+  }
+  const handleVoicePartToggle = async (part: VoicePart, on: boolean) => {
+    if (!tournamentData || !sweepDraw) return
+    setSavingVoices(part)
+    const res = await fetch('/api/admin/sweep-draw', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tournament_id: tournamentData.id, voice_part: part, on }),
+    }).then(r => r.json()).catch(() => ({ error: 'Failed' }))
+    setSavingVoices(null)
+    if (res.error) { toast.error(res.error); return }
+    setSweepDraw(d => d ? { ...d, voice_parts: res.voice_parts } : d)
+    toast.success(`${VOICE_PARTS.find(p => p.key === part)!.label} ${on ? 'on' : 'off'}`)
   }
 
   const handleStatusChange = async (next: string) => {
@@ -1305,22 +1319,41 @@ export default function AdminPage() {
                   </div>
                 )}
                 {tournamentData.format === 'sweep' && sweepDraw && (
-                  <div className="py-1.5 border-b border-gray-50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 font-medium">Vicky &amp; Gordo</span>
+                  <div className="my-2 border border-emerald-100 bg-emerald-50/40 rounded-xl p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-gray-900">🎙️ Vicky &amp; Gordo</span>
                       <div className="flex items-center gap-2">
-                        {savingVoices && <Spinner className="w-3 h-3" />}
-                        <button onClick={handleVoicesToggle} disabled={savingVoices}
+                        {savingVoices === 'master' && <Spinner className="w-3 h-3" />}
+                        <button onClick={handleVoicesToggle} disabled={!!savingVoices}
                           className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-50 ${sweepDraw.voices ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-600'}`}>
-                          {sweepDraw.voices ? 'On' : 'Off — tap to turn on'}
+                          {sweepDraw.voices ? 'All on' : 'All off — tap to turn on'}
                         </button>
                       </div>
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      {sweepDraw.voices
-                        ? 'Draw calls, Gordo’s good-luck line, the sweep intro, the voiced practice race and the new-request call.'
-                        : 'All silent: the wheel lands without a call, no intro button, and practice races run as the plain animation.'}
+                    <p className="text-[11px] text-gray-400 mt-1 mb-2">
+                      {sweepDraw.voices ? 'Switch single parts off below.' : 'Every part below is silent while this is off.'}
                     </p>
+                    <ul className="divide-y divide-emerald-100/70">
+                      {VOICE_PARTS.map(p => {
+                        const on = sweepDraw.voice_parts?.[p.key] !== false
+                        return (
+                          <li key={p.key} className={`flex items-center justify-between gap-3 py-1.5 ${sweepDraw.voices ? '' : 'opacity-50'}`}>
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold text-gray-700">{p.label}</span>
+                              <span className="block text-[11px] text-gray-400">{p.note}</span>
+                            </span>
+                            <span className="flex items-center gap-2 flex-shrink-0">
+                              {savingVoices === p.key && <Spinner className="w-3 h-3" />}
+                              <button onClick={() => handleVoicePartToggle(p.key, !on)} disabled={!!savingVoices || !sweepDraw.voices}
+                                aria-pressed={on} aria-label={`${p.label}: ${on ? 'on' : 'off'}`}
+                                className={`text-[11px] font-bold px-2 py-0.5 rounded-md disabled:cursor-not-allowed ${on ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-500'}`}>
+                                {on ? 'On' : 'Off'}
+                              </button>
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </div>
                 )}
                 {[

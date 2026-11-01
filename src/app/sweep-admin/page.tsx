@@ -13,7 +13,8 @@ import { PRIZE_PRESETS, fmtCents, isValidSplit, maxPayoutCents, prizeCapError, t
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
 import { DRAW_GRACE_HOURS, fmtLeft } from '@/lib/sweep/grace'
-import { SweepApprovalModal, playRequestCall, useApprovalPrefs, type PendingRequest } from '@/components/game/SweepApprovalModal'
+import { SweepInviteCard } from '@/components/game/SweepInviteCard'
+import { SweepApprovalModal,playRequestCall, useApprovalPrefs, type PendingRequest } from '@/components/game/SweepApprovalModal'
 
 type Tab = 'sell' | 'requests' | 'allocation' | 'pools' | 'settings'
 const TABS: { id: Tab; icon: string; label: string }[] = [
@@ -119,7 +120,7 @@ export default function SweepAdminPage() {
   const [showApprovals, setShowApprovals] = useState(false)
   const seenPending = useRef<Set<string> | null>(null)   // null until the first load
   const approvalPrefs = useApprovalPrefs()
-  const [voices, setVoices] = useState(true)   // Vicky & Gordo on for the tournament (migration 210)
+  const [voices, setVoices] = useState(true)   // the new-request call is on for the tournament (lib/sweep/voices.ts)
   const [pools, setPools] = useState<Pool[]>([])
   const [allocTribeId, setAllocTribeId] = useState('')
   const [allocSweep, setAllocSweep] = useState<any | null>(null)   // GET /api/tribes/:id/sweep for the picked pool
@@ -186,7 +187,7 @@ export default function SweepAdminPage() {
     if (res.data) setSettings(res.data)
     setPriceLocked(!!res.price_locked)
     setPrizesLocked(!!res.prizes_locked)
-    setVoices(res.voices !== false)
+    setVoices(res.voices?.request_call !== false)
     resetPrizeInputs(res.data)
     setMinMaxTribes(res.min_max_tribes ?? 1)
     setBilling(res.billing ?? null)
@@ -655,6 +656,8 @@ export default function SweepAdminPage() {
           )}
         </div>
       )}
+
+      {activeTab === 'sell' && comp && <SweepInviteCard compId={comp.id} className="mt-4" />}
 
       {/* Running a sweep is free this Cup — the organiser nudge to chip in. */}
       {activeTab === 'sell' && comp && !isPracticeComp && (

@@ -40,7 +40,8 @@ const callClip = (i: number) => `call-${String(i).padStart(2, '0')}`
 // `intro: false` unlocks the voice silently too — for a tap that has to wait on the server
 // before the race opens (a practice sweep's "Run the race"); the modal starts the banter.
 // `practice` — a practice sweep's money-free banter (banter() in the scripts).
-export function primeRaceAudio(script: DemoScript, { intro = true, practice = false } = {}) {
+// `outro: false` — the banter after the line is switched off (lib/sweep/voices.ts), so skip fetching it.
+export function primeRaceAudio(script: DemoScript, { intro = true, practice = false, outro = true } = {}) {
   const b = banter(script, practice)
   voice ??= new Audio()
   voice2 ??= new Audio()
@@ -55,7 +56,7 @@ export function primeRaceAudio(script: DemoScript, { intro = true, practice = fa
   }
   // Warm the cache with the race calls while the banter plays, so each one starts on its cue.
   script.race.forEach((_, i) => fetch(clipUrl(script.id, callClip(i))).catch(() => {}))
-  fetch(clipUrl(script.id, b.outro.clip)).catch(() => {})
+  if (outro) fetch(clipUrl(script.id, b.outro.clip)).catch(() => {})
 }
 function play(a: HTMLAudioElement | null, src: string, rate: number) {
   if (!a) return
@@ -124,9 +125,10 @@ function keyframes(script: DemoScript, starts: number[], winnerMs: number) {
 // the jump, then each call plays back to back while the field moves into the order she's
 // calling, then the banter after the line over the results. The caption shows the line being
 // spoken, a word at a time. Practice only, like PracticeRaceModal — never the real Cup.
-export function ScriptedRaceModal({ script, runners, winners, onClose, cta, practice = false }: {
+export function ScriptedRaceModal({ script, runners, winners, onClose, cta, practice = false, outro = true }: {
   script: DemoScript; runners: Runner[]; winners: Winner[]; onClose: () => void; cta?: ReactNode
   practice?: boolean   // a practice sweep: the money-free banter, its pot being whatever sold
+  outro?: boolean      // false → no banter after the line; the stewards' "correct weight" stays up
 }) {
   const clips = (AUDIO as unknown as Record<string, Clips>)[script.id]
   const { intro: introB, outro: outroB } = useMemo(() => banter(script, practice), [script, practice])
@@ -246,13 +248,13 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta, prac
       if (r.cur + 1 < n) load(els[(r.cur + 1) % 2], clipUrl(script.id, callClip(r.cur + 1)), RATE)
       // The last call's on — load the banter after the line on the free element, so it
       // starts the moment the stewards are done rather than loading then.
-      else load(els[(r.cur + 1) % 2], clipUrl(script.id, outroB.clip), 1)
+      else if (outro) load(els[(r.cur + 1) % 2], clipUrl(script.id, outroB.clip), 1)
     }
     for (const el of els) if (el) el.onended = next
     play(bell, '', 1)
     if (crowd) { crowd.volume = 0.25; play(crowd, '', 1) }
     return () => { for (const el of els) if (el) el.onended = null }
-  }, [phase, run, script, outroB])
+  }, [phase, run, script, outroB, outro])
 
   const callIdx = phase === 'race' ? starts.filter(s => simMs >= s).length - 1 : -1
   // Fallback only (audio stalled or blocked): play each call on its slot, as the clock says.
@@ -268,13 +270,15 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta, prac
   useEffect(() => {
     if (phase !== 'done') return
     confetti({ particleCount: 140, spread: 80, origin: { y: 0.35 }, zIndex: 9999 })
-    const url = clipUrl(script.id, outroB.clip)
-    const ready = [voice, voice2].find(a => a?.src.endsWith(url) && a.paused)
-    if (ready) play(ready, '', 1)
-    else play(voice, url, 1)
+    if (outro) {
+      const url = clipUrl(script.id, outroB.clip)
+      const ready = [voice, voice2].find(a => a?.src.endsWith(url) && a.paused)
+      if (ready) play(ready, '', 1)
+      else play(voice, url, 1)
+    }
     const t = setTimeout(() => crowd?.pause(), 3000)
     return () => clearTimeout(t)
-  }, [phase, script.id, outroB])
+  }, [phase, script.id, outroB, outro])
   useEffect(() => stopAll, [])
 
   // Place (0 = leading) of horse `n` at time t — eased between the called orders.
@@ -354,9 +358,9 @@ export function ScriptedRaceModal({ script, runners, winners, onClose, cta, prac
         <div className="px-4 pb-3 min-h-[5rem]">
           {/* Past the post, before the banter: the stewards check the placings — what the
               pause is for, so nobody closes the race thinking it's over. */}
-          {phase === 'race' && ms >= winnerMs + 600 ? (
+          {(phase === 'race' && ms >= winnerMs + 600) || (phase === 'done' && !outro) ? (
             <p className="text-white font-black text-base" role="status">
-              {ms < finishMs + HOLD_MS - 1000
+              {phase === 'race' && ms < finishMs + HOLD_MS - 1000
                 ? <><span className="text-sky-300">📋 Stewards:</span> checking the placings…</>
                 : <><span className="text-sky-300">✅ Correct weight</span> — placings confirmed.</>}
             </p>

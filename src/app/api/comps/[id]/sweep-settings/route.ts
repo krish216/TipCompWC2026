@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { APPROVAL_WINDOWS, getOrganiserDetails, memberQrOn, normalisePayId, payIdKind, type PayIdKind } from '@/lib/sweep/organiser'
 import { billingInfo } from '@/lib/sweep/billing'
 import { isValidSplit, prizeCapError } from '@/lib/sweep/prizes'
+import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +85,7 @@ async function authorize(admin: any, compId: string, userId: string) {
   const { data: tourn } = await (admin.from('tournaments') as any)
     .select('*').eq('id', (comp as any).tournament_id).maybeSingle()
   if ((tourn as any)?.format !== 'sweep') return { ok: false as const, status: 400, error: 'This comp is not a sweep' }
-  return { ok: true as const, tournamentId: (comp as any).tournament_id as string, voices: (tourn as any)?.sweep_voices !== false }
+  return { ok: true as const, tournamentId: (comp as any).tournament_id as string, voices: voicesFor(tourn) }
 }
 
 // GET /api/comps/:id/sweep-settings — the organiser's own settings for their sweep comp.
@@ -118,7 +119,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     // with sales — those buyers paid whatever the organiser asked; only CHANGING it locks.
     price_locked: (data as any)?.sweep_ticket_price_cents != null && sold,
     prizes_locked: sold,   // the prize split locks once anything's sold
-    voices: gate.voices,   // Vicky & Gordo on for this tournament (migration 210)
+    voices: gate.voices,   // which of Vicky & Gordo are on (migrations 210, 211)
   })
 }
 

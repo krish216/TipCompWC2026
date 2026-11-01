@@ -7,6 +7,7 @@ import { isPracticeSlug } from '@/lib/sweep/practice'
 import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/field'
 import { autoDrawAt, drawForUnlocksAt, loadDrawOpenedAt } from '@/lib/sweep/grace'
 import { poolPodium, raceFinishes } from '@/lib/sweep/pool-result'
+import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
 
@@ -177,7 +178,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     comp_id:         tribe.comp_id,
     is_practice:     isPractice,
-    voices:          (tourn as any)?.sweep_voices !== false,   // Vicky & Gordo (migration 210)
+    voices:          voicesFor(tourn),   // which of Vicky & Gordo are on (migrations 210, 211)
     ticket_price_cents: price,
     prizes,
     field_size:      field.capacity,

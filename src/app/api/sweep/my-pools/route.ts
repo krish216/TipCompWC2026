@@ -6,6 +6,7 @@ import { raceFinishes } from '@/lib/sweep/pool-result'
 import { loadFields } from '@/lib/sweep/field'
 import { AUTO_LOCK_BEFORE_MS, memberQrByComp } from '@/lib/sweep/organiser'
 import { SWEEP_PRICING } from '@/lib/sweep/billing'
+import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,7 +151,7 @@ export async function GET() {
     results_in:       !!raceFinishes(horsesByTourn[t.tournament_id] ?? [], null),
     // Practice sweeps (migration 200) get their own card on /sweep, apart from real ones.
     is_practice:      tournById[t.tournament_id]?.slug === PRACTICE_SLUG,
-    voices:           tournById[t.tournament_id]?.sweep_voices !== false,   // Vicky & Gordo (migration 210)
+    voices:           voicesFor(tournById[t.tournament_id]),   // which of Vicky & Gordo are on (migrations 210, 211)
     locked:           !!t.sweep_locked_at,
     is_comp_admin:    adminCompIdSet.has(t.comp_id),
     my_tickets:       ownTicketsByTribe[t.id]?.total ?? 0,

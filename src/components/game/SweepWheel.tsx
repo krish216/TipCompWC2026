@@ -301,7 +301,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
             {queueRef.current.length > 0 && (
               <button onClick={() => playCall(result.horse, true)}   // a tap of its own — no unlock needed (its pause would cut this off)
                
-                className="mt-1 text-xs font-semibold text-emerald-700 hover:underline">🔊 Hear Vicky call it</button>
+                className="mt-1 text-xs font-semibold text-emerald-700 hover:underline">{queueRef.current.some(c => !c.includes('/gordo/')) ? '🔊 Hear Vicky call it' : '🔊 Hear Gordo again'}</button>
             )}
             {/* Drawing the last horse closes the pool — the full draw is visible right away then. */}
             <p className="text-xs text-gray-500 mt-1">

@@ -16,6 +16,7 @@ import { AUTO_LOCK_BEFORE_MS } from '@/lib/sweep/organiser'
 import { PracticeRaceBar } from '@/components/game/PracticeRaceBar'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
 import { CupIntroButton } from '@/components/game/CupIntroButton'
+import type { Voices } from '@/lib/sweep/voices'
 import { TournamentSwitcher } from '@/components/game/TournamentSwitcher'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 import { TipsterPopover } from '@/components/game/TipsterPopover'
@@ -1005,7 +1006,7 @@ type SweepPoolRow = {
   locked: boolean; is_comp_admin: boolean; my_tickets: number; my_unclaimed: number
   comp_pools: { tribe_id: string; tickets: number; field_size: number; full: boolean }[]
   race_start_at?: string | null; draw_open?: boolean; results_in?: boolean; is_practice?: boolean
-  voices?: boolean   // Vicky & Gordo on for the tournament (migration 210)
+  voices?: Voices   // which of Vicky & Gordo are on for the tournament (migrations 210, 211)
   comp_name?: string | null; comp_invite_code?: string | null; member_qr?: boolean
 }
 const isPoolFull = (p: SweepPoolRow) => p.locked || !!p.comp_pools.find(cp => cp.tribe_id === p.tribe_id)?.full
@@ -1350,7 +1351,7 @@ export default function TribePage() {
             return (
             <div style={{ marginBottom: 10 }}>
               {showRace
-                ? <PracticeRaceBar compId={org.id} pills={pills} voices={sweepPools?.[0]?.voices !== false} onRaced={ran => { setPlayRace(ran); setRaceVersion(v => v + 1) }} />
+                ? <PracticeRaceBar compId={org.id} pills={pills} voices={sweepPools?.[0]?.voices} onRaced={ran => { setPlayRace(ran); setRaceVersion(v => v + 1) }} />
                 : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>{pills}</div>}
               {multiPool && (() => {
                 const selected = sweepPools!.find(p => p.tribe_id === selectedPoolId)
@@ -1383,7 +1384,7 @@ export default function TribePage() {
               <>
                 <RaceCountdown dark raceStartAt={p.race_start_at!} drawOpen={p.draw_open !== false} resultsIn={!!p.results_in} className="mb-2" />
                 {/* Vicky & Gordo's intro to the sweep — until the race is run. */}
-                {!p.results_in && p.voices !== false && <div className="flex justify-center mb-2"><CupIntroButton /></div>}
+                {!p.results_in && p.voices?.intro !== false && <div className="flex justify-center mb-2"><CupIntroButton /></div>}
               </>
             ) : null
           })()}
