@@ -1,29 +1,27 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import QRCode from 'qrcode'
-import { createAdminClient } from '@/lib/supabase'
+import { getCup, getField, raceDayLabel } from './cup'
 import { EoiForm } from './EoiForm'
 import { DRAW_OPENS_LABEL } from '@/lib/sweep/field'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { faqJsonLd } from '@/lib/seo'
 
 export const revalidate = 900
 
-const SLUG = 'melbourne-cup-2026'
 // ?src=qr tags scans in sweep_eoi.source, same as the admin "EOI QR" button.
 const QR_URL = 'https://tribepicks.com/melbourne-cup?src=qr'
 
-async function getCup() {
-  try {
-    const admin = createAdminClient()
-    const cols = 'id, name, race_date:end_date, race_start_at, enrollment_open'
-    let { data, error } = await (admin.from('tournaments') as any).select(`${cols}, sweep_draw_open`).eq('slug', SLUG).maybeSingle()
-    // sweep_draw_open arrives with migration 201 — don't lose the whole page without it.
-    if (error) ({ data } = await (admin.from('tournaments') as any).select(cols).eq('slug', SLUG).maybeSingle())
-    return data as {
-      id: string; name: string; race_date: string | null; race_start_at: string | null
-      enrollment_open: boolean | null; sweep_draw_open: boolean | null
-    } | null
-  } catch { return null }
-}
+// Organiser questions — the buyer's side (spins, scratchings, roll-down) is on the rules page,
+// which carries its own FAQ markup. Also emitted as FAQPage JSON-LD for search results.
+const FAQS = [
+  { q: 'How does a Melbourne Cup sweep work?', a: 'Everyone buys a ticket, each ticket is drawn a random horse in the Melbourne Cup, and the people holding the best-finishing horses win the pot. On TribePicks you share one link, people request tickets and pay you, and each ticket spins a wheel for its horse.' },
+  { q: 'Is it legal to run an office Melbourne Cup sweep in Victoria?', a: 'Yes, within the Victorian Gambling and Casino Control Commission’s rules for Melbourne Cup sweeps: all of the money collected must be returned as prizes, and total prizes can’t be more than $5,000. TribePicks is built to those rules — no cut comes out of the pot, and the ticket price is capped so a sweep can’t pay out more than $5,000. Rules differ in other states — see the sweep rules by state, and check with your regulator if you’re outside Victoria.' },
+  { q: 'How are the prizes split?', a: 'You choose when you set up the sweep: 70 / 20 / 10 for 1st, 2nd and 3rd, 60 / 25 / 15, or winner takes all. Every dollar goes back as prizes. If a placed horse went unsold, its prize rolls down to the next horse home that someone holds, so the whole pot is always paid out.' },
+  { q: 'Can people pay in cash?', a: 'Yes. Buyers pay you directly — cash, bank transfer or PayID — and you approve each ticket request once the money is with you. TribePicks never holds or handles sweep money.' },
+  { q: 'What if we have more people than horses?', a: 'Run more than one pool. Each pool has its own full field of horses and pays its own prizes from its own pot.' },
+  { q: 'Does it cost anything?', a: 'Your sweep’s first pool is free, and so is a practice sweep. If extra pools ever cost anything, you see the price before you pay, and it’s paid by you — never taken from the pot.' },
+]
 
 export const metadata: Metadata = {
   title: 'Melbourne Cup 2026 sweep — run or join one online | TribePicks',
@@ -35,18 +33,6 @@ export const metadata: Metadata = {
     url: 'https://tribepicks.com/melbourne-cup',
     type: 'website',
   },
-}
-
-function raceDayLabel(cup: { race_date: string | null; race_start_at: string | null } | null): string {
-  if (cup?.race_start_at) {
-    return new Date(cup.race_start_at).toLocaleString('en-AU', {
-      weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne',
-    }) + ' (Melbourne time)'
-  }
-  if (cup?.race_date) {
-    return new Date(`${cup.race_date}T00:00:00Z`).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
-  }
-  return 'Tuesday 3 November'
 }
 
 const STEPS = [
@@ -62,9 +48,11 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
   // the field is declared; only the spin waits for it.
   const sweepsOpen = cup?.enrollment_open !== false
   const drawOpen = cup?.sweep_draw_open !== false
+  const field = cup && drawOpen ? await getField(cup.id) : []
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10">
+      <JsonLd data={faqJsonLd(FAQS)} />
       <p className="text-xs font-bold uppercase tracking-wide text-amber-700">🐎 {raceDayLabel(cup)}</p>
       <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">Melbourne Cup 2026 sweeps</h1>
       <p className="text-sm text-gray-500 mt-2">
@@ -119,6 +107,46 @@ export default async function MelbourneCupPage({ searchParams }: { searchParams:
           🏇 Or watch a practice race now — no sign-up
         </Link>
       </div>
+
+      {field.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-black text-gray-900">The Melbourne Cup 2026 field</h2>
+          <p className="text-xs text-gray-500 mt-1 mb-3">
+            {field.filter(h => !h.scratched).length} runners — the horses on every TribePicks sweep wheel.
+          </p>
+          <ol className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            {field.map(h => (
+              <li key={h.number} className={h.scratched ? 'text-gray-400 line-through' : 'text-gray-800'}>
+                <span className="inline-block w-7 font-bold text-gray-500">{h.number}</span>{h.name}
+                {h.scratched && <span className="ml-1 text-[11px] no-underline">(scratched)</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      <section className="mt-8">
+        <h2 className="text-lg font-black text-gray-900">Melbourne Cup sweep questions</h2>
+        <div className="mt-3 divide-y divide-gray-100 border-y border-gray-100">
+          {FAQS.map(f => (
+            <details key={f.q} className="group py-3">
+              <summary className="cursor-pointer list-none flex items-start justify-between gap-3 text-sm font-bold text-gray-900">
+                {f.q}<span className="text-gray-400 group-open:rotate-45 transition-transform">+</span>
+              </summary>
+              <p className="text-sm text-gray-600 mt-2">{f.a}</p>
+            </details>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Scratchings, dead heats and unsold horses:{' '}
+          <Link href="/rules/melbourne-cup-2026" className="font-semibold text-emerald-700 underline">how the sweep works</Link>.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-3 text-xs font-semibold">
+          <Link href="/melbourne-cup/sweep-sheet" className="px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50">🖨️ Printable sweep sheet</Link>
+          <Link href="/melbourne-cup/2026-results" className="px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50">🏁 2026 results</Link>
+          <Link href="/melbourne-cup/sweep-rules-by-state" className="px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50">⚖️ Sweep rules by state</Link>
+        </div>
+      </section>
 
       <div id="register" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-black text-gray-900">{sweepsOpen ? "Don't have a sweep to join?" : 'Register your interest'}</h2>

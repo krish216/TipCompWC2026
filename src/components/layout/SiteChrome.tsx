@@ -26,12 +26,15 @@ export function SiteChrome({ header, footer, children }: {
     return <main className="min-h-screen bg-[#fdf8f2]">{children}</main>
   }
 
+  // The chrome never prints — pages like /melbourne-cup/sweep-sheet print just themselves.
+  // `contents` keeps the wrappers out of the layout on screen, so the sticky navbar still
+  // sticks to the page rather than to a wrapper its own height.
   return (
     <>
-      {header}
+      <div className="contents print:hidden">{header}</div>
       {/* pb-20 sm:pb-0: clears the fixed 56px bottom nav on mobile */}
-      <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0">{children}</main>
-      {footer}
+      <main className="min-h-screen bg-gray-50 pb-20 sm:pb-0 print:min-h-0 print:bg-white print:pb-0">{children}</main>
+      <div className="contents print:hidden">{footer}</div>
     </>
   )
 }
