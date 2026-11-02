@@ -1183,13 +1183,14 @@ export default function TribePage() {
       if (cancelled) return
       const pools = ((res.data ?? []) as SweepPoolRow[]).filter(p => p.comp_id === sweepCompId)
       setSweepPools(pools)
-      // First open: land where there's something to do — tickets to spin, then a pool still
-      // selling, then a pool you hold a horse in, then the pool last selected. A later refresh
-      // keeps whatever's selected.
+      // First open: land where there's something to do — tickets to spin, then a pool you hold
+      // a horse in (your own horse shows there even while the rest of the draw is hidden),
+      // then a pool still selling, then the pool last selected. A later refresh keeps
+      // whatever's selected.
       const firstPool =
         pools.find(p => p.my_unclaimed > 0) ??
-        pools.find(p => !isPoolFull(p)) ??
         pools.find(p => p.my_tickets > 0) ??
+        pools.find(p => !isPoolFull(p)) ??
         pools.find(p => p.tribe_id === tribe?.id)
       setSelectedPoolId(prev => (prev && pools.some(p => p.tribe_id === prev)) ? prev : (firstPool?.tribe_id ?? tribe?.id ?? pools[0]?.tribe_id ?? ''))
     })
@@ -1356,7 +1357,7 @@ export default function TribePage() {
                         boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.5)' : 'none',
                         cursor: 'pointer', border: 'none',
                       }}>
-                      {p.tribe_name}: {pill?.tickets ?? p.my_tickets}/{pill?.field_size || '—'}
+                      {p.my_tickets > 0 && '🏇 '}{p.tribe_name}: {pill?.tickets ?? p.my_tickets}/{pill?.field_size || '—'}
                     </button>
                   )
                 }) : null
