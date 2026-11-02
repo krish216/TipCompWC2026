@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const DEFAULT_SLUG = 'melbourne-cup-2026'
 

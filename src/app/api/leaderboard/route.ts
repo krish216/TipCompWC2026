@@ -5,6 +5,7 @@ import { tipsterFlag } from '@/lib/geo-flag'
 import type { RoundId } from '@/types'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/leaderboard?scope=tribe|comp|global
 export async function GET(request: NextRequest) {

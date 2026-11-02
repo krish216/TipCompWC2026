@@ -9,6 +9,7 @@ import { sendDueAutoReminders } from '@/lib/comp-auto-reminders'
 import { autoPostRoundDebriefs } from '@/lib/round-debrief-auto'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Triggered by Supabase pg_cron every 5 min, year-round. Auth via CRON_SECRET. Pulls
 // results from ESPN's free scoreboard API — one feed per tournament, via

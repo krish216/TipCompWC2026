@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { postReportToTribe } from '@/lib/weekly-report'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/post-report { tribe_id }
 // Comp-admin action: post the Weekly Intelligence Report into a tribe's chat (as

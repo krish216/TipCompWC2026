@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Tracked redirect: logs a click on the "open chat" funnel link, then sends the
 // user to their tribe chat. Logging never blocks the redirect.

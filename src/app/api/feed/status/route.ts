@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/feed/status — the signed-in user's feeding state for client surfaces (the predict
 // nudge). luckyDog = the doggie from their most recent feed ("rooting for you this round");

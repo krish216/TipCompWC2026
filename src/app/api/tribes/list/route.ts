@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/tribes/list?comp_id= — list all tribes in an org (org admin only)
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 async function verifyCompAdminForTribe(userId: string, tribeId: string) {
   const admin = createAdminClient()
   const { data: tribe } = await (admin.from('tribes') as any).select('id, comp_id').eq('id', tribeId).single()

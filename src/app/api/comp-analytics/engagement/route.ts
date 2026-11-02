@@ -5,6 +5,7 @@ import { untippedForOpenRound } from '@/lib/untipped'
 import { noBonusTeamForComp } from '@/lib/no-bonus-team'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 async function verifyCompAdmin(admin: any, userId: string, compId: string) {
   const [{ data: ca }, { data: ta }] = await Promise.all([

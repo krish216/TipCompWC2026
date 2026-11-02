@@ -5,6 +5,7 @@ import { noBonusTeamForComp } from '@/lib/no-bonus-team'
 import { createNotifications } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const COOLDOWN_MS = 4 * 60 * 60 * 1000   // light rate-limit: one nudge per comp / 4h
 

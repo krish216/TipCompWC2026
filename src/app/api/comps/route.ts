@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
+export const fetchCache = 'force-no-store'
+
 const CreateOrgSchema = z.object({
   name: z.string().min(2).max(80).trim(),
 })

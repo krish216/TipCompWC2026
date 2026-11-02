@@ -3,6 +3,8 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { settleChallengesForFixture } from '@/lib/match-results'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/comp-challenges/settle — settle challenges for a fixture after result is entered
 // Called automatically from the results API, or manually by tournament admin.
 // The core settlement logic is shared with the auto-sync cron via match-results.ts.

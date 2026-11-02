@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { getDefaultScoringConfig, calcPoints } from '@/types'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/demo/predictions
 // Submit a prediction for a demo fixture. Immediately computes and stores points.
 // Body: { demo_fixture_id, outcome }  ('H' | 'A' | 'D')

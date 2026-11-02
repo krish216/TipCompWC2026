@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/admin/report-stats — funnel counters for the tournament-admin panel.
 export async function GET() {

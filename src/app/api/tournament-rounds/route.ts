@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'

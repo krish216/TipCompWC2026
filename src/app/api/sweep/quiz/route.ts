@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const QUIZ = 'mc2026-problems'
 const ANSWERS = ['cost_of_living', 'housing', 'economy', 'crime', 'melbourne_cup'] as const

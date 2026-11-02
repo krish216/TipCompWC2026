@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 async function verifyCompAdmin(admin: any, userId: string, compId: string) {
   const [{ data: ca }, { data: ta }] = await Promise.all([
     (admin.from('comp_admins') as any).select('comp_id').eq('user_id', userId).eq('comp_id', compId).single(),

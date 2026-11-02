@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/comp-analytics/profile-stats?comp_id={id}
 // Returns profile completeness % for a comp's members:

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 async function verifyCompAdmin(admin: any, userId: string, compId: string) {
   const [{ data: ca }, { data: ta }] = await Promise.all([

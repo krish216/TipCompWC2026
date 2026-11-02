@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { resolveCompChiefs } from '@/lib/comp-chief'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/comps/explore — public list of open + discoverable comps
 export async function GET() {

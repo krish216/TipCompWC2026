@@ -874,17 +874,25 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
             </div>
           </div>
         )}
-        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 mb-3 text-xs font-bold">
-          {(['person', 'horse'] as const).map(v => (
-            <button key={v} onClick={() => setRosterView(v)}
-              className={`px-3 py-1 rounded-md ${rosterView === v ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'}`}>
-              {v === 'person' ? 'By person' : 'By horse'}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs font-bold">
+            {(['person', 'horse'] as const).map(v => (
+              <button key={v} onClick={() => setRosterView(v)}
+                className={`px-3 py-1 rounded-md ${rosterView === v ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'}`}>
+                {v === 'person' ? 'By person' : 'By horse'}
+              </button>
+            ))}
+          </div>
+          {/* The draw on one A4 page, for the office wall — only once it's revealed (/sweep/sheet). */}
+          {sweep.draw_open && !sweep.draw_hidden && (
+            <Link href={`/sweep/sheet?pool=${tribeId}`} className="text-xs font-bold text-emerald-700 hover:underline whitespace-nowrap">
+              🖨️ Print the draw
+            </Link>
+          )}
         </div>
         {sweep.draw_hidden && (
           <p className="text-xs text-gray-400 mb-3">
-            You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here.
+            You can see your own horses — who drew the rest stays hidden until every horse is drawn (or the pool locks before the race), then the full draw opens up here, ready to print.
           </p>
         )}
         {rosterView === 'horse' ? (

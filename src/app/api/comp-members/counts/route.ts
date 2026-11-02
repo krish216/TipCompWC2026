@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/comp-members/counts?comp_ids=id1,id2,...
 // Returns accurate member counts from user_comps — not capped like the leaderboard (50 row limit).
 export async function GET(request: NextRequest) {

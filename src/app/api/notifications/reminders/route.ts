@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
 import { Resend } from 'resend'
 
+export const fetchCache = 'force-no-store'
+
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
 
 // Called by Vercel Cron every 15 minutes (Pro plan) or manually

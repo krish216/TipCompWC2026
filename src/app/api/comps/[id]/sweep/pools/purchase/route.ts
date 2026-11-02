@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { buyPools } from '@/lib/sweep/billing'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/comps/:id/sweep/pools/purchase — organiser adds pools to their sweep.
 // Body: { pools: number } (how many to ADD). Returns { completed: true } when the pools exist

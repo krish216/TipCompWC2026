@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/admin — check if current user is admin
 export async function GET() {
   const supabase = createServerSupabaseClient()

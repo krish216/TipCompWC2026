@@ -5,6 +5,7 @@ import { computePoolPrizes, isValidSplit } from '@/lib/sweep/prizes'
 import { loadField, overFieldTicketIds } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/comps/:id/sweep/pools — comp-admin/platform-admin only. Every tribe (pool) under
 // the comp, with member count, ticket count, and lock state — backs the organiser page's

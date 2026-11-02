@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { fulfilPoolPurchase } from '@/lib/sweep/billing'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' })
 

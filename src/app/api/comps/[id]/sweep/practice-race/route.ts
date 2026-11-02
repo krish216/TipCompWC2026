@@ -6,6 +6,7 @@ import { isPracticeTournament } from '@/lib/sweep/practice'
 import { DEMO_SCRIPTS } from '@/lib/sweep/demo-race-scripts'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/comps/:id/sweep/practice-race — the organiser of a PRACTICE sweep runs its race:
 // one random full finishing order for the whole sweep, the same in every pool (like the real

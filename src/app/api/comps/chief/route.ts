@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { resolveCompChief } from '@/lib/comp-chief'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/comps/chief?comp_id=<id>
 // Public — the Comp-Chief's display identity for one comp (name + avatar). Used by the

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { footballDataMatches, footballDataRaw, FOOTBALL_DATA_COMPETITION, canonTeam, espnScoreboard, parseEspnEvent } from '@/lib/match-results'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // One-time mapping of local fixtures → football-data.org match ids (stored in
 // fixtures.api_fixture_id).

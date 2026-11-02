@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/comp-invitations/pending
 // Returns pending comp invitations for the current user's email,
 // filtered against any comps they've blocked at the tournament level.

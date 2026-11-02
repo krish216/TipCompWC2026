@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/chiefs/my-private-comps
 // STRICTLY owner-only: returns the authenticated user's OWN comps that aren't publicly

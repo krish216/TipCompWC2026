@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { refreshAllChallengeRanks } from '@/lib/challenge-rank'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 export const maxDuration = 60
 
 // GET /api/cron/challenge-ranks — nightly recompute of stored challenge finishing ranks.

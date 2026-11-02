@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/tournament-announcements?tournament_id=xxx
 // Public — returns the most recent active announcements for a tournament.

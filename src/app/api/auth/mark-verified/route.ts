@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/auth/mark-verified
 // Belt-and-suspenders: marks the current user's email_verified = true via the
 // admin client (bypasses RLS). Called from /auth/confirmed as a fallback in case

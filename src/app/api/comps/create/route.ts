@@ -8,6 +8,8 @@ import { prizeCapError } from '@/lib/sweep/prizes'
 import { welcomeOrganiserIfFirst } from '@/lib/sweep/welcome'
 import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
+export const fetchCache = 'force-no-store'
+
 const CreateSchema = z.object({
   name:        z.string().min(2).max(80).trim(),
   tournament_id: z.string().uuid().optional(),

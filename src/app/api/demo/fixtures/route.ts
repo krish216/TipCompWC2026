@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/demo/fixtures?tournament_id=
 // Returns demo fixtures. For each fixture:
 //   - result is included ONLY if the calling user has submitted a prediction for it

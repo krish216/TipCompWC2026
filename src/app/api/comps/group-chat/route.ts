@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Known community-chat hosts. A group link must resolve to one of these (https only) —
 // stops a Chief pasting an arbitrary/malicious URL that members would tap.

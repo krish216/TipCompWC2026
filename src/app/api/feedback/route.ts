@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const VALID_CATEGORIES = new Set(['bug', 'suggestion', 'other'])
 

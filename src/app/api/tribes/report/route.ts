@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { buildIntelligenceReport } from '@/lib/intelligence-report'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/tribes/report?tribe_id={id}
 // Members-only satirical "Weekly Intelligence Report" scoped to a single tribe's

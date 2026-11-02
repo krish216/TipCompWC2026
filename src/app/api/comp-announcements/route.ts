@@ -5,6 +5,8 @@ import { createNotifications } from '@/lib/notifications'
 import { resolveCompChiefContact, chiefFromLine } from '@/lib/comp-chief'
 import { Resend } from 'resend'
 
+export const fetchCache = 'force-no-store'
+
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 
 // GET /api/comp-announcements?comp_id={id}

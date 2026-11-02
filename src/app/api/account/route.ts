@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // DELETE /api/account — permanently delete the calling user's account
 export async function DELETE() {
   const adminClient = createAdminClient()

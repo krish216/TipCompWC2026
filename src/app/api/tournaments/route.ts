@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/tournaments?slug= — list all tournaments, or filter to one by slug
 export async function GET(request: NextRequest) {
   const slug     = new URL(request.url).searchParams.get('slug')

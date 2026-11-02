@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/admin/reset-password — tournament admin resets any user's password
 export async function POST(request: NextRequest) {
   const supabase    = createServerSupabaseClient()

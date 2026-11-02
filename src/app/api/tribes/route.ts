@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { z } from 'zod'
 
+export const fetchCache = 'force-no-store'
+
 const CreateTribeSchema = z.object({ name: z.string().min(2).max(50).trim(), description: z.string().max(200).trim().nullish(), tournament_id: z.string().uuid().optional() })
 const JoinTribeSchema   = z.object({ invite_code: z.string().length(8).toUpperCase() })
 

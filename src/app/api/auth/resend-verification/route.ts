@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 import { Resend } from 'resend'
 
+export const fetchCache = 'force-no-store'
+
 const FROM = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 
 export async function POST() {

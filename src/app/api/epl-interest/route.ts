@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/epl-interest?v=yes|maybe|no&u=<chiefId>
 // One-click EPL interest vote from the Comp-Chief email — works with no login, so it

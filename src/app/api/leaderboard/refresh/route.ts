@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/leaderboard/refresh — manually trigger REFRESH MATERIALIZED VIEW leaderboard
 export async function POST() {

@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { getTournamentBySlug, getTeamsAndFixtures } from '@/lib/content/wc'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/standings/submit
 // Body: { tournament: slug, quarter, top_teams: string[], bottom_teams: string[] }

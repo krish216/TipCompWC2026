@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { VERIFIED_MIN_ACTIVE } from '@/lib/comp-chief'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/chiefs/top?limit=8[&country=AU]
 // The highest-ranked Comp-Chiefs from the nightly chief_scores view — powers the

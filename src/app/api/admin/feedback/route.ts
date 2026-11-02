@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createNotifications } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 async function resolveAdmin(request: NextRequest) {
   const admin = createAdminClient()

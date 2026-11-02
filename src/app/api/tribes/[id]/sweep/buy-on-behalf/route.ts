@@ -7,6 +7,7 @@ import { createNotifications } from '@/lib/notifications'
 import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const PAYMENT_METHODS = ['cash', 'bank_transfer', 'iou']
 

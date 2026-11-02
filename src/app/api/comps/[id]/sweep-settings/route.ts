@@ -7,6 +7,7 @@ import { isValidSplit, prizeCapError } from '@/lib/sweep/prizes'
 import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Validates + normalises the organiser_details block. Blank strings clear a field.
 function parseOrganiserDetails(raw: any): { value: Record<string, any> } | { error: string } {

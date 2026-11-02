@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Tracked redirect for the report link posted in tribe chat: logs a "report
 // opened" event (source='chat_report'), then forwards to the members-only report

@@ -4,6 +4,7 @@ import { getTournamentBySlug } from '@/lib/content/wc'
 import { settleDueStandings } from '@/lib/standings/settle'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/standings/settle  { tournament: slug } — admin.
 // Settles any predictor quarters whose checkpoint is now complete. (Wire into the

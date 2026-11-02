@@ -4,6 +4,7 @@ import { sendDrawReminders } from '@/lib/sweep/draw-reminders'
 import { drawUnspunTickets } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 export const maxDuration = 60   // race day: drawing unspun tickets across every pool
 
 const NUDGE_BEFORE_MS = 6 * 60 * 60 * 1000   // 9am AEDT for a 3pm jump

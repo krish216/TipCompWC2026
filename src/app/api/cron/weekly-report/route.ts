@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { MIN_TRIBE_MEMBERS, REPORT_SITE_URL, mondayOf, postReportToTribe } from '@/lib/weekly-report'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Posts the members-only Weekly Intelligence Report link into each eligible
 // tribe's chat (as a system message) and notifies members via the bell, once per

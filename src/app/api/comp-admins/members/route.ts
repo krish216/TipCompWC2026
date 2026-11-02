@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/comp-admins/members?comp_id= — list a comp's members for its admins.
 // Rebuilt after migration 044 dropped the legacy users membership columns: membership now comes
 // from user_comps, tribe status from tribe_members, and predictions from the leaderboard view.

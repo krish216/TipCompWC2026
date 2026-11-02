@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/comp-prizes?comp_id= — get prizes for an org
 export async function GET(request: NextRequest) {
   const supabase = createServerSupabaseClient()

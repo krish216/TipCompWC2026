@@ -5,6 +5,7 @@ import { createNotifications } from '@/lib/notifications'
 import { approvalClockStart, approvalDeadline, getOrganiserDetails } from '@/lib/sweep/organiser'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/:id/sweep/requests/:reqId/remind — the buyer nudges the organiser about
 // a request that's gone past its approval window. Buyer-only, pending-only, overdue-only,

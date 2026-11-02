@@ -6,6 +6,7 @@ import { drawPendingAutoDraws } from '@/lib/sweep/draw'
 import { VOICE_PARTS, voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // /api/admin/sweep-draw — platform admin only. The "Draw open" switch for a sweep tournament
 // (migration 201): while it's off, tickets sell but nobody can spin.

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { isBonusTeamLocked, isExactFocusClubCommitted } from '@/lib/tournament-lock'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/user-tournaments — list tournaments the current user is enrolled in
 export async function GET() {
   const supabase = createServerSupabaseClient()

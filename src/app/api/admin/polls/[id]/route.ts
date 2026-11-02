@@ -3,6 +3,7 @@ import { getPrimaryTournament } from '@/lib/content/wc'
 import { requireAdmin } from '@/lib/sponsors/auth'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // PATCH /api/admin/polls/:id — close/reopen, edit window, or edit content.
 // Body: { active?, ends_at?, question?, description?, topic?, audience?, options? }

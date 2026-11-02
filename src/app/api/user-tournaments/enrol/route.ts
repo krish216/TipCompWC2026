@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { enrolInTournament } from '@/lib/enrol-tournament'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/user-tournaments/enrol
 // Called immediately after signUp() during registration — before email confirmation.
 // Uses the admin/service-role client so no session is required.

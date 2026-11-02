@@ -9,6 +9,7 @@ import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
 import { autoDrawIfRequested } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const ACTIONS = ['approve', 'reject', 'mark_paid', 'cancel']
 

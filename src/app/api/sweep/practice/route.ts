@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { practiceTournamentId } from '@/lib/sweep/practice'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/sweep/practice — start a practice sweep (migration 200). Anyone signed in can:
 // they become its organiser AND are put in its pool, so one person can play both roles

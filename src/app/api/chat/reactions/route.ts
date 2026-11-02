@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 const ALLOWED_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
 // POST /api/chat/reactions — toggle a reaction (add if not present, remove if already reacted)

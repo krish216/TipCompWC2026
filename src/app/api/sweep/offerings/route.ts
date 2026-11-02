@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { loadFields } from '@/lib/sweep/field'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/sweep/offerings — public, no auth required (same discoverability rule as
 // regular comp browsing): every comp whose tournament is format='sweep' and that has

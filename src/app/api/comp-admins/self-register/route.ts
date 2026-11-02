@@ -6,6 +6,8 @@ import { loadField } from '@/lib/sweep/field'
 import { sendJoinedEmail } from '@/lib/sweep/welcome'
 import { sendWelcomeIfNeeded } from '@/lib/welcome-email'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/comp-admins/self-register
 // Assigns a user to an org using the org's invite code.
 // Regular join: assigns org membership only (no org admin role).

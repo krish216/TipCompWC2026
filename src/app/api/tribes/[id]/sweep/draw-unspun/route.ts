@@ -7,6 +7,7 @@ import { DRAW_GRACE_HOURS } from '@/lib/sweep/grace'
 import { isPracticeSlug } from '@/lib/sweep/practice'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/:id/sweep/draw-unspun — comp-admin only. Draws a horse, at random, for
 // every ticket in the pool its holder hasn't spun yet, so one slow member can't hold the pool

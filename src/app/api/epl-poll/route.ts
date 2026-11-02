@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // In-app EPL poll for the authenticated user — the mop-up channel for people who didn't click
 // the email links. Session-based (no trusted `u` param); tagged source='app' so the tally

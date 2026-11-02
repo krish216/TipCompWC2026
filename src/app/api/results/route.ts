@@ -6,6 +6,8 @@ import { cascadeKnockoutTeams } from '@/lib/cascade-knockout'
 import { refreshChallengeRanksForFixture } from '@/lib/challenge-rank'
 import { z } from 'zod'
 
+export const fetchCache = 'force-no-store'
+
 // Knockout rounds whose result advances a team into the next round's fixture.
 const KO_FEEDER_ROUNDS = new Set(['r32', 'r16', 'qf', 'sf'])
 

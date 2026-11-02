@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/user-preferences
 // Returns the user's stored tournament + comp selection
 export async function GET() {

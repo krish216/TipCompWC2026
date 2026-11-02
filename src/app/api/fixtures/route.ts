@@ -8,6 +8,7 @@ import { isPlaceholder } from '@/lib/cascade-knockout'
 // mid-seeding, so serve no-store to catch each seed on load. Once every team is
 // resolved the data is stable — allow a short private cache to save refetches.
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/fixtures — returns fixtures for the player's active tournament
 // Falls back to the app-wide active tournament if user has no preference

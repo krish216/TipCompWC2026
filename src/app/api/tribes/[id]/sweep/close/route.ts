@@ -5,6 +5,7 @@ import { DRAW_OPENS_LABEL, loadField } from '@/lib/sweep/field'
 import { drawUnspunTickets } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/:id/sweep/close — comp-admin only. Distinct from sweep/lock: lock only
 // ever meant "stop new joins" (migration 190) and isn't re-runnable; close is the explicit

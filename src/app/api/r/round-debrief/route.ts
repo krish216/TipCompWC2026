@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Tracked redirect for the Round Debrief card link: logs a click
 // (source='debrief_<surface>') into report_link_clicks, then forwards to the

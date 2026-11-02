@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { z } from 'zod'
 
+export const fetchCache = 'force-no-store'
+
 const PostSchema = z.object({
   tribe_id:   z.string().uuid(),
   content:    z.string().min(1).max(1000).trim(),

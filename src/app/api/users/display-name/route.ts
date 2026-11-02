@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 // PATCH /api/users/display-name — update current user's display name
 // Body: { display_name: string, comp_id?: string }
 // Uniqueness is checked within the comp when comp_id is provided.

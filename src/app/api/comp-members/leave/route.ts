@@ -3,6 +3,8 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 import { isPracticeTournament } from '@/lib/sweep/practice'
 
+export const fetchCache = 'force-no-store'
+
 // DELETE /api/comp-members/leave — authenticated tipster removes themselves from a comp.
 // Comp admins (owners) are blocked — they must delete the comp instead.
 // Also removes the user from any tribe they're in within this comp.

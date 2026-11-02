@@ -5,6 +5,7 @@ import { DRAW_OPENS_LABEL, loadField, overFieldTicketIds } from '@/lib/sweep/fie
 import { drawHorseForTicket, maybeSendDrawConfirmation } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/:id/sweep/pick — draws ONE horse for one of the caller's unclaimed
 // tickets (the wheel-spin moment). The SERVER draws it, uniformly at random from the

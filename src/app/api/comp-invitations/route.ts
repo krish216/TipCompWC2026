@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase'
 import { resolveCompChiefContact, chiefFromLine } from '@/lib/comp-chief'
 import { Resend } from 'resend'
 
+export const fetchCache = 'force-no-store'
+
 const FROM     = process.env.RESEND_FROM ?? 'TribePicks <noreply@mail.tribepicks.com>'
 const APP_URL  = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.tribepicks.com').replace(/\/$/, '')
 

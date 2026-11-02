@@ -8,6 +8,7 @@ import { loadField } from '@/lib/sweep/field'
 import { autoDrawIfRequested } from '@/lib/sweep/draw'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/tribes/:id/sweep/requests/:reqId/receipt (multipart: file) — the buyer attaches
 // their bank-transfer receipt. In auto-approve mode this is the literal "the instant the

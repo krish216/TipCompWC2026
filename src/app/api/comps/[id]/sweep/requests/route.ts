@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { signReceiptUrls } from '@/lib/sweep/receipts'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/comps/:id/sweep/requests?status=&owing=true — comp-admin/platform-admin only.
 // Joins across every pool under the comp in one query — the organiser's "Requests"/"Who

@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/user-comps?tournament_id=  — list comps the user has joined
 // Uses admin client to bypass RLS entirely (avoids comp_admins recursion bug)
 export async function GET(request: NextRequest) {

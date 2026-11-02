@@ -9,6 +9,7 @@ import { SWEEP_PRICING } from '@/lib/sweep/billing'
 import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const TRIBE_COLS = 'id, name, invite_code, comp_id, tournament_id, sweep_locked_at'
 

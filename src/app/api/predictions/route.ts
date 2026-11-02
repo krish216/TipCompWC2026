@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase'
 import { fixtureHasPlaceholder, knownTeamSet } from '@/lib/placeholder'
 import { z } from 'zod'
 
+export const fetchCache = 'force-no-store'
+
 const PredictionSchema = z.object({
   fixture_id: z.number().int().positive(),
   home:       z.number().int().min(0).max(30).optional(),

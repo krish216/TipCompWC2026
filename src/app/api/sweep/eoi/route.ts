@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const EoiSchema = z.object({
   tournament_id: z.string().uuid(),

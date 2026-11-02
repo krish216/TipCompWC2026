@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/round-locks?tournament_id=<id>
 // Returns { data: { round_code: is_open, ... } } scoped to the tournament
 export async function GET(request: NextRequest) {

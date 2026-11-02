@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { createNotifications } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const MIN_MEMBERS = 4
 

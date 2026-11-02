@@ -5,6 +5,7 @@ import { checkAndSendSweepResults } from '@/lib/sweep/results'
 import { parseFinishOrder } from '@/lib/sweep/podium'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Platform-admin only — the race field is shared across every comp/tribe sweep, entered
 // centrally once (not per organisation). Same admin_users check as the rest of /api/admin.

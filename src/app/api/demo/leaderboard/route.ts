@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/demo/leaderboard?tournament_id=
 // Public — no auth required. Returns ranked tipsters by total demo points.
 

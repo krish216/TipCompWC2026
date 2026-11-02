@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/admin/email-templates?tournament_id=X&template_key=welcome
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

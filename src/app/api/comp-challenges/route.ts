@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/comp-challenges?comp_id=  — get all challenges for an org
 // GET /api/comp-challenges?fixture_id= — get challenge for a specific fixture (any org)
 export async function GET(request: NextRequest) {

@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // POST /api/petzbff-promo
 //

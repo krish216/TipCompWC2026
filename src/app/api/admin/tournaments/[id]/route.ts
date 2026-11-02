@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/sponsors/auth'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // PATCH /api/admin/tournaments/:id — platform-admin only. Currently just race_start_at (the
 // precise race-jump timestamp a sweep auto-locks 30 minutes ahead of — tournaments.start_date

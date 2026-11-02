@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { buildIntelligenceReport } from '@/lib/intelligence-report'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 async function verifyCompAdmin(admin: any, userId: string, compId: string) {
   const [{ data: ca }, { data: ta }] = await Promise.all([

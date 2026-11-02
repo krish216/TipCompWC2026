@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 import { getSessionUser } from '@/lib/supabase-server'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/comps/join — join an open comp by comp_id, no invite code required.
 // Checks: comp is open, user not blocked, member cap not exceeded.
 export async function POST(request: NextRequest) {

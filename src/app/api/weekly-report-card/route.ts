@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // Whether to show the homepage "weekly report" card for the current user in a
 // given tribe. Shows only when: the admin toggle is ON, the user is a member of

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
 
+export const fetchCache = 'force-no-store'
+
 // GET /api/auth/verify-email?token=<uuid>
 // Validates a custom verification token, marks email_verified=true in both the
 // users table and Supabase auth user_metadata (so middleware can read it from

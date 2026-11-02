@@ -9,6 +9,7 @@ import { signReceiptUrls } from '@/lib/sweep/receipts'
 import { bankTransferEnabled, getOrganiserDetails } from '@/lib/sweep/organiser'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const PAYMENT_METHODS = ['cash', 'bank_transfer', 'iou']
 

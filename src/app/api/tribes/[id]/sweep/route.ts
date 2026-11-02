@@ -10,6 +10,7 @@ import { poolPodium, raceFinishes } from '@/lib/sweep/pool-result'
 import { voicesFor } from '@/lib/sweep/voices'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/tribes/:id/sweep — this pool's sweep state: the shared race field, every
 // member's tickets (a member can hold several), the caller's own unclaimed/claimed tickets,
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const tribeId = params.id
 
   const { data: tribe } = await (admin.from('tribes') as any)
-    .select('id, comp_id, tournament_id, sweep_locked_at, practice_results').eq('id', tribeId).maybeSingle()
+    .select('id, name, comp_id, tournament_id, sweep_locked_at, practice_results').eq('id', tribeId).maybeSingle()
   if (!tribe) return NextResponse.json({ error: 'Pool not found' }, { status: 404 })
 
   // Comp admins can view ANY pool under their comp, not just ones they personally joined —
@@ -45,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const [{ data: comp }, organiser, { data: myPending }, sweepVoices] = await Promise.all([
     (admin.from('comps') as any)
-      .select('allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split').eq('id', tribe.comp_id).maybeSingle(),
+      .select('name, allow_iou, sweep_approval_mode, owner_name, sweep_ticket_price_cents, sweep_prize_split').eq('id', tribe.comp_id).maybeSingle(),
     getOrganiserDetails(admin, tribe.comp_id),
     (admin.from('sweep_payment_requests') as any)
       .select('created_at, receipt_attached_at, payment_method').eq('tribe_id', tribeId).eq('user_id', user.id).eq('status', 'pending'),
@@ -178,6 +179,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({
     comp_id:         tribe.comp_id,
+    // For the printable draw sheet's heading (/sweep/sheet).
+    pool_name:       (tribe as any).name ?? null,
+    sweep_name:      (comp as any)?.name ?? null,
+    race_name:       (tourn as any)?.name ?? null,
     is_practice:     isPractice,
     voices:          voicesFor(tourn, sweepVoices),   // which of Vicky & Gordo are on (migrations 210–212)
     ticket_price_cents: price,

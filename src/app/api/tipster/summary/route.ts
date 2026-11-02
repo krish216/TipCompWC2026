@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getTipsterStats } from '@/lib/tipster-trophies'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/tipster/summary?u=<userId>
 // Compact identity + cabinet highlights for the chat/member popover — so a tap shows a card

@@ -3,6 +3,8 @@ import { createServerSupabaseClient, getSessionUser } from '@/lib/supabase-serve
 import { createAdminClient } from '@/lib/supabase'
 import { getDefaultScoringConfig, calcPoints } from '@/types'
 
+export const fetchCache = 'force-no-store'
+
 // POST /api/demo/generate
 // Tournament admin only. Steps:
 //  1. Copy GS fixtures from real fixtures → demo_fixtures (idempotent)

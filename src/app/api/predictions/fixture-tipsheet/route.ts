@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { getOutcome } from '@/types'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 // GET /api/predictions/fixture-tipsheet?fixture_id=&tribe_id=
 // Mutual-lock tipsheet for a single fixture: returns the picks of tribe members

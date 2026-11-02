@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { dogBySlug } from '@/lib/dogs'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2024-04-10' })
 
