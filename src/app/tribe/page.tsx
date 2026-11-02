@@ -1072,17 +1072,26 @@ export default function TribePage() {
     if (tribe?.id) setWelcomeDismissed(localStorage.getItem(`tribe_welcome_${tribe.id}`) === '1')
   }, [tribe?.id])
 
+  // Only the latest loadTribe may set state. Arriving from /sweep with ?comp_id= runs it once
+  // for the previously selected comp, then again after the switch — if the first (often "no
+  // pool in that sweep") answer landed last, it blanked the right pool and showed the
+  // football-style "pick a tribe" screen.
+  const loadTribeSeq = useRef(0)
   const loadTribe = useCallback(async () => {
+    const seq = ++loadTribeSeq.current
+    const stale = () => seq !== loadTribeSeq.current
     setLoading(true)
     try {
       const { data: userRow } = await supabase
         .from('user_preferences').select('tournament_id').eq('user_id', session!.user.id).single()
       const tid = (userRow as any)?.tournament_id ?? null
+      if (stale()) return
       setActiveTournamentId(tid)
 
       const compParam = selectedComp?.id ? `?comp_id=${selectedComp.id}` : ''
       const tribeRes = await fetch(`/api/tribes${compParam}`)
       const tribeData = await tribeRes.json()
+      if (stale()) return
 
       // Fetch fixtures in background — don't block tribe display on failure
       fetch(`/api/fixtures${tid ? `?tournament_id=${tid}` : ''}`)
@@ -1101,6 +1110,7 @@ export default function TribePage() {
             const { data: compRow } = await supabase
               .from('comps').select('name, logo_url, invite_code').eq('id', raw.comp_id).single()
             if (compRow) raw._org = compRow
+            if (stale()) return
           }
           const members: Member[] = (raw.tribe_members ?? []).map((tm: any) => {
             const u = tm.users ?? tm.user ?? {}
@@ -1121,9 +1131,9 @@ export default function TribePage() {
       }
     } catch (e) {
       console.error('[loadTribe] error:', e)
-      setTribe(null)
+      if (!stale()) setTribe(null)
     } finally {
-      setLoading(false)
+      if (!stale()) setLoading(false)
     }
   }, [session, supabase, selectedComp?.id])
 
