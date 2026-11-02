@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { DemoRace } from './DemoRace'
+import { CUP_OG_IMAGES } from '../cup'
 
 // Public demo of a practice sweep's race (no sign-in) — the link for Reddit and socials.
 // Everything runs in the browser on the made-up practice field; nothing is saved.
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
     url: 'https://tribepicks.com/melbourne-cup/race',
     siteName: 'TribePicks',
     type: 'website',
+    images: CUP_OG_IMAGES,
   },
   twitter: { card: 'summary_large_image', title: 'Run a practice Melbourne Cup race 🏇', description: DESC },
 }

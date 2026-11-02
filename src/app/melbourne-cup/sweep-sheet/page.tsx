@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import QRCode from 'qrcode'
-import { getCup, getField, raceDayLabel } from '../cup'
+import { getCup, getField, raceDayLabel, CUP_OG_IMAGES } from '../cup'
 import { PrintButton } from './PrintButton'
 
 export const revalidate = 900
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: 'Printable Melbourne Cup 2026 sweep sheet — free | TribePicks',
   description: DESC,
   alternates: { canonical: URL },
-  openGraph: { title: 'Free printable Melbourne Cup 2026 sweep sheet', description: DESC, url: URL, siteName: 'TribePicks', type: 'website' },
+  openGraph: { title: 'Free printable Melbourne Cup 2026 sweep sheet', description: DESC, url: URL, siteName: 'TribePicks', type: 'website', images: CUP_OG_IMAGES },
 }
 
 const BLANK_FIELD = 24   // the Cup's maximum field

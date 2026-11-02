@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { faqJsonLd } from '@/lib/seo'
+import { CUP_OG_IMAGES } from '../cup'
 
 // What each state and territory's regulator says about running a small Melbourne Cup sweep,
 // summarised from the regulator's own pages (and statutes where the page is silent). General
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
   title: 'Melbourne Cup sweep rules by state — is your office sweep legal? | TribePicks',
   description: DESC,
   alternates: { canonical: URL },
-  openGraph: { title: 'Melbourne Cup sweep rules by state', description: DESC, url: URL, siteName: 'TribePicks', type: 'website' },
+  openGraph: { title: 'Melbourne Cup sweep rules by state', description: DESC, url: URL, siteName: 'TribePicks', type: 'website', images: CUP_OG_IMAGES },
 }
 
 type State = { code: string; name: string; regulator: string; points: string[]; note?: string; sources: { label: string; href: string }[] }

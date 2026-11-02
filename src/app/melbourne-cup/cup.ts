@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase'
 
 export const CUP_SLUG = 'melbourne-cup-2026'
 
+// The Cup share card (./opengraph-image.tsx). A page that sets its own openGraph loses the
+// segment's image, so the pages under /melbourne-cup name it explicitly.
+export const CUP_OG_IMAGES = [{ url: 'https://tribepicks.com/melbourne-cup/opengraph-image', width: 1200, height: 630, alt: 'Melbourne Cup 2026 sweeps on TribePicks' }]
+
 export type Cup = {
   id: string; name: string; race_date: string | null; race_start_at: string | null
   enrollment_open: boolean | null; sweep_draw_open: boolean | null

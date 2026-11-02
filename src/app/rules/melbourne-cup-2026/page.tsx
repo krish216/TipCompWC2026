@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   title: 'Melbourne Cup 2026 Sweep — how it works | TribePicks',
   description: 'How a TribePicks Melbourne Cup sweep works: join a pool, buy tickets from your organiser, spin the wheel for your horse once the draw opens, and your pool\'s three best-finishing horses win its prizes. TribePicks never handles the money.',
   alternates: { canonical: 'https://tribepicks.com/rules/melbourne-cup-2026' },
+  // Its own, or link previews fall back to the site-wide football card.
+  openGraph: {
+    title: 'How a Melbourne Cup sweep works on TribePicks',
+    description: 'Buy tickets from your organiser, spin the wheel for your horse, and your pool’s three best-finishing horses win. Every dollar goes back as prizes.',
+    url: 'https://tribepicks.com/rules/melbourne-cup-2026',
+    siteName: 'TribePicks',
+    type: 'website',
+  },
 }
 
 const FAQS = [

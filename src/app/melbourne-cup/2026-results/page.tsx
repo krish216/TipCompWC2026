@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { getCup, getField, raceDayLabel } from '../cup'
+import { getCup, getField, raceDayLabel, CUP_OG_IMAGES } from '../cup'
 import { ordinal } from '@/lib/sweep/podium'
 
 // The 2026 Cup's official finishing order, for people checking their sweep — the same
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: 'Melbourne Cup 2026 results — full finishing order for your sweep | TribePicks',
   description: DESC,
   alternates: { canonical: URL },
-  openGraph: { title: 'Melbourne Cup 2026 results for your sweep', description: DESC, url: URL, siteName: 'TribePicks', type: 'website' },
+  openGraph: { title: 'Melbourne Cup 2026 results for your sweep', description: DESC, url: URL, siteName: 'TribePicks', type: 'website', images: CUP_OG_IMAGES },
 }
 
 const PAYOUT = [
