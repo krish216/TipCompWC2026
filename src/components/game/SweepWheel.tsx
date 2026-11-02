@@ -51,6 +51,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
   const [phase, setPhase]   = useState<'idle' | 'spinning' | 'fast' | 'settling' | 'result'>('idle')
   const [spinKey, setSpinKey] = useState(0)   // bumped only by startSpin — the loop's sole trigger
   const [result, setResult] = useState<PickResult | null>(null)
+  const [landed, setLanded] = useState<number | null>(null)   // the slice under the pointer, lit gold once drawn
   const [hover, setHover]   = useState(false)
 
   const segAngle = 360 / shown
@@ -101,6 +102,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
 
   function startSpin() {
     setResult(null)
+    setLanded(null)
     setPhase('spinning')
     setSpinKey(k => k + 1)
   }
@@ -128,6 +130,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
       await new Promise(r => setTimeout(r, 600))
     }
     setResult(res)
+    setLanded(idx >= 0 ? idx : null)
     setPhase('result')
     if (wheelRef.current) wheelRef.current.style.transition = ''
     playCall(res.ok ? res.horse : undefined)
@@ -229,7 +232,7 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
               const x1 = cxp + r * Math.cos(a1), y1 = cyp + r * Math.sin(a1)
               const large = segAngle > 180 ? 1 : 0
               // An odd count would put two same-colour slices side by side at the seam.
-              const color = shown % 2 && i === shown - 1 ? '#22c55e' : SLICES[i % 2]
+              const color = i === landed ? GOLD : shown % 2 && i === shown - 1 ? '#22c55e' : SLICES[i % 2]
               const mid = (a0 + a1) / 2
               // The horse grows with its slice: sized to the slice's width at the icon's radius,
               // capped by the wheel's depth — 24 runners ≈ 14px, the last two ≈ 64px.
@@ -262,6 +265,21 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
           <image href="/logo-mark.png" x={cxp - 28} y={cyp - 28} width={56} height={56} clipPath="url(#sweep-hub-clip)" preserveAspectRatio="xMidYMid slice" />
           <path d={`M${cxp - 11},2 L${cxp + 11},2 L${cxp},${cyp - r + 14} Z`} fill={GOLD} stroke="#ffffff" strokeWidth={1.5} filter="url(#sweep-shadow)" />
         </svg>
+        {/* The drawn horse, on the wheel where everyone's already looking — just under the
+            pointer, above the hub's action label. */}
+        {phase === 'result' && result?.ok && result.horse && (
+          <div className="absolute inset-x-0 top-12 flex justify-center px-6 pointer-events-none" aria-live="polite">
+            <div className="max-w-full bg-white rounded-2xl px-4 py-2 text-center shadow-xl ring-2 ring-amber-400"
+              style={{ animation: 'sweep-drawn 450ms cubic-bezier(0.17, 0.84, 0.44, 1.25)' }}>
+              <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wide">You drew</p>
+              <p className="text-lg font-black text-gray-900 leading-tight flex items-center justify-center gap-1.5">
+                {/* 🏇 faces left — mirrored so it runs the same way as the race */}
+                <span className="inline-block text-xl" style={{ transform: 'scaleX(-1)' }} aria-hidden>🏇</span>
+                <span>#{result.horse.number} {result.horse.name}</span>
+              </p>
+            </div>
+          </div>
+        )}
         {/* On the wheel while it's still — once it moves, the motion blur would smear it. */}
         {(phase === 'idle' || action) && (
           // Centred on the hub. The pulse animates `transform`, so the centring sits on a wrapper.
@@ -291,13 +309,8 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
       )}
       {phase === 'result' && result && (
         result.ok && result.horse ? (
-          <div className="mt-5 text-center">
-            <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">You drew</p>
-            <p className="text-xl font-black text-gray-900 flex items-center justify-center gap-2">
-              {/* 🏇 faces left — mirrored so it runs the same way as the race */}
-              <span className="inline-block text-2xl" style={{ transform: 'scaleX(-1)' }} aria-hidden>🏇</span>
-              #{result.horse.number} {result.horse.name}
-            </p>
+          // The horse itself is on the wheel; this is the follow-up.
+          <div className="mt-4 text-center">
             {queueRef.current.length > 0 && (
               <button onClick={() => playCall(result.horse, true)}   // a tap of its own — no unlock needed (its pause would cut this off)
                
@@ -320,6 +333,10 @@ export function SweepWheel({ slots, onDraw, resultNote, resultAction, announce }
         @keyframes sweep-prompt {
           0%, 100% { opacity: 1;    transform: scale(1.06); box-shadow: 0 0 24px 4px rgba(251,191,36,0.7); }
           50%      { opacity: 0.4;  transform: scale(1);    box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+        }
+        @keyframes sweep-drawn {
+          from { opacity: 0; transform: scale(0.6); }
+          to   { opacity: 1; transform: scale(1); }
         }
         /* On the hub the label sits over the logo, so it pulses by size and glow, never fading. */
         @keyframes sweep-hub {

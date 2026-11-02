@@ -4,7 +4,7 @@ export const metadata = {
   alternates: { canonical: 'https://tribepicks.com/privacy' },
 }
 
-const LAST_UPDATED = '18 June 2026'
+const LAST_UPDATED = '2 November 2026'
 const CONTACT_EMAIL = 'privacy@tribepicks.com'
 const APP_NAME = 'TribePicks'
 const OPERATOR = '11outof10 Pty Ltd. (ACN 637 629 219)'
@@ -57,8 +57,9 @@ export default function PrivacyPage() {
             <li>Comply with our legal obligations</li>
           </ul>
           <p className="mt-2">
-            We will not use your personal information for direct marketing without your explicit consent,
-            and we will not sell your personal information to any third party.
+            We may occasionally email you about other {APP_NAME} competitions you could join. Every one of
+            these emails has a one-click unsubscribe link, and once you unsubscribe we won&apos;t send you
+            another. We will not sell your personal information to any third party.
           </p>
         </section>
 
