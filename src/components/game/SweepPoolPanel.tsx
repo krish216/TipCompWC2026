@@ -11,6 +11,7 @@ import { scriptForFinish } from '@/lib/sweep/demo-race-scripts'
 import { drawCallClips } from '@/lib/sweep/cup-calls'
 import { ALL_VOICES_ON, type Voices } from '@/lib/sweep/voices'
 import { SweepHorseSheet } from '@/components/game/SweepHorseSheet'
+import { SweepApprovalModal, type PendingRequest } from '@/components/game/SweepApprovalModal'
 import { fmtLeft } from '@/lib/sweep/grace'
 import { FeedLuckNudge } from '@/components/game/FeedLuckNudge'
 import { useSupabase } from '@/components/layout/SupabaseProvider'
@@ -134,6 +135,8 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
   // `slots` is frozen at the draw so the landed wheel doesn't redraw under the pointer.
   // `synced` once the refresh after the draw has landed (until then my_unclaimed still counts it).
   const [held, setHeld] = useState<{ slots: number; synced: boolean } | null>(null)
+  const [approving, setApproving] = useState<PendingRequest[] | null>(null)   // organiser's approval pop-up
+  const [openingApprovals, setOpeningApprovals] = useState(false)
   const [wheelKey, setWheelKey] = useState(0)
   const [buying,    setBuying]    = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -166,6 +169,31 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
   }
 
   useEffect(() => { load() }, [tribeId, session?.user?.id])
+
+  // Waiting on the organiser: check every 15s (visible tab only) and on coming back to the
+  // tab, so the wheel turns up the moment a request is approved — and for the organiser, so
+  // new requests turn up in the "waiting for you" banner. Only while there's nothing to spin
+  // (a reload mid-spin could change the wheel's slice count under them) and no pop-up open.
+  const awaitingApproval = !!sweep && sweep.my_unclaimed === 0 && !held && !approving
+    && ((sweep.draw_open && myRequests.some(r => r.status === 'pending')) || sweep.is_comp_admin)
+  useEffect(() => {
+    if (!awaitingApproval) return
+    const refresh = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', refresh)
+    const t = setInterval(refresh, 15_000)
+    return () => { document.removeEventListener('visibilitychange', refresh); clearInterval(t) }
+  }, [awaitingApproval, tribeId])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Approved while they waited: bring the wheel (it's first in the panel) into view.
+  const unclaimedRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!sweep) return
+    const before = unclaimedRef.current
+    unclaimedRef.current = sweep.my_unclaimed
+    if (before === 0 && sweep.my_unclaimed > 0 && sweep.draw_open && !held) {
+      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [sweep])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Run the race" on the sweep card → play it here once the result has loaded.
   useEffect(() => {
@@ -228,6 +256,27 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
     if (res.failed?.length) setError(`Bought for ${res.bought}, but not everyone: ${res.failed[0].error}`)
     setBasket(null); setPicked(new Set())
     await load()
+  }
+
+  // Organiser: the "awaiting approval" banner opens the approval pop-up right here (the same
+  // pop-up and APIs as /sweep and sweep-admin) — every pending request in the sweep, not just
+  // this pool's, since that's what the organiser has to clear.
+  async function openApprovals() {
+    if (!sweep) return
+    setOpeningApprovals(true)
+    const res = await fetch(`/api/comps/${sweep.comp_id}/sweep/requests?status=pending`).then(r => r.json()).catch(() => null)
+    setOpeningApprovals(false)
+    if (!res?.data) { window.location.href = `/sweep-admin?comp_id=${sweep.comp_id}&tab=requests`; return }
+    if (res.data.length) setApproving(res.data)
+    else load()   // already dealt with elsewhere — refresh the stale banner
+  }
+  async function actOnRequest(r: PendingRequest, action: 'approve' | 'reject') {
+    const res = await fetch(`/api/tribes/${r.tribe_id}/sweep/requests/${r.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+    }).then(r => r.json()).catch(() => ({ error: 'Something went wrong' }))
+    if (res.error) { setError(res.error); setApproving(null); return }
+    setApproving(a => { const left = (a ?? []).filter(x => x.id !== r.id); return left.length ? left : null })
+    load()
   }
 
   // The server draws the horse (uniform random from what's left) — we never send one.
@@ -490,14 +539,23 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
       {/* Organiser: the one urgent thing stays up top. Everything else they do lives in
           "Who's in this pool" (lock, settings, buy on someone's behalf, draw for them). */}
       {sweep.is_comp_admin && pendingCount > 0 && (
-        <Link href={`/sweep-admin?comp_id=${sweep.comp_id}&tab=requests`}
-          className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-2xl px-4 py-3 mb-5">
-          <span className="text-sm font-bold text-amber-800">
-            {pendingCount} ticket request{pendingCount === 1 ? '' : 's'} awaiting approval
+        <button type="button" onClick={openApprovals} disabled={openingApprovals}
+          className="w-full flex items-center justify-between gap-3 text-left bg-amber-50 border-2 border-amber-300 hover:bg-amber-100 rounded-2xl px-4 py-3 mb-5 disabled:opacity-70">
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+              <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75 animate-ping" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+            </span>
+            <span className="text-sm font-bold text-amber-900">
+              {pendingCount} ticket request{pendingCount === 1 ? '' : 's'} waiting for you
+            </span>
           </span>
-          <span className="text-xs font-bold text-amber-700 whitespace-nowrap">Review →</span>
-        </Link>
+          <span className="shrink-0 bg-amber-500 text-white text-xs font-black px-3 py-1.5 rounded-lg whitespace-nowrap">
+            {openingApprovals ? 'Opening…' : 'Tap to approve'}
+          </span>
+        </button>
       )}
+      {approving && <SweepApprovalModal requests={approving} onAct={actOnRequest} onClose={() => setApproving(null)} />}
 
       {/* Prizes as they stand right now — grows with every ticket sold, so buyers can see
           what they're playing for (and that it's this POOL's pot, not the whole sweep's). */}

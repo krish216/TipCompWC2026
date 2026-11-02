@@ -237,6 +237,57 @@ export async function sendSweepRequestRejected(opts: {
   }
 }
 
+// To the organiser, the moment a ticket request is ready for them to approve: a cash request
+// as it comes in, a bank transfer once its receipt is attached (manual approval only), or
+// the buyer's "remind" nudge. The button opens the approval pop-up on /sweep (?approve=).
+export async function sendSweepRequestToApprove(opts: {
+  email: string; name?: string | null
+  compId: string; compName: string; buyerName: string
+  tickets: number; amount: number | null; paymentMethod: string
+  reminder?: boolean
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+  try {
+    const firstName = (opts.name ?? '').trim().split(' ')[0]
+    const tickets = `${opts.tickets} ticket${opts.tickets === 1 ? '' : 's'}`
+    const transfer = opts.paymentMethod === 'bank_transfer'
+    const rows = [
+      row('🏇 Sweep', opts.compName),
+      row('🙋 Who', opts.buyerName),
+      row('🎟️ Tickets', String(opts.tickets)),
+      ...(opts.amount != null ? [row('💵 Amount', `$${opts.amount.toFixed(2)}`)] : []),
+      row('💳 Paying by', PAYMENT_METHOD_LABEL[opts.paymentMethod] ?? opts.paymentMethod),
+    ].join('')
+    const lead = opts.reminder
+      ? `${esc(opts.buyerName)} is still waiting on ${tickets} — they've asked us to give you a nudge.`
+      : `${esc(opts.buyerName)} wants ${tickets} in your sweep.`
+    const check = transfer
+      ? 'They\'ve attached their transfer receipt. Check the money has landed in your account, then approve.'
+      : 'They\'re paying cash. Approve once it\'s in your hand.'
+
+    const body = `
+  <p style="margin:0 0 16px;font-size:15px;color:#374151;">${lead}</p>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:16px;padding:6px 16px;">
+    ${rows}
+  </table>
+  <p style="margin:0 0 22px;font-size:14px;color:#374151;">${check} Approving gives them their tickets so they can spin for a horse, and marks them as paid.</p>
+  <div style="text-align:center;margin-bottom:8px;">
+    <a href="https://tribepicks.com/sweep?approve=${encodeURIComponent(opts.compId)}" style="display:inline-block;padding:12px 30px;background:#16a34a;color:#ffffff;font-weight:700;font-size:14px;border-radius:8px;text-decoration:none;">Review &amp; approve →</a>
+  </div>`
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { error } = await resend.emails.send({
+      from: FROM, to: opts.email,
+      subject: `${opts.reminder ? 'Reminder: ' : ''}${opts.buyerName} wants ${tickets} — ${opts.compName}`,
+      html: wrap(firstName ? `Hi ${esc(firstName)} —` : 'Hi —', body,
+        'You\'re receiving this because you run this TribePicks sweep. TribePicks never handles the money itself.'),
+    })
+    if (error) console.error('[sweep/emails] request-to-approve send failed:', error)
+  } catch (e: any) {
+    console.error('[sweep/emails] request-to-approve error:', e?.message ?? e)
+  }
+}
+
 // One prize winner in a pool (roll-down — lib/sweep/podium.ts): the prize place(s) won,
 // where the horse actually finished, and the money, if the sweep has a ticket price.
 export type PodiumEntry = {

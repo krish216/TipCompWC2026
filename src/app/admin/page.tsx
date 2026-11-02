@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { SCORED_SLOTS } from '@/lib/bracket-scoring'
 import { SweepEoiQrButton } from '@/components/game/SweepEoiQrButton'
 import { VOICE_PARTS, type VoicePart, type Voices } from '@/lib/sweep/voices'
+import { fmtCents } from '@/lib/sweep/prizes'
 
 const SIM_ROUND_DEFS: { round: string; label: string }[] = [
   { round: 'r32', label: 'Round of 32' }, { round: 'r16', label: 'Round of 16' },
@@ -23,7 +24,7 @@ const SIM_ROUND_DEFS: { round: string; label: string }[] = [
 type FixtureMap = Partial<Record<RoundId, Fixture[]>>
 type ResultMap  = Record<number, MatchScore & { pen_winner?: string | null }>
 type LockMap    = Record<string, boolean>
-type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo' | 'announcements' | 'feedback'
+type AdminTab   = 'results' | 'locks' | 'scoring' | 'tournament' | 'access' | 'demo' | 'stats' | 'announcements' | 'feedback'
 
 // ALL_ROUNDS and ROUND_LABELS are now derived from tournament_rounds API
 // via scoringConfig loaded in UserPrefsContext — no hardcoding
@@ -292,6 +293,9 @@ export default function AdminPage() {
     if (isSweepTourn && (activeTab === 'results' || activeTab === 'locks' || activeTab === 'scoring')) {
       setActiveTab('tournament')
     }
+    // A sweep has Stats where football has Demo — swap if the tournament changes under either.
+    if (isSweepTourn && activeTab === 'demo') setActiveTab('stats')
+    if (!isSweepTourn && activeTab === 'stats') setActiveTab('demo')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSweepTourn])
   const [logoUploading,   setLogoUploading]   = useState(false)
@@ -616,6 +620,23 @@ export default function AdminPage() {
 
   useEffect(() => { if (activeTab === 'demo') reloadSim() }, [activeTab])
 
+  // ── Sweep Stats tab (sweep tournaments, in place of Demo) ─────────────────
+  type SweepStats = {
+    summary: { sweeps: number; sweeps_with_buyers: number; tipsters_joined: number; members: number; buyers: number; tickets: number; spun: number; pending: number; pot_cents: number }
+    daily: { day: string; sweeps: number; joined: number; tickets: number }[]
+    sweeps: { id: string; name: string; invite_code: string; created_at: string; organiser: string | null; organiser_email: string | null; by_platform_admin: boolean; pools: number; members: number; buyers: number; tickets: number; spun: number; pending: number; price_cents: number; pot_cents: number }[]
+  }
+  const [sweepStats, setSweepStats] = useState<SweepStats | null>(null)
+  const [sweepStatsError, setSweepStatsError] = useState<string | null>(null)
+  const loadSweepStats = useCallback(() => {
+    if (!selectedTournId) return
+    setSweepStatsError(null)
+    fetch(`/api/admin/sweep-stats?tournament_id=${selectedTournId}`).then(r => r.json())
+      .then(d => { if (d.error) setSweepStatsError(d.error); else setSweepStats(d) })
+      .catch(() => setSweepStatsError('Couldn’t load stats'))
+  }, [selectedTournId])
+  useEffect(() => { if (activeTab === 'stats') { setSweepStats(null); loadSweepStats() } }, [activeTab, loadSweepStats])
+
   const postSim = async (payload: any, okMsg: string) => {
     setSimBusy(true)
     const res = await fetch('/api/bracket/sim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -867,7 +888,10 @@ export default function AdminPage() {
     { id: 'announcements', label: 'Announcements', icon: '📣' },
     { id: 'feedback',      label: 'Feedback',      icon: '💬' },
     { id: 'access',        label: 'Access',        icon: '👤' },
-    { id: 'demo',          label: 'Demo',          icon: '🤖' },
+    // The bracket simulator and football demo mean nothing for a race — a sweep gets Stats.
+    isSweepTourn
+      ? { id: 'stats' as AdminTab, label: 'Stats', icon: '📈' }
+      : { id: 'demo' as AdminTab,  label: 'Demo',  icon: '🤖' },
   ]
 
   const postAnnouncement = async () => {
@@ -1734,6 +1758,94 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════ */}
+      {/* TAB: STATS (sweep tournaments)                      */}
+      {/* ════════════════════════════════════════════════════ */}
+      {activeTab === 'stats' && (
+        sweepStatsError ? (
+          <p className="text-sm text-red-600">{sweepStatsError}</p>
+        ) : !sweepStats ? (
+          <div className="flex justify-center py-12"><Spinner className="w-6 h-6" /></div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">Members and buyers never count a sweep&apos;s own organisers. Days are Melbourne time.</p>
+              <button onClick={loadSweepStats} className="text-xs font-bold text-emerald-600 hover:underline">↻ Refresh</button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: 'Sweeps created', value: sweepStats.summary.sweeps, sub: `${sweepStats.summary.sweeps_with_buyers} with buyers` },
+                { label: 'Tipsters joined', value: sweepStats.summary.tipsters_joined, sub: `${sweepStats.summary.members} in a pool` },
+                { label: 'Tickets sold', value: sweepStats.summary.tickets, sub: `${sweepStats.summary.buyers} buyers · ${sweepStats.summary.spun} spun` },
+                { label: 'In the pots', value: fmtCents(sweepStats.summary.pot_cents), sub: `${sweepStats.summary.pending} request${sweepStats.summary.pending === 1 ? '' : 's'} pending` },
+              ].map(t => (
+                <div key={t.label} className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 shadow-sm">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{t.label}</p>
+                  <p className="text-2xl font-black text-gray-900 tabular-nums">{t.value}</p>
+                  <p className="text-[11px] text-gray-400">{t.sub}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <p className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 text-xs font-bold text-gray-500 uppercase tracking-wide">Last 14 days</p>
+              <table className="w-full text-xs tabular-nums">
+                <thead>
+                  <tr className="text-gray-400 text-left">
+                    <th className="px-4 py-1.5 font-semibold">Day</th>
+                    <th className="px-2 py-1.5 font-semibold text-right">Sweeps</th>
+                    <th className="px-2 py-1.5 font-semibold text-right">Tipsters joined</th>
+                    <th className="px-4 py-1.5 font-semibold text-right">Tickets</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {[...sweepStats.daily].reverse().map(d => (
+                    <tr key={d.day} className={d.sweeps || d.joined || d.tickets ? 'text-gray-900' : 'text-gray-300'}>
+                      <td className="px-4 py-1.5">{new Date(`${d.day}T12:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                      <td className="px-2 py-1.5 text-right font-semibold">{d.sweeps}</td>
+                      <td className="px-2 py-1.5 text-right font-semibold">{d.joined}</td>
+                      <td className="px-4 py-1.5 text-right font-semibold">{d.tickets}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <p className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 text-xs font-bold text-gray-500 uppercase tracking-wide">Sweeps ({sweepStats.sweeps.length})</p>
+              {sweepStats.sweeps.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-8">No sweeps yet</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {sweepStats.sweeps.map(s => (
+                    <div key={s.id} className="px-4 py-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {s.name}
+                            {s.by_platform_admin && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 align-middle">ours</span>}
+                          </p>
+                          <p className="text-[11px] text-gray-400 truncate">
+                            {s.organiser ?? 'Unknown'}{s.organiser_email ? ` · ${s.organiser_email}` : ''} · {s.invite_code} ·{' '}
+                            {new Date(s.created_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <p className="text-sm font-black text-gray-900 tabular-nums shrink-0">{fmtCents(s.pot_cents)}</p>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 tabular-nums">
+                        {s.pools} pool{s.pools === 1 ? '' : 's'} · {fmtCents(s.price_cents)} tickets · {s.members} member{s.members === 1 ? '' : 's'} · {s.buyers} buyer{s.buyers === 1 ? '' : 's'} · {s.tickets} sold · {s.spun} spun
+                        {s.pending > 0 && <span className="ml-1 font-bold text-amber-700">· {s.pending} pending</span>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
       )}
 
       {/* ════════════════════════════════════════════════════ */}

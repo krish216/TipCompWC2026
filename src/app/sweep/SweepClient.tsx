@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { RaceCountdown } from '@/components/game/RaceCountdown'
@@ -112,8 +112,20 @@ export default function SweepClient() {
     // Couldn't load them → the Requests tab, as before.
     if (!res?.data) { router.push(`/sweep-admin?comp_id=${compId}&tab=requests`); return }
     if (res.data.length) setApproving({ compId, requests: res.data })
-    else loadContext()   // already dealt with elsewhere — refresh the stale count
+    else { setCaughtUp(true); loadContext() }   // already dealt with elsewhere — refresh the stale count
   }
+
+  // The organiser's "Review & approve" email (and bell notification) links to
+  // /sweep?approve=<comp_id> — open that sweep's pop-up once, as soon as they're signed in.
+  const approveParam = searchParams.get('approve')
+  const [caughtUp, setCaughtUp] = useState(false)   // the link's requests were already dealt with
+  const openedFromLink = useRef(false)
+  useEffect(() => {
+    if (!approveParam || !session?.user?.id || openedFromLink.current) return
+    openedFromLink.current = true
+    router.replace('/sweep')   // so a refresh doesn't pop it up again
+    openApprovals(approveParam)
+  }, [approveParam, session?.user?.id])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function actOnRequest(r: PendingRequest, action: 'approve' | 'reject') {
     if (!approving) return
@@ -160,6 +172,22 @@ export default function SweepClient() {
   }
 
   useEffect(() => { loadContext() }, [session?.user?.id, code, compIdParam])
+
+  // Keep the "N to approve" pills and pool fill current without a reload — the same 20s,
+  // visible-tab-only poll sweep-admin uses, for organisers (practice sweeps too — they're how
+  // an organiser sees a sweep run, requests turning up included); and for everyone, a
+  // refresh on coming back to the tab (e.g. from their banking app after paying, or approving).
+  const organiser = (myPools ?? []).some(p => p.is_comp_admin)
+  useEffect(() => {
+    if (!session?.user?.id) return
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      fetch('/api/sweep/my-pools').then(r => r.json()).then(d => { if (d?.data) setMyPools(d.data) }).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', refresh)
+    const t = organiser ? setInterval(refresh, 20_000) : undefined
+    return () => { document.removeEventListener('visibilitychange', refresh); if (t) clearInterval(t) }
+  }, [session?.user?.id, organiser])
   useEffect(() => { fetch('/api/sweep/billing').then(r => r.json()).then(setBilling).catch(() => {}) }, [])
 
   function selectTournament(tournId: string) {
@@ -639,6 +667,12 @@ export default function SweepClient() {
           </div>
         ) : null
       })()}
+
+      {caughtUp && (
+        <p className="mb-5 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          ✓ All caught up — that request has already been dealt with.
+        </p>
+      )}
 
       {invitesCard}
 

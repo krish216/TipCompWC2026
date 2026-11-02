@@ -17,6 +17,7 @@ export type PendingRequest = {
 
 const POPUP_KEY = 'sweep-admin:approval-popup'
 const SOUND_KEY = 'sweep-admin:approval-sound'
+const APPROVED_KEY = 'sweep:approved-once'   // the how-it-works guide shows in full until the first approval
 export const REQUEST_CALL_CLIP = '/race-calls/organiser/new-request.mp3'
 
 function readFlag(key: string, fallback: boolean): boolean {
@@ -52,8 +53,9 @@ export function SweepApprovalModal({ requests, onAct, onClose, onPopupOff }: {
   onPopupOff?: () => void
 }) {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
+  const [showGuide, setShowGuide] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => { closeRef.current?.focus() }, [])
+  useEffect(() => { closeRef.current?.focus(); setShowGuide(!readFlag(APPROVED_KEY, false)) }, [])
   const r = requests[0]
   if (!r) return null
 
@@ -61,6 +63,7 @@ export function SweepApprovalModal({ requests, onAct, onClose, onPopupOff }: {
     setBusy(action)
     await onAct(r, action)
     setBusy(null)
+    if (action === 'approve') { writeFlag(APPROVED_KEY, true); setShowGuide(false) }
   }
   const tickets = `${r.tickets_requested} ticket${r.tickets_requested === 1 ? '' : 's'}`
 
@@ -81,6 +84,28 @@ export function SweepApprovalModal({ requests, onAct, onClose, onPopupOff }: {
           {r.payment_method.replace('_', ' ')}
           {r.receipt_url && <> · <a href={r.receipt_url} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 underline">see receipt</a></>}
         </p>
+
+        {/* How approving works — in full until the organiser's first approval, then on a tap. */}
+        {showGuide ? (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+            <ol className="flex items-start justify-between gap-1 text-center text-[11px] font-semibold text-emerald-900">
+              {[['🙋', 'They request'], ['💸', 'You get paid'], ['✓', 'You approve'], ['🎡', 'They spin']].map(([icon, label], i) => (
+                <li key={label} className="flex-1 flex flex-col items-center gap-0.5">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm shadow-sm">{icon}</span>
+                  <span className="leading-tight">{i + 1}. {label}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-[11px] text-emerald-900 mt-2">
+              {r.payment_method === 'bank_transfer'
+                ? <><strong>Bank transfer:</strong> open their receipt and check the money has landed in your account, then approve.</>
+                : <><strong>Cash:</strong> approve once it&apos;s in your hand.</>}
+              {' '}Rather not approve each one? Turn on <strong>IOU</strong> in your sweep&apos;s settings and tickets are instant.
+            </p>
+          </div>
+        ) : (
+          <button onClick={() => setShowGuide(true)} className="mt-2 text-[11px] font-semibold text-emerald-700 hover:underline">How approving works?</button>
+        )}
 
         <p className="text-xs text-gray-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
           Approving gives them their {tickets} <strong>and marks them as paid</strong> — only approve once the money&apos;s with you.

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase'
 import { grantTickets } from '@/lib/sweep/tickets'
 import { loadField } from '@/lib/sweep/field'
 import { autoDrawIfRequested } from '@/lib/sweep/draw'
-import { createNotifications } from '@/lib/notifications'
+import { alertOrganisers } from '@/lib/sweep/request-alerts'
 import { signReceiptUrls } from '@/lib/sweep/receipts'
 import { bankTransferEnabled, getOrganiserDetails } from '@/lib/sweep/organiser'
 
@@ -116,15 +116,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .select().maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: admins } = await (admin.from('comp_admins') as any).select('user_id').eq('comp_id', tribe.comp_id)
-  const { data: buyer } = await (admin.from('users') as any).select('display_name').eq('id', user.id).maybeSingle()
-  await createNotifications(((admins ?? []) as any[]).map(a => ({
-    user_id: a.user_id,
-    type: 'sweep_payment_request' as const,
-    title: `${(buyer as any)?.display_name ?? 'Someone'} wants ${ticketsRequested} ticket(s) in ${(comp as any)?.name ?? 'your sweep'}`,
-    body: paymentMethod === 'cash' ? 'Paying cash — approve once you\'ve got it in hand.' : 'Paid by bank transfer — review their receipt.',
-    data: { href: '/sweep-admin?tab=requests', comp_id: tribe.comp_id, tribe_id: tribeId, request_id: (inserted as any).id },
-  })))
+  // A cash request is ready to approve now. A bank transfer isn't until its receipt is
+  // attached — the receipt route tells the organiser then.
+  if (paymentMethod === 'cash') {
+    await alertOrganisers(admin, {
+      compId: tribe.comp_id, tribeId, requestId: (inserted as any).id, buyerId: user.id,
+      tickets: ticketsRequested, amount, paymentMethod,
+    })
+  }
 
   return NextResponse.json({ ok: true, request: inserted })
 }

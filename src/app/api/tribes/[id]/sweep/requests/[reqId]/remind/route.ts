@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase'
-import { createNotifications } from '@/lib/notifications'
+import { alertOrganisers } from '@/lib/sweep/request-alerts'
 import { approvalClockStart, approvalDeadline, getOrganiserDetails } from '@/lib/sweep/organiser'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const admin = createAdminClient()
   const { data: req } = await (admin.from('sweep_payment_requests') as any)
-    .select('id, comp_id, tribe_id, user_id, status, tickets_requested, payment_method, created_at, receipt_attached_at, last_reminded_at')
+    .select('id, comp_id, tribe_id, user_id, status, tickets_requested, payment_method, amount, created_at, receipt_attached_at, last_reminded_at')
     .eq('id', params.reqId).eq('tribe_id', params.id).maybeSingle()
   if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
   if (req.user_id !== user.id) return NextResponse.json({ error: 'Only the buyer can send a reminder' }, { status: 403 })
@@ -46,18 +46,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .update({ last_reminded_at: new Date(now).toISOString() }).eq('id', req.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const [{ data: admins }, { data: buyer }, { data: comp }] = await Promise.all([
-    (admin.from('comp_admins') as any).select('user_id').eq('comp_id', req.comp_id),
-    (admin.from('users') as any).select('display_name').eq('id', user.id).maybeSingle(),
-    (admin.from('comps') as any).select('name').eq('id', req.comp_id).maybeSingle(),
-  ])
-  await createNotifications(((admins ?? []) as any[]).map(a => ({
-    user_id: a.user_id,
-    type:    'sweep_payment_reminder' as const,
-    title:   `${(buyer as any)?.display_name ?? 'Someone'} is still waiting on ${req.tickets_requested} ticket${req.tickets_requested === 1 ? '' : 's'} in ${(comp as any)?.name ?? 'your sweep'}`,
-    body:    req.payment_method === 'cash' ? 'Paying cash — approve once you\'ve got it.' : 'Paid by bank transfer — review their receipt.',
-    data:    { href: `/sweep-admin?comp_id=${req.comp_id}&tab=requests`, comp_id: req.comp_id, tribe_id: params.id, request_id: req.id },
-  })))
+  await alertOrganisers(admin, {
+    compId: req.comp_id, tribeId: params.id, requestId: req.id, buyerId: user.id,
+    tickets: req.tickets_requested, amount: req.amount ?? null, paymentMethod: req.payment_method, reminder: true,
+  })
 
   return NextResponse.json({ ok: true, reminded_at: new Date(now).toISOString() })
 }

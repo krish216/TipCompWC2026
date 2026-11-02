@@ -6,6 +6,7 @@ import { grantTickets } from '@/lib/sweep/tickets'
 import { sendSweepPaymentConfirmation } from '@/lib/sweep/emails'
 import { loadField } from '@/lib/sweep/field'
 import { autoDrawIfRequested } from '@/lib/sweep/draw'
+import { alertOrganisers } from '@/lib/sweep/request-alerts'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -81,6 +82,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         drawOpen: (await loadField(admin, (tribe as any).tournament_id)).drawOpen,
       }).catch(() => {})
     }
+  } else {
+    // Manual approval: the receipt is what makes it ready to review — tell the organiser now.
+    await alertOrganisers(admin, {
+      compId: req.comp_id, tribeId: params.id, requestId: req.id, buyerId: user.id,
+      tickets: req.tickets_requested, amount: req.amount, paymentMethod: 'bank_transfer',
+    })
   }
 
   return NextResponse.json({ ok: true, request: updated })
