@@ -374,11 +374,14 @@ export default function SweepClient() {
     <SweepApprovalModal requests={approving.requests} onAct={actOnRequest} onClose={() => setApproving(null)} />
   )
 
-  const practiceCard = (
-    <div className="border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
-      <div className="flex items-center justify-between gap-3 mb-1">
+  // Folded to its heading once you're in a real sweep, so it doesn't crowd the sweep that
+  // matters; open on the browse screen, where it's how a newcomer tries one out.
+  const practiceCard = (folded: boolean) => (
+    <details open={!folded} className="group border border-violet-200 bg-violet-50 rounded-2xl p-4 mb-5">
+      <summary className="list-none cursor-pointer flex items-center justify-between gap-3 group-open:mb-1">
         <h2 className="text-xs font-bold text-violet-800 uppercase tracking-wide">🧪 My practice sweeps ({practiceSweeps.length})</h2>
-      </div>
+        <span className="text-violet-500 text-xs transition-transform group-open:rotate-90" aria-hidden>▸</span>
+      </summary>
       <p className="text-xs text-violet-900 mb-3">
         See how a sweep runs, start to finish — buy a ticket, approve it, spin for a horse, then run a pretend race.
         No real money. Share the invite link and friends can join as punters.
@@ -392,7 +395,7 @@ export default function SweepClient() {
         className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg">
         {startingPractice ? 'Setting it up…' : practiceSweeps.length ? '+ Start another practice sweep' : '🧪 Start a practice sweep'}
       </button>
-    </div>
+    </details>
   )
 
   const invitesCard = invites.length > 0 && (
@@ -594,7 +597,7 @@ export default function SweepClient() {
           <p className="text-xs text-gray-500">Use the invite link your organiser sent you — it'll start with <code>/sweep?code=</code> or <code>/join?code=</code>.</p>
         </div>
 
-        <div className="mt-5">{practiceCard}</div>
+        <div className="mt-5">{practiceCard(false)}</div>
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         {approvalModal}
@@ -649,7 +652,7 @@ export default function SweepClient() {
         </div>
       </div>
 
-      {practiceCard}
+      {practiceCard(true)}
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
       {approvalModal}
