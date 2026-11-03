@@ -86,7 +86,7 @@ function requestDeadline(r: MyRequest, windowHours: number, raceStartAt: string 
   return new Date(Math.min(byWindow, byLock))
 }
 const fmtDollars = (d: number) => fmtCents(Math.round(d * 100))
-const METHOD_LABEL = { cash: 'Cash', bank_transfer: 'Bank transfer', iou: 'IOU (owed)' } as const
+const METHOD_LABEL = { cash: 'Cash', bank_transfer: 'Bank transfer / PayID', iou: 'IOU (owed)' } as const
 const fmtWhen = (d: Date) => d.toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 
 // The per-tribe sweep draw — shared by the standalone /sweep page and the tribe page's
@@ -619,8 +619,14 @@ export function SweepPoolPanel({ tribeId, openPool, playRace, onRacePlayed }: {
               <option value="cash">Cash — pay your organiser in person</option>
               {/* Only methods the organiser has switched on. No bank details on file → nowhere to
                   tell the buyer to send money, so no transfer option at all. */}
-              {sweep.payment_details && <option value="bank_transfer">Bank transfer — attach a receipt</option>}
-              {sweep.bank_shared_directly && <option value="bank_transfer">Bank transfer — details from {sweep.organiser_name ?? 'your organiser'}</option>}
+              {/* PayID is paid and approved exactly like a transfer (same receipt), so it's the
+                  same option — but named, or buyers looking for PayID think it's missing. */}
+              {sweep.payment_details && <option value="bank_transfer">
+                {`${sweep.payment_details.payid
+                  ? (sweep.payment_details.bsb && sweep.payment_details.account_number ? 'Bank transfer or PayID' : 'PayID')
+                  : 'Bank transfer'} — attach a receipt`}
+              </option>}
+              {sweep.bank_shared_directly && <option value="bank_transfer">Bank transfer or PayID — details from {sweep.organiser_name ?? 'your organiser'}</option>}
               {sweep.allow_iou && <option value="iou">IOU — pay your organiser later</option>}
             </select>
           </div>
